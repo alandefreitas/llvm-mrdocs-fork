@@ -1,0 +1,136 @@
+//==- llvm/Support/Recycler.h - Recycling Allocator --------------*- C++ -*-==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the Recycler class template.  See the doxygen comment for
+// Recycler for more details.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef LLVM_SUPPORT_RECYCLER_H
+#define LLVM_SUPPORT_RECYCLER_H
+
+#include "llvm/ADT/ilist.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/ErrorHandling.h"
+#include <cassert>
+#include <type_traits>
+
+namespace llvm {
+
+/// PrintRecyclingAllocatorStats - Helper for RecyclingAllocator for
+/// printing statistics.
+///
+LLVM_ABI void PrintRecyclerStats(size_t Size, size_t Align,
+                                 size_t FreeListSize);
+
+/// Recycler - This class manages a linked-list of deallocated nodes
+/// and facilitates reusing deallocated memory in place of allocating
+/// new memory.
+///
+template <class T, size_t Size = sizeof(T), size_t Align = alignof(T)>
+class Recycler {
+  struct FreeNode {
+    FreeNode *Next;
+  };
+
+  /// List of nodes that have deleted contents and are not in active use.
+  FreeNode *FreeList = nullptr;
+
+  FreeNode *pop_val() {
+    auto *Val = FreeList;
+    __asan_unpoison_memory_region(Val, Size);
+    FreeList = FreeList->Next;
+    __msan_allocated_memory(Val, Size);
+    return Val;
+  }
+
+  void push(FreeNode *N) {
+    N->Next = FreeList;
+    FreeList = N;
+    __asan_poison_memory_region(N, Size);
+  }
+
+public:
+  /// Destroy the recycler; free list must be empty (call clear() first).
+  ~Recycler() {
+    // If this fails, either the callee has lost track of some allocation,
+    // or the callee isn't tracking allocations and should just call
+    // clear() before deleting the Recycler.
+    assert(!FreeList && "Non-empty recycler deleted!");
+  }
+  /// Copy construction is disabled; ownership of the free list is unique.
+  Recycler(const Recycler &) = delete;
+  /// Move-construct by transferring the free list from \p Other.
+  Recycler(Recycler &&Other)
+      : FreeList(std::exchange(Other.FreeList, nullptr)) {}
+  /// Construct an empty recycler with no recycled blocks.
+  Recycler() = default;
+
+  /// clear - Release all the tracked allocations to the allocator. The
+  /// recycler must be free of any tracked allocations before being
+  /// deleted; calling clear is one way to ensure this.
+  template<class AllocatorType>
+  void clear(AllocatorType &Allocator) {
+    if constexpr (std::is_same_v<std::decay_t<AllocatorType>,
+                                 BumpPtrAllocator>) {
+      // For BumpPtrAllocator, Deallocate is a no-op, so just drop the free
+      // list.
+      FreeList = nullptr;
+    } else {
+      while (FreeList) {
+        T *t = reinterpret_cast<T *>(pop_val());
+        Allocator.Deallocate(t, Size, Align);
+      }
+    }
+  }
+
+  /// Allocate storage for \c SubClass from the free list or \p Allocator.
+  ///
+  /// @param Allocator The allocator to use when the free list is empty.
+  /// @return A pointer to storage for a \c SubClass, either recycled or newly
+  ///         allocated.
+  template<class SubClass, class AllocatorType>
+  SubClass *Allocate(AllocatorType &Allocator) {
+    static_assert(alignof(SubClass) <= Align,
+                  "Recycler allocation alignment is less than object align!");
+    static_assert(sizeof(SubClass) <= Size,
+                  "Recycler allocation size is less than object size!");
+    static_assert(Size >= sizeof(FreeNode) &&
+                  "Recycler allocation size must be at least sizeof(FreeNode)");
+    return FreeList ? reinterpret_cast<SubClass *>(pop_val())
+                    : static_cast<SubClass *>(Allocator.Allocate(Size, Align));
+  }
+
+  /// Allocate storage for \c T from the free list or \p Allocator.
+  template<class AllocatorType>
+  T *Allocate(AllocatorType &Allocator) {
+    return Allocate<T>(Allocator);
+  }
+
+  /// Return \p Element to the free list for later reuse.
+  template<class SubClass, class AllocatorType>
+  void Deallocate(AllocatorType & /*Allocator*/, SubClass* Element) {
+    push(reinterpret_cast<FreeNode *>(Element));
+  }
+
+  /// Print free-list statistics for this recycler.
+  void PrintStats();
+};
+
+template <class T, size_t Size, size_t Align>
+void Recycler<T, Size, Align>::PrintStats() {
+  size_t S = 0;
+  for (auto *I = FreeList; I; I = I->Next)
+    ++S;
+  PrintRecyclerStats(Size, Align, S);
+}
+
+}
+
+#endif

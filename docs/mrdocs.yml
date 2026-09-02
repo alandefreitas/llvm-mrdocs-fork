@@ -1,0 +1,66 @@
+# LLVM + Clang documentation demo for Mr.Docs.
+# The documented input is the public header trees under llvm/include/llvm and
+# clang/include/clang; both are also on the include path so cross-references
+# resolve. The libcxx tree is NOT scanned. Modules that #include TableGen-
+# generated .inc files (which only exist after a full build) fail to parse and
+# are skipped; individual headers that abort/crash extraction are listed under
+# exclude-patterns with the reason.
+source-root: ..
+input:
+  - ../llvm/include/llvm
+# - ../clang/include/clang
+includes:
+  - ../llvm/include
+  - ../clang/include
+  - ../build/include
+  - ../build/tools/clang/include
+  - shims
+file-patterns:
+  - '*.h'
+recursive: true
+exclude-patterns:
+  # Platform-specific and buildless-unparseable headers (they abort extraction).
+  - '../llvm/include/llvm/Support/Windows/**'
+  - '../llvm/include/llvm/Support/Solaris/**'
+  - '../llvm/include/llvm/Support/TargetSelect.h'
+  - '../llvm/include/llvm/DebugInfo/PDB/DIA/**'      # needs Windows COM/DIA SDK
+  - '../llvm/include/llvm/Testing/**'                # needs gtest headers
+  - '../llvm/include/llvm/WindowsDriver/**'          # needs Windows COM
+  - '../llvm/include/llvm/WindowsResource/ResourceScriptTokenList.h'
+  - '../llvm/include/llvm/ExecutionEngine/OProfileWrapper.h'  # needs opagent.h
+  - '../llvm/include/llvm/PassSupport.h'             # legacy pass-manager glue
+  - '../llvm/include/llvm/PassAnalysisSupport.h'
+include-symbols:
+  - 'llvm::**'
+  - 'clang::**'
+implementation-defined:
+  - '**::detail'
+  - '**::internal'
+exclude-symbols:
+  - 'llvm::is_bitmask_enum'
+  - 'llvm::largest_bitmask_enum_bit'
+multipage: true
+generator: adoc
+auto-function-metadata: false
+non-standard-attributes: false
+# A corpus this large makes the global-namespace index page enormous; the
+# per-namespace pages already cover navigation.
+global-namespace-index: false
+# Bring-up strategy for a corpus this large: require briefs / any doc first,
+# defer parameter / enum / ref polish until the undocumented set is small.
+# max-warnings caps the report and skips remaining TUs once enough
+# undocumented candidates are known, so fix-docs rounds finish in seconds.
+#warn-as-error: true
+#max-warnings: 40
+warnings: true
+warn-if-undocumented: true
+warn-no-brief: true
+warn-no-paramdoc: true
+warn-unnamed-param: true
+warn-if-undoc-enum-val: false
+warn-if-doc-error: true
+warn-broken-ref: true
+warn-if-undocumented-namespace: true
+concurrency: 1
+addons-supplemental:
+  - addons
