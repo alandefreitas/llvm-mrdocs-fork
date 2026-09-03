@@ -785,8 +785,7 @@ public:
 /// reduce code duplication based on the SmallVector 'N' template parameter.
 ///
 /// @tparam T Element type stored in the vector.
-template <typename T>
-class SmallVectorImpl : public SmallVectorTemplateBase<T> {
+template <typename T> class SmallVectorImpl : public SmallVectorTemplateBase<T> {
   using SuperClass = SmallVectorTemplateBase<T>;
 
 public:

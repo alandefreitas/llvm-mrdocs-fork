@@ -40,8 +40,7 @@ template <typename T> class [[nodiscard]] MutableArrayRef;
 /// This is intended to be trivially copyable, so it should be passed by value.
 ///
 /// @tparam T Element type of the referenced array.
-template <typename T>
-class LLVM_GSL_POINTER [[nodiscard]] ArrayRef {
+template <typename T> class LLVM_GSL_POINTER [[nodiscard]] ArrayRef {
 public:
   /// Element type stored in the referenced array.
   using value_type = T;
