@@ -74,8 +74,10 @@ public:
   template <class E>
   /// Construct an error result from \p ErrorCode.
   ///
+  /// This overload is enabled when \p E is an error-code or error-condition
+  /// enum.
+  ///
   /// \param ErrorCode Error-code or error-condition enum to store.
-  /// \param EnableIf SFINAE parameter enabling this overload for error enums.
   ErrorOr(E ErrorCode,
           std::enable_if_t<std::is_error_code_enum<E>::value ||
                                std::is_error_condition_enum<E>::value,
@@ -95,8 +97,9 @@ public:
   template <class OtherT>
   /// Construct a success value from \p Val.
   ///
+  /// This overload is enabled when \p OtherT is convertible to \p T.
+  ///
   /// \param Val Value to store on the success path.
-  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   ErrorOr(OtherT &&Val,
           std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
               nullptr)
@@ -115,8 +118,9 @@ public:
   template <class OtherT>
   /// Copy-construct from \p Other.
   ///
+  /// This overload is enabled when \p OtherT is convertible to \p T.
+  ///
   /// \param Other ErrorOr to copy from.
-  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   ErrorOr(const ErrorOr<OtherT> &Other,
           std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
               nullptr) {
@@ -127,8 +131,9 @@ public:
   template <class OtherT>
   /// Explicit copy-construct from an incompatible \p Other.
   ///
+  /// This overload is enabled when \p OtherT is not convertible to \p T.
+  ///
   /// \param Other ErrorOr to copy from.
-  /// \param EnableIf SFINAE parameter enabling this overload when not convertible.
   explicit ErrorOr(
       const ErrorOr<OtherT> &Other,
       std::enable_if_t<!std::is_convertible_v<OtherT, const T &>> *EnableIf =
@@ -147,8 +152,9 @@ public:
   template <class OtherT>
   /// Move-construct from \p Other.
   ///
+  /// This overload is enabled when \p OtherT is convertible to \p T.
+  ///
   /// \param Other ErrorOr to move from.
-  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   ErrorOr(ErrorOr<OtherT> &&Other,
           std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
               nullptr) {
@@ -161,8 +167,9 @@ public:
   template <class OtherT>
   /// Explicit move-construct from an incompatible \p Other.
   ///
+  /// This overload is enabled when \p OtherT is not convertible to \p T.
+  ///
   /// \param Other ErrorOr to move from.
-  /// \param EnableIf SFINAE parameter enabling this overload when not convertible.
   explicit ErrorOr(
       ErrorOr<OtherT> &&Other,
       std::enable_if_t<!std::is_convertible_v<OtherT, T>> *EnableIf = nullptr) {

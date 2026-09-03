@@ -18,8 +18,6 @@
 
 namespace llvm {
 /// On-Request Compilation (ORC) JIT APIs.
-///
-/// ProxySpec types and factories that implement ORC Proxies via SPS.
 namespace orc {
 
 /// A MaterializationUnit implementation for pre-existing absolute symbols.

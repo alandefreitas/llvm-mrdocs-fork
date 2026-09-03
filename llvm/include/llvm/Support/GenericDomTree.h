@@ -43,7 +43,6 @@
 
 namespace llvm {
 
-template <typename NodeT, bool IsPostDom>
 /// Core dominator tree base class.
 ///
 /// This class is a generic template over graph nodes. It is instantiated for
@@ -51,6 +50,7 @@ template <typename NodeT, bool IsPostDom>
 ///
 /// \tparam NodeT Graph node type (typically a basic-block type).
 /// \tparam IsPostDom True for a post-dominator tree; false for a dominator tree.
+template <typename NodeT, bool IsPostDom>
 class DominatorTreeBase;
 
 template <class BlockT, class LoopT> class LoopInfoBase;

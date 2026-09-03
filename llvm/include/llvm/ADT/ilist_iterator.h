@@ -165,7 +165,6 @@ public:
 
   /// Construct from another iterator, allowing non-const to const conversion.
   /// @param RHS Source iterator to copy from.
-  /// @param EnableIf SFINAE discriminator enabling non-const to const only.
   template <bool RHSIsConst>
   ilist_iterator(const ilist_iterator<OptionsT, IsReverse, RHSIsConst> &RHS,
                  std::enable_if_t<IsConst || !RHSIsConst, void *> EnableIf =

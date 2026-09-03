@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <vector>
 
+/// APIs for loading, writing, and analyzing XRay function-call traces.
 namespace llvm::xray {
 
 /// RecordVisitor that groups FDR records into per-process/thread blocks.

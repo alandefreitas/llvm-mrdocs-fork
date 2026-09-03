@@ -21,9 +21,6 @@
 
 namespace llvm {
 
-/// Getters for the default sets of operations, per general category.
-/// @{
-
 /// Append integer arithmetic and icmp descriptors to \p Ops.
 /// \param Ops Collection of operation descriptors to extend.
 LLVM_ABI void describeFuzzerIntOps(std::vector<fuzzerop::OpDescriptor> &Ops);
@@ -60,9 +57,9 @@ describeFuzzerUnaryOperations(std::vector<fuzzerop::OpDescriptor> &Ops);
 /// Append miscellaneous operation descriptors to \p Ops.
 /// \param Ops Collection of operation descriptors to extend.
 LLVM_ABI void describeFuzzerOtherOps(std::vector<fuzzerop::OpDescriptor> &Ops);
-/// @}
 
 namespace fuzzerop {
+
 /// Return a descriptor that builds a select instruction.
 /// \param Weight Relative weight used when sampling this operation.
 /// \return Descriptor that builds a select instruction.

@@ -15,6 +15,7 @@
 
 namespace llvm {
 
+template <typename DerivedT, bool PreRegAlloc>
 /// CRTP base for new-PM machine-function tail-duplication passes.
 ///
 /// Duplicates basic blocks ending in unconditional branches into the tails of
@@ -22,7 +23,6 @@ namespace llvm {
 ///
 /// \tparam DerivedT Concrete pass type that inherits from this base.
 /// \tparam PreRegAlloc True to run before register allocation; false after.
-template <typename DerivedT, bool PreRegAlloc>
 class TailDuplicatePassBase : public OptionalPassInfoMixin<DerivedT> {
 private:
   std::unique_ptr<MBFIWrapper> MBFIW;

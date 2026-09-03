@@ -598,7 +598,6 @@ public:
   /// must be convertible to T.
   ///
   /// \param Val Value to store on the success path.
-  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   template <typename OtherT>
   Expected(OtherT &&Val,
            std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
@@ -623,7 +622,6 @@ public:
   /// must be convertible to T.
   ///
   /// \param Other Expected value to move from.
-  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   template <class OtherT>
   Expected(Expected<OtherT> &&Other,
            std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
@@ -691,7 +689,6 @@ public:
   /// Returns \a takeError() after moving the held T (if any) into \p Value.
   ///
   /// \param Value Destination that receives the success value when present.
-  /// \param EnableIf SFINAE parameter enabling this overload when assignable.
   /// \return The Error from takeError() after optionally moving the value.
   template <class OtherT>
   Error moveInto(

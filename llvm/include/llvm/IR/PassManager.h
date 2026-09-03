@@ -178,18 +178,22 @@ getAnalysisResult(AnalysisManager<IRUnitT, AnalysisArgTs...> &AM, IRUnitT &IR,
 
 } // namespace detail
 
-/// Pass manager that runs a sequence of passes over a particular unit of IR.
+/// Manages and runs a sequence of passes over a particular unit of IR.
 ///
 /// A pass manager contains a sequence of passes to run over a particular unit
-/// of IR (e.g. Functions, Modules). It is itself a valid pass over that unit of
-/// IR, and when run over some given IR will run each of its contained passes in
-/// sequence. Pass managers are the primary and most basic building block of a
-/// pass pipeline.
+/// of IR (for example, Functions or Modules). It is itself a valid pass over
+/// that unit of IR, and when run over some given IR it executes each of its
+/// contained passes in sequence. Pass managers are the primary and most basic
+/// building block of a pass pipeline.
 ///
 /// When you run a pass manager, you provide an \c AnalysisManager<IRUnitT>
-/// argument. The pass manager will propagate that analysis manager to each
-/// pass it runs, and will call the analysis manager's invalidation routine with
-/// the PreservedAnalyses of each pass it runs.
+/// argument. The pass manager propagates that analysis manager to each pass
+/// it runs, and calls the analysis manager's invalidation routine with each
+/// pass's \c PreservedAnalyses.
+///
+/// @tparam IRUnitT IR unit type this manager runs over.
+/// @tparam AnalysisManagerT Analysis manager type propagated to each pass.
+/// @tparam ExtraArgTs Extra argument types forwarded to each pass.
 template <typename IRUnitT,
           typename AnalysisManagerT = AnalysisManager<IRUnitT>,
           typename... ExtraArgTs>
@@ -231,6 +235,7 @@ public:
   /// Any additional arguments are forwarded to each pass.
   /// @param IR IR unit to run passes over.
   /// @param AM Analysis manager propagated to each pass.
+  /// @param ExtraArgs Extra arguments forwarded to each pass.
   /// @return The analyses preserved after running all passes.
   PreservedAnalyses run(IRUnitT &IR, AnalysisManagerT &AM,
                         ExtraArgTs... ExtraArgs);
@@ -483,6 +488,7 @@ public:
   /// Runs the analysis if a cached result is not available.
   /// Any additional arguments are forwarded to the analysis pass.
   /// @param IR IR unit to analyze.
+  /// @param ExtraArgs Extra arguments forwarded to the analysis pass.
   /// @return A reference to the (possibly newly computed) analysis result.
   template <typename PassT>
   typename PassT::Result &getResult(IRUnitT &IR, ExtraArgTs... ExtraArgs) {
@@ -649,22 +655,26 @@ extern template class LLVM_TEMPLATE_ABI AnalysisManager<Function>;
 /// Convenience typedef for the Function analysis manager.
 using FunctionAnalysisManager = AnalysisManager<Function>;
 
-/// Proxy an inner analysis manager through an outer IR unit.
+/// Proxies an inner analysis manager through an analysis of an outer IR unit.
 ///
 /// The inner IR unit must be contained in the outer unit.
 ///
 /// For example, InnerAnalysisManagerProxy<FunctionAnalysisManager, Module> is
 /// an analysis over Modules (the "outer" unit) that provides access to a
-/// Function analysis manager.  The FunctionAnalysisManager is the "inner"
-/// manager being proxied, and Functions are the "inner" unit.  The inner/outer
+/// Function analysis manager. The FunctionAnalysisManager is the "inner"
+/// manager being proxied, and Functions are the "inner" unit. The inner/outer
 /// relationship is valid because each Function is contained in one Module.
 ///
 /// If you're (transitively) within a pass manager for an IR unit U that
 /// contains IR unit V, you should never use an analysis manager over V, except
 /// via one of these proxies.
 ///
-/// Note that the proxy's result is a move-only RAII object.  The validity of
+/// Note that the proxy's result is a move-only RAII object. The validity of
 /// the analyses in the inner analysis manager is tied to its lifetime.
+///
+/// @tparam AnalysisManagerT Inner analysis manager type being proxied.
+/// @tparam IRUnitT Outer IR unit type this proxy is an analysis of.
+/// @tparam ExtraArgTs Extra argument types for the outer analysis manager.
 template <typename AnalysisManagerT, typename IRUnitT, typename... ExtraArgTs>
 class LLVM_TEMPLATE_ABI InnerAnalysisManagerProxy
     : public AnalysisInfoMixin<
@@ -748,6 +758,7 @@ public:
   /// required by the analysis API are unused.
   /// @param IR Outer IR unit (unused).
   /// @param AM Outer analysis manager (unused).
+  /// @param ExtraArgs Extra arguments required by the analysis API (unused).
   /// @return A result that owns invalidation for the inner analysis manager.
   Result run(IRUnitT &IR, AnalysisManager<IRUnitT, ExtraArgTs...> &AM,
              ExtraArgTs... ExtraArgs) {
@@ -926,6 +937,7 @@ public:
   /// arguments required by the analysis API are unused.
   /// @param IR Inner IR unit (unused).
   /// @param AM Inner analysis manager (unused).
+  /// @param ExtraArgs Extra arguments required by the analysis API (unused).
   /// @return A result that proxies the outer analysis manager.
   Result run(IRUnitT &IR, AnalysisManager<IRUnitT, ExtraArgTs...> &AM,
              ExtraArgTs... ExtraArgs) {

@@ -60,18 +60,8 @@ class Loop;
 class LoopInfo;
 class PostDominatorTree;
 class Region;
-/// A single-entry single-exit region in a control flow graph.
-///
-/// A Region is a connected subgraph of a control flow graph that has exactly
-/// two connections to the remaining graph. It can be used to analyze or
-/// optimize parts of the control flow graph.
 template <class RegionTr> class RegionBase;
 class RegionInfo;
-/// Analysis that detects all canonical Regions.
-///
-/// The RegionInfo pass detects all canonical regions in a function. The Regions
-/// are connected using the parent relation. This builds a Program Structure
-/// Tree.
 template <class RegionTr> class RegionInfoBase;
 class RegionNode;
 class raw_ostream;
@@ -138,11 +128,13 @@ struct RegionTraits<Function> {
 template <class GraphType>
 class FlatIt {};
 
-/// RegionNodeBase represents a BasicBlock or a nested subregion.
+/// A region node that holds a basic block or a nested subregion.
 ///
 /// Each node is either a single BasicBlock or a nested Region that belongs to
 /// a parent Region. The same BasicBlock can appear as multiple RegionNodes when
 /// it is an element of more than one Region.
+///
+/// @tparam Tr RegionTraits specialization that supplies the IR types.
 template <class Tr>
 class RegionNodeBase {
   friend class RegionBase<Tr>;
@@ -224,7 +216,7 @@ public:
   inline bool isSubRegion() const { return entry.getInt(); }
 };
 
-/// RegionBase represents a single-entry single-exit region in a control flow graph.
+/// A single-entry single-exit region in a control-flow graph.
 ///
 /// A Region is a connected subgraph of a control flow graph that has exactly
 /// two connections to the remaining graph. It can be used to analyze or
@@ -291,6 +283,8 @@ public:
 ///
 /// The first call returns a textual representation of the program structure
 /// tree, the second one creates a graphical representation using graphviz.
+///
+/// @tparam Tr RegionTraits specialization that supplies the IR types.
 template <class Tr>
 class RegionBase : public RegionNodeBase<Tr> {
   friend class RegionInfoBase<Tr>;
@@ -773,11 +767,13 @@ public:
 template <class Tr>
 inline raw_ostream &operator<<(raw_ostream &OS, const RegionNodeBase<Tr> &Node);
 
-/// RegionInfoBase builds the region tree for canonical Regions.
+/// Analysis that detects all canonical regions in a function.
 ///
 /// The RegionInfo pass detects all canonical regions in a function. The Regions
 /// are connected using the parent relation. This builds a Program Structure
 /// Tree.
+///
+/// @tparam Tr RegionTraits specialization that supplies the IR types.
 template <class Tr>
 class RegionInfoBase {
   friend class RegionInfo;

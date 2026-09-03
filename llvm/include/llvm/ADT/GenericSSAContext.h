@@ -21,12 +21,13 @@
 
 namespace llvm {
 
-/// Base class for dominator trees over graph nodes.
+/// Core dominator tree base class.
 ///
 /// This class is a generic template over graph nodes. It is instantiated for
 /// various graphs in the LLVM IR or in the code generator.
+///
 /// @tparam NodeT Graph node type (typically a basic-block type).
-/// @tparam IsPostDom Set to true for a post-dominator tree; false for a dominator tree.
+/// @tparam IsPostDom True for a post-dominator tree; false for a dominator tree.
 template <typename NodeT, bool IsPostDom> class DominatorTreeBase;
 template <typename> class SmallVectorImpl;
 

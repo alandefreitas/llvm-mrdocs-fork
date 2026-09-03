@@ -51,6 +51,11 @@ namespace llvm {
 
 /// Analysis that builds and owns the loop forest for a function.
 ///
+/// This class builds and contains all of the top-level loop structures in the
+/// specified function.
+///
+/// \tparam N Graph node type (typically a basic-block type).
+/// \tparam M Loop type representing loops in the forest.
 template <class N, class M> class LoopInfoBase;
 template <class N, class M> class LoopBase;
 
@@ -674,6 +679,9 @@ raw_ostream &operator<<(raw_ostream &OS, const LoopBase<BlockT, LoopT> &Loop) {
 ///
 /// This class builds and contains all of the top-level loop structures in the
 /// specified function.
+///
+/// \tparam BlockT Graph node type (typically a basic-block type).
+/// \tparam LoopT Loop type representing loops in the forest.
 template <class BlockT, class LoopT> class LoopInfoBase {
   static_assert(GraphHasNodeNumbers<const BlockT *>,
                 "LoopInfo requires GraphTraits<BlockT *>::getNumber (see "

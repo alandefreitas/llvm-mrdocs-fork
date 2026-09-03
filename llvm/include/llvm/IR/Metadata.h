@@ -2297,7 +2297,6 @@ public:
 
   /// Construct from a compatible wrapper when \c U* converts to \c T*.
   /// \param Other Source wrapper whose underlying tuple is reused.
-  /// \param Enable SFINAE enabler; unused at runtime.
   template <class U>
   MDTupleTypedArrayWrapper(
       const MDTupleTypedArrayWrapper<U> &Other,
@@ -2308,7 +2307,6 @@ public:
 
   /// Construct from a differently typed wrapper when \c U* is not convertible to \c T*.
   /// \param Other Source wrapper whose underlying tuple is reused.
-  /// \param Enable SFINAE enabler; unused at runtime.
   template <class U>
   explicit MDTupleTypedArrayWrapper(
       const MDTupleTypedArrayWrapper<U> &Other,

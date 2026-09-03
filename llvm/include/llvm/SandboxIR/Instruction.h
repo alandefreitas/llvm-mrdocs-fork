@@ -4778,10 +4778,12 @@ public:
   /// Return true if the predicate is a floating-point predicate.
   ///
   /// \return True if the predicate is a floating-point predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isFPPredicate);
   /// Return true if the predicate is an integer predicate.
   ///
   /// \return True if the predicate is an integer predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isIntPredicate);
   /// Return the name of a comparison predicate.
   ///
@@ -4791,38 +4793,47 @@ public:
   /// Return the inverse of a comparison predicate.
   ///
   /// \return The inverse of a comparison predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getInversePredicate);
   /// Return the ordered form of a floating-point predicate.
   ///
   /// \return The ordered form of a floating-point predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getOrderedPredicate);
   /// Return the unordered form of a floating-point predicate.
   ///
   /// \return The unordered form of a floating-point predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getUnorderedPredicate);
   /// Return the predicate with operands swapped.
   ///
   /// \return The predicate with operands swapped.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getSwappedPredicate);
   /// Return true if the predicate is strict.
   ///
   /// \return True if the predicate is strict.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isStrictPredicate);
   /// Return true if the predicate is non-strict.
   ///
   /// \return True if the predicate is non-strict.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isNonStrictPredicate);
   /// Return the strict form of a relational predicate.
   ///
   /// \return The strict form of a relational predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getStrictPredicate);
   /// Return the non-strict form of a relational predicate.
   ///
   /// \return The non-strict form of a relational predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getNonStrictPredicate);
   /// Return the predicate with flipped strictness.
   ///
   /// \return The predicate with flipped strictness.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getFlippedStrictnessPredicate);
   /// Return true if the predicate is commutative.
   ///
@@ -4831,26 +4842,32 @@ public:
   /// Return true if the predicate is an equality comparison.
   ///
   /// \return True if the predicate is an equality comparison.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isEquality);
   /// Return true if the predicate is relational.
   ///
   /// \return True if the predicate is relational.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isRelational);
   /// Return true if the predicate is signed.
   ///
   /// \return True if the predicate is signed.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isSigned);
   /// Return true if the predicate is true when operands are equal.
   ///
   /// \return True if the predicate is true when operands are equal.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isTrueWhenEqual);
   /// Return true if the predicate is false when operands are equal.
   ///
   /// \return True if the predicate is false when operands are equal.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isFalseWhenEqual);
   /// Return true if the predicate is unsigned.
   ///
   /// \return True if the predicate is unsigned.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isUnsigned);
   /// Return true if the floating-point predicate is ordered.
   ///
@@ -4904,18 +4921,22 @@ public:
   /// Return the signed form of an integer predicate.
   ///
   /// \return The signed form of an integer predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getSignedPredicate);
   /// Return the unsigned form of an integer predicate.
   ///
   /// \return The unsigned form of an integer predicate.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getUnsignedPredicate);
   /// Return the predicate with flipped signedness.
   ///
   /// \return The predicate with flipped signedness.
+  /// \param P Comparison predicate.
   WRAP_BOTH(getFlippedSignednessPredicate);
   /// Return true if the predicate is an equality comparison.
   ///
   /// \return True if the predicate is an equality comparison.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isEquality);
   /// Return true if the predicate is commutative.
   ///
@@ -4997,6 +5018,7 @@ public:
   /// Return true if the predicate is an equality comparison.
   ///
   /// \return True if the predicate is an equality comparison.
+  /// \param P Comparison predicate.
   WRAP_BOTH(isEquality);
   /// Return true if the predicate is commutative.
   ///

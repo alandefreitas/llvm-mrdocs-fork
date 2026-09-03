@@ -50,6 +50,7 @@ extern template class LLVM_TEMPLATE_ABI
 extern template class LLVM_TEMPLATE_ABI
     DominatorTreeBase<BasicBlock, true>; // PostDomTree
 
+/// Explicit instantiation of cfg::Update for BasicBlock pointers.
 extern template class cfg::Update<BasicBlock *>;
 
 namespace DomTreeBuilder {

@@ -204,8 +204,6 @@ public:
 
   /// Construct from a convertible bundle iterator (e.g. non-const to const).
   /// @param I Source bundle iterator to copy from.
-  /// @param EnableIf SFINAE discriminator enabling convertible element types
-  /// only.
   // Template allows conversion from const to nonconst.
   template <class OtherTy>
   MachineInstrBundleIterator(

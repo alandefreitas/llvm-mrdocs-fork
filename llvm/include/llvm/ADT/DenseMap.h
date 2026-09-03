@@ -624,8 +624,8 @@ protected:
     return NextPowerOf2(NumEntries * 4 / 3 + 1);
   }
 
-  /// Move key/value pairs from \p Other into this empty map.
-  ///
+  /// Move key/value pairs from \p Other into this empty map; requires \p Other
+  /// != this.
   /// @param Other Map to move entries from; left in a valid but empty state.
   LLVM_ATTRIBUTE_NOINLINE void moveFrom(DerivedT &Other) {
     assert(getNumEntries() == 0 && "moveFrom requires an empty destination");
@@ -654,8 +654,8 @@ protected:
     Other.derived().kill();
   }
 
-  /// Replace this map's contents with a copy of \p other.
-  ///
+  /// Replace this map's contents with a copy of \p other (requires \p other
+  /// != this).
   /// @param other Map whose entries are copied into this map.
   LLVM_ATTRIBUTE_NOINLINE void copyFrom(const DerivedT &other) {
     this->destroyAll();

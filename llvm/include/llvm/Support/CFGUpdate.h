@@ -32,10 +32,10 @@ enum class UpdateKind : unsigned char {
   Delete
 };
 
-/// Represents a CFG edge update (insert or delete) between two nodes.
+/// Represents an insertion or deletion of a CFG edge between two nodes.
 ///
-/// This class stores the edge endpoints and update kind, and provides
-/// accessors, comparison, and printing helpers.
+/// The update stores the source node, destination node, and whether the edge
+/// is inserted or deleted.
 ///
 /// \tparam NodePtr Pointer type of the CFG nodes at each end of the edge.
 template <typename NodePtr> class Update {

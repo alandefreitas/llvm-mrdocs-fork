@@ -19,7 +19,9 @@
 #include "llvm/ExecutionEngine/Orc/SPSProxySpec.h"
 #include "llvm/ExecutionEngine/Orc/Shared/SPSCI/CallSPSCI.h"
 
-namespace llvm::orc::sps {
+namespace llvm::orc {
+/// Simple Packed Serialization (SPS) bindings for ORC executor proxies.
+namespace sps {
 
 /// SPS proxy for CallMainProxy: runs a main-like function
 /// (int(int argc, char *argv[])) in the executor.
@@ -42,6 +44,7 @@ using CallInt32VoidProxySpec =
 using CallInt32Int32ProxySpec =
     ProxySpec<CallInt32Int32Proxy, rt::sps_ci::CallInt32Int32>;
 
-} // namespace llvm::orc::sps
+} // namespace sps
+} // namespace llvm::orc
 
 #endif // LLVM_EXECUTIONENGINE_ORC_CALLPROXIESSPS_H

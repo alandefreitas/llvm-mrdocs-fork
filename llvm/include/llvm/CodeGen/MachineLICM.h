@@ -13,8 +13,6 @@
 
 namespace llvm {
 
-template <typename DerivedT, bool PreRegAlloc>
-
 /// CRTP base for new-PM machine loop-invariant code motion passes.
 ///
 /// Hoists simple loop-invariant machine instructions out of loops. Not a
@@ -23,6 +21,7 @@ template <typename DerivedT, bool PreRegAlloc>
 ///
 /// \tparam DerivedT Concrete pass type that inherits from this base.
 /// \tparam PreRegAlloc True to run before register allocation; false after.
+template <typename DerivedT, bool PreRegAlloc>
 class MachineLICMBasePass : public OptionalPassInfoMixin<DerivedT> {
 public:
   /// Run machine LICM on \p MF.

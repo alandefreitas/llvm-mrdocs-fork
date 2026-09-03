@@ -137,7 +137,7 @@ enum PPCInstrMasks : uint64_t {
 /// Parsed view of an ELF object file for a fixed class and endianness.
 ///
 /// Provides typed access to the ELF header, sections, program headers, symbols,
-/// relocations, and related tables for the layout encoded by \tparam ELFT.
+/// relocations, and related tables for the layout encoded by \c ELFT.
 ///
 /// \tparam ELFT ELF type traits for address size (32/64) and endianness.
 template <class ELFT> class ELFFile;
@@ -346,7 +346,7 @@ Error decodeCrel(
 /// Parsed view of an ELF object file for a fixed class and endianness.
 ///
 /// Provides typed access to the ELF header, sections, program headers, symbols,
-/// relocations, and related tables for the layout encoded by \tparam ELFT.
+/// relocations, and related tables for the layout encoded by \c ELFT.
 ///
 /// \tparam ELFT ELF type traits for address size (32/64) and endianness.
 template <class ELFT>

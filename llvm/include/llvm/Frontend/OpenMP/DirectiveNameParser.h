@@ -17,7 +17,9 @@
 
 #include <memory>
 
-namespace llvm::omp {
+namespace llvm {
+/// OpenMP front-end utilities for representing directives and descriptor metadata.
+namespace omp {
 /// Parser for OpenMP directive names.
 ///
 /// It only recognizes names listed in OMP.td, in particular it does not
@@ -90,6 +92,7 @@ private:
 
   State InitialState;
 };
-} // namespace llvm::omp
+} // namespace omp
+} // namespace llvm
 
 #endif // LLVM_FRONTEND_OPENMP_DIRECTIVENAMEPARSER_H
