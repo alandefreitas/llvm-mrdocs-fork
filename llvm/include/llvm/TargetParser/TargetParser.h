@@ -23,12 +23,15 @@
 
 namespace llvm {
 
+/// Used to provide key value pairs for subtarget feature bit flags.
 struct BasicSubtargetFeatureKV {
   const char *Key;         ///< K-V key string
   unsigned Value;          ///< K-V integer value
   FeatureBitArray Implies; ///< K-V bit mask
 
   /// Compare routine for std::lower_bound
+  /// \param S Key string to compare against this entry's Key.
+  /// \returns True if this entry's Key is lexicographically less than \p S.
   bool operator<(StringRef S) const { return StringRef(Key) < S; }
 };
 
@@ -38,14 +41,29 @@ struct BasicSubtargetSubTypeKV {
   FeatureBitArray Implies; ///< K-V bit mask
 
   /// Compare routine for std::lower_bound
+  /// \param S Key string to compare against this entry's Key.
+  /// \returns True if this entry's Key is lexicographically less than \p S.
   bool operator<(StringRef S) const { return StringRef(Key) < S; }
 
   /// Compare routine for std::is_sorted.
+  /// \param Other Entry whose Key is compared with this entry's Key.
+  /// \returns True if this entry's Key is lexicographically less than
+  /// \p Other's Key.
   bool operator<(const BasicSubtargetSubTypeKV &Other) const {
     return StringRef(Key) < StringRef(Other.Key);
   }
 };
 
+/// Returns the default enabled features for \p CPU, or nullopt if unknown.
+///
+/// Looks up \p CPU in \p ProcDesc and expands transitively implied features
+/// from \p ProcFeatures into a name-to-enabled map.
+///
+/// \param CPU CPU name to look up.
+/// \param ProcDesc Sorted table of CPU/subtype entries and implied features.
+/// \param ProcFeatures Feature table used to expand implied feature bits.
+/// \returns Map from feature name to true for each feature implied by \p CPU,
+/// or \c std::nullopt if \p CPU is empty or not found in \p ProcDesc.
 LLVM_ABI std::optional<llvm::StringMap<bool>>
 getCPUDefaultTargetFeatures(StringRef CPU,
                             ArrayRef<BasicSubtargetSubTypeKV> ProcDesc,

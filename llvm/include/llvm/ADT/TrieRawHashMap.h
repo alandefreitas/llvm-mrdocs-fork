@@ -99,6 +99,7 @@ protected:
 public:
   /// Allocate a ThreadSafeTrieRawHashMapBase with the global operator new.
   /// @param Size Number of bytes to allocate.
+  /// @return Pointer to the newly allocated memory.
   static void *operator new(size_t Size) { return ::operator new(Size); }
   /// Deallocate memory previously obtained from operator new.
   /// @param Ptr Pointer returned by operator new.
@@ -114,13 +115,15 @@ public:
   LLVM_ABI void print(raw_ostream &OS) const;
 
 protected:
-  /// Result of a lookup. Suitable for an insertion hint. Maybe could be
-  /// expanded into an iterator of sorts, but likely not useful (visiting
-  /// everything in the trie should probably be done some way other than
-  /// through an iterator pattern).
+  /// Result of a lookup, suitable as an insertion hint.
+  ///
+  /// Maybe could be expanded into an iterator of sorts, but likely not useful
+  /// (visiting everything in the trie should probably be done some way other
+  /// than through an iterator pattern).
   class PointerBase {
   protected:
     /// Return the content pointer when this is a data result, else null.
+    /// @return Content pointer for a data result, or null otherwise.
     void *get() const { return I == -2u ? P : nullptr; }
 
   public:
@@ -140,9 +143,15 @@ protected:
   };
 
   /// Find the stored content with hash.
+  /// @param Hash Hash bytes identifying the entry.
+  /// @return Pointer base to the found content, or empty if absent.
   LLVM_ABI PointerBase find(ArrayRef<uint8_t> Hash) const;
 
   /// Insert and return the stored content.
+  /// @param Hint Optional result of a prior find for the same hash.
+  /// @param Hash Hash bytes identifying the entry.
+  /// @param Constructor Callback that builds content into \p Mem if inserted.
+  /// @return Pointer base to the existing or newly inserted content.
   LLVM_ABI PointerBase
   insert(PointerBase Hint, ArrayRef<uint8_t> Hash,
          function_ref<const uint8_t *(void *Mem, ArrayRef<uint8_t> Hash)>
@@ -177,37 +186,48 @@ protected:
 
   // Move assignment is not supported as it is not thread-safe.
   /// Move assignment is deleted because it is not thread-safe.
+  /// @param RHS Unused; move assignment is not supported.
   ThreadSafeTrieRawHashMapBase &
   operator=(ThreadSafeTrieRawHashMapBase &&RHS) = delete;
 
   // No copy.
   /// Copy construction is deleted.
-  ThreadSafeTrieRawHashMapBase(const ThreadSafeTrieRawHashMapBase &) = delete;
+  /// @param RHS Unused; copy construction is not supported.
+  ThreadSafeTrieRawHashMapBase(const ThreadSafeTrieRawHashMapBase &RHS) =
+      delete;
   /// Copy assignment is deleted.
+  /// @param RHS Unused; copy assignment is not supported.
   ThreadSafeTrieRawHashMapBase &
-  operator=(const ThreadSafeTrieRawHashMapBase &) = delete;
+  operator=(const ThreadSafeTrieRawHashMapBase &RHS) = delete;
 
   // Debug functions. Implementation details and not guaranteed to be
   // thread-safe.
   /// Return a pointer base referring to the root trie node.
+  /// @return Pointer base for the root trie node.
   LLVM_ABI PointerBase getRoot() const;
   /// Return the starting hash bit index for the trie node referred to by \p P.
   /// @param P Pointer base identifying a trie node.
+  /// @return Starting hash bit index for that trie node.
   LLVM_ABI unsigned getStartBit(PointerBase P) const;
   /// Return how many hash bits the trie node referred to by \p P consumes.
   /// @param P Pointer base identifying a trie node.
+  /// @return Number of hash bits consumed by that trie node.
   LLVM_ABI unsigned getNumBits(PointerBase P) const;
   /// Return how many slots are occupied in the trie node referred to by \p P.
   /// @param P Pointer base identifying a trie node.
+  /// @return Number of occupied slots in that trie node.
   LLVM_ABI unsigned getNumSlotUsed(PointerBase P) const;
   /// Return the hash prefix for the trie node referred to by \p P as a string.
   /// @param P Pointer base identifying a trie node.
+  /// @return String representation of that trie node's hash prefix.
   LLVM_ABI std::string getTriePrefixAsString(PointerBase P) const;
   /// Return the number of trie nodes currently allocated.
+  /// @return Count of allocated trie nodes.
   LLVM_ABI unsigned getNumTries() const;
   // Visit next trie in the allocation chain.
   /// Return the next trie node after \p P in the allocation chain.
   /// @param P Pointer base identifying a trie node.
+  /// @return Pointer base for the next trie node in the allocation chain.
   LLVM_ABI PointerBase getNextTrie(PointerBase P) const;
 
 private:
@@ -241,9 +261,11 @@ public:
     T Data;
 
     /// Move-construct a value_type.
-    value_type(value_type &&) = default;
+    /// @param RHS Value to move from.
+    value_type(value_type &&RHS) = default;
     /// Copy-construct a value_type.
-    value_type(const value_type &) = default;
+    /// @param RHS Value to copy from.
+    value_type(const value_type &RHS) = default;
 
     /// Construct from hash bytes and a copy of \p Data.
     /// @param Hash Hash bytes of length NumHashBytes.
@@ -294,16 +316,19 @@ private:
 
   public:
     /// Dereference the pointed-to value; asserts if null.
+    /// @return Reference to the pointed-to value.
     ValueT &operator*() const {
       assert(get());
       return *get();
     }
     /// Access a member of the pointed-to value; asserts if null.
+    /// @return Pointer to the pointed-to value.
     ValueT *operator->() const {
       assert(get());
       return get();
     }
     /// Return true if this pointer refers to a stored value.
+    /// @return True if this pointer refers to a stored value.
     explicit operator bool() const { return get(); }
 
     /// Construct a null content pointer.
@@ -400,9 +425,14 @@ public:
     ArrayRef<uint8_t> Hash;
   };
 
-  /// Insert with a hint. Default-constructed hint will work, but it's
-  /// recommended to start with a lookup to avoid overhead in object creation
-  /// if it already exists.
+  /// Insert lazily with a hint, constructing via \p OnConstruct if needed.
+  ///
+  /// Default-constructed hint will work, but it's recommended to start with a
+  /// lookup to avoid overhead in object creation if it already exists.
+  /// @param Hint Optional result of a prior find for the same hash.
+  /// @param Hash Hash bytes identifying the entry.
+  /// @param OnConstruct Callback that builds the value if insertion occurs.
+  /// @return Pointer to the existing or newly inserted entry.
   pointer insertLazy(const_pointer Hint, ArrayRef<uint8_t> Hash,
                      function_ref<void(LazyValueConstructor)> OnConstruct) {
     return pointer(ThreadSafeTrieRawHashMapBase::insert(
@@ -478,16 +508,21 @@ public:
 
   // Move constructor okay.
   /// Move-construct, transferring ownership of the underlying trie.
-  ThreadSafeTrieRawHashMap(ThreadSafeTrieRawHashMap &&) = default;
+  /// @param RHS Trie to move from; left empty.
+  ThreadSafeTrieRawHashMap(ThreadSafeTrieRawHashMap &&RHS) = default;
 
   // No move assignment or any copy.
   /// Move assignment is deleted because it is not thread-safe.
-  ThreadSafeTrieRawHashMap &operator=(ThreadSafeTrieRawHashMap &&) = delete;
-  /// Copy construction is deleted.
-  ThreadSafeTrieRawHashMap(const ThreadSafeTrieRawHashMap &) = delete;
-  /// Copy assignment is deleted.
+  /// @param RHS Unused; move assignment is not supported.
   ThreadSafeTrieRawHashMap &
-  operator=(const ThreadSafeTrieRawHashMap &) = delete;
+  operator=(ThreadSafeTrieRawHashMap &&RHS) = delete;
+  /// Copy construction is deleted.
+  /// @param RHS Unused; copy construction is not supported.
+  ThreadSafeTrieRawHashMap(const ThreadSafeTrieRawHashMap &RHS) = delete;
+  /// Copy assignment is deleted.
+  /// @param RHS Unused; copy assignment is not supported.
+  ThreadSafeTrieRawHashMap &
+  operator=(const ThreadSafeTrieRawHashMap &RHS) = delete;
 };
 
 } // namespace llvm

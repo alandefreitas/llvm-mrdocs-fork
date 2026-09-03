@@ -21,6 +21,11 @@ public:
   using HashT = decltype(HasherT::hash(std::declval<ArrayRef<uint8_t> &>()));
 
   /// Hash a CAS object from its child references and payload bytes.
+  ///
+  /// \param CAS Object store used to resolve child reference hashes.
+  /// \param Refs Child object references included in the hash.
+  /// \param Data Object payload bytes.
+  /// \return Hash of the object built from \p Refs and \p Data.
   static HashT hashObject(const ObjectStore &CAS, ArrayRef<ObjectRef> Refs,
                           ArrayRef<char> Data) {
     BuiltinObjectHasher H;
@@ -32,6 +37,10 @@ public:
   }
 
   /// Hash an object from already-resolved reference hashes and payload bytes.
+  ///
+  /// \param Refs Child reference hashes already resolved to raw bytes.
+  /// \param Data Object payload bytes.
+  /// \return Hash of the object built from \p Refs and \p Data.
   static HashT hashObject(ArrayRef<ArrayRef<uint8_t>> Refs,
                           ArrayRef<char> Data) {
     BuiltinObjectHasher H;
@@ -43,6 +52,9 @@ public:
   }
 
   /// Hash the contents of the file at \p FilePath as a single CAS object.
+  ///
+  /// \param FilePath Path of the file whose contents are hashed.
+  /// \return Hash of the file contents, or an error if the file cannot be read.
   static Expected<HashT> hashFile(StringRef FilePath);
 
 private:

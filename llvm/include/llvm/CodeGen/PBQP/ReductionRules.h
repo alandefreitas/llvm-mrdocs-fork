@@ -26,6 +26,8 @@ namespace PBQP {
   ///
   /// Propagate costs from the given node, which must be of degree one, to its
   /// neighbor. Notify the problem domain.
+  /// @param G PBQP graph to reduce.
+  /// @param NId Node of degree one to eliminate.
   template <typename GraphT>
   void applyR1(GraphT &G, typename GraphT::NodeId NId) {
     using NodeId = typename GraphT::NodeId;
@@ -70,6 +72,12 @@ namespace PBQP {
     G.disconnectEdge(EId, MId);
   }
 
+  /// Reduce a node of degree two.
+  ///
+  /// Propagate costs from the given node, which must be of degree two, onto
+  /// the edge between its two neighbors (creating that edge if needed).
+  /// @param G PBQP graph to reduce.
+  /// @param NId Node of degree two to eliminate.
   template <typename GraphT>
   void applyR2(GraphT &G, typename GraphT::NodeId NId) {
     using NodeId = typename GraphT::NodeId;
@@ -146,7 +154,13 @@ namespace PBQP {
   }
 
 #ifndef NDEBUG
-  // Does this Cost vector have any register options ?
+  /// Return true if the cost vector offers any finite-cost register option.
+  ///
+  /// An empty or spill-only vector, or one where every register entry is
+  /// infinite, is treated as having no register options.
+  /// @param V Node cost vector (index 0 is spill; remaining entries are
+  ///          registers).
+  /// @return True if any register entry has finite cost; false otherwise.
   template <typename VectorT>
   bool hasRegisterOptions(const VectorT &V) {
     unsigned VL = V.getLength();
@@ -165,17 +179,20 @@ namespace PBQP {
   }
 #endif
 
-  // Find a solution to a fully reduced graph by backpropagation.
-  //
-  // Given a graph and a reduction order, pop each node from the reduction
-  // order and greedily compute a minimum solution based on the node costs, and
-  // the dependent costs due to previously solved nodes.
-  //
-  // Note - This does not return the graph to its original (pre-reduction)
-  //        state: the existing solvers destructively alter the node and edge
-  //        costs. Given that, the backpropagate function doesn't attempt to
-  //        replace the edges either, but leaves the graph in its reduced
-  //        state.
+  /// Find a solution to a fully reduced graph by backpropagation.
+  ///
+  /// Given a graph and a reduction order, pop each node from the reduction
+  /// order and greedily compute a minimum solution based on the node costs, and
+  /// the dependent costs due to previously solved nodes.
+  ///
+  /// Note - This does not return the graph to its original (pre-reduction)
+  ///        state: the existing solvers destructively alter the node and edge
+  ///        costs. Given that, the backpropagate function doesn't attempt to
+  ///        replace the edges either, but leaves the graph in its reduced
+  ///        state.
+  /// @param G PBQP graph in reduced form.
+  /// @param stack Reduction order (nodes to assign, last-reduced first).
+  /// @return A solution assigning a selection to each node in \p stack.
   template <typename GraphT, typename StackT>
   Solution backpropagate(GraphT& G, StackT stack) {
     using NodeId = GraphBase::NodeId;

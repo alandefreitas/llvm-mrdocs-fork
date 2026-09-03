@@ -15,8 +15,16 @@ namespace llvm {
 
 class Function;
 
+/// Pass that removes gc.relocates inserted by RewriteStatepointsForGC.
+///
+/// The resulting IR is incorrect, but useful for analyzing IR without
+/// gc.relocates. The statepoint and gc.result intrinsics remain.
 class StripGCRelocates : public OptionalPassInfoMixin<StripGCRelocates> {
 public:
+  /// Run the strip-gc-relocates pass over the function.
+  /// @param F Function whose gc.relocates are stripped.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

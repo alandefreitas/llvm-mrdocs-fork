@@ -54,8 +54,11 @@ class RegisterBankInfo;
 class TargetInstrInfo;
 class TargetRegisterInfo;
 
+/// Sentinel IDs for invalid C++ predicates and custom actions.
 enum {
+  /// Invalid C++ predicate ID.
   GICXXPred_Invalid = 0,
+  /// Invalid custom action ID.
   GICXXCustomAction_Invalid = 0,
 };
 
@@ -598,24 +601,40 @@ enum {
   GIU_NumOpcodes,
 };
 
-/// Provides the logic to execute GlobalISel match tables, which are used by the
-/// instruction selector and instruction combiners as their engine to match and
-/// apply MIR patterns.
+/// Executes GlobalISel match tables for instruction selection and combining.
+///
+/// Match tables are used by the instruction selector and instruction combiners
+/// as their engine to match and apply MIR patterns.
 class GIMatchTableExecutor {
 public:
+  /// Virtual destructor.
   virtual ~GIMatchTableExecutor() = default;
 
+  /// Optional rule coverage tracking for matched patterns.
   CodeGenCoverage *CoverageInfo = nullptr;
+  /// Optional value tracking analysis for the current function.
   GISelValueTracking *VT = nullptr;
+  /// Machine function currently being processed.
   MachineFunction *MF = nullptr;
+  /// Optional profile summary info for size-optimization decisions.
   ProfileSummaryInfo *PSI = nullptr;
+  /// Optional block frequency info for size-optimization decisions.
   BlockFrequencyInfo *BFI = nullptr;
-  // For some predicates, we need to track the current MBB.
+  /// Basic block currently being matched, when needed by predicates.
   MachineBasicBlock *CurMBB = nullptr;
 
+  /// Set up target-generated per-function state for \p MF.
+  ///
+  /// \param MF - Machine function whose generated state should be initialized.
   virtual void setupGeneratedPerFunctionState(MachineFunction &MF) = 0;
 
   /// Setup per-MF executor state.
+  ///
+  /// \param mf - Machine function to process.
+  /// \param vt - Value tracking analysis, if available.
+  /// \param covinfo - Optional rule coverage info.
+  /// \param psi - Optional profile summary info.
+  /// \param bfi - Optional block frequency info.
   virtual void setupMF(MachineFunction &mf, GISelValueTracking *vt,
                        CodeGenCoverage *covinfo = nullptr,
                        ProfileSummaryInfo *psi = nullptr,
@@ -630,28 +649,44 @@ public:
   }
 
 protected:
+  /// Optional list of complex-pattern operand renderer callbacks.
   using ComplexRendererFns =
       std::optional<SmallVector<std::function<void(MachineInstrBuilder &)>, 4>>;
+  /// Small vector of recorded machine instructions from the match.
   using RecordedMIVector = SmallVector<MachineInstr *, 4>;
+  /// Small vector of newly built machine instructions.
   using NewMIVector = SmallVector<MachineInstrBuilder, 4>;
 
+  /// Mutable state shared across match-table opcode handlers.
   struct MatcherState {
+    /// Complex-pattern renderers captured during matching.
     std::vector<ComplexRendererFns::value_type> Renderers;
+    /// Instructions recorded by GIM_RecordInsn opcodes.
     RecordedMIVector MIs;
+    /// Temporary registers allocated during matching and rendering.
     DenseMap<unsigned, Register> TempRegisters;
-    /// Named operands that predicate with 'let PredicateCodeUsesOperands = 1'
-    /// referenced in its argument list. Operands are inserted at index set by
-    /// emitter, it corresponds to the order in which names appear in argument
-    /// list. Currently such predicates don't have more then 3 arguments.
+    /// Named operands recorded for predicates that use operand lists.
+    ///
+    /// Predicates with 'let PredicateCodeUsesOperands = 1' reference named
+    /// operands in their argument list. Operands are inserted at the index set
+    /// by the emitter, corresponding to the order names appear in the argument
+    /// list. Currently such predicates don't have more than 3 arguments.
     std::array<const MachineOperand *, 3> RecordedOperands;
 
     /// Types extracted from an instruction's operand.
     /// Whenever a type index is negative, we look here instead.
     SmallVector<LLT, 4> RecordedTypes;
 
+    /// Construct matcher state with capacity for \p MaxRenderers renderers.
+    ///
+    /// \param MaxRenderers - Maximum number of complex renderers to reserve.
     LLVM_ABI MatcherState(unsigned MaxRenderers);
   };
 
+  /// Return true if the current function or block should be optimized for size.
+  ///
+  /// \param MF - Machine function to query for size attributes and profile data.
+  /// \return True if the function or current block should be optimized for size.
   bool shouldOptForSize(const MachineFunction *MF) const {
     const auto &F = MF->getFunction();
     if (F.hasOptSize())
@@ -663,9 +698,18 @@ protected:
   }
 
 public:
+  /// Tables and maps used while interpreting a target match table.
   template <class PredicateBitset, class ComplexMatcherMemFn,
             class CustomRendererFn>
   struct ExecInfoTy {
+    /// Build executor info from the generated type, feature, and predicate
+    /// tables.
+    ///
+    /// \param TypeObjects - Array of LLT objects indexed by type ID.
+    /// \param NumTypeObjects - Number of entries in \p TypeObjects.
+    /// \param FeatureBitsets - Feature bitsets referenced by the match table.
+    /// \param ComplexPredicates - Complex matcher function pointers.
+    /// \param CustomRenderers - Custom renderer function pointers.
     ExecInfoTy(const LLT *TypeObjects, size_t NumTypeObjects,
                const PredicateBitset *FeatureBitsets,
                const ComplexMatcherMemFn *ComplexPredicates,
@@ -677,19 +721,39 @@ public:
       for (size_t I = 0; I < NumTypeObjects; ++I)
         TypeIDMap[TypeObjects[I].getUniqueRAWLLTData()] = I;
     }
+    /// LLT objects indexed by match-table type ID.
     const LLT *TypeObjects;
+    /// Feature bitsets indexed by match-table feature ID.
     const PredicateBitset *FeatureBitsets;
+    /// Complex matcher callbacks indexed by predicate ID.
     const ComplexMatcherMemFn *ComplexPredicates;
+    /// Custom renderer callbacks indexed by renderer ID.
     const CustomRendererFn *CustomRenderers;
 
+    /// Map from raw LLT encoding to match-table type ID.
     SmallDenseMap<uint64_t, unsigned, 64> TypeIDMap;
   };
 
 protected:
+  /// Construct a match-table executor with default state.
   LLVM_ABI GIMatchTableExecutor();
 
   /// Execute a given matcher table and return true if the match was successful
   /// and false otherwise.
+  ///
+  /// \param Exec - Target-specific executor providing predicate implementations.
+  /// \param State - Mutable matcher state for this match attempt.
+  /// \param ExecInfo - Generated tables for types, features, and predicates.
+  /// \param Builder - IR builder used when applying successful matches.
+  /// \param MatchTable - Encoded match table to interpret.
+  /// \param TII - Target instruction info.
+  /// \param MRI - Machine register info for the current function.
+  /// \param TRI - Target register info.
+  /// \param RBI - Register bank info.
+  /// \param AvailableFeatures - Feature bitset available in the current
+  ///        context.
+  /// \param CoverageInfo - Optional coverage tracker for matched rules.
+  /// \return True if the match was successful.
   template <class TgtExecutor, class PredicateBitset, class ComplexMatcherMemFn,
             class CustomRendererFn>
   bool executeMatchTable(TgtExecutor &Exec, MatcherState &State,
@@ -702,65 +766,134 @@ protected:
                          const PredicateBitset &AvailableFeatures,
                          CodeGenCoverage *CoverageInfo) const;
 
+  /// Return the match table used by this executor.
+  ///
+  /// \return The encoded match table for this executor.
   virtual const uint8_t *getMatchTable() const {
     llvm_unreachable("Should have been overridden by tablegen if used");
   }
 
-  virtual bool testImmPredicate_I64(unsigned, int64_t) const {
+  /// Test an I64 immediate predicate against \p Imm.
+  ///
+  /// \param PredicateID - Generated immediate predicate ID.
+  /// \param Imm - Immediate value to test.
+  /// \return True if the I64 immediate predicate holds for \p Imm.
+  virtual bool testImmPredicate_I64(unsigned PredicateID, int64_t Imm) const {
     llvm_unreachable(
         "Subclasses must override this with a tablegen-erated function");
   }
-  virtual bool testImmPredicate_APInt(unsigned, const APInt &) const {
+  /// Test an APInt immediate predicate against \p Imm.
+  ///
+  /// \param PredicateID - Generated immediate predicate ID.
+  /// \param Imm - Immediate value to test.
+  /// \return True if the APInt immediate predicate holds for \p Imm.
+  virtual bool testImmPredicate_APInt(unsigned PredicateID,
+                                      const APInt &Imm) const {
     llvm_unreachable(
         "Subclasses must override this with a tablegen-erated function");
   }
-  virtual bool testImmPredicate_APFloat(unsigned, const APFloat &) const {
+  /// Test an APFloat immediate predicate against \p Imm.
+  ///
+  /// \param PredicateID - Generated immediate predicate ID.
+  /// \param Imm - Floating-point immediate to test.
+  /// \return True if the APFloat immediate predicate holds for \p Imm.
+  virtual bool testImmPredicate_APFloat(unsigned PredicateID,
+                                        const APFloat &Imm) const {
     llvm_unreachable(
         "Subclasses must override this with a tablegen-erated function");
   }
-  virtual bool testMIPredicate_MI(unsigned, const MachineInstr &,
+  /// Test a C++ machine-instruction predicate on \p MI.
+  ///
+  /// \param PredicateID - Generated MI predicate ID.
+  /// \param MI - Instruction to test.
+  /// \param State - Current matcher state, including recorded operands.
+  /// \return True if the machine-instruction predicate holds for \p MI.
+  virtual bool testMIPredicate_MI(unsigned PredicateID, const MachineInstr &MI,
                                   const MatcherState &State) const {
     llvm_unreachable(
         "Subclasses must override this with a tablegen-erated function");
   }
 
-  virtual bool testMOPredicate_MO(unsigned, const MachineOperand &,
+  /// Test a C++ machine-operand predicate on \p MO.
+  ///
+  /// \param PredicateID - Generated MO predicate ID.
+  /// \param MO - Operand to test.
+  /// \param State - Current matcher state, including recorded operands.
+  /// \return True if the machine-operand predicate holds for \p MO.
+  virtual bool testMOPredicate_MO(unsigned PredicateID,
+                                  const MachineOperand &MO,
                                   const MatcherState &State) const {
     llvm_unreachable(
         "Subclasses must override this with a tablegen-erated function");
   }
 
-  virtual bool testSimplePredicate(unsigned) const {
+  /// Test a simple predicate that takes no match-table arguments.
+  ///
+  /// \param PredicateID - Generated simple predicate ID.
+  /// \return True if the simple predicate holds.
+  virtual bool testSimplePredicate(unsigned PredicateID) const {
     llvm_unreachable("Subclass does not implement testSimplePredicate!");
   }
 
-  virtual bool runCustomAction(unsigned, const MatcherState &State,
+  /// Run a custom match-table action and optionally emit new instructions.
+  ///
+  /// \param FnID - Generated custom action function ID.
+  /// \param State - Current matcher state.
+  /// \param OutMIs - Vector that receives newly built instructions.
+  /// \return True if the custom action succeeded.
+  virtual bool runCustomAction(unsigned FnID, const MatcherState &State,
                                NewMIVector &OutMIs) const {
     llvm_unreachable("Subclass does not implement runCustomAction!");
   }
 
+  /// Return true if \p MO equals immediate \p Value (or a splat of it).
+  ///
+  /// \param MO - Operand to compare.
+  /// \param Value - Expected immediate value.
+  /// \param MRI - Register info used when \p MO is a register.
+  /// \param Splat - If true, also accept vector splats of \p Value.
+  /// \return True if \p MO equals immediate \p Value (or a splat of it).
   LLVM_ABI bool isOperandImmEqual(const MachineOperand &MO, int64_t Value,
                                   const MachineRegisterInfo &MRI,
                                   bool Splat = false) const;
 
-  /// Return true if the specified operand is a G_PTR_ADD with a G_CONSTANT on
-  /// the right-hand side. GlobalISel's separation of pointer and integer types
-  /// means that we don't need to worry about G_OR with equivalent semantics.
+  /// Return true if the operand is a G_PTR_ADD with a G_CONSTANT RHS.
+  ///
+  /// GlobalISel's separation of pointer and integer types means that we don't
+  /// need to worry about G_OR with equivalent semantics.
+  ///
+  /// \param Root - Operand that may define a pointer-plus-constant address.
+  /// \param MRI - Register info used to inspect defining instructions.
+  /// \return True if \p Root is a G_PTR_ADD with a G_CONSTANT RHS.
   LLVM_ABI bool isBaseWithConstantOffset(const MachineOperand &Root,
                                          const MachineRegisterInfo &MRI) const;
 
-  /// Return true if MI can obviously be folded into IntoMI.
+  /// Return true if \p MI can obviously be folded into \p IntoMI.
+  ///
   /// MI and IntoMI do not need to be in the same basic blocks, but MI must
-  /// preceed IntoMI.
+  /// precede IntoMI.
+  ///
+  /// \param MI - Instruction being considered for folding.
+  /// \param IntoMI - Instruction that would receive the folded operand.
+  /// \return True if \p MI can obviously be folded into \p IntoMI.
   LLVM_ABI bool isObviouslySafeToFold(MachineInstr &MI,
                                       MachineInstr &IntoMI) const;
 
+  /// Read a value of type \c Ty from the start of \p MatchTable.
+  ///
+  /// \param MatchTable - Byte stream positioned at the value to decode.
+  /// \return The value of type \c Ty decoded from \p MatchTable.
   template <typename Ty> static Ty readBytesAs(const uint8_t *MatchTable) {
     Ty Ret;
     memcpy(&Ret, MatchTable, sizeof(Ret));
     return Ret;
   }
 
+  /// Return the operands of \p MI starting at index \p FirstVarOp.
+  ///
+  /// \param MI - Instruction whose trailing operands are requested.
+  /// \param FirstVarOp - Index of the first operand to include.
+  /// \return The operands of \p MI from \p FirstVarOp onward.
   static ArrayRef<MachineOperand> getRemainingOperands(const MachineInstr &MI,
                                                        unsigned FirstVarOp) {
     auto Operands = drop_begin(MI.operands(), FirstVarOp);
@@ -768,11 +901,17 @@ protected:
   }
 
 public:
-  // Faster ULEB128 decoder tailored for the Match Table Executor.
-  //
-  // - Arguments are fixed to avoid mid-function checks.
-  // - Unchecked execution, assumes no error.
-  // - Fast common case handling (1 byte values).
+  /// Decode a ULEB128 value from \p MatchTable at \p CurrentIdx.
+  ///
+  /// Faster ULEB128 decoder tailored for the Match Table Executor.
+  ///
+  /// - Arguments are fixed to avoid mid-function checks.
+  /// - Unchecked execution, assumes no error.
+  /// - Fast common case handling (1 byte values).
+  ///
+  /// \param MatchTable - Match table byte stream.
+  /// \param CurrentIdx - Index into \p MatchTable; advanced past the value.
+  /// \return The decoded ULEB128 value.
   LLVM_ATTRIBUTE_ALWAYS_INLINE static uint64_t
   fastDecodeULEB128(const uint8_t *LLVM_ATTRIBUTE_RESTRICT MatchTable,
                     uint64_t &CurrentIdx) {

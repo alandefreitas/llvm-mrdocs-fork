@@ -26,10 +26,12 @@ class Function;
 class FunctionPass;
 
 /// Run the safepoint verifier over a single function.  Crashes on failure.
+/// @param F Function whose IR is checked for safepoint relocation bugs.
 LLVM_ABI void verifySafepointIR(Function &F);
 
 /// Create an instance of the safepoint verifier pass which can be added to
 /// a pass pipeline to check for relocation bugs.
+/// @return A new safepoint verifier FunctionPass.
 LLVM_ABI FunctionPass *createSafepointIRVerifierPass();
 
 /// Create an instance of the safepoint verifier pass which can be added to
@@ -38,8 +40,13 @@ class SafepointIRVerifierPass
     : public RequiredPassInfoMixin<SafepointIRVerifierPass> {
 
 public:
+  /// Construct a safepoint IR verifier pass.
   explicit SafepointIRVerifierPass() = default;
 
+  /// Verify safepoint IR for \p F and return all analyses preserved.
+  /// @param F Function whose IR is checked for safepoint relocation bugs.
+  /// @param AM Function analysis manager (unused).
+  /// @return All analyses preserved.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

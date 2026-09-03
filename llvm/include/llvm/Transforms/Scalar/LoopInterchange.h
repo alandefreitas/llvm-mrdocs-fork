@@ -17,7 +17,14 @@ namespace llvm {
 class LPMUpdater;
 class LoopNest;
 
+/// Pass that interchanges nested loops to improve locality and performance.
 struct LoopInterchangePass : public OptionalPassInfoMixin<LoopInterchangePass> {
+  /// Run loop interchange over the loop nest.
+  /// @param L Loop nest whose nested loops may be interchanged.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(LoopNest &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

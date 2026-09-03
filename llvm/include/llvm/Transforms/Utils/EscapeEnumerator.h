@@ -21,11 +21,11 @@ namespace llvm {
 
 class DomTreeUpdater;
 
-/// EscapeEnumerator - This is a little algorithm to find all escape points
-/// from a function so that "finally"-style code can be inserted. In addition
-/// to finding the existing return and unwind instructions, it also (if
-/// necessary) transforms any call instructions into invokes and sends them to
-/// a landing pad.
+/// Find all escape points from a function for finally-style insertion.
+///
+/// In addition to finding the existing return and unwind instructions, it also
+/// (if necessary) transforms any call instructions into invokes and sends them
+/// to a landing pad.
 class EscapeEnumerator {
   Function &F;
   const char *CleanupBBName;
@@ -38,11 +38,21 @@ class EscapeEnumerator {
   DomTreeUpdater *DTU;
 
 public:
+  /// Construct an escape enumerator for a function.
+  ///
+  /// \param F Function whose escape points are enumerated.
+  /// \param N Name for the cleanup basic block created for exception handling.
+  /// \param HandleExceptions Whether to transform throwing calls into invokes.
+  /// \param DTU Optional dominator tree updater for IR transforms.
   EscapeEnumerator(Function &F, const char *N = "cleanup",
                    bool HandleExceptions = true, DomTreeUpdater *DTU = nullptr)
       : F(F), CleanupBBName(N), StateBB(F.begin()), StateE(F.end()),
         Builder(F.getContext()), HandleExceptions(HandleExceptions), DTU(DTU) {}
 
+  /// Get an IR builder at the next escape point.
+  ///
+  /// \return An IR builder positioned at the next escape point, or null when
+  /// exhausted.
   LLVM_ABI IRBuilder<> *Next();
 };
 

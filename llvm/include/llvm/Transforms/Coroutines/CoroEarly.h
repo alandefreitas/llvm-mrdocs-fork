@@ -23,7 +23,13 @@ namespace llvm {
 
 class Module;
 
+/// Pass that lowers early coroutine intrinsics.
 struct CoroEarlyPass : RequiredPassInfoMixin<CoroEarlyPass> {
+  /// Lower early coroutine intrinsics in module \p M.
+  ///
+  /// \param M The module to process.
+  /// \param AM The module analysis manager.
+  /// \return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 } // end namespace llvm

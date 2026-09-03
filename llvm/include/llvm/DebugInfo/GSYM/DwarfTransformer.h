@@ -21,17 +21,19 @@ class raw_ostream;
 
 namespace gsym {
 
+/// Compile-unit specific state used while transforming DWARF into GSYM.
 struct CUInfo;
 struct FunctionInfo;
 class GsymCreator;
 class OutputAggregator;
 
-/// A class that transforms the DWARF in a DWARFContext into GSYM information
-/// by populating the GsymCreator object that it is constructed with. This
-/// class supports converting all DW_TAG_subprogram DIEs into
-/// gsym::FunctionInfo objects that includes line table information and inline
-/// function information. Creating a separate class to transform this data
-/// allows this class to be unit tested.
+/// Transforms DWARF debug info into GSYM function information.
+///
+/// Populates the GsymCreator object that it is constructed with. This class
+/// supports converting all DW_TAG_subprogram DIEs into gsym::FunctionInfo
+/// objects that include line table information and inline function
+/// information. Creating a separate class to transform this data allows this
+/// class to be unit tested.
 class DwarfTransformer {
 public:
   /// Create a DWARF transformer.
@@ -52,9 +54,11 @@ public:
                    bool MachO = false)
       : DICtx(D), Gsym(G), LoadDwarfCallSites(LDCS), IsMachO(MachO) {}
 
-  /// Extract the DWARF from the supplied object file and convert it into the
-  /// Gsym format in the GsymCreator object that is passed in. Returns an
-  /// error if something fatal is encountered.
+  /// Convert DWARF from the object file into GSYM format.
+  ///
+  /// Extracts the DWARF from the supplied object file and populates the
+  /// GsymCreator object that was passed to the constructor. Returns an error
+  /// if something fatal is encountered.
   ///
   /// \param NumThreads The number of threads that the conversion process can
   ///                   use.
@@ -66,6 +70,16 @@ public:
   /// the DWARF, or Error::success() if all goes well.
   LLVM_ABI llvm::Error convert(uint32_t NumThreads, OutputAggregator &OS);
 
+  /// Verify that a GSYM file matches the DWARF debug information.
+  ///
+  /// Compares line and inline frame information in the GSYM file against the
+  /// DWARF context for each address covered by a function.
+  ///
+  /// \param GsymPath The path to the GSYM file to verify.
+  ///
+  /// \param OS The stream to log warnings and verification issues to.
+  ///
+  /// \returns An error if verification fails, or Error::success() otherwise.
   LLVM_ABI llvm::Error verify(StringRef GsymPath, OutputAggregator &OS);
 
 private:
@@ -105,6 +119,7 @@ private:
   bool LoadDwarfCallSites;
   bool IsMachO;
 
+  /// Unit test fixture with access to DwarfTransformer internals.
   friend class DwarfTransformerTest;
 };
 

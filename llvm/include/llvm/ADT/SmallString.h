@@ -29,15 +29,19 @@ public:
   SmallString() = default;
 
   /// Initialize from a StringRef.
+  /// @param S String whose characters are copied into this SmallString.
   SmallString(StringRef S) : SmallVector<char, InternalLen>(S.begin(), S.end()) {}
 
   /// Initialize by concatenating a list of StringRefs.
+  /// @param Refs StringRefs to concatenate in order.
   SmallString(std::initializer_list<StringRef> Refs)
       : SmallVector<char, InternalLen>() {
     this->append(Refs);
   }
 
   /// Initialize with a range.
+  /// @param S Iterator to the first character to copy.
+  /// @param E Iterator past the last character to copy.
   template<typename ItTy>
   SmallString(ItTy S, ItTy E) : SmallVector<char, InternalLen>(S, E) {}
 
@@ -45,14 +49,17 @@ public:
   /// @name String Assignment
   /// @{
 
+  /// Inherit assign overloads from SmallVector.
   using SmallVector<char, InternalLen>::assign;
 
   /// Assign from a StringRef.
+  /// @param RHS String whose characters replace the current contents.
   void assign(StringRef RHS) {
     SmallVectorImpl<char>::assign(RHS.begin(), RHS.end());
   }
 
   /// Assign from a list of StringRefs.
+  /// @param Refs StringRefs to concatenate as the new contents.
   void assign(std::initializer_list<StringRef> Refs) {
     this->clear();
     append(Refs);
@@ -62,14 +69,17 @@ public:
   /// @name String Concatenation
   /// @{
 
+  /// Inherit append overloads from SmallVector.
   using SmallVector<char, InternalLen>::append;
 
   /// Append from a StringRef.
+  /// @param RHS String whose characters are appended.
   void append(StringRef RHS) {
     SmallVectorImpl<char>::append(RHS.begin(), RHS.end());
   }
 
   /// Append from a list of StringRefs.
+  /// @param Refs StringRefs to append in order.
   void append(std::initializer_list<StringRef> Refs) {
     size_t CurrentSize = this->size();
     size_t SizeNeeded = CurrentSize;
@@ -89,9 +99,13 @@ public:
 
   /// Check for string equality.  This is more efficient than compare() when
   /// the relative ordering of inequal strings isn't needed.
+  /// @param RHS String to compare against.
+  /// @return True if the strings are equal.
   [[nodiscard]] bool equals(StringRef RHS) const { return str() == RHS; }
 
   /// Check for string equality, ignoring case.
+  /// @param RHS String to compare against.
+  /// @return True if the strings are equal ignoring case.
   [[nodiscard]] bool equals_insensitive(StringRef RHS) const {
     return str().equals_insensitive(RHS);
   }
@@ -99,15 +113,21 @@ public:
   /// compare - Compare two strings; the result is negative, zero, or positive
   /// if this string is lexicographically less than, equal to, or greater than
   /// the \p RHS.
+  /// @param RHS String to compare against.
+  /// @return Negative, zero, or positive for less-than, equal, or greater-than.
   [[nodiscard]] int compare(StringRef RHS) const { return str().compare(RHS); }
 
   /// compare_insensitive - Compare two strings, ignoring case.
+  /// @param RHS String to compare against.
+  /// @return Negative, zero, or positive for less-than, equal, or greater-than.
   [[nodiscard]] int compare_insensitive(StringRef RHS) const {
     return str().compare_insensitive(RHS);
   }
 
   /// compare_numeric - Compare two strings, treating sequences of digits as
   /// numbers.
+  /// @param RHS String to compare against.
+  /// @return Negative, zero, or positive for less-than, equal, or greater-than.
   [[nodiscard]] int compare_numeric(StringRef RHS) const {
     return str().compare_numeric(RHS);
   }
@@ -117,27 +137,39 @@ public:
   /// @{
 
   /// starts_with - Check if this string starts with the given \p Prefix.
+  /// @param Prefix Prefix to match.
+  /// @return True if the string begins with \p Prefix.
   [[nodiscard]] bool starts_with(StringRef Prefix) const {
     return str().starts_with(Prefix);
   }
 
   /// starts_with - Check if this string starts with the given character \p C.
+  /// @param C Character prefix to match.
+  /// @return True if the string begins with \p C.
   [[nodiscard]] bool starts_with(char C) const { return str().starts_with(C); }
 
   /// ends_with - Check if this string ends with the given \p Suffix.
+  /// @param Suffix Suffix to match.
+  /// @return True if the string ends with \p Suffix.
   [[nodiscard]] bool ends_with(StringRef Suffix) const {
     return str().ends_with(Suffix);
   }
 
   /// ends_with - Check if this string ends with the given character \p C.
+  /// @param C Character suffix to match.
+  /// @return True if the string ends with \p C.
   [[nodiscard]] bool ends_with(char C) const { return str().ends_with(C); }
 
   /// contains - Check if \p Other is a substring of this string.
+  /// @param Other Substring to search for.
+  /// @return True if \p Other is a substring of this string.
   [[nodiscard]] bool contains(StringRef Other) const {
     return str().contains(Other);
   }
 
   /// contains - Check if this string contains the character \p C.
+  /// @param C Character to search for.
+  /// @return True if \p C occurs in this string.
   [[nodiscard]] bool contains(char C) const { return str().contains(C); }
 
   /// @}
@@ -148,6 +180,8 @@ public:
   ///
   /// \return - The index of the first occurrence of \p C, or npos if not
   /// found.
+  /// @param C Character to search for.
+  /// @param From Index to start searching from.
   [[nodiscard]] size_t find(char C, size_t From = 0) const {
     return str().find(C, From);
   }
@@ -156,6 +190,8 @@ public:
   ///
   /// \returns The index of the first occurrence of \p Str, or npos if not
   /// found.
+  /// @param Str Substring to search for.
+  /// @param From Index to start searching from.
   [[nodiscard]] size_t find(StringRef Str, size_t From = 0) const {
     return str().find(Str, From);
   }
@@ -164,6 +200,8 @@ public:
   ///
   /// \returns The index of the last occurrence of \p C, or npos if not
   /// found.
+  /// @param C Character to search for.
+  /// @param From Index to start the reverse search from.
   [[nodiscard]] size_t rfind(char C, size_t From = StringRef::npos) const {
     return str().rfind(C, From);
   }
@@ -172,10 +210,14 @@ public:
   ///
   /// \returns The index of the last occurrence of \p Str, or npos if not
   /// found.
+  /// @param Str Substring to search for.
   [[nodiscard]] size_t rfind(StringRef Str) const { return str().rfind(Str); }
 
   /// Find the first character in the string that is \p C, or npos if not
   /// found. Same as find.
+  /// @param C Character to search for.
+  /// @param From Index to start searching from.
+  /// @return Index of the first match, or npos if not found.
   [[nodiscard]] size_t find_first_of(char C, size_t From = 0) const {
     return str().find_first_of(C, From);
   }
@@ -184,12 +226,18 @@ public:
   /// not found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters to search for.
+  /// @param From Index to start searching from.
+  /// @return Index of the first match, or npos if not found.
   [[nodiscard]] size_t find_first_of(StringRef Chars, size_t From = 0) const {
     return str().find_first_of(Chars, From);
   }
 
   /// Find the first character in the string that is not \p C or npos if not
   /// found.
+  /// @param C Character that is excluded from the match.
+  /// @param From Index to start searching from.
+  /// @return Index of the first non-matching character, or npos if not found.
   [[nodiscard]] size_t find_first_not_of(char C, size_t From = 0) const {
     return str().find_first_not_of(C, From);
   }
@@ -198,6 +246,9 @@ public:
   /// \p Chars, or npos if not found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters that are excluded from the match.
+  /// @param From Index to start searching from.
+  /// @return Index of the first non-matching character, or npos if not found.
   [[nodiscard]] size_t find_first_not_of(StringRef Chars,
                                          size_t From = 0) const {
     return str().find_first_not_of(Chars, From);
@@ -205,6 +256,9 @@ public:
 
   /// Find the last character in the string that is \p C, or npos if not
   /// found.
+  /// @param C Character to search for.
+  /// @param From Index to start the reverse search from.
+  /// @return Index of the last match, or npos if not found.
   [[nodiscard]] size_t find_last_of(char C,
                                     size_t From = StringRef::npos) const {
     return str().find_last_of(C, From);
@@ -214,6 +268,9 @@ public:
   /// found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters to search for.
+  /// @param From Index to start the reverse search from.
+  /// @return Index of the last match, or npos if not found.
   [[nodiscard]] size_t find_last_of(StringRef Chars,
                                     size_t From = StringRef::npos) const {
     return str().find_last_of(Chars, From);
@@ -224,10 +281,14 @@ public:
   /// @{
 
   /// Return the number of occurrences of \p C in the string.
+  /// @param C Character to count.
+  /// @return Number of times \p C occurs in the string.
   [[nodiscard]] size_t count(char C) const { return str().count(C); }
 
   /// Return the number of non-overlapped occurrences of \p Str in the
   /// string.
+  /// @param Str Substring to count.
+  /// @return Number of non-overlapping occurrences of \p Str.
   [[nodiscard]] size_t count(StringRef Str) const { return str().count(Str); }
 
   /// @}
@@ -243,6 +304,7 @@ public:
   /// \param N The number of characters to included in the substring. If \p N
   /// exceeds the number of characters remaining in the string, the string
   /// suffix (starting with \p Start) will be returned.
+  /// @return Substring covering at most \p N characters from \p Start.
   [[nodiscard]] StringRef substr(size_t Start,
                                  size_t N = StringRef::npos) const {
     return str().substr(Start, N);
@@ -258,6 +320,7 @@ public:
   /// substring. If this is npos, or less than \p Start, or exceeds the
   /// number of characters remaining in the string, the string suffix
   /// (starting with \p Start) will be returned.
+  /// @return Substring covering characters in [Start, End).
   [[nodiscard]] StringRef slice(size_t Start, size_t End) const {
     return str().slice(Start, End);
   }
@@ -265,12 +328,14 @@ public:
   // Extra methods.
 
   /// Explicit conversion to StringRef.
+  /// @return A StringRef view of this string's characters.
   [[nodiscard]] StringRef str() const {
     return StringRef(this->data(), this->size());
   }
 
   // TODO: Make this const, if it's safe...
   /// Return a null-terminated C string view of this buffer.
+  /// @return Pointer to a null-terminated C string.
   const char* c_str() {
     this->push_back(0);
     this->pop_back();
@@ -278,26 +343,34 @@ public:
   }
 
   /// Implicit conversion to StringRef.
+  /// @return A StringRef view of this string.
   operator StringRef() const { return str(); }
 
   /// Explicit conversion to std::string, copying the characters.
+  /// @return A std::string copy of this string's characters.
   explicit operator std::string() const {
     return std::string(this->data(), this->size());
   }
 
   // Extra operators.
   /// Assign from a StringRef.
+  /// @param RHS String whose characters replace the current contents.
+  /// @return Reference to this SmallString.
   SmallString &operator=(StringRef RHS) {
     this->assign(RHS);
     return *this;
   }
 
   /// Append a StringRef.
+  /// @param RHS String whose characters are appended.
+  /// @return Reference to this SmallString.
   SmallString &operator+=(StringRef RHS) {
     this->append(RHS.begin(), RHS.end());
     return *this;
   }
   /// Append a single character.
+  /// @param C Character to append.
+  /// @return Reference to this SmallString.
   SmallString &operator+=(char C) {
     this->push_back(C);
     return *this;

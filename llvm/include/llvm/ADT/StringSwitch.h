@@ -54,27 +54,38 @@ class StringSwitch {
 
 public:
   /// Construct a StringSwitch that matches against subject string \p S.
+  /// @param S Subject string to match against.
   explicit StringSwitch(StringRef S)
   : Str(S), Result() { }
 
   /// Move-construct a StringSwitch, transferring any matched result.
-  StringSwitch(StringSwitch &&) = default;
+  /// @param Other Switch to move from.
+  StringSwitch(StringSwitch &&Other) = default;
 
   /// Copy construction is deleted; StringSwitch is move-only.
-  StringSwitch(const StringSwitch &) = delete;
+  /// @param Other Unused; copy construction is deleted.
+  StringSwitch(const StringSwitch &Other) = delete;
 
   /// Copy-assignment is deleted because the subject string is const.
-  void operator=(const StringSwitch &) = delete;
+  /// @param Other Unused; copy assignment is deleted.
+  void operator=(const StringSwitch &Other) = delete;
   /// Move-assignment is deleted because the subject string is const.
-  void operator=(StringSwitch &&) = delete;
+  /// @param Other Unused; move assignment is deleted.
+  void operator=(StringSwitch &&Other) = delete;
 
   /// Match if the subject equals \p S (case-sensitive) and bind \p Value.
+  /// @param S Case string to compare against the subject.
+  /// @param Value Result to bind when \p S matches.
+  /// @return This switch for further chaining.
   StringSwitch &Case(StringLiteral S, T Value) {
     CaseImpl(S, Value);
     return *this;
   }
 
   /// Match if the subject ends with \p S (case-sensitive) and bind \p Value.
+  /// @param S Suffix string to compare against the subject.
+  /// @param Value Result to bind when the subject ends with \p S.
+  /// @return This switch for further chaining.
   StringSwitch& EndsWith(StringLiteral S, T Value) {
     if (!Result && Str.ends_with(S)) {
       Result = std::move(Value);
@@ -83,6 +94,9 @@ public:
   }
 
   /// Match if the subject starts with \p S (case-sensitive) and bind \p Value.
+  /// @param S Prefix string to compare against the subject.
+  /// @param Value Result to bind when the subject starts with \p S.
+  /// @return This switch for further chaining.
   StringSwitch& StartsWith(StringLiteral S, T Value) {
     if (!Result && Str.starts_with(S)) {
       Result = std::move(Value);
@@ -91,6 +105,9 @@ public:
   }
 
   /// Match if the subject equals any of \p CaseStrings and bind \p Value.
+  /// @param CaseStrings Case strings to compare against the subject.
+  /// @param Value Result to bind when any case string matches.
+  /// @return This switch for further chaining.
   StringSwitch &Cases(std::initializer_list<StringLiteral> CaseStrings,
                       T Value) {
     // Stop matching after the string is found.
@@ -101,12 +118,18 @@ public:
   }
 
   /// Match if the subject equals \p S (case-insensitive) and bind \p Value.
+  /// @param S Case string to compare against the subject.
+  /// @param Value Result to bind when \p S matches.
+  /// @return This switch for further chaining.
   StringSwitch &CaseLower(StringLiteral S, T Value) {
     CaseLowerImpl(S, Value);
     return *this;
   }
 
   /// Match if the subject ends with \p S (case-insensitive) and bind \p Value.
+  /// @param S Suffix string to compare against the subject.
+  /// @param Value Result to bind when the subject ends with \p S.
+  /// @return This switch for further chaining.
   StringSwitch &EndsWithLower(StringLiteral S, T Value) {
     if (!Result && Str.ends_with_insensitive(S))
       Result = std::move(Value);
@@ -115,6 +138,9 @@ public:
   }
 
   /// Match if the subject starts with \p S (case-insensitive) and bind \p Value.
+  /// @param S Prefix string to compare against the subject.
+  /// @param Value Result to bind when the subject starts with \p S.
+  /// @return This switch for further chaining.
   StringSwitch &StartsWithLower(StringLiteral S, T Value) {
     if (!Result && Str.starts_with_insensitive(S))
       Result = std::move(Value);
@@ -123,6 +149,9 @@ public:
   }
 
   /// Match if the subject equals any of \p CaseStrings case-insensitively.
+  /// @param CaseStrings Case strings to compare against the subject.
+  /// @param Value Result to bind when any case string matches.
+  /// @return This switch for further chaining.
   StringSwitch &CasesLower(std::initializer_list<StringLiteral> CaseStrings,
                            T Value) {
     // Stop matching after the string is found.
@@ -133,6 +162,9 @@ public:
   }
 
   /// Match if predicate \p Pred returns true for the subject and bind \p Value.
+  /// @param Pred Predicate invoked with the subject string.
+  /// @param Value Result to bind when \p Pred returns true.
+  /// @return This switch for further chaining.
   StringSwitch &Predicate(function_ref<bool(StringRef)> Pred, T Value) {
     if (!Result && Pred(Str))
       Result = std::move(Value);
@@ -140,6 +172,8 @@ public:
   }
 
   /// Return the matched value, or \p Value if no case matched.
+  /// @param Value Fallback result when no case matched.
+  /// @return The matched result, or \p Value if no case matched.
   [[nodiscard]] R Default(T Value) {
     if (Result)
       return std::move(*Result);
@@ -147,6 +181,8 @@ public:
   }
 
   /// Declare default as unreachable, making sure that all cases were handled.
+  /// @param Message Diagnostic text if no case matched.
+  /// @return The matched result; aborts if no case matched.
   [[nodiscard]] R DefaultUnreachable(
       const char *Message = "Fell off the end of a string-switch") {
     if (Result)
@@ -155,6 +191,7 @@ public:
   }
 
   /// Convert to \c R by returning the match, or abort if none matched.
+  /// @return The matched result; aborts if no case matched.
   [[nodiscard]] operator R() { return DefaultUnreachable(); }
 
 private:

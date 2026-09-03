@@ -47,9 +47,13 @@ public:
   virtual ~ErrorInfoBase() = default;
 
   /// Print an error message to an output stream.
+  ///
+  /// \param OS Stream to write the error message to.
   virtual void log(raw_ostream &OS) const = 0;
 
   /// Return the error message as a string.
+  ///
+  /// \return The error message as a string.
   virtual std::string message() const {
     std::string Msg;
     raw_string_ostream OS(Msg);
@@ -61,20 +65,31 @@ public:
   ///
   /// This is a temporary crutch to enable interaction with code still
   /// using std::error_code. It will be removed in the future.
+  ///
+  /// \return A std::error_code representing this error.
   virtual std::error_code convertToErrorCode() const = 0;
 
   /// Return the class ID for this error info type.
+  ///
+  /// \return The RTTI class identifier for ErrorInfoBase.
   static const void *classID() { return &ID; }
 
   /// Return the class ID for the dynamic type of this ErrorInfoBase instance.
+  ///
+  /// \return The RTTI class identifier for the dynamic type.
   virtual const void *dynamicClassID() const = 0;
 
   /// Return true if this error matches RTTI class ID \p ClassID.
+  ///
+  /// \param ClassID RTTI class identifier to test against.
+  /// \return True if this error matches \p ClassID.
   virtual bool isA(const void *const ClassID) const {
     return ClassID == classID();
   }
 
   /// Return true if this error is a subclass of \c ErrorInfoT.
+  ///
+  /// \return True if this error is a subclass of \c ErrorInfoT.
   template <typename ErrorInfoT> bool isA() const {
     return isA(ErrorInfoT::classID());
   }
@@ -185,14 +200,22 @@ protected:
 
 public:
   /// Create a success value.
+  ///
+  /// \return An ErrorSuccess representing success.
   static ErrorSuccess success();
 
   /// Errors are not copy-constructible.
+  ///
+  /// \param Other Unused; copy construction is deleted.
   Error(const Error &Other) = delete;
 
-  /// Move-construct an error value. The newly constructed error is considered
-  /// unchecked, even if the source error had been checked. The original error
-  /// becomes a checked Success value, regardless of its original state.
+  /// Move-construct an error value from \p Other.
+  ///
+  /// The newly constructed error is considered unchecked, even if the source
+  /// error had been checked. The original error becomes a checked Success
+  /// value, regardless of its original state.
+  ///
+  /// \param Other Error to move from.
   Error(Error &&Other) {
     setChecked(true);
     *this = std::move(Other);
@@ -200,18 +223,27 @@ public:
 
   /// Create an error value. Prefer using the 'make_error' function, but
   /// this constructor can be useful when "re-throwing" errors from handlers.
+  ///
+  /// \param Payload Error info describing the failure.
   Error(std::unique_ptr<ErrorInfoBase> Payload) {
     setPtr(Payload.release());
     setChecked(false);
   }
 
   /// Copy-assignment is deleted; Error is move-only.
+  ///
+  /// \param Other Unused; copy assignment is deleted.
   Error &operator=(const Error &Other) = delete;
 
-  /// Move-assign an error value. The current error must represent success, you
-  /// you cannot overwrite an unhandled error. The current error is then
-  /// considered unchecked. The source error becomes a checked success value,
-  /// regardless of its original state.
+  /// Move-assign an error value from \p Other.
+  ///
+  /// The current error must represent success; you cannot overwrite an
+  /// unhandled error. The current error is then considered unchecked. The
+  /// source error becomes a checked success value, regardless of its original
+  /// state.
+  ///
+  /// \param Other Error to move from.
+  /// \return A reference to this Error.
   Error &operator=(Error &&Other) {
     // Don't allow overwriting of unchecked values.
     assertIsChecked();
@@ -235,18 +267,24 @@ public:
   }
 
   /// Return true if this Error holds a failure value.
+  ///
+  /// \return True if this Error holds a failure value.
   explicit operator bool() {
     setChecked(getPtr() == nullptr);
     return getPtr() != nullptr;
   }
 
   /// Check whether one error is a subclass of another.
+  ///
+  /// \return True if this Error is a subclass of \c ErrT.
   template <typename ErrT> bool isA() const {
     return getPtr() && getPtr()->isA(ErrT::classID());
   }
 
   /// Returns the dynamic class id of this error, or null if this is a success
   /// value.
+  ///
+  /// \return The dynamic class ID, or null for success.
   const void* dynamicClassID() const {
     if (!getPtr())
       return nullptr;
@@ -316,6 +354,10 @@ private:
   }
 
   /// Write a textual representation of error \p E to stream \p OS.
+  ///
+  /// \param OS Stream to write to.
+  /// \param E Error to print (success prints "success").
+  /// \return The output stream \p OS.
   friend raw_ostream &operator<<(raw_ostream &OS, const Error &E) {
     if (auto *P = E.getPtr())
       P->log(OS);
@@ -327,15 +369,19 @@ private:
   ErrorInfoBase *Payload = nullptr;
 };
 
-/// Subclass of Error for the sole purpose of identifying the success path in
-/// the type system. This allows to catch invalid conversion to Expected<T> at
-/// compile time.
+/// Subclass of Error that represents success in the type system.
+///
+/// Identifies the success path so invalid conversions to Expected<T> can be
+/// caught at compile time.
 class ErrorSuccess final : public Error {};
 
 inline ErrorSuccess Error::success() { return ErrorSuccess(); }
 
 /// Make a Error instance representing failure using the given error info
 /// type.
+///
+/// \param Args Constructor arguments forwarded to \c ErrT.
+/// \return An Error owning a newly constructed \c ErrT.
 template <typename ErrT, typename... ArgTs> Error make_error(ArgTs &&... Args) {
   return Error(std::make_unique<ErrT>(std::forward<ArgTs>(Args)...));
 }
@@ -352,15 +398,23 @@ template <typename ErrT, typename... ArgTs> Error make_error(ArgTs &&... Args) {
 template <typename ThisErrT, typename ParentErrT = ErrorInfoBase>
 class ErrorInfo : public ParentErrT {
 public:
-  using ParentErrT::ParentErrT; // inherit constructors
+  /// Inherit constructors from the parent error-info type.
+  using ParentErrT::ParentErrT;
 
   /// Return the RTTI class identifier for \c ThisErrT.
+  ///
+  /// \return The RTTI class identifier for \c ThisErrT.
   static const void *classID() { return &ThisErrT::ID; }
 
   /// Return the dynamic class ID for this error instance.
+  ///
+  /// \return The RTTI class identifier for \c ThisErrT.
   const void *dynamicClassID() const override { return &ThisErrT::ID; }
 
   /// Return true if this error is an instance of \p ClassID or a parent.
+  ///
+  /// \param ClassID RTTI class identifier to test against.
+  /// \return True if this error matches \p ClassID or a parent type.
   bool isA(const void *const ClassID) const override {
     return ClassID == classID() || ParentErrT::isA(ClassID);
   }
@@ -383,6 +437,8 @@ class LLVM_ABI ErrorList final : public ErrorInfo<ErrorList> {
 
 public:
   /// Write each contained error to \p OS.
+  ///
+  /// \param OS Stream to receive each nested error message.
   void log(raw_ostream &OS) const override {
     OS << "Multiple errors:\n";
     for (const auto &ErrPayload : Payloads) {
@@ -392,6 +448,8 @@ public:
   }
 
   /// Convert this error list to a \c std::error_code.
+  ///
+  /// \return A std::error_code representing this error list.
   std::error_code convertToErrorCode() const override;
 
   /// RTTI identifier used by ErrorInfo::classID.
@@ -440,9 +498,14 @@ private:
   std::vector<std::unique_ptr<ErrorInfoBase>> Payloads;
 };
 
-/// Concatenate errors. The resulting Error is unchecked, and contains the
-/// ErrorInfo(s), if any, contained in E1, followed by the
-/// ErrorInfo(s), if any, contained in E2.
+/// Concatenate errors from \p E1 followed by those from \p E2.
+///
+/// The resulting Error is unchecked, and contains the ErrorInfo(s), if any,
+/// contained in E1, followed by the ErrorInfo(s), if any, contained in E2.
+///
+/// \param E1 First error (or success) whose payloads come first.
+/// \param E2 Second error (or success) whose payloads are appended.
+/// \return An Error containing the payloads of \p E1 followed by those of \p E2.
 inline Error joinErrors(Error E1, Error E2) {
   return ErrorList::join(std::move(E1), std::move(E2));
 }
@@ -510,6 +573,8 @@ private:
 
 public:
   /// Create an Expected<T> error value from the given Error.
+  ///
+  /// \param Err Failure Error whose payload is stored.
   Expected(Error &&Err)
       : HasError(true)
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
@@ -521,16 +586,23 @@ public:
     new (getErrorStorage()) error_type(Err.takePayload());
   }
 
-  /// Forbid to convert from Error::success() implicitly, this avoids having
-  /// Expected<T> foo() { return Error::success(); } which compiles otherwise
-  /// but triggers the assertion above.
-  Expected(ErrorSuccess) = delete;
+  /// Deleted: forbid constructing Expected from Error::success().
+  ///
+  /// This avoids having Expected<T> foo() { return Error::success(); } which
+  /// compiles otherwise but triggers the assertion above.
+  ///
+  /// \param Unused Success sentinel that makes this overload unusable.
+  Expected(ErrorSuccess Unused) = delete;
 
   /// Create an Expected<T> success value from the given OtherT value, which
   /// must be convertible to T.
+  ///
+  /// \param Val Value to store on the success path.
+  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   template <typename OtherT>
   Expected(OtherT &&Val,
-           std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr)
+           std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
+               nullptr)
       : HasError(false)
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
         // Expected is unchecked upon construction in Debug builds.
@@ -538,30 +610,44 @@ public:
         Unchecked(true)
 #endif
   {
+    (void)EnableIf;
     new (getStorage()) storage_type(std::forward<OtherT>(Val));
   }
 
   /// Move construct an Expected<T> value.
+  ///
+  /// \param Other Expected value to move from.
   Expected(Expected &&Other) { moveConstruct(std::move(Other)); }
 
   /// Move construct an Expected<T> value from an Expected<OtherT>, where OtherT
   /// must be convertible to T.
+  ///
+  /// \param Other Expected value to move from.
+  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   template <class OtherT>
   Expected(Expected<OtherT> &&Other,
-           std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr) {
+           std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
+               nullptr) {
+    (void)EnableIf;
     moveConstruct(std::move(Other));
   }
 
   /// Move construct an Expected<T> value from an Expected<OtherT>, where OtherT
   /// isn't convertible to T.
+  ///
+  /// \param Other Expected value to move from.
   template <class OtherT>
   explicit Expected(
       Expected<OtherT> &&Other,
-      std::enable_if_t<!std::is_convertible_v<OtherT, T>> * = nullptr) {
+      std::enable_if_t<!std::is_convertible_v<OtherT, T>> *EnableIf = nullptr) {
+    (void)EnableIf;
     moveConstruct(std::move(Other));
   }
 
   /// Move-assign from another Expected<T>.
+  ///
+  /// \param Other Expected value to move from.
+  /// \return A reference to this Expected.
   Expected &operator=(Expected &&Other) {
     moveAssign(std::move(Other));
     return *this;
@@ -577,6 +663,8 @@ public:
   }
 
   /// Return false if there is an error.
+  ///
+  /// \return True if a value is present, false if there is an error.
   explicit operator bool() {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     Unchecked = HasError;
@@ -585,36 +673,51 @@ public:
   }
 
   /// Returns a reference to the stored T value.
+  ///
+  /// \return A reference to the stored T value.
   reference get() {
     assertIsChecked();
     return *getStorage();
   }
 
   /// Returns a const reference to the stored T value.
+  ///
+  /// \return A const reference to the stored T value.
   const_reference get() const {
     assertIsChecked();
     return const_cast<Expected<T> *>(this)->get();
   }
 
-  /// Returns \a takeError() after moving the held T (if any) into \p V.
+  /// Returns \a takeError() after moving the held T (if any) into \p Value.
+  ///
+  /// \param Value Destination that receives the success value when present.
+  /// \param EnableIf SFINAE parameter enabling this overload when assignable.
+  /// \return The Error from takeError() after optionally moving the value.
   template <class OtherT>
   Error moveInto(
       OtherT &Value,
-      std::enable_if_t<std::is_assignable_v<OtherT &, T &&>> * = nullptr) && {
+      std::enable_if_t<std::is_assignable_v<OtherT &, T &&>> *EnableIf =
+          nullptr) && {
+    (void)EnableIf;
     if (*this)
       Value = std::move(get());
     return takeError();
   }
 
   /// Check that this Expected<T> is an error of type ErrT.
+  ///
+  /// \return True if this Expected holds an error of type \c ErrT.
   template <typename ErrT> bool errorIsA() const {
     return HasError && (*getErrorStorage())->template isA<ErrT>();
   }
 
   /// Take ownership of the stored error.
+  ///
   /// After calling this the Expected<T> is in an indeterminate state that can
   /// only be safely destructed. No further calls (beside the destructor) should
   /// be made on the Expected<T> value.
+  ///
+  /// \return The stored Error, or success if a value was present.
   Error takeError() {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     Unchecked = false;
@@ -623,24 +726,32 @@ public:
   }
 
   /// Returns a pointer to the stored T value.
+  ///
+  /// \return A pointer to the stored T value.
   pointer operator->() {
     assertIsChecked();
     return toPointer(getStorage());
   }
 
   /// Returns a const pointer to the stored T value.
+  ///
+  /// \return A const pointer to the stored T value.
   const_pointer operator->() const {
     assertIsChecked();
     return toPointer(getStorage());
   }
 
   /// Returns a reference to the stored T value.
+  ///
+  /// \return A reference to the stored T value.
   reference operator*() {
     assertIsChecked();
     return *getStorage();
   }
 
   /// Returns a const reference to the stored T value.
+  ///
+  /// \return A const reference to the stored T value.
   const_reference operator*() const {
     assertIsChecked();
     return *getStorage();
@@ -749,16 +860,25 @@ private:
 #endif
 };
 
+/// Report a fatal error from an Error value.
+///
 /// @deprecated Use reportFatalInternalError() or reportFatalUsageError()
 /// instead.
+///
+/// \param Err Error whose message is reported before terminating.
+/// \param gen_crash_diag Whether to generate a crash diagnostic.
 [[noreturn]] LLVM_ABI void report_fatal_error(Error Err,
                                               bool gen_crash_diag = true);
 
 /// Report a fatal error that indicates a bug in LLVM.
 /// See ErrorHandling.h for details.
+///
+/// \param Err Error whose message is reported before aborting.
 [[noreturn]] LLVM_ABI void reportFatalInternalError(Error Err);
 /// Report a fatal error that does not indicate a bug in LLVM.
 /// See ErrorHandling.h for details.
+///
+/// \param Err Error whose message is reported before exiting.
 [[noreturn]] LLVM_ABI void reportFatalUsageError(Error Err);
 
 /// Report a fatal error if Err is a failure value.
@@ -774,6 +894,9 @@ private:
 ///
 ///   cantFail(foo(false));
 ///   @endcode
+///
+/// \param Err Error that must represent success.
+/// \param Msg Optional message used if \p Err is a failure.
 inline void cantFail(Error Err, const char *Msg = nullptr) {
   if (Err) {
     if (!Msg)
@@ -801,6 +924,10 @@ inline void cantFail(Error Err, const char *Msg = nullptr) {
 ///
 ///   int X = cantFail(foo(false));
 ///   @endcode
+///
+/// \param ValOrErr Expected value that must hold success.
+/// \param Msg Optional message used if \p ValOrErr is a failure.
+/// \return The contained value from \p ValOrErr.
 template <typename T>
 T cantFail(Expected<T> ValOrErr, const char *Msg = nullptr) {
   if (ValOrErr)
@@ -831,6 +958,10 @@ using is_nullptr_comparable = llvm::is_detected<compare_nullptr_t, T>;
 
 /// Calls llvm_unreachable if Pointer is null, otherwise returns the
 /// pointer as is.
+///
+/// \param Pointer Value that must not compare equal to nullptr.
+/// \param Msg Message passed to llvm_unreachable on null.
+/// \return \p Pointer unchanged if it is non-null.
 template <typename T,
           typename = std::enable_if_t<detail::is_nullptr_comparable<T>::value>>
 [[nodiscard]] decltype(auto) checkNotNull(
@@ -855,6 +986,10 @@ template <typename T,
 ///
 ///   Bar &X = cantFail(foo(false));
 ///   @endcode
+///
+/// \param ValOrErr Expected reference that must hold success.
+/// \param Msg Optional message used if \p ValOrErr is a failure.
+/// \return The contained reference from \p ValOrErr.
 template <typename T>
 T& cantFail(Expected<T&> ValOrErr, const char *Msg = nullptr) {
   if (ValOrErr)
@@ -880,13 +1015,22 @@ class ErrorHandlerTraits
     : public ErrorHandlerTraits<
           decltype(&std::remove_reference_t<HandlerT>::operator())> {};
 
-// Specialization functions of the form 'Error (const ErrT&)'.
+/// Specialization for handlers of the form 'Error (ErrT &)'.
 template <typename ErrT> class ErrorHandlerTraits<Error (&)(ErrT &)> {
 public:
+  /// Return true if \p E is an instance of \c ErrT.
+  ///
+  /// \param E Error info to test.
+  /// \return True if \p E is an instance of \c ErrT.
   static bool appliesTo(const ErrorInfoBase &E) {
     return E.template isA<ErrT>();
   }
 
+  /// Invoke \p H with \p E cast to \c ErrT &.
+  ///
+  /// \param H Handler callable returning Error.
+  /// \param E Error payload transferred to the handler.
+  /// \return The Error returned by \p H.
   template <typename HandlerT>
   static Error apply(HandlerT &&H, std::unique_ptr<ErrorInfoBase> E) {
     assert(appliesTo(*E) && "Applying incorrect handler");
@@ -894,13 +1038,22 @@ public:
   }
 };
 
-// Specialization functions of the form 'void (const ErrT&)'.
+/// Specialization for handlers of the form 'void (ErrT &)'.
 template <typename ErrT> class ErrorHandlerTraits<void (&)(ErrT &)> {
 public:
+  /// Return true if \p E is an instance of \c ErrT.
+  ///
+  /// \param E Error info to test.
+  /// \return True if \p E is an instance of \c ErrT.
   static bool appliesTo(const ErrorInfoBase &E) {
     return E.template isA<ErrT>();
   }
 
+  /// Invoke \p H with \p E cast to \c ErrT &, then return success.
+  ///
+  /// \param H Handler callable returning void.
+  /// \param E Error payload transferred to the handler.
+  /// \return An Error representing success.
   template <typename HandlerT>
   static Error apply(HandlerT &&H, std::unique_ptr<ErrorInfoBase> E) {
     assert(appliesTo(*E) && "Applying incorrect handler");
@@ -913,10 +1066,19 @@ public:
 template <typename ErrT>
 class ErrorHandlerTraits<Error (&)(std::unique_ptr<ErrT>)> {
 public:
+  /// Return true if \p E is an instance of \c ErrT.
+  ///
+  /// \param E Error info to test.
+  /// \return True if \p E is an instance of \c ErrT.
   static bool appliesTo(const ErrorInfoBase &E) {
     return E.template isA<ErrT>();
   }
 
+  /// Invoke \p H with ownership of \p E cast to \c ErrT.
+  ///
+  /// \param H Handler callable returning Error.
+  /// \param E Error payload transferred to the handler.
+  /// \return The Error returned by \p H.
   template <typename HandlerT>
   static Error apply(HandlerT &&H, std::unique_ptr<ErrorInfoBase> E) {
     assert(appliesTo(*E) && "Applying incorrect handler");
@@ -929,10 +1091,19 @@ public:
 template <typename ErrT>
 class ErrorHandlerTraits<void (&)(std::unique_ptr<ErrT>)> {
 public:
+  /// Return true if \p E is an instance of \c ErrT.
+  ///
+  /// \param E Error info to test.
+  /// \return True if \p E is an instance of \c ErrT.
   static bool appliesTo(const ErrorInfoBase &E) {
     return E.template isA<ErrT>();
   }
 
+  /// Invoke \p H with ownership of \p E cast to \c ErrT, then return success.
+  ///
+  /// \param H Handler callable returning void.
+  /// \param E Error payload transferred to the handler.
+  /// \return An Error representing success.
   template <typename HandlerT>
   static Error apply(HandlerT &&H, std::unique_ptr<ErrorInfoBase> E) {
     assert(appliesTo(*E) && "Applying incorrect handler");
@@ -975,11 +1146,19 @@ class ErrorHandlerTraits<RetT (C::*)(std::unique_ptr<ErrT>) const>
     : public ErrorHandlerTraits<RetT (&)(std::unique_ptr<ErrT>)> {};
 
 /// Return an Error wrapping unhandled \p Payload.
+///
+/// \param Payload Error info that no handler claimed.
+/// \return An Error owning \p Payload.
 inline Error handleErrorImpl(std::unique_ptr<ErrorInfoBase> Payload) {
   return Error(std::move(Payload));
 }
 
 /// Dispatch \p Payload to the first matching handler among \p Handler and \p Handlers.
+///
+/// \param Payload Error info to match against the handlers.
+/// \param Handler First candidate handler.
+/// \param Handlers Remaining candidate handlers.
+/// \return The Error from the matching handler, or an Error wrapping unhandled \p Payload.
 template <typename HandlerT, typename... HandlerTs>
 Error handleErrorImpl(std::unique_ptr<ErrorInfoBase> Payload,
                       HandlerT &&Handler, HandlerTs &&... Handlers) {
@@ -990,14 +1169,19 @@ Error handleErrorImpl(std::unique_ptr<ErrorInfoBase> Payload,
                          std::forward<HandlerTs>(Handlers)...);
 }
 
-/// Pass the ErrorInfo(s) contained in E to their respective handlers. Any
-/// unhandled errors (or Errors returned by handlers) are re-concatenated and
-/// returned.
-/// Because this function returns an error, its result must also be checked
-/// or returned. If you intend to handle all errors use handleAllErrors
-/// (which returns void, and will abort() on unhandled errors) instead.
+/// Pass ErrorInfo payloads in \p E to matching handlers among \p Handlers.
+///
+/// Any unhandled errors (or Errors returned by handlers) are re-concatenated
+/// and returned. Because this function returns an error, its result must also
+/// be checked or returned. If you intend to handle all errors use
+/// handleAllErrors (which returns void, and will abort() on unhandled errors)
+/// instead.
+///
+/// \param E Error whose payloads are dispatched (consumed).
+/// \param Handlers Callables that handle specific ErrorInfo types.
+/// \return Success, or any unhandled or newly returned errors.
 template <typename... HandlerTs>
-Error handleErrors(Error E, HandlerTs &&... Hs) {
+Error handleErrors(Error E, HandlerTs &&... Handlers) {
   if (!E)
     return Error::success();
 
@@ -1009,16 +1193,21 @@ Error handleErrors(Error E, HandlerTs &&... Hs) {
     for (auto &P : List.Payloads)
       R = ErrorList::join(
           std::move(R),
-          handleErrorImpl(std::move(P), std::forward<HandlerTs>(Hs)...));
+          handleErrorImpl(std::move(P), std::forward<HandlerTs>(Handlers)...));
     return R;
   }
 
-  return handleErrorImpl(std::move(Payload), std::forward<HandlerTs>(Hs)...);
+  return handleErrorImpl(std::move(Payload), std::forward<HandlerTs>(Handlers)...);
 }
 
+/// Like handleErrors, but requires every error to be handled.
+///
 /// Behaves the same as handleErrors, except that by contract all errors
 /// *must* be handled by the given handlers (i.e. there must be no remaining
 /// errors after running the handlers, or llvm_unreachable is called).
+///
+/// \param E Error whose payloads are dispatched (consumed).
+/// \param Handlers Callables that must handle every ErrorInfo type present.
 template <typename... HandlerTs>
 void handleAllErrors(Error E, HandlerTs &&... Handlers) {
   cantFail(handleErrors(std::move(E), std::forward<HandlerTs>(Handlers)...));
@@ -1026,12 +1215,17 @@ void handleAllErrors(Error E, HandlerTs &&... Handlers) {
 
 /// Check that E is a non-error, then drop it.
 /// If E is an error, llvm_unreachable will be called.
+///
+/// \param E Error that must represent success.
 inline void handleAllErrors(Error E) {
   cantFail(std::move(E));
 }
 
 /// Visit all the ErrorInfo(s) contained in E by passing them to the respective
 /// handler, without consuming the error.
+///
+/// \param E Error whose payloads are visited (not consumed).
+/// \param H Callable invoked once per ErrorInfo payload.
 template <typename HandlerT> void visitErrors(const Error &E, HandlerT H) {
   const ErrorInfoBase *Payload = E.getPtr();
   if (!Payload)
@@ -1071,6 +1265,11 @@ template <typename HandlerT> void visitErrors(const Error &E, HandlerT H) {
 ///       });
 ///
 ///   @endcode
+///
+/// \param ValOrErr Expected value to return on success, or error to handle.
+/// \param RecoveryPath Functor that produces a replacement Expected on recovery.
+/// \param Handlers Callables that handle specific ErrorInfo types.
+/// \return The original value, a recovered Expected, or unhandled errors.
 template <typename T, typename RecoveryFtor, typename... HandlerTs>
 Expected<T> handleExpected(Expected<T> ValOrErr, RecoveryFtor &&RecoveryPath,
                            HandlerTs &&... Handlers) {
@@ -1084,9 +1283,10 @@ Expected<T> handleExpected(Expected<T> ValOrErr, RecoveryFtor &&RecoveryPath,
   return RecoveryPath();
 }
 
-/// Log all errors (if any) in E to OS. If there are any errors, ErrorBanner
-/// will be printed before the first one is logged. A newline will be printed
-/// after each error.
+/// Log all errors in \p E to \p OS, optionally prefixed by \p ErrorBanner.
+///
+/// If there are any errors, ErrorBanner will be printed before the first one is
+/// logged. A newline will be printed after each error.
 ///
 /// This function is compatible with the helpers from Support/WithColor.h. You
 /// can pass any of them as the OS. Please consider using them instead of
@@ -1095,15 +1295,25 @@ Expected<T> handleExpected(Expected<T> ValOrErr, RecoveryFtor &&RecoveryPath,
 /// This is useful in the base level of your program to allow clean termination
 /// (allowing clean deallocation of resources, etc.), while reporting error
 /// information to the user.
+///
+/// \param E Error whose payloads are logged (consumed).
+/// \param OS Stream to write error messages to.
+/// \param ErrorBanner Optional prefix printed before the first error.
 LLVM_ABI void logAllUnhandledErrors(Error E, raw_ostream &OS,
                                     Twine ErrorBanner = {});
 
 /// Write all error messages (if any) in E to a string. The newline character
 /// is used to separate error messages.
+///
+/// \param E Error whose messages are concatenated (consumed).
+/// \return Concatenated error messages from \p E.
 LLVM_ABI std::string toString(Error E);
 
 /// Like toString(), but does not consume the error. This can be used to print
 /// a warning while retaining the original error object.
+///
+/// \param E Error whose messages are concatenated without consuming it.
+/// \return Concatenated error messages from \p E.
 LLVM_ABI std::string toStringWithoutConsuming(const Error &E);
 
 /// Consume a Error without doing anything. This method should be used
@@ -1113,17 +1323,23 @@ LLVM_ABI std::string toStringWithoutConsuming(const Error &E);
 /// Uses of this method are potentially indicative of design problems: If it's
 /// legitimate to do nothing while processing an "error", the error-producer
 /// might be more clearly refactored to return an std::optional<T>.
+///
+/// \param Err Error to mark checked and discard.
 inline void consumeError(Error Err) {
   handleAllErrors(std::move(Err), [](const ErrorInfoBase &) {});
 }
 
-/// Convert an Expected to an std::optional without doing anything. This method
-/// should be used only where an error can be considered a reasonable and
-/// expected return value.
+/// Convert an Expected to an optional, discarding any error.
+///
+/// This method should be used only where an error can be considered a
+/// reasonable and expected return value.
 ///
 /// Uses of this method are potentially indicative of problems: perhaps the
 /// error should be propagated further, or the error-producer should just
 /// return an std::optional in the first place.
+///
+/// \param E Expected value to convert; errors are consumed.
+/// \return The value if present, or std::nullopt if \p E held an error.
 template <typename T> std::optional<T> expectedToOptional(Expected<T> &&E) {
   if (E)
     return std::move(*E);
@@ -1136,6 +1352,9 @@ template <typename T> std::optional<T> expectedToOptional(Expected<T> &&E) {
 /// This method returns true if Err is in an error state, or false if it is
 /// in a success state.  Puts Err in a checked state in both cases (unlike
 /// Error::operator bool(), which only does this for success states).
+///
+/// \param Err Error to test and mark checked.
+/// \return True if \p Err is a failure, false on success.
 inline bool errorToBool(Error Err) {
   bool IsError = static_cast<bool>(Err);
   if (IsError)
@@ -1171,6 +1390,8 @@ class ErrorAsOutParameter {
 public:
 
   /// Mark \p Err as checked for the duration of this object's lifetime.
+  ///
+  /// \param Err Optional Error out-parameter (may be null).
   ErrorAsOutParameter(Error *Err) : Err(Err) {
     // Raise the checked bit if Err is success.
     if (Err)
@@ -1178,6 +1399,8 @@ public:
   }
 
   /// Mark out-parameter \p Err as checked for this object's lifetime.
+  ///
+  /// \param Err Error out-parameter to mark checked.
   ErrorAsOutParameter(Error &Err) : Err(&Err) {
     (void)!!Err;
   }
@@ -1201,6 +1424,8 @@ template <typename T>
 class ExpectedAsOutParameter {
 public:
   /// Construct a checker for Expected out-parameter \p ValOrErr.
+  ///
+  /// \param ValOrErr Optional Expected out-parameter (may be null).
   ExpectedAsOutParameter(Expected<T> *ValOrErr)
     : ValOrErr(ValOrErr) {
     if (ValOrErr)
@@ -1229,10 +1454,16 @@ class LLVM_ABI ECError : public ErrorInfo<ECError> {
 
 public:
   /// Replace the stored error code with \p EC.
+  ///
+  /// \param EC New error code to store.
   void setErrorCode(std::error_code EC) { this->EC = EC; }
   /// Convert this error to a \c std::error_code.
+  ///
+  /// \return The stored std::error_code.
   std::error_code convertToErrorCode() const override { return EC; }
   /// Write the error_code message to \p OS.
+  ///
+  /// \param OS Stream to receive the error-code message.
   void log(raw_ostream &OS) const override { OS << EC.message(); }
 
   /// RTTI identifier used by ErrorInfo::classID.
@@ -1242,27 +1473,39 @@ protected:
   /// Construct an empty ECError.
   ECError() = default;
   /// Construct an ECError from error code \p EC.
+  ///
+  /// \param EC Error code to store.
   ECError(std::error_code EC) : EC(EC) {}
 
   /// Underlying std::error_code carried by this error.
   std::error_code EC;
 };
 
+/// Return an inconvertible sentinel \c std::error_code.
+///
 /// The value returned by this function can be returned from convertToErrorCode
 /// for Error values where no sensible translation to std::error_code exists.
 /// It should only be used in this situation, and should never be used where a
 /// sensible conversion to std::error_code is available, as attempts to convert
 /// to/from this error will result in a fatal error. (i.e. it is a programmatic
 /// error to try to convert such a value).
+///
+/// \return A sentinel std::error_code for inconvertible errors.
 LLVM_ABI std::error_code inconvertibleErrorCode();
 
 /// Helper for converting an std::error_code to a Error.
+///
+/// \param EC Error code to wrap in an ECError.
+/// \return An Error wrapping \p EC.
 LLVM_ABI Error errorCodeToError(std::error_code EC);
 
 /// Helper for converting an ECError to a std::error_code.
 ///
 /// This method requires that Err be Error() or an ECError, otherwise it
 /// will trigger a call to abort().
+///
+/// \param Err Error that must be success or an ECError.
+/// \return The corresponding std::error_code.
 LLVM_ABI std::error_code errorToErrorCode(Error Err);
 
 /// Helper to get errno as an std::error_code.
@@ -1275,11 +1518,16 @@ LLVM_ABI std::error_code errorToErrorCode(Error Err);
 ///
 /// See the libc++ and libstdc++ implementations of `default_error_condition` on
 /// the system category for more details on what the difference is.
+///
+/// \return A std::error_code for the current errno.
 inline std::error_code errnoAsErrorCode() {
   return std::error_code(errno, std::generic_category());
 }
 
 /// Convert an ErrorOr<T> to an Expected<T>.
+///
+/// \param EO ErrorOr value to convert; moved from on success or error.
+/// \return An Expected holding the value or a converted Error.
 template <typename T> Expected<T> errorOrToExpected(ErrorOr<T> &&EO) {
   if (auto EC = EO.getError())
     return errorCodeToError(EC);
@@ -1287,6 +1535,9 @@ template <typename T> Expected<T> errorOrToExpected(ErrorOr<T> &&EO) {
 }
 
 /// Convert an Expected<T> to an ErrorOr<T>.
+///
+/// \param E Expected value to convert; error is mapped via errorToErrorCode.
+/// \return An ErrorOr holding the value or mapped error code.
 template <typename T> ErrorOr<T> expectedToErrorOr(Expected<T> &&E) {
   if (auto Err = E.takeError())
     return errorToErrorCode(std::move(Err));
@@ -1323,19 +1574,34 @@ public:
   static char ID;
 
   /// Prints S, or EC + S, based on PrintMsgOnly; converts to EC.
+  ///
+  /// \param S Human-readable message text.
+  /// \param EC Error code this StringError converts to.
+  /// \param PrintMsgOnly If true, \c log prints only \p S; otherwise EC and S.
   StringError(std::string &&S, std::error_code EC, bool PrintMsgOnly);
   /// Prints EC + S and converts to EC.
+  ///
+  /// \param EC Error code this StringError converts to.
+  /// \param S Optional message printed alongside the error-code text.
   StringError(std::error_code EC, const Twine &S = Twine());
   /// Prints S and converts to EC.
+  ///
+  /// \param S Human-readable message text.
+  /// \param EC Error code this StringError converts to.
   StringError(const Twine &S, std::error_code EC);
 
   /// Write this error's message to \p OS.
-  /// @param OS Stream to receive the message.
+  ///
+  /// \param OS Stream to receive the message.
   void log(raw_ostream &OS) const override;
   /// Convert this error to a \c std::error_code.
+  ///
+  /// \return The stored std::error_code.
   std::error_code convertToErrorCode() const override;
 
   /// Return the stored error message string.
+  ///
+  /// \return The stored error message string.
   const std::string &getMessage() const { return Msg; }
 
 private:
@@ -1345,6 +1611,11 @@ private:
 };
 
 /// Create formatted StringError object.
+///
+/// \param EC Error code stored in the StringError.
+/// \param Fmt Printf-style format string for the message.
+/// \param Vals Format arguments for \p Fmt.
+/// \return A StringError with code \p EC and the formatted message.
 template <typename... Ts>
 inline Error createStringError(std::error_code EC, char const *Fmt,
                                const Ts &... Vals) {
@@ -1354,30 +1625,54 @@ inline Error createStringError(std::error_code EC, char const *Fmt,
 }
 
 /// Create a StringError from error code \p EC and message \p Msg.
+///
+/// \param Msg Human-readable error message (moved into the error).
+/// \param EC Error code stored in the StringError.
+/// \return A StringError with message \p Msg and code \p EC.
 LLVM_ABI Error createStringError(std::string &&Msg, std::error_code EC);
 
 /// Create a StringError from error code \p EC and message \p S.
+///
+/// \param EC Error code stored in the StringError.
+/// \param S Human-readable error message.
+/// \return A StringError with code \p EC and message \p S.
 inline Error createStringError(std::error_code EC, const char *S) {
   return createStringError(std::string(S), EC);
 }
 
 /// Create a StringError from error code \p EC and Twine message \p S.
+///
+/// \param EC Error code stored in the StringError.
+/// \param S Human-readable error message.
+/// \return A StringError with code \p EC and message \p S.
 inline Error createStringError(std::error_code EC, const Twine &S) {
   return createStringError(S.str(), EC);
 }
 
 /// Create a StringError with an inconvertible error code.
+///
+/// \param S Human-readable error message.
+/// \return A StringError with an inconvertible code and message \p S.
 inline Error createStringError(const Twine &S) {
   return createStringError(llvm::inconvertibleErrorCode(), S);
 }
 
 /// Create a StringError with an inconvertible error code and printf-style \p Fmt.
+///
+/// \param Fmt Printf-style format string for the message.
+/// \param Vals Format arguments for \p Fmt.
+/// \return A StringError with an inconvertible code and the formatted message.
 template <typename... Ts>
 inline Error createStringError(char const *Fmt, const Ts &...Vals) {
   return createStringError(llvm::inconvertibleErrorCode(), Fmt, Vals...);
 }
 
 /// Create a StringError from \c std::errc \p EC and printf-style \p Fmt.
+///
+/// \param EC Portable error condition converted to a \c std::error_code.
+/// \param Fmt Printf-style format string for the message.
+/// \param Vals Format arguments for \p Fmt.
+/// \return A StringError with the formatted message.
 template <typename... Ts>
 inline Error createStringError(std::errc EC, char const *Fmt,
                                const Ts &... Vals) {
@@ -1395,6 +1690,8 @@ class LLVM_ABI FileError final : public ErrorInfo<FileError> {
 
 public:
   /// Write the file name (and optional line) plus nested error to \p OS.
+  ///
+  /// \param OS Stream to receive the formatted error message.
   void log(raw_ostream &OS) const override {
     assert(Err && "Trying to log after takeError().");
     OS << "'" << FileName << "': ";
@@ -1404,6 +1701,8 @@ public:
   }
 
   /// Return the wrapped error message without the file-name prefix.
+  ///
+  /// \return The nested error message without the file-name prefix.
   std::string messageWithoutFileInfo() const {
     std::string Msg;
     raw_string_ostream OS(Msg);
@@ -1412,12 +1711,18 @@ public:
   }
 
   /// Return the file name associated with this error.
+  ///
+  /// \return The file name associated with this error.
   StringRef getFileName() const { return FileName; }
 
   /// Take ownership of the wrapped Error, leaving this FileError empty.
+  ///
+  /// \return The nested Error, transferring ownership.
   Error takeError() { return Error(std::move(Err)); }
 
   /// Convert this file error to a std::error_code.
+  ///
+  /// \return A std::error_code for the nested error.
   std::error_code convertToErrorCode() const override;
 
   /// RTTI identifier used by ErrorInfo::classID.
@@ -1450,30 +1755,53 @@ private:
 
 /// Concatenate a source file path and/or name with an Error. The resulting
 /// Error is unchecked.
+///
+/// \param F Source file path and/or name to associate with the error.
+/// \param E Nested error to wrap.
+/// \return A FileError associating \p F with \p E.
 inline Error createFileError(const Twine &F, Error E) {
   return FileError::build(F, std::optional<size_t>(), std::move(E));
 }
 
 /// Concatenate a source file path and/or name with line number and an Error.
 /// The resulting Error is unchecked.
+///
+/// \param F Source file path and/or name to associate with the error.
+/// \param Line One-based line number within the file.
+/// \param E Nested error to wrap.
+/// \return A FileError associating \p F and \p Line with \p E.
 inline Error createFileError(const Twine &F, size_t Line, Error E) {
   return FileError::build(F, std::optional<size_t>(Line), std::move(E));
 }
 
-/// Concatenate a source file path and/or name with a std::error_code 
+/// Concatenate a source file path and/or name with a std::error_code
 /// to form an Error object.
+///
+/// \param F Source file path and/or name to associate with the error.
+/// \param EC Error code to wrap as a nested Error.
+/// \return A FileError wrapping the error code.
 inline Error createFileError(const Twine &F, std::error_code EC) {
   return createFileError(F, errorCodeToError(EC));
 }
 
 /// Concatenate a source file path and/or name with line number and
 /// std::error_code to form an Error object.
+///
+/// \param F Source file path and/or name to associate with the error.
+/// \param Line One-based line number within the file.
+/// \param EC Error code to wrap as a nested Error.
+/// \return A FileError wrapping the error code at \p Line.
 inline Error createFileError(const Twine &F, size_t Line, std::error_code EC) {
   return createFileError(F, Line, errorCodeToError(EC));
 }
 
 /// Create a StringError with the specified error code and prepend the file path
 /// to it.
+///
+/// \param F Source file path and/or name to associate with the error.
+/// \param EC Error code stored in the StringError.
+/// \param S Human-readable message text.
+/// \return A FileError wrapping a StringError for \p F.
 inline Error createFileError(const Twine &F, std::error_code EC,
                              const Twine &S) {
   Error E = createStringError(EC, S);
@@ -1482,6 +1810,12 @@ inline Error createFileError(const Twine &F, std::error_code EC,
 
 /// Create a StringError with the specified error code and prepend the file path
 /// to it.
+///
+/// \param F Source file path and/or name to associate with the error.
+/// \param EC Error code stored in the StringError.
+/// \param Fmt Printf-style format string for the message.
+/// \param Vals Format arguments for \p Fmt.
+/// \return A FileError wrapping a formatted StringError for \p F.
 template <typename... Ts>
 inline Error createFileError(const Twine &F, std::error_code EC,
                              char const *Fmt, const Ts &...Vals) {
@@ -1490,7 +1824,10 @@ inline Error createFileError(const Twine &F, std::error_code EC,
 }
 
 /// Deleted overload: a successful Error cannot be wrapped as a FileError.
-Error createFileError(const Twine &F, ErrorSuccess) = delete;
+///
+/// \param F Unused file name (overload is deleted).
+/// \param Unused Success sentinel that makes this overload unusable.
+Error createFileError(const Twine &F, ErrorSuccess Unused) = delete;
 
 /// Helper for check-and-exit error handling.
 ///
@@ -1499,23 +1836,35 @@ Error createFileError(const Twine &F, ErrorSuccess) = delete;
 class ExitOnError {
 public:
   /// Create an error on exit helper.
+  ///
+  /// \param Banner Prefix printed before logged errors.
+  /// \param DefaultErrorExitCode Exit status used when no mapper is set.
   ExitOnError(std::string Banner = "", int DefaultErrorExitCode = 1)
       : Banner(std::move(Banner)),
         GetExitCode([=](const Error &) { return DefaultErrorExitCode; }) {}
 
   /// Set the banner string for any errors caught by operator().
+  ///
+  /// \param Banner Prefix printed before logged errors.
   void setBanner(std::string Banner) { this->Banner = std::move(Banner); }
 
   /// Set the exit-code mapper function.
+  ///
+  /// \param GetExitCode Maps a failure Error to a process exit code.
   void setExitCodeMapper(std::function<int(const Error &)> GetExitCode) {
     this->GetExitCode = std::move(GetExitCode);
   }
 
   /// Check Err. If it's in a failure state log the error(s) and exit.
+  ///
+  /// \param Err Error to check; logs and exits on failure.
   void operator()(Error Err) const { checkError(std::move(Err)); }
 
   /// Check E. If it's in a success state then return the contained value. If
   /// it's in a failure state log the error(s) and exit.
+  ///
+  /// \param E Expected value to unwrap, or error to log and exit on.
+  /// \return The contained value on success.
   template <typename T> T operator()(Expected<T> &&E) const {
     checkError(E.takeError());
     return std::move(*E);
@@ -1523,6 +1872,9 @@ public:
 
   /// Check E. If it's in a success state then return the contained reference. If
   /// it's in a failure state log the error(s) and exit.
+  ///
+  /// \param E Expected reference to unwrap, or error to log and exit on.
+  /// \return The contained reference on success.
   template <typename T> T& operator()(Expected<T&> &&E) const {
     checkError(E.takeError());
     return *E;
@@ -1542,11 +1894,17 @@ private:
 };
 
 /// Conversion from Error to LLVMErrorRef for C error bindings.
+///
+/// \param Err Error whose payload is released into the C reference.
+/// \return A C API error reference to the released payload.
 inline LLVMErrorRef wrap(Error Err) {
   return reinterpret_cast<LLVMErrorRef>(Err.takePayload().release());
 }
 
 /// Conversion from LLVMErrorRef to Error for C error bindings.
+///
+/// \param ErrRef C error reference to take ownership of.
+/// \return An Error owning the payload from \p ErrRef.
 inline Error unwrap(LLVMErrorRef ErrRef) {
   return Error(std::unique_ptr<ErrorInfoBase>(
       reinterpret_cast<ErrorInfoBase *>(ErrRef)));

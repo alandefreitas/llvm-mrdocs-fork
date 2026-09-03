@@ -32,23 +32,37 @@ class TargetMachine;
 class Module;
 
 using namespace sampleprof;
+/// Map from a basic block to its pseudo-probe ID.
 using BlockIdMap = DenseMap<BasicBlock *, uint32_t>;
+/// Map from an instruction to its pseudo-probe ID.
 using InstructionIdMap = DenseMap<Instruction *, uint32_t>;
-// Map from tuples of Probe id and inline stack hash code to distribution
-// factors.
+/// Map from tuples of Probe id and inline stack hash code to distribution
+/// factors.
 using ProbeFactorMap = DenseMap<std::pair<uint64_t, uint64_t>, float>;
+/// Map from a function name to that function's probe distribution factors.
 using FuncProbeFactorMap = StringMap<ProbeFactorMap>;
 
 
-// A pseudo probe verifier that can be run after each IR passes to detect the
-// violation of updating probe factors. In principle, the sum of distribution
-// factor for a probe should be identical before and after a pass. For a
-// function pass, the factor sum for a probe would be typically 100%.
+/// Pseudo probe verifier.
+///
+/// A verifier that can be run after each IR pass to detect the violation of
+/// updating probe factors. In principle, the sum of distribution factor for a
+/// probe should be identical before and after a pass. For a function pass, the
+/// factor sum for a probe would be typically 100%.
 class PseudoProbeVerifier {
 public:
+  /// Register after-pass callbacks that verify probe factors.
+  ///
+  /// \param PIC Pass instrumentation callbacks to register with.
   LLVM_ABI void registerCallbacks(PassInstrumentationCallbacks &PIC);
 
-  // Implementation of pass instrumentation callbacks for new pass manager.
+  /// Verify probe factors on \p IR after the pass named \p PassID.
+  ///
+  /// Implementation of pass instrumentation callbacks for the new pass
+  /// manager.
+  ///
+  /// \param PassID Name of the pass that just ran.
+  /// \param IR IR unit the pass ran on.
   LLVM_ABI void runAfterPass(StringRef PassID, IRUnitRef IR);
 
 private:
@@ -72,8 +86,14 @@ private:
 /// Insert pseudo probes for block sampling and value sampling.
 class SampleProfileProber {
 public:
-  // Give an empty module id when the prober is not used for instrumentation.
+  /// Construct a sample-profile pseudo prober for \p F.
+  ///
+  /// \param F Function whose CFG is assigned pseudo-probe IDs.
   LLVM_ABI SampleProfileProber(Function &F);
+  /// Insert pseudo probes for block and callsite sampling into \p F.
+  ///
+  /// \param F Function to instrument.
+  /// \param TM Target machine used when instrumenting \p F.
   LLVM_ABI void instrumentOneFunc(Function &F, TargetMachine *TM);
 
 private:
@@ -111,33 +131,49 @@ private:
   uint32_t LastProbeId;
 };
 
+/// Pass that inserts sample-profile pseudo probes into a module.
 class SampleProfileProbePass
     : public OptionalPassInfoMixin<SampleProfileProbePass> {
   TargetMachine *TM;
 
 public:
+  /// Construct a sample-profile probe pass.
+  ///
+  /// \param TM Target machine used when instrumenting functions.
   SampleProfileProbePass(TargetMachine *TM) : TM(TM) {}
+  /// Run pseudo-probe instrumentation over the given module.
+  ///
+  /// \param M Module whose functions receive pseudo probes.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
-// Pseudo probe distribution factor updater.
-// Sample profile annotation can happen in both LTO prelink and postlink. The
-// postlink-time re-annotation can degrade profile quality because of prelink
-// code duplication transformation, such as loop unrolling, jump threading,
-// indirect call promotion etc. As such, samples corresponding to a source
-// location may be aggregated multiple times in postlink. With a concept of
-// distribution factor for pseudo probes, samples can be distributed among
-// duplicated probes reasonable based on the assumption that optimizations
-// duplicating code well-maintain the branch frequency information (BFI). This
-// pass updates distribution factors for each pseudo probe at the end of the
-// prelink pipeline, to reflect an estimated portion of the real execution
-// count.
+/// Pseudo probe distribution factor updater.
+///
+/// Sample profile annotation can happen in both LTO prelink and postlink. The
+/// postlink-time re-annotation can degrade profile quality because of prelink
+/// code duplication transformation, such as loop unrolling, jump threading,
+/// indirect call promotion etc. As such, samples corresponding to a source
+/// location may be aggregated multiple times in postlink. With a concept of
+/// distribution factor for pseudo probes, samples can be distributed among
+/// duplicated probes reasonable based on the assumption that optimizations
+/// duplicating code well-maintain the branch frequency information (BFI). This
+/// pass updates distribution factors for each pseudo probe at the end of the
+/// prelink pipeline, to reflect an estimated portion of the real execution
+/// count.
 class PseudoProbeUpdatePass
     : public OptionalPassInfoMixin<PseudoProbeUpdatePass> {
   void runOnFunction(Function &F, FunctionAnalysisManager &FAM);
 
 public:
+  /// Construct a pseudo-probe factor update pass.
   PseudoProbeUpdatePass() = default;
+  /// Run the pseudo-probe factor update over the given module.
+  ///
+  /// \param M Module whose probe distribution factors are updated.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

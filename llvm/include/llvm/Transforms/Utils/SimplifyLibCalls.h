@@ -41,12 +41,23 @@ private:
   bool OnlyLowerUnknownSize;
 
 public:
+  /// Construct a simplifier for fortified library calls.
+  ///
+  /// \param TLI Target library info describing available libcalls.
+  /// \param OnlyLowerUnknownSize If true, only lower fortified calls whose
+  /// object size is unknown; otherwise apply additional fortified-call
+  /// optimizations.
   LLVM_ABI FortifiedLibCallSimplifier(const TargetLibraryInfo *TLI,
                                       bool OnlyLowerUnknownSize = false);
 
-  /// Take the given call instruction and return a more optimal.
+  /// Return a more optimal value to replace \p CI, or null if none exists.
   ///
-  /// value to replace the instruction with or 0 if a more optimal form can't be found. The call must not be an indirect call.
+  /// The call must not be an indirect call.
+  ///
+  /// \param CI The call instruction to optimize.
+  /// \param B IR builder used to emit replacement instructions.
+  /// \return A replacement value for \p CI, or null if no simplification
+  /// exists.
   LLVM_ABI Value *optimizeCall(CallInst *CI, IRBuilderBase &B);
 
 private:
@@ -93,9 +104,9 @@ private:
                                std::optional<unsigned> FlagsOp = std::nullopt);
 };
 
-/// LibCallSimplifier - This class implements a collection of optimizations
-/// that replace well formed calls to library functions with a more optimal
-/// form.  For example, replacing 'printf("Hello!")' with 'puts("Hello!")'.
+/// Optimizes well-formed library calls into a more efficient form.
+///
+/// For example, replacing 'printf("Hello!")' with 'puts("Hello!")'.
 class LibCallSimplifier {
 private:
   FortifiedLibCallSimplifier FortifiedSimplifier;
@@ -135,6 +146,18 @@ private:
   }
 
 public:
+  /// Construct a simplifier for ordinary library calls.
+  ///
+  /// \param DL Data layout of the module being optimized.
+  /// \param TLI Target library info describing available libcalls.
+  /// \param DT Dominator tree used by some libcall folds, or null.
+  /// \param DC Dom-condition cache used by some libcall folds, or null.
+  /// \param AC Assumption cache used by some libcall folds, or null.
+  /// \param ORE Emitter for optimization remarks about libcall folds.
+  /// \param BFI Block frequency info used for size/hotness decisions, or null.
+  /// \param PSI Profile summary info used for size/hotness decisions, or null.
+  /// \param Replacer Callback used to replace an instruction's uses.
+  /// \param Eraser Callback used to erase an instruction from its parent.
   LLVM_ABI LibCallSimplifier(
       const DataLayout &DL, const TargetLibraryInfo *TLI, DominatorTree *DT,
       DomConditionCache *DC, AssumptionCache *AC,
@@ -144,13 +167,17 @@ public:
           &replaceAllUsesWithDefault,
       function_ref<void(Instruction *)> Eraser = &eraseFromParentDefault);
 
-  /// optimizeCall - Take the given call instruction and return a more
-  /// optimal value to replace the instruction with or 0 if a more
-  /// optimal form can't be found.  Note that the returned value may
-  /// be equal to the instruction being optimized.  In this case all
-  /// other instructions that use the given instruction were modified
-  /// and the given instruction is dead.
-  /// The call must not be an indirect call.
+  /// Return a more optimal value to replace \p CI, or null if none exists.
+  ///
+  /// Note that the returned value may be equal to the instruction being
+  /// optimized. In this case all other instructions that use the given
+  /// instruction were modified and the given instruction is dead. The call
+  /// must not be an indirect call.
+  ///
+  /// \param CI The call instruction to optimize.
+  /// \param B IR builder used to emit replacement instructions.
+  /// \return A replacement value for \p CI, or null if no simplification
+  /// exists.
   LLVM_ABI Value *optimizeCall(CallInst *CI, IRBuilderBase &B);
 
 private:

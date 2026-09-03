@@ -159,7 +159,8 @@ public:
   bool operator>(const DynamicAPInt &O) const;
   bool operator<(const DynamicAPInt &O) const;
   bool operator<=(const DynamicAPInt &O) const;
-  /// Return true if \p A is greater than or equal to \p O.
+  /// Returns true if this value is greater than or equal to \p O.
+  /// @return True if this value is greater than or equal to \p O.
   bool operator>=(const DynamicAPInt &O) const;
   DynamicAPInt operator+(const DynamicAPInt &O) const;
   DynamicAPInt operator-(const DynamicAPInt &O) const;
@@ -178,86 +179,123 @@ public:
   /// Divides by a divisor known to be positive.
   ///
   /// Slightly more efficient than operator/ because it skips an overflow check.
+  /// @return Quotient of this value divided by \p O.
   DynamicAPInt divByPositive(const DynamicAPInt &O) const;
   /// Divides by a positive divisor in place.
   ///
   /// Slightly more efficient than operator/= because it skips an overflow check.
+  /// @return Reference to this value.
   DynamicAPInt &divByPositiveInPlace(const DynamicAPInt &O);
 
   /// Returns the absolute value of \p X.
+  /// @return Absolute value of \p X.
   friend DynamicAPInt abs(const DynamicAPInt &X);
   /// Returns the ceiling of \p LHS divided by \p RHS.
+  /// @return Ceiling of \p LHS divided by \p RHS.
   friend DynamicAPInt ceilDiv(const DynamicAPInt &LHS, const DynamicAPInt &RHS);
   /// Returns the floor of \p LHS divided by \p RHS.
+  /// @return Floor of \p LHS divided by \p RHS.
   friend DynamicAPInt floorDiv(const DynamicAPInt &LHS,
                                const DynamicAPInt &RHS);
   /// Returns the greatest common divisor of \p A and \p B.
   ///
   /// Both operands must be non-negative.
+  /// @return Greatest common divisor of \p A and \p B.
   friend DynamicAPInt gcd(const DynamicAPInt &A, const DynamicAPInt &B);
   friend DynamicAPInt lcm(const DynamicAPInt &A, const DynamicAPInt &B);
   friend DynamicAPInt mod(const DynamicAPInt &LHS, const DynamicAPInt &RHS);
 
-  /// ---------------------------------------------------------------------------
-  /// Convenience operator overloads for int64_t.
-  /// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Convenience operator overloads for int64_t.
+  // ---------------------------------------------------------------------------
   /// Adds \p B to \p A in place.
+  /// @return Reference to the updated \p A.
   friend DynamicAPInt &operator+=(DynamicAPInt &A, int64_t B);
   /// Subtracts \p B from \p A in place.
+  /// @return Reference to the updated \p A.
   friend DynamicAPInt &operator-=(DynamicAPInt &A, int64_t B);
   /// Multiplies \p A by \p B in place.
+  /// @return Reference to the updated \p A.
   friend DynamicAPInt &operator*=(DynamicAPInt &A, int64_t B);
   /// Divides \p A by \p B in place.
+  /// @return Reference to the updated \p A.
   friend DynamicAPInt &operator/=(DynamicAPInt &A, int64_t B);
   /// Stores the remainder of \p A divided by \p B in \p A.
+  /// @return Reference to the updated \p A.
   friend DynamicAPInt &operator%=(DynamicAPInt &A, int64_t B);
 
   /// Returns true if \p A is equal to \p B.
+  /// @return True if \p A equals \p B.
   friend bool operator==(const DynamicAPInt &A, int64_t B);
   /// Returns true if \p A is not equal to \p B.
+  /// @return True if \p A is not equal to \p B.
   friend bool operator!=(const DynamicAPInt &A, int64_t B);
   /// Returns true if \p A is greater than \p B.
+  /// @return True if \p A is greater than \p B.
   friend bool operator>(const DynamicAPInt &A, int64_t B);
   /// Returns true if \p A is less than \p B.
+  /// @return True if \p A is less than \p B.
   friend bool operator<(const DynamicAPInt &A, int64_t B);
   /// Returns true if \p A is less than or equal to \p B.
+  /// @return True if \p A is less than or equal to \p B.
   friend bool operator<=(const DynamicAPInt &A, int64_t B);
   /// Returns true if \p A is greater than or equal to \p B.
+  /// @return True if \p A is greater than or equal to \p B.
   friend bool operator>=(const DynamicAPInt &A, int64_t B);
   /// Returns \p A plus \p B.
+  /// @return Sum of \p A and \p B.
   friend DynamicAPInt operator+(const DynamicAPInt &A, int64_t B);
   /// Returns \p A minus \p B.
+  /// @return Difference of \p A and \p B.
   friend DynamicAPInt operator-(const DynamicAPInt &A, int64_t B);
   /// Returns \p A multiplied by \p B.
+  /// @return Product of \p A and \p B.
   friend DynamicAPInt operator*(const DynamicAPInt &A, int64_t B);
   /// Returns \p A divided by \p B.
+  /// @return Quotient of \p A divided by \p B.
   friend DynamicAPInt operator/(const DynamicAPInt &A, int64_t B);
   /// Returns the remainder of \p A divided by \p B.
+  /// @return Remainder of \p A divided by \p B.
   friend DynamicAPInt operator%(const DynamicAPInt &A, int64_t B);
 
   /// Returns true if \p A is equal to \p B.
+  /// @return True if \p A equals \p B.
   friend bool operator==(int64_t A, const DynamicAPInt &B);
   /// Returns true if \p A is not equal to \p B.
+  /// @return True if \p A is not equal to \p B.
   friend bool operator!=(int64_t A, const DynamicAPInt &B);
   /// Returns true if \p A is greater than \p B.
+  /// @return True if \p A is greater than \p B.
   friend bool operator>(int64_t A, const DynamicAPInt &B);
   /// Returns true if \p A is less than \p B.
+  /// @return True if \p A is less than \p B.
   friend bool operator<(int64_t A, const DynamicAPInt &B);
   /// Returns true if \p A is less than or equal to \p B.
+  /// @return True if \p A is less than or equal to \p B.
   friend bool operator<=(int64_t A, const DynamicAPInt &B);
   /// Returns true if \p A is greater than or equal to \p B.
+  /// @return True if \p A is greater than or equal to \p B.
   friend bool operator>=(int64_t A, const DynamicAPInt &B);
   /// Returns \p A plus \p B.
+  /// @return Sum of \p A and \p B.
   friend DynamicAPInt operator+(int64_t A, const DynamicAPInt &B);
   /// Returns \p A minus \p B.
+  /// @return Difference of \p A and \p B.
   friend DynamicAPInt operator-(int64_t A, const DynamicAPInt &B);
   /// Returns \p A multiplied by \p B.
+  /// @return Product of \p A and \p B.
   friend DynamicAPInt operator*(int64_t A, const DynamicAPInt &B);
   /// Returns \p A divided by \p B.
+  /// @return Quotient of \p A divided by \p B.
   friend DynamicAPInt operator/(int64_t A, const DynamicAPInt &B);
   /// Returns the remainder of \p A divided by \p B.
+  /// @return Remainder of \p A divided by \p B.
   friend DynamicAPInt operator%(int64_t A, const DynamicAPInt &B);
 
+  /// Computes a hash code for \p x.
+  ///
+  /// \param x Value to hash.
+  /// @return Hash code for \p x.
   LLVM_ABI friend hash_code hash_value(const DynamicAPInt &x); // NOLINT
 
   LLVM_ABI void static_assert_layout(); // NOLINT
@@ -270,14 +308,22 @@ public:
 };
 
 /// Prints \p X to \p OS.
+///
+/// \param OS Stream to write to.
+/// \param X Value to print.
+/// @return Reference to \p OS.
 inline raw_ostream &operator<<(raw_ostream &OS, const DynamicAPInt &X) {
   X.print(OS);
   return OS;
 }
 
-/// Redeclarations of friend declaration above to
-/// make it discoverable by lookups.
-LLVM_ABI hash_code hash_value(const DynamicAPInt &X); // NOLINT
+/// Computes a hash code for \p x.
+///
+/// Redeclaration of the friend above to make it discoverable by lookups.
+///
+/// \param x Value to hash.
+/// @return Hash code for \p x.
+LLVM_ABI hash_code hash_value(const DynamicAPInt &x); // NOLINT
 
 /// This just calls through to the operator int64_t, but it's useful when a
 /// function pointer is required. (Although this is marked inline, it is still
@@ -288,20 +334,33 @@ static inline int64_t int64fromDynamicAPInt(const DynamicAPInt &X) {
 /// Constructs a DynamicAPInt from an \c int64_t value.
 ///
 /// Useful when a function pointer is required.
+///
+/// \param X Value to convert.
+/// @return DynamicAPInt holding \p X.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt dynamicAPIntFromInt64(int64_t X) {
   return DynamicAPInt(X);
 }
 
-// The RHS is always expected to be positive, and the result
-/// is always non-negative.
+/// Returns the remainder of \p LHS divided by \p RHS.
+///
+/// The RHS is always expected to be positive, and the result is always
+/// non-negative.
+///
+/// \param LHS Dividend.
+/// \param RHS Positive divisor.
+/// @return Non-negative remainder of \p LHS divided by \p RHS.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt mod(const DynamicAPInt &LHS,
                                               const DynamicAPInt &RHS);
 
-/// We define the operations here in the header to facilitate inlining.
+// We define the operations here in the header to facilitate inlining.
 
-/// ---------------------------------------------------------------------------
-/// Comparison operators.
-/// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Comparison operators.
+// ---------------------------------------------------------------------------
+/// Returns true if the value is equal to \p O.
+///
+/// \param O Value to compare against.
+/// @return True if the value equals \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool
 DynamicAPInt::operator==(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -309,6 +368,9 @@ DynamicAPInt::operator==(const DynamicAPInt &O) const {
   return detail::SlowDynamicAPInt(*this) == detail::SlowDynamicAPInt(O);
 }
 /// Returns true if the value is not equal to \p O.
+///
+/// \param O Value to compare against.
+/// @return True if the value is not equal to \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool
 DynamicAPInt::operator!=(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -316,6 +378,9 @@ DynamicAPInt::operator!=(const DynamicAPInt &O) const {
   return detail::SlowDynamicAPInt(*this) != detail::SlowDynamicAPInt(O);
 }
 /// Returns true if the value is greater than \p O.
+///
+/// \param O Value to compare against.
+/// @return True if the value is greater than \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool
 DynamicAPInt::operator>(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -323,6 +388,9 @@ DynamicAPInt::operator>(const DynamicAPInt &O) const {
   return detail::SlowDynamicAPInt(*this) > detail::SlowDynamicAPInt(O);
 }
 /// Returns true if the value is less than \p O.
+///
+/// \param O Value to compare against.
+/// @return True if the value is less than \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool
 DynamicAPInt::operator<(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -330,6 +398,9 @@ DynamicAPInt::operator<(const DynamicAPInt &O) const {
   return detail::SlowDynamicAPInt(*this) < detail::SlowDynamicAPInt(O);
 }
 /// Returns true if the value is less than or equal to \p O.
+///
+/// \param O Value to compare against.
+/// @return True if the value is less than or equal to \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool
 DynamicAPInt::operator<=(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -337,6 +408,9 @@ DynamicAPInt::operator<=(const DynamicAPInt &O) const {
   return detail::SlowDynamicAPInt(*this) <= detail::SlowDynamicAPInt(O);
 }
 /// Returns true if the value is greater than or equal to \p O.
+///
+/// \param O Value to compare against.
+/// @return True if the value is greater than or equal to \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool
 DynamicAPInt::operator>=(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -344,10 +418,14 @@ DynamicAPInt::operator>=(const DynamicAPInt &O) const {
   return detail::SlowDynamicAPInt(*this) >= detail::SlowDynamicAPInt(O);
 }
 
-/// ---------------------------------------------------------------------------
-/// Arithmetic operators.
-/// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Arithmetic operators.
+// ---------------------------------------------------------------------------
 
+/// Returns the sum of this value and \p O.
+///
+/// \param O Value to add.
+/// @return Sum of this value and \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt
 DynamicAPInt::operator+(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -362,6 +440,9 @@ DynamicAPInt::operator+(const DynamicAPInt &O) const {
                       detail::SlowDynamicAPInt(O));
 }
 /// Returns the difference of this value and \p O.
+///
+/// \param O Value to subtract.
+/// @return Difference of this value and \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt
 DynamicAPInt::operator-(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -376,6 +457,9 @@ DynamicAPInt::operator-(const DynamicAPInt &O) const {
                       detail::SlowDynamicAPInt(O));
 }
 /// Returns the product of this value and \p O.
+///
+/// \param O Value to multiply by.
+/// @return Product of this value and \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt
 DynamicAPInt::operator*(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -391,6 +475,11 @@ DynamicAPInt::operator*(const DynamicAPInt &O) const {
 }
 
 /// Divides by a divisor known to be positive.
+///
+/// Slightly more efficient than operator/ because it skips an overflow check.
+///
+/// \param O Positive divisor.
+/// @return Quotient of this value divided by \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt
 DynamicAPInt::divByPositive(const DynamicAPInt &O) const {
   assert(O > 0);
@@ -403,6 +492,9 @@ DynamicAPInt::divByPositive(const DynamicAPInt &O) const {
 /// Divides by \p O using signed truncating division.
 ///
 /// Division overflows only occur when negating the minimal possible value.
+///
+/// \param O Divisor.
+/// @return Quotient of this value divided by \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt
 DynamicAPInt::operator/(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -415,10 +507,18 @@ DynamicAPInt::operator/(const DynamicAPInt &O) const {
                       detail::SlowDynamicAPInt(O));
 }
 
+/// Returns the absolute value of \p X.
+///
+/// \param X Value whose absolute value is returned.
+/// @return Absolute value of \p X.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt abs(const DynamicAPInt &X) {
   return DynamicAPInt(X >= 0 ? X : -X);
 }
-// Division overflows only occur when negating the minimal possible value.
+/// Returns the ceiling of \p LHS divided by \p RHS.
+///
+/// \param LHS Dividend.
+/// \param RHS Divisor.
+/// @return Ceiling of \p LHS divided by \p RHS.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt ceilDiv(const DynamicAPInt &LHS,
                                                   const DynamicAPInt &RHS) {
   if (LLVM_LIKELY(LHS.isSmall() && RHS.isSmall())) {
@@ -430,6 +530,11 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt ceilDiv(const DynamicAPInt &LHS,
   return DynamicAPInt(
       ceilDiv(detail::SlowDynamicAPInt(LHS), detail::SlowDynamicAPInt(RHS)));
 }
+/// Returns the floor of \p LHS divided by \p RHS.
+///
+/// \param LHS Dividend.
+/// \param RHS Divisor.
+/// @return Floor of \p LHS divided by \p RHS.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt floorDiv(const DynamicAPInt &LHS,
                                                    const DynamicAPInt &RHS) {
   if (LLVM_LIKELY(LHS.isSmall() && RHS.isSmall())) {
@@ -441,8 +546,14 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt floorDiv(const DynamicAPInt &LHS,
   return DynamicAPInt(
       floorDiv(detail::SlowDynamicAPInt(LHS), detail::SlowDynamicAPInt(RHS)));
 }
-// The RHS is always expected to be positive, and the result
-/// is always non-negative.
+/// Returns the remainder of \p LHS divided by \p RHS.
+///
+/// The RHS is always expected to be positive, and the result is always
+/// non-negative.
+///
+/// \param LHS Dividend.
+/// \param RHS Positive divisor.
+/// @return Non-negative remainder of \p LHS divided by \p RHS.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt mod(const DynamicAPInt &LHS,
                                               const DynamicAPInt &RHS) {
   if (LLVM_LIKELY(LHS.isSmall() && RHS.isSmall()))
@@ -451,6 +562,13 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt mod(const DynamicAPInt &LHS,
       mod(detail::SlowDynamicAPInt(LHS), detail::SlowDynamicAPInt(RHS)));
 }
 
+/// Returns the greatest common divisor of \p A and \p B.
+///
+/// Both operands must be non-negative.
+///
+/// \param A First non-negative operand.
+/// \param B Second non-negative operand.
+/// @return Greatest common divisor of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt gcd(const DynamicAPInt &A,
                                               const DynamicAPInt &B) {
   assert(A >= 0 && B >= 0 && "operands must be non-negative!");
@@ -460,7 +578,11 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt gcd(const DynamicAPInt &A,
       gcd(detail::SlowDynamicAPInt(A), detail::SlowDynamicAPInt(B)));
 }
 
-/// Returns the least common multiple of A and B.
+/// Returns the least common multiple of \p A and \p B.
+///
+/// \param A First operand.
+/// \param B Second operand.
+/// @return Least common multiple of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt lcm(const DynamicAPInt &A,
                                               const DynamicAPInt &B) {
   DynamicAPInt X = abs(A);
@@ -468,7 +590,12 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt lcm(const DynamicAPInt &A,
   return (X * Y) / gcd(X, Y);
 }
 
+/// Returns the remainder of this value divided by \p O.
+///
 /// This operation cannot overflow.
+///
+/// \param O Divisor.
+/// @return Remainder of this value divided by \p O.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt
 DynamicAPInt::operator%(const DynamicAPInt &O) const {
   if (LLVM_LIKELY(isSmall() && O.isSmall()))
@@ -478,6 +605,7 @@ DynamicAPInt::operator%(const DynamicAPInt &O) const {
 }
 
 /// Returns the negation of this value.
+/// @return Negation of this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt DynamicAPInt::operator-() const {
   if (LLVM_LIKELY(isSmall())) {
     if (LLVM_LIKELY(getSmall() != std::numeric_limits<int64_t>::min()))
@@ -487,9 +615,13 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt DynamicAPInt::operator-() const {
   return DynamicAPInt(-detail::SlowDynamicAPInt(*this));
 }
 
-/// ---------------------------------------------------------------------------
-/// Assignment operators, preincrement, predecrement.
-/// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Assignment operators, preincrement, predecrement.
+// ---------------------------------------------------------------------------
+/// Adds \p O to this value in place.
+///
+/// \param O Value to add.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &
 DynamicAPInt::operator+=(const DynamicAPInt &O) {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -508,6 +640,9 @@ DynamicAPInt::operator+=(const DynamicAPInt &O) {
                               detail::SlowDynamicAPInt(O));
 }
 /// Subtracts \p O from this value in place.
+///
+/// \param O Value to subtract.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &
 DynamicAPInt::operator-=(const DynamicAPInt &O) {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -526,6 +661,9 @@ DynamicAPInt::operator-=(const DynamicAPInt &O) {
                               detail::SlowDynamicAPInt(O));
 }
 /// Multiplies this value by \p O in place.
+///
+/// \param O Value to multiply by.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &
 DynamicAPInt::operator*=(const DynamicAPInt &O) {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -546,6 +684,9 @@ DynamicAPInt::operator*=(const DynamicAPInt &O) {
 /// Divides this value by \p O in place.
 ///
 /// Division overflows only occur when negating the minimal possible value.
+///
+/// \param O Divisor.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &
 DynamicAPInt::operator/=(const DynamicAPInt &O) {
   if (LLVM_LIKELY(isSmall() && O.isSmall())) {
@@ -560,6 +701,11 @@ DynamicAPInt::operator/=(const DynamicAPInt &O) {
 }
 
 /// Divides by a positive divisor in place.
+///
+/// Slightly more efficient than operator/= because it skips an overflow check.
+///
+/// \param O Positive divisor.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &
 DynamicAPInt::divByPositiveInPlace(const DynamicAPInt &O) {
   assert(O > 0);
@@ -572,140 +718,280 @@ DynamicAPInt::divByPositiveInPlace(const DynamicAPInt &O) {
 }
 
 /// Stores the remainder of this value divided by \p O.
+///
+/// \param O Divisor.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &
 DynamicAPInt::operator%=(const DynamicAPInt &O) {
   return *this = *this % O;
 }
 /// Pre-increments this value by one.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &DynamicAPInt::operator++() {
   return *this += 1;
 }
 /// Pre-decrements this value by one.
+/// @return Reference to this value.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &DynamicAPInt::operator--() {
   return *this -= 1;
 }
 
-/// ----------------------------------------------------------------------------
-/// Convenience operator overloads for int64_t.
-/// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// Convenience operator overloads for int64_t.
+// ----------------------------------------------------------------------------
+/// Adds \p B to \p A in place.
+///
+/// \param A Value to update.
+/// \param B Value to add.
+/// @return Reference to the updated \p A.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &operator+=(DynamicAPInt &A,
                                                       int64_t B) {
   return A = A + B;
 }
+/// Subtracts \p B from \p A in place.
+///
+/// \param A Value to update.
+/// \param B Value to subtract.
+/// @return Reference to the updated \p A.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &operator-=(DynamicAPInt &A,
                                                       int64_t B) {
   return A = A - B;
 }
+/// Multiplies \p A by \p B in place.
+///
+/// \param A Value to update.
+/// \param B Value to multiply by.
+/// @return Reference to the updated \p A.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &operator*=(DynamicAPInt &A,
                                                       int64_t B) {
   return A = A * B;
 }
+/// Divides \p A by \p B in place.
+///
+/// \param A Value to update.
+/// \param B Divisor.
+/// @return Reference to the updated \p A.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &operator/=(DynamicAPInt &A,
                                                       int64_t B) {
   return A = A / B;
 }
+/// Stores the remainder of \p A divided by \p B in \p A.
+///
+/// \param A Value to update.
+/// \param B Divisor.
+/// @return Reference to the updated \p A.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt &operator%=(DynamicAPInt &A,
                                                       int64_t B) {
   return A = A % B;
 }
+/// Returns \p A plus \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return Sum of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator+(const DynamicAPInt &A,
                                                     int64_t B) {
   return A + DynamicAPInt(B);
 }
+/// Returns \p A minus \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return Difference of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator-(const DynamicAPInt &A,
                                                     int64_t B) {
   return A - DynamicAPInt(B);
 }
+/// Returns \p A multiplied by \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return Product of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator*(const DynamicAPInt &A,
                                                     int64_t B) {
   return A * DynamicAPInt(B);
 }
+/// Returns \p A divided by \p B.
+///
+/// \param A Dividend.
+/// \param B Divisor.
+/// @return Quotient of \p A divided by \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator/(const DynamicAPInt &A,
                                                     int64_t B) {
   return A / DynamicAPInt(B);
 }
+/// Returns the remainder of \p A divided by \p B.
+///
+/// \param A Dividend.
+/// \param B Divisor.
+/// @return Remainder of \p A divided by \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator%(const DynamicAPInt &A,
                                                     int64_t B) {
   return A % DynamicAPInt(B);
 }
+/// Returns \p A plus \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return Sum of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator+(int64_t A,
                                                     const DynamicAPInt &B) {
   return DynamicAPInt(A) + B;
 }
+/// Returns \p A minus \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return Difference of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator-(int64_t A,
                                                     const DynamicAPInt &B) {
   return DynamicAPInt(A) - B;
 }
+/// Returns \p A multiplied by \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return Product of \p A and \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator*(int64_t A,
                                                     const DynamicAPInt &B) {
   return DynamicAPInt(A) * B;
 }
+/// Returns \p A divided by \p B.
+///
+/// \param A Dividend.
+/// \param B Divisor.
+/// @return Quotient of \p A divided by \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator/(int64_t A,
                                                     const DynamicAPInt &B) {
   return DynamicAPInt(A) / B;
 }
+/// Returns the remainder of \p A divided by \p B.
+///
+/// \param A Dividend.
+/// \param B Divisor.
+/// @return Remainder of \p A divided by \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE DynamicAPInt operator%(int64_t A,
                                                     const DynamicAPInt &B) {
   return DynamicAPInt(A) % B;
 }
 
-/// We provide special implementations of the comparison operators rather than
-/// calling through as above, as this would result in a 1.2x slowdown.
+// We provide special implementations of the comparison operators rather than
+// calling through as above, as this would result in a 1.2x slowdown.
+/// Returns true if \p A is equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A equals \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator==(const DynamicAPInt &A, int64_t B) {
   if (LLVM_LIKELY(A.isSmall()))
     return A.getSmall() == B;
   return A.getLarge() == B;
 }
+/// Returns true if \p A is not equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is not equal to \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator!=(const DynamicAPInt &A, int64_t B) {
   if (LLVM_LIKELY(A.isSmall()))
     return A.getSmall() != B;
   return A.getLarge() != B;
 }
+/// Returns true if \p A is greater than \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is greater than \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator>(const DynamicAPInt &A, int64_t B) {
   if (LLVM_LIKELY(A.isSmall()))
     return A.getSmall() > B;
   return A.getLarge() > B;
 }
+/// Returns true if \p A is less than \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is less than \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator<(const DynamicAPInt &A, int64_t B) {
   if (LLVM_LIKELY(A.isSmall()))
     return A.getSmall() < B;
   return A.getLarge() < B;
 }
+/// Returns true if \p A is less than or equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is less than or equal to \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator<=(const DynamicAPInt &A, int64_t B) {
   if (LLVM_LIKELY(A.isSmall()))
     return A.getSmall() <= B;
   return A.getLarge() <= B;
 }
+/// Returns true if \p A is greater than or equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is greater than or equal to \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator>=(const DynamicAPInt &A, int64_t B) {
   if (LLVM_LIKELY(A.isSmall()))
     return A.getSmall() >= B;
   return A.getLarge() >= B;
 }
+/// Returns true if \p A is equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A equals \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator==(int64_t A, const DynamicAPInt &B) {
   if (LLVM_LIKELY(B.isSmall()))
     return A == B.getSmall();
   return A == B.getLarge();
 }
+/// Returns true if \p A is not equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is not equal to \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator!=(int64_t A, const DynamicAPInt &B) {
   if (LLVM_LIKELY(B.isSmall()))
     return A != B.getSmall();
   return A != B.getLarge();
 }
+/// Returns true if \p A is greater than \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is greater than \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator>(int64_t A, const DynamicAPInt &B) {
   if (LLVM_LIKELY(B.isSmall()))
     return A > B.getSmall();
   return A > B.getLarge();
 }
+/// Returns true if \p A is less than \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is less than \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator<(int64_t A, const DynamicAPInt &B) {
   if (LLVM_LIKELY(B.isSmall()))
     return A < B.getSmall();
   return A < B.getLarge();
 }
+/// Returns true if \p A is less than or equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is less than or equal to \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator<=(int64_t A, const DynamicAPInt &B) {
   if (LLVM_LIKELY(B.isSmall()))
     return A <= B.getSmall();
   return A <= B.getLarge();
 }
+/// Returns true if \p A is greater than or equal to \p B.
+///
+/// \param A Left-hand operand.
+/// \param B Right-hand operand.
+/// @return True if \p A is greater than or equal to \p B.
 LLVM_ATTRIBUTE_ALWAYS_INLINE bool operator>=(int64_t A, const DynamicAPInt &B) {
   if (LLVM_LIKELY(B.isSmall()))
     return A >= B.getSmall();

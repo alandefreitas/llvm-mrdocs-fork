@@ -23,22 +23,40 @@ namespace llvm {
 
 namespace codeview {
 
-/// CVRecord is a fat pointer (base + size pair) to a symbol or type record.
+/// Fat pointer (base + size) to a CodeView symbol or type record.
+///
 /// Carrying the size separately instead of trusting the size stored in the
 /// record prefix provides some extra safety and flexibility.
 template <typename Kind> class CVRecord {
 public:
+  /// Construct an empty, invalid record.
   CVRecord() = default;
 
+  /// Construct a record that refers to the given byte range.
+  ///
+  /// \param Data Bytes of a complete CodeView record including its prefix.
   CVRecord(ArrayRef<uint8_t> Data) : RecordData(Data) {}
 
+  /// Construct a record from a prefix pointer and an explicit size.
+  ///
+  /// \param P Pointer to the record prefix at the start of the record.
+  /// \param Size Total number of bytes in the record, including the prefix.
   CVRecord(const RecordPrefix *P, size_t Size)
       : RecordData(reinterpret_cast<const uint8_t *>(P), Size) {}
 
+  /// Return true if this record has a non-zero kind.
+  ///
+  /// \returns True if the record kind is non-zero.
   bool valid() const { return kind() != Kind(0); }
 
+  /// Return the total size of the record in bytes.
+  ///
+  /// \returns The number of bytes in the record, including the prefix.
   uint32_t length() const { return RecordData.size(); }
 
+  /// Return the record kind from the prefix, or zero if the data is too short.
+  ///
+  /// \returns The kind stored in the record prefix, or zero if too short.
   Kind kind() const {
     if (RecordData.size() < sizeof(RecordPrefix))
       return Kind(0);
@@ -46,24 +64,42 @@ public:
         reinterpret_cast<const RecordPrefix *>(RecordData.data())->RecordKind));
   }
 
+  /// Return the full record bytes, including the prefix.
+  ///
+  /// \returns The complete record byte range, including the prefix.
   ArrayRef<uint8_t> data() const { return RecordData; }
 
+  /// Return the full record bytes as a string reference.
+  ///
+  /// \returns The full record bytes viewed as a \c StringRef.
   StringRef str_data() const {
     return StringRef(reinterpret_cast<const char *>(RecordData.data()),
                      RecordData.size());
   }
 
+  /// Return the record payload after the prefix.
+  ///
+  /// \returns The record bytes following the prefix.
   ArrayRef<uint8_t> content() const {
     return RecordData.drop_front(sizeof(RecordPrefix));
   }
 
+  /// Bytes of the complete record, including the prefix.
   ArrayRef<uint8_t> RecordData;
 };
 
-// There are two kinds of codeview records: type and symbol records.
+/// CodeView type record view.
 using CVType = CVRecord<TypeLeafKind>;
+/// CodeView symbol record view.
 using CVSymbol = CVRecord<SymbolKind>;
 
+/// Invoke \p F for each contiguous CodeView record in \p StreamBuffer.
+///
+/// \param StreamBuffer Contiguous byte buffer of serialized CodeView records.
+/// \param F Callable invoked with each parsed \c Record; may return an Error.
+///
+/// \returns The first error from \p F, a corrupt-record error if a prefix or
+/// length is invalid, or success when the buffer is fully consumed.
 template <typename Record, typename Func>
 Error forEachCodeViewRecord(ArrayRef<uint8_t> StreamBuffer, Func F) {
   while (!StreamBuffer.empty()) {
@@ -87,7 +123,12 @@ Error forEachCodeViewRecord(ArrayRef<uint8_t> StreamBuffer, Func F) {
   return Error::success();
 }
 
-/// Read a complete record from a stream at a random offset.
+  /// Read a complete record from a stream at a random offset.
+///
+/// \param Stream Binary stream containing CodeView records.
+/// \param Offset Byte offset of the record prefix within \p Stream.
+///
+/// \returns The parsed record, or an error if the prefix or length is invalid.
 template <typename Kind>
 inline Expected<CVRecord<Kind>> readCVRecordFromStream(BinaryStreamRef Stream,
                                                        uint32_t Offset) {
@@ -109,8 +150,16 @@ inline Expected<CVRecord<Kind>> readCVRecordFromStream(BinaryStreamRef Stream,
 
 } // end namespace codeview
 
+/// Extractor that parses one CodeView record from a variable-length stream.
 template <typename Kind>
 struct VarStreamArrayExtractor<codeview::CVRecord<Kind>> {
+  /// Extract one CodeView record from \p Stream into \p Item.
+  ///
+  /// \param Stream Stream positioned at the start of the next record.
+  /// \param Len Set to the number of bytes occupied by the extracted record.
+  /// \param Item Set to the extracted CodeView record.
+  ///
+  /// \returns An Error on failure, or success if a record was extracted.
   Error operator()(BinaryStreamRef Stream, uint32_t &Len,
                    codeview::CVRecord<Kind> &Item) {
     auto ExpectedRec = codeview::readCVRecordFromStream<Kind>(Stream, 0);
@@ -123,8 +172,11 @@ struct VarStreamArrayExtractor<codeview::CVRecord<Kind>> {
 };
 
 namespace codeview {
+/// Variable-length array of CodeView symbol records.
 using CVSymbolArray = VarStreamArray<CVSymbol>;
+/// Variable-length array of CodeView type records.
 using CVTypeArray = VarStreamArray<CVType>;
+/// Iterator range over a \c CVTypeArray.
 using CVTypeRange = iterator_range<CVTypeArray::Iterator>;
 } // namespace codeview
 

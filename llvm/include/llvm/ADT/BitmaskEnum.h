@@ -35,10 +35,8 @@
 /// ops on your enum will return you back instances of the enum.  This is
 /// particularly useful for enums which represent a combination of flags.
 ///
-/// The parameter to LLVM_MARK_AS_BITMASK_ENUM should be the largest individual
-/// value in your enum.
-///
 /// All of the enum's values must be non-negative.
+/// @param LargestValue Largest individual enumerator value in the enum.
 #define LLVM_MARK_AS_BITMASK_ENUM(LargestValue)                                \
   LLVM_BITMASK_LARGEST_ENUMERATOR = LargestValue
 
@@ -63,6 +61,8 @@
 /// declaring more than one non-scoped enumerations as bitmask types in the same
 /// scope. Otherwise it provides the same functionality as
 /// LLVM_MARK_AS_BITMASK_ENUM.
+/// @param Enum Enum type to declare as a bitmask.
+/// @param LargestValue Largest individual enumerator value in \p Enum.
 #define LLVM_DECLARE_ENUM_AS_BITMASK(Enum, LargestValue)                       \
   template <> struct is_bitmask_enum<Enum> : std::true_type {};                \
   template <> struct largest_bitmask_enum_bit<Enum> {                          \
@@ -128,6 +128,8 @@ namespace BitmaskEnumDetail {
 
 /// Get a bitmask with 1s in all places up to the high-order bit of E's largest
 /// value.
+/// @return Mask of all bits up to and including the high-order bit of E's
+/// largest enumerator.
 template <typename E> constexpr std::underlying_type_t<E> Mask() {
   // On overflow, NextPowerOf2 returns zero with the type uint64_t, so
   // subtracting 1 gives us the mask with all bits set, like we want.
@@ -136,6 +138,8 @@ template <typename E> constexpr std::underlying_type_t<E> Mask() {
 
 /// Check that Val is in range for E, and return Val cast to E's underlying
 /// type.
+/// @param Val Bitmask enumeration value to convert.
+/// @return \p Val as E's underlying integer type, after range checks.
 template <typename E> constexpr std::underlying_type_t<E> Underlying(E Val) {
   auto U = llvm::to_underlying(Val);
   assert(U >= 0 && "Negative enum values are not allowed.");

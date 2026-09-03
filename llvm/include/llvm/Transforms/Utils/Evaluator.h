@@ -78,11 +78,16 @@ class Evaluator {
   };
 
 public:
+  /// Construct an IR evaluator for the given data layout and library info.
+  ///
+  /// @param DL Data layout used when evaluating loads, stores, and GEPs.
+  /// @param TLI Target library info describing available library functions.
   Evaluator(const DataLayout &DL, const TargetLibraryInfo *TLI)
       : DL(DL), TLI(TLI) {
     ValueStack.emplace_back();
   }
 
+  /// Destroy the evaluator, nulling out any lingering temporary alloca uses.
   ~Evaluator() {
     for (auto &Tmp : AllocaTmps)
       // If there are still users of the alloca, the program is doing something
@@ -93,11 +98,18 @@ public:
   }
 
   /// Evaluate a call to function F, returning true if successful, false if we
-  /// can't evaluate it.  ActualArgs contains the formal arguments for the
-  /// function.
+  /// can't evaluate it.
+  ///
+  /// @param F Function to evaluate.
+  /// @param RetVal Set to the evaluated return value on success.
+  /// @param ActualArgs Constant values for the function's formal arguments.
+  /// @return True if evaluation succeeds; false otherwise.
   LLVM_ABI bool EvaluateFunction(Function *F, Constant *&RetVal,
                                  const SmallVectorImpl<Constant *> &ActualArgs);
 
+  /// Return a map of globals to the constant initializers written during evaluation.
+  ///
+  /// @return Map from globals to their evaluated constant initializers.
   DenseMap<GlobalVariable *, Constant *> getMutatedInitializers() const {
     DenseMap<GlobalVariable *, Constant *> Result;
     for (const auto &Pair : MutatedMemory)
@@ -105,6 +117,9 @@ public:
     return Result;
   }
 
+  /// Return the globals marked invariant by the evaluated static constructor.
+  ///
+  /// @return Set of globals marked invariant during evaluation.
   const SmallPtrSetImpl<GlobalVariable *> &getInvariants() const {
     return Invariants;
   }

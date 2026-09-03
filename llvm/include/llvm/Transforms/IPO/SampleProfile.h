@@ -25,11 +25,17 @@ namespace llvm {
 
 class Module;
 
+/// Hot callsite threshold for priority-based sample profile loader inlining.
 LLVM_ABI extern cl::opt<int> SampleHotCallSiteThreshold;
+/// Threshold for inlining cold callsites under sample profile loading.
 LLVM_ABI extern cl::opt<int> SampleColdCallSiteThreshold;
+/// Size growth ratio limit for priority-based sample profile loader inlining.
 LLVM_ABI extern cl::opt<int> ProfileInlineGrowthLimit;
+/// Lower bound of size growth limit for priority-based sample profile inlining.
 LLVM_ABI extern cl::opt<int> ProfileInlineLimitMin;
+/// Upper bound of size growth limit for priority-based sample profile inlining.
 LLVM_ABI extern cl::opt<int> ProfileInlineLimitMax;
+/// Sort profiled recursion SCC members by edge weights.
 LLVM_ABI extern cl::opt<bool> SortProfiledSCC;
 
 namespace vfs {
@@ -40,6 +46,14 @@ class FileSystem;
 class SampleProfileLoaderPass
     : public OptionalPassInfoMixin<SampleProfileLoaderPass> {
 public:
+  /// Construct a sample profile loader pass.
+  ///
+  /// \param File Path to the sample profile file; empty uses the default.
+  /// \param RemappingFile Optional profile remapping file path.
+  /// \param LTOPhase Thin/full LTO phase in which this pass runs.
+  /// \param FS File system used to read profile and remapping files.
+  /// \param DisableSampleProfileInlining If true, skip inline transforms.
+  /// \param UseFlattenedProfile If true, load a flattened sample profile.
   LLVM_ABI SampleProfileLoaderPass(
       std::string File = "", std::string RemappingFile = "",
       ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None,
@@ -47,6 +61,11 @@ public:
       bool DisableSampleProfileInlining = false,
       bool UseFlattenedProfile = false);
 
+  /// Run sample profile loading over the given module.
+  ///
+  /// \param M Module annotated with sample-profile metadata.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:

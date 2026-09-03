@@ -26,10 +26,17 @@ class VectorCombinePass : public OptionalPassInfoMixin<VectorCombinePass> {
   bool TryEarlyFoldsOnly;
 
 public:
+  /// Construct a vector combine pass.
+  /// @param TryEarlyFoldsOnly If true, only perform beneficial early IR
+  /// transforms and do not introduce new vector operations.
   VectorCombinePass(bool TryEarlyFoldsOnly = false)
       : TryEarlyFoldsOnly(TryEarlyFoldsOnly) {}
 
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// Run vector combine optimizations over the function.
+  /// @param F Function whose scalar/vector interactions may be optimized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }
 #endif // LLVM_TRANSFORMS_VECTORIZE_VECTORCOMBINE_H

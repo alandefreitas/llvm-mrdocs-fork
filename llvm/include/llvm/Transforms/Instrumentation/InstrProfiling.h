@@ -30,10 +30,18 @@ class InstrProfilingLoweringPass
   const bool IsCS = false;
 
 public:
+  /// Construct an instrumentation profiling lowering pass with default options.
   InstrProfilingLoweringPass() = default;
+  /// Construct an instrumentation profiling lowering pass.
+  /// @param Options Options controlling profile data emission and naming.
+  /// @param IsCS Whether this lowering is for context-sensitive instrumentation.
   InstrProfilingLoweringPass(const InstrProfOptions &Options, bool IsCS = false)
       : Options(Options), IsCS(IsCS) {}
 
+  /// Lower profile instrumentation intrinsics in \p M.
+  /// @param M Module containing instrumented code to lower.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 } // end namespace llvm

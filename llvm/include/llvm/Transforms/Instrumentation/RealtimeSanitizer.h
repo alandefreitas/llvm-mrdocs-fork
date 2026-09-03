@@ -27,6 +27,10 @@ namespace llvm {
 /// Create ctor and init functions.
 struct RealtimeSanitizerPass
     : public RequiredPassInfoMixin<RealtimeSanitizerPass> {
+  /// Run RealtimeSanitizer instrumentation over the module.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -13,8 +13,13 @@
 
 namespace llvm {
 
+/// New PM pass that eliminates machine instruction PHI nodes by inserting copies.
 class PHIEliminationPass : public RequiredPassInfoMixin<PHIEliminationPass> {
 public:
+  /// Eliminate PHI instructions in \p MF by inserting copies.
+  /// \param MF Machine function whose PHIs are eliminated.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after eliminating PHIs.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

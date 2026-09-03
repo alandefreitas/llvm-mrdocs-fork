@@ -24,6 +24,11 @@ namespace llvm {
 class EdgeBundlesWrapperLegacy;
 class EdgeBundlesAnalysis;
 
+/// Equivalence classes of CFG edges that share an incoming or outgoing block.
+///
+/// Forms bundles such that all edges leaving a machine basic block are in the
+/// same bundle, and all edges entering a machine basic block are in the same
+/// bundle.
 class EdgeBundles {
   friend class EdgeBundlesWrapperLegacy;
   friend class EdgeBundlesAnalysis;
@@ -44,31 +49,57 @@ class EdgeBundles {
 public:
   /// getBundle - Return the ingoing (Out = false) or outgoing (Out = true)
   /// bundle number for basic block #N
+  ///
+  /// \param N Basic block number whose bundle is requested.
+  /// \param Out If true, return the outgoing bundle; otherwise the ingoing.
+  /// \return The equivalence-class bundle number for block \p N.
   unsigned getBundle(unsigned N, bool Out) const { return EC[2 * N + Out]; }
 
   /// getNumBundles - Return the total number of bundles in the CFG.
+  ///
+  /// \return The number of edge-bundle equivalence classes.
   unsigned getNumBundles() const { return EC.getNumClasses(); }
 
   /// getBlocks - Return an array of blocks that are connected to Bundle.
+  ///
+  /// \param Bundle Edge bundle whose connected basic block numbers are
+  ///        returned.
+  /// \return Basic block numbers connected to \p Bundle.
   ArrayRef<unsigned> getBlocks(unsigned Bundle) const { return Blocks[Bundle]; }
 
   /// getMachineFunction - Return the last machine function computed.
+  ///
+  /// \return The machine function most recently analyzed, or null if none.
   const MachineFunction *getMachineFunction() const { return MF; }
 
   /// view - Visualize the annotated bipartite CFG with Graphviz.
   LLVM_ABI void view() const;
 
-  // Handle invalidation for the new pass manager
+  /// Invalidate this analysis result when required by the new pass manager.
+  ///
+  /// \param MF Machine function whose analysis result may be invalidated.
+  /// \param PA Set of analyses preserved by the transform.
+  /// \param Inv Invalidator for resolving analysis dependencies.
+  /// \return True if this result should be discarded.
   LLVM_ABI bool invalidate(MachineFunction &MF, const PreservedAnalyses &PA,
                            MachineFunctionAnalysisManager::Invalidator &Inv);
 };
 
+/// Legacy MachineFunctionPass wrapper that computes and owns \c EdgeBundles.
 class LLVM_ABI EdgeBundlesWrapperLegacy : public MachineFunctionPass {
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+  /// Construct the legacy EdgeBundles wrapper pass.
   EdgeBundlesWrapperLegacy() : MachineFunctionPass(ID) {}
 
+  /// Return the EdgeBundles computed by this pass.
+  ///
+  /// \return The EdgeBundles owned by this pass.
   EdgeBundles &getEdgeBundles() { return *Impl; }
+  /// Return the EdgeBundles computed by this pass.
+  ///
+  /// \return The EdgeBundles owned by this pass.
   const EdgeBundles &getEdgeBundles() const { return *Impl; }
 
 private:
@@ -77,12 +108,19 @@ private:
   void getAnalysisUsage(AnalysisUsage&) const override;
 };
 
+/// Analysis pass that computes \c EdgeBundles for a machine function.
 class EdgeBundlesAnalysis : public AnalysisInfoMixin<EdgeBundlesAnalysis> {
   friend AnalysisInfoMixin<EdgeBundlesAnalysis>;
   static AnalysisKey Key;
 
 public:
+  /// Result type produced by this analysis.
   using Result = EdgeBundles;
+  /// Compute edge bundles for machine function \p MF.
+  ///
+  /// \param MF Machine function to analyze.
+  /// \param MFAM Analysis manager for the machine function.
+  /// \return Edge bundles for \p MF.
   LLVM_ABI EdgeBundles run(MachineFunction &MF,
                            MachineFunctionAnalysisManager &MFAM);
 };

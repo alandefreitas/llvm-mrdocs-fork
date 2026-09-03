@@ -19,7 +19,16 @@ namespace llvm {
 
 class Function;
 
+/// Pass that jump-threads a predictable switch used as a DFA inside a loop.
+///
+/// When a switch variable in a loop is decided by the control-flow path taken,
+/// this pass clones paths so successors branch unconditionally to the next
+/// case, effectively threading the DFA.
 struct DFAJumpThreadingPass : OptionalPassInfoMixin<DFAJumpThreadingPass> {
+  /// Run DFA jump threading over the function.
+  /// @param F Function whose loop switches may be jump-threaded.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

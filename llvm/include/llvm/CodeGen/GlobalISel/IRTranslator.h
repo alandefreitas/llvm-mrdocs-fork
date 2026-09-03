@@ -27,26 +27,44 @@
 
 namespace llvm {
 
+/// Shared implementation for legacy and new-PM IR translation passes.
 class IRTranslatorImpl;
 
-// Technically the pass should run on an hypothetical MachineModule,
-// since it should translate Global into some sort of MachineGlobal.
-// The MachineGlobal should ultimately just be a transfer of ownership of
-// the interesting bits that are relevant to represent a global value.
-// That being said, we could investigate what would it cost to just duplicate
-// the information from the LLVM IR.
-// The idea is that ultimately we would be able to free up the memory used
-// by the LLVM IR as soon as the translation is over.
+/// Legacy pass that translates LLVM IR into MachineInstr for GlobalISel.
+///
+/// Technically the pass should run on an hypothetical MachineModule,
+/// since it should translate Global into some sort of MachineGlobal.
+/// The MachineGlobal should ultimately just be a transfer of ownership of
+/// the interesting bits that are relevant to represent a global value.
+/// That being said, we could investigate what would it cost to just duplicate
+/// the information from the LLVM IR.
+/// The idea is that ultimately we would be able to free up the memory used
+/// by the LLVM IR as soon as the translation is over.
 class LLVM_ABI IRTranslatorLegacy : public MachineFunctionPass {
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+  /// Construct the legacy GlobalISel IR translator pass.
+  ///
+  /// \param OptLevel Optimization level controlling optional analyses.
   IRTranslatorLegacy(CodeGenOptLevel OptLevel = CodeGenOptLevel::None);
+  /// Destroy the legacy IR translator pass.
   ~IRTranslatorLegacy() override;
 
+  /// Return the name of this pass.
+  ///
+  /// \return The name of this pass.
   StringRef getPassName() const override { return "IRTranslator"; }
 
+  /// Declare the analyses required and preserved by this pass.
+  ///
+  /// \param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Translate LLVM IR in \p MF into MachineInstr.
+  ///
+  /// \param MF Machine function whose IR is translated.
+  /// \return True if the machine function was modified.
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
@@ -54,14 +72,27 @@ private:
   std::unique_ptr<IRTranslatorImpl> Impl;
 };
 
+/// New PM pass that translates LLVM IR into MachineInstr for GlobalISel.
 class IRTranslatorPass : public RequiredPassInfoMixin<IRTranslatorPass> {
   std::unique_ptr<IRTranslatorImpl> Impl;
 
 public:
+  /// Construct the new-PM GlobalISel IR translator pass.
+  ///
+  /// \param OptLevel Optimization level controlling optional analyses.
   IRTranslatorPass(CodeGenOptLevel OptLevel);
+  /// Destroy the new-PM IR translator pass.
   ~IRTranslatorPass();
-  IRTranslatorPass(IRTranslatorPass &&);
+  /// Move-construct an IR translator pass.
+  ///
+  /// \param Other Pass to move from.
+  IRTranslatorPass(IRTranslatorPass &&Other);
 
+  /// Translate LLVM IR in \p MF into MachineInstr.
+  ///
+  /// \param MF Machine function whose IR is translated.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   PreservedAnalyses run(MachineFunction &MF,
                         MachineFunctionAnalysisManager &MFAM);
 };

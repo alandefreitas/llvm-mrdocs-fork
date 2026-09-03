@@ -27,7 +27,17 @@ template <class T> class SmallPtrSetImpl;
 class TargetTransformInfo;
 class Value;
 
-enum struct ConvergenceKind { None, Controlled, ExtendedLoop, Uncontrolled };
+/// Kind of convergence present in analyzed code.
+enum struct ConvergenceKind {
+  /// No convergent operations were found.
+  None,
+  /// Convergence is controlled by convergence tokens or control intrinsics.
+  Controlled,
+  /// Controlled convergence whose token is used outside the analyzed loop.
+  ExtendedLoop,
+  /// Convergent operations without a controlling token.
+  Uncontrolled
+};
 
 /// Utility to calculate the size and a few similar metrics for a set
 /// of basic blocks.
@@ -72,6 +82,11 @@ struct CodeMetrics {
   unsigned NumRets = 0;
 
   /// Add information about a block to the current state.
+  /// @param BB Basic block whose instructions are measured.
+  /// @param TTI Target transform info used for instruction cost.
+  /// @param EphValues Ephemeral values to ignore when costing.
+  /// @param PrepareForLTO When true, treat more calls as inline candidates.
+  /// @param L Optional loop used to classify extended-loop convergence.
   LLVM_ABI void
   analyzeBasicBlock(const BasicBlock *BB, const TargetTransformInfo &TTI,
                     const SmallPtrSetImpl<const Value *> &EphValues,
@@ -79,12 +94,18 @@ struct CodeMetrics {
 
   /// Collect a loop's ephemeral values (those used only by an assume
   /// or similar intrinsics in the loop).
+  /// @param L Loop whose assumptions are examined.
+  /// @param AC Assumption cache providing candidate assume calls.
+  /// @param EphValues Set filled with ephemeral values in \p L.
   LLVM_ABI static void
   collectEphemeralValues(const Loop *L, AssumptionCache *AC,
                          SmallPtrSetImpl<const Value *> &EphValues);
 
-  /// Collect a functions's ephemeral values (those used only by an
+  /// Collect a function's ephemeral values (those used only by an
   /// assume or similar intrinsics in the function).
+  /// @param L Function whose assumptions are examined.
+  /// @param AC Assumption cache providing candidate assume calls.
+  /// @param EphValues Set filled with ephemeral values in \p L.
   LLVM_ABI static void
   collectEphemeralValues(const Function *L, AssumptionCache *AC,
                          SmallPtrSetImpl<const Value *> &EphValues);

@@ -17,16 +17,24 @@
 
 namespace llvm {
 
+/// Empty base used when \c LockstepReverseIterator does not track active blocks.
 struct NoActiveBlocksOption {};
 
+/// Base that tracks which blocks are still participating in iteration.
 struct ActiveBlocksOption {
+  /// Blocks that still have instructions to visit.
   SmallSetVector<BasicBlock *, 4> ActiveBlocks;
+  /// Return the set of blocks that are still active.
+  ///
+  /// \return The set of blocks that are still active.
   SmallSetVector<BasicBlock *, 4> &getActiveBlocks() { return ActiveBlocks; }
+  /// Construct an empty active-blocks option.
   ActiveBlocksOption() = default;
 };
 
-/// Iterates through instructions in a set of blocks in reverse order from the
-/// first non-terminator. For example (assume all blocks have size n):
+/// Iterates instructions across blocks in reverse from the first non-terminator.
+///
+/// For example (assume all blocks have size n):
 ///   LockstepReverseIterator I([B1, B2, B3]);
 ///   *I-- = [B1[n], B2[n], B3[n]];
 ///   *I-- = [B1[n-1], B2[n-1], B3[n-1]];
@@ -49,10 +57,14 @@ private:
   bool Fail;
 
 public:
+  /// Construct an iterator over \p Blocks starting at each first non-terminator.
+  ///
+  /// \param Blocks Blocks whose instructions are iterated in lockstep reverse.
   LockstepReverseIterator(ArrayRef<BasicBlock *> Blocks) : Blocks(Blocks) {
     reset();
   }
 
+  /// Reset the iterator to the first non-terminator of each block.
   void reset() {
     Fail = false;
     if constexpr (!EarlyFailure) {
@@ -78,19 +90,28 @@ public:
       Fail = true;
   }
 
+  /// Return true if the iterator still points at a valid instruction set.
+  ///
+  /// \return True if the iterator is still valid.
   bool isValid() const { return !Fail; }
+  /// Return the current instructions, one from each active block.
+  ///
+  /// \return The current instructions, one from each active block.
   ArrayRef<Instruction *> operator*() const { return Insts; }
 
-  // Note: This needs to return a SmallSetVector as the elements of
-  // ActiveBlocks will be later copied to Blocks using std::copy. The
-  // resultant order of elements in Blocks needs to be deterministic.
-  // Using SmallPtrSet instead causes non-deterministic order while
-  // copying. And we cannot simply sort Blocks as they need to match the
-  // corresponding Values.
+  /// Return the blocks that are still active during non-early-failure iteration.
+  ///
+  /// Must return a SmallSetVector so later copies into Blocks via std::copy
+  /// preserve a deterministic order that matches the corresponding Values.
+  ///
+  /// \return The set of blocks that are still active.
   SmallSetVector<BasicBlock *, 4> &getActiveBlocks() {
     return Base::getActiveBlocks();
   }
 
+  /// Drop instructions whose parents are not in \p Blocks from the active set.
+  ///
+  /// \param Blocks Blocks allowed to remain in the active instruction set.
   void restrictToBlocks(SmallSetVector<BasicBlock *, 4> &Blocks) {
     static_assert(!EarlyFailure, "Unknown method");
     for (auto It = Insts.begin(); It != Insts.end();) {
@@ -103,6 +124,9 @@ public:
     }
   }
 
+  /// Move to the previous instruction in each active block.
+  ///
+  /// \return A reference to this iterator.
   LockstepReverseIterator &operator--() {
     if (Fail)
       return *this;
@@ -127,6 +151,9 @@ public:
     return *this;
   }
 
+  /// Move to the next instruction in each active block.
+  ///
+  /// \return A reference to this iterator.
   LockstepReverseIterator &operator++() {
     static_assert(EarlyFailure, "Unknown method");
     if (Fail)

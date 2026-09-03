@@ -21,8 +21,13 @@
 
 namespace llvm {
 
-/// Forward declaration of the dominator-tree class specialized by block type.
-template <typename, bool> class DominatorTreeBase;
+/// Base class for dominator trees over graph nodes.
+///
+/// This class is a generic template over graph nodes. It is instantiated for
+/// various graphs in the LLVM IR or in the code generator.
+/// @tparam NodeT Graph node type (typically a basic-block type).
+/// @tparam IsPostDom Set to true for a post-dominator tree; false for a dominator tree.
+template <typename NodeT, bool IsPostDom> class DominatorTreeBase;
 template <typename> class SmallVectorImpl;
 
 /// Namespace for SSA/intrinsic helpers used by GenericSSAContext.
@@ -81,10 +86,12 @@ public:
   GenericSSAContext(const FunctionT *F) : F(F) {}
 
   /// Return the function this context is bound to, or null.
+  /// @return Function this context is bound to, or null.
   const FunctionT *getFunction() const { return F; }
 
   /// Return the intrinsic ID for instruction \p I, if it is an intrinsic.
   /// @param I Instruction to classify.
+  /// @return Intrinsic ID for \p I, or a non-intrinsic sentinel if none.
   static Intrinsic::ID getIntrinsicID(const InstructionT &I);
 
   /// Append values defined in \p block to \p defs.
@@ -110,28 +117,38 @@ public:
 
   /// Return true if \p Instr is a phi of only constant or undef values.
   /// @param Instr Instruction to classify.
+  /// @return True if \p Instr is a phi of only constant or undef values.
   static bool isConstantOrUndefValuePhi(const InstructionT &Instr);
 
-  /// Whether \p V is always uniform and will not be added to UniformValues.
-  /// For IR this identifies constants and globals; for MIR it returns false
-  /// (all registers are tracked).
+  /// Return true if \p V is always uniform.
+  ///
+  /// Always-uniform values will not be added to UniformValues. For IR this
+  /// identifies constants and globals; for MIR it returns false (all
+  /// registers are tracked).
+  /// @param V Value to classify.
+  /// @return True if \p V is always uniform.
   static bool isAlwaysUniform(ConstValueRefT V);
 
   /// Return the basic block that defines \p value, or null if none.
   /// @param value Value whose defining block is requested.
+  /// @return Basic block that defines \p value, or null if none.
   const BlockT *getDefBlock(ConstValueRefT value) const;
 
   /// Return a printable view of basic block \p block.
   /// @param block Basic block to print.
+  /// @return Printable view of \p block for streaming.
   Printable print(const BlockT *block) const;
   /// Return a printable operand form of basic block \p BB.
   /// @param BB Basic block to print as an operand.
+  /// @return Printable operand form of \p BB for streaming.
   Printable printAsOperand(const BlockT *BB) const;
   /// Return a printable view of instruction \p inst.
   /// @param inst Instruction to print.
+  /// @return Printable view of \p inst for streaming.
   Printable print(const InstructionT *inst) const;
   /// Return a printable view of value \p value.
   /// @param value Value to print.
+  /// @return Printable view of \p value for streaming.
   Printable print(ConstValueRefT value) const;
 };
 } // namespace llvm

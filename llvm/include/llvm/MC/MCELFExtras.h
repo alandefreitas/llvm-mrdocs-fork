@@ -19,8 +19,14 @@
 #include <type_traits>
 
 namespace llvm::ELF {
-// Encode relocations as CREL to OS. ToCrel is responsible for converting a
-// const RelocsTy & to an Elf_Crel.
+/// Encode a sequence of relocations in ELF CREL format to an output stream.
+///
+/// \tparam Is64 - True to use 64-bit ELF offset and addend widths.
+/// \tparam RelocsTy - Range type over the input relocation entries.
+/// \tparam F - Callable that converts a relocation to an \c Elf_Crel.
+/// \param OS - Stream that receives the CREL encoding.
+/// \param Relocs - Relocations to encode.
+/// \param ToCrel - Converter from an element of \p Relocs to an \c Elf_Crel.
 template <bool Is64, class RelocsTy, class F>
 void encodeCrel(raw_ostream &OS, RelocsTy Relocs, F ToCrel) {
   using uint = std::conditional_t<Is64, uint64_t, uint32_t>;

@@ -27,6 +27,7 @@
 
 namespace llvm {
 
+/// Iterator over the types indexed by a getelementptr instruction or operator.
 template <typename ItTy = User::const_op_iterator>
 class generic_gep_type_iterator {
 
@@ -68,12 +69,22 @@ class generic_gep_type_iterator {
   generic_gep_type_iterator() = default;
 
 public:
+  /// Forward traversal category.
   using iterator_category = std::forward_iterator_tag;
+  /// Type referred to by this iterator.
   using value_type = Type *;
+  /// Signed distance between iterators.
   using difference_type = std::ptrdiff_t;
+  /// Pointer to a Type.
   using pointer = value_type *;
+  /// Reference to a Type.
   using reference = value_type &;
 
+  /// Return a begin iterator over GEP indices starting at type \p Ty.
+  ///
+  /// \param Ty Source element type of the GEP.
+  /// \param It Operand iterator positioned at the first index.
+  /// \return Begin iterator positioned at the first GEP index.
   static generic_gep_type_iterator begin(Type *Ty, ItTy It) {
     generic_gep_type_iterator I;
     I.CurTy = Ty;
@@ -81,16 +92,28 @@ public:
     return I;
   }
 
+  /// Return an end iterator for GEP indices.
+  ///
+  /// \param It Operand iterator positioned one past the last index.
+  /// \return End iterator past the last GEP index.
   static generic_gep_type_iterator end(ItTy It) {
     generic_gep_type_iterator I;
     I.OpIt = It;
     return I;
   }
 
+  /// Return true if this iterator equals \p x.
+  ///
+  /// \param x Iterator to compare against.
+  /// \return True if the iterators are equal.
   bool operator==(const generic_gep_type_iterator &x) const {
     return OpIt == x.OpIt;
   }
 
+  /// Return true if this iterator is not equal to \p x.
+  ///
+  /// \param x Iterator to compare against.
+  /// \return True if the iterators are not equal.
   bool operator!=(const generic_gep_type_iterator &x) const {
     return !operator==(x);
   }
@@ -99,6 +122,9 @@ public:
   // operator*() had a different meaning in earlier releases, so we're
   // temporarily not giving this iterator an operator*() to avoid a subtle
   // semantics break.
+  /// Return the type indexed by the current GEP operand.
+  ///
+  /// \return The type indexed by the current GEP operand.
   Type *getIndexedType() const {
     if (auto *T = dyn_cast_if_present<Type *>(CurTy))
       return T;
@@ -107,9 +133,15 @@ public:
     return cast<StructType *>(CurTy)->getTypeAtIndex(getOperand());
   }
 
+  /// Return the current GEP index operand as a Value.
+  ///
+  /// \return The current GEP index operand as a Value.
   Value *getOperand() const { return const_cast<Value *>(&**OpIt); }
 
-  generic_gep_type_iterator &operator++() { // Preincrement
+  /// Advance to the next GEP index and return this iterator.
+  ///
+  /// \return Reference to this iterator after advancing.
+  generic_gep_type_iterator &operator++() {
     Type *Ty = getIndexedType();
     if (auto *ATy = dyn_cast<ArrayType>(Ty))
       CurTy = ATy->getElementType();
@@ -121,7 +153,11 @@ public:
     return *this;
   }
 
-  generic_gep_type_iterator operator++(int) { // Postincrement
+  /// Advance to the next GEP index, returning the previous position.
+  ///
+  /// \param Unused Unused post-increment tag required by the iterator concept.
+  /// \return Copy of this iterator before advancing.
+  generic_gep_type_iterator operator++(int Unused) {
     generic_gep_type_iterator tmp = *this;
     ++*this;
     return tmp;
@@ -142,15 +178,29 @@ public:
   // we should provide a more minimal API here that exposes not much more than
   // that.
 
+  /// Return true if the current outer type is a struct.
+  ///
+  /// \return True if the current outer type is a struct.
   bool isStruct() const { return isa<StructType *>(CurTy); }
+  /// Return true if the current outer type is a vector.
+  ///
+  /// \return True if the current outer type is a vector.
   bool isVector() const { return isa<VectorType *>(CurTy); }
+  /// Return true if the current outer type is sequential (not a struct).
+  ///
+  /// \return True if the current outer type is sequential.
   bool isSequential() const { return !isStruct(); }
 
-  // For sequential GEP indices (all except those into structs), the index value
-  // can be translated into a byte offset by multiplying with an element stride.
-  // This function returns this stride, which both depends on the element type,
-  // and the containing aggregate type, as vectors always tightly bit-pack their
-  // elements.
+  /// Return the byte stride for the current sequential GEP index.
+  ///
+  /// For sequential GEP indices (all except those into structs), the index
+  /// value can be translated into a byte offset by multiplying with an element
+  /// stride. This function returns this stride, which both depends on the
+  /// element type, and the containing aggregate type, as vectors always
+  /// tightly bit-pack their elements.
+  ///
+  /// \param DL Data layout used to compute type sizes.
+  /// \return Byte stride of the current sequential element type.
   TypeSize getSequentialElementStride(const DataLayout &DL) const {
     assert(isSequential());
     Type *ElemTy = getIndexedType();
@@ -161,15 +211,26 @@ public:
     return DL.getTypeAllocSize(ElemTy);
   }
 
+  /// Return the current outer type as a StructType.
+  ///
+  /// \return The current outer type as a StructType.
   StructType *getStructType() const { return cast<StructType *>(CurTy); }
 
+  /// Return the current outer type as a StructType, or null if it is not one.
+  ///
+  /// \return The current outer type as a StructType, or null.
   StructType *getStructTypeOrNull() const {
     return dyn_cast_if_present<StructType *>(CurTy);
   }
 };
 
+  /// Iterator over types indexed by a GetElementPtr instruction or operator.
   using gep_type_iterator = generic_gep_type_iterator<>;
 
+  /// Return a begin iterator over the types indexed by GEP \p GEP.
+  ///
+  /// \param GEP GetElementPtr user whose indices are walked.
+  /// \return Begin iterator over the types indexed by \p GEP.
   inline gep_type_iterator gep_type_begin(const User *GEP) {
     auto *GEPOp = cast<GEPOperator>(GEP);
     return gep_type_iterator::begin(
@@ -177,10 +238,18 @@ public:
         GEP->op_begin() + 1);
   }
 
+  /// Return the end iterator for types indexed by GEP \p GEP.
+  ///
+  /// \param GEP GetElementPtr user whose indices are walked.
+  /// \return End iterator past the types indexed by \p GEP.
   inline gep_type_iterator gep_type_end(const User *GEP) {
     return gep_type_iterator::end(GEP->op_end());
   }
 
+  /// Return a begin iterator over the types indexed by GEP \p GEP.
+  ///
+  /// \param GEP GetElementPtr user whose indices are walked.
+  /// \return Begin iterator over the types indexed by \p GEP.
   inline gep_type_iterator gep_type_begin(const User &GEP) {
     auto &GEPOp = cast<GEPOperator>(GEP);
     return gep_type_iterator::begin(
@@ -188,19 +257,33 @@ public:
         GEP.op_begin() + 1);
   }
 
+  /// Return the end iterator for types indexed by GEP \p GEP.
+  ///
+  /// \param GEP GetElementPtr user whose indices are walked.
+  /// \return End iterator past the types indexed by \p GEP.
   inline gep_type_iterator gep_type_end(const User &GEP) {
     return gep_type_iterator::end(GEP.op_end());
   }
 
+  /// Return a begin iterator over GEP indices from type \p Op0 and operands \p A.
+  ///
+  /// \param Op0 Source element type of the GEP.
+  /// \param A Index operands of the GEP.
+  /// \return Begin iterator over GEP indices from \p Op0 and \p A.
   template<typename T>
   inline generic_gep_type_iterator<const T *>
   gep_type_begin(Type *Op0, ArrayRef<T> A) {
     return generic_gep_type_iterator<const T *>::begin(Op0, A.begin());
   }
 
+  /// Return an end iterator for GEP indices from operands \p A.
+  ///
+  /// \param Op0 Unused source element type (for symmetry with gep_type_begin).
+  /// \param A Index operands of the GEP.
+  /// \return End iterator past the GEP indices in \p A.
   template<typename T>
   inline generic_gep_type_iterator<const T *>
-  gep_type_end(Type * /*Op0*/, ArrayRef<T> A) {
+  gep_type_end(Type *Op0, ArrayRef<T> A) {
     return generic_gep_type_iterator<const T *>::end(A.end());
   }
 

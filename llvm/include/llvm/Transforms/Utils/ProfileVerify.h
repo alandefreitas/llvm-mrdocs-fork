@@ -23,12 +23,17 @@ namespace llvm {
 /// don't accidentally drop this metadata.
 class ProfileInjectorPass : public OptionalPassInfoMixin<ProfileInjectorPass> {
 public:
+  /// Run the profile-injector pass over the function.
+  /// @param F Function that may receive missing MD_prof metadata.
+  /// @param FAM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 
-/// Checks that MD_prof is present on every instruction that supports it. Used
-/// in conjunction with the ProfileInjectorPass. MD_prof "unknown" is considered
-/// valid (i.e. !{!"unknown"})
+/// Pass that verifies MD_prof is present on every instruction that supports it.
+///
+/// Used in conjunction with the ProfileInjectorPass. MD_prof "unknown" is
+/// considered valid (i.e. !{!"unknown"}).
 class ProfileVerifierPass : public OptionalPassInfoMixin<ProfileVerifierPass> {
   DenseSet<const Function *> IgnoreList;
   // This pass is mostly a function pass but we want to initialize the
@@ -38,6 +43,10 @@ class ProfileVerifierPass : public OptionalPassInfoMixin<ProfileVerifierPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 
 public:
+  /// Run the profile-verifier pass over the module.
+  /// @param M Module whose profile metadata should be verified.
+  /// @param MAM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 

@@ -67,6 +67,7 @@ public:
 
   /// Return true if this element has the same index and bit pattern as \p RHS.
   /// @param RHS Element to compare against.
+  /// @return True if the elements are equal.
   bool operator==(const SparseBitVectorElement &RHS) const {
     if (ElementIndex != RHS.ElementIndex)
       return false;
@@ -78,23 +79,27 @@ public:
 
   /// Return true if this element differs from \p RHS in index or bits.
   /// @param RHS Element to compare against.
+  /// @return True if the elements differ.
   bool operator!=(const SparseBitVectorElement &RHS) const {
     return !(*this == RHS);
   }
 
   /// Return the BitWord at local word index \p Idx.
   /// @param Idx Word index in [0, BITWORDS_PER_ELEMENT).
+  /// @return The BitWord at \p Idx.
   BitWord word(unsigned Idx) const {
     assert(Idx < BITWORDS_PER_ELEMENT);
     return Bits[Idx];
   }
 
   /// Return the element index of this block in the sparse vector.
+  /// @return The element index.
   unsigned index() const {
     return ElementIndex;
   }
 
   /// Return true if every bit in this element is clear.
+  /// @return True if every bit is clear.
   bool empty() const {
     for (unsigned i = 0; i < BITWORDS_PER_ELEMENT; ++i)
       if (Bits[i])
@@ -128,11 +133,13 @@ public:
 
   /// Return true if the bit at local index \p Idx is set.
   /// @param Idx Bit offset in [0, BITS_PER_ELEMENT).
+  /// @return True if the bit is set.
   bool test(unsigned Idx) const {
     return Bits[Idx / BITWORD_SIZE] & (1L << (Idx % BITWORD_SIZE));
   }
 
   /// Return the number of bits set in this element.
+  /// @return Number of set bits.
   size_type count() const {
     unsigned NumBits = 0;
     for (BitWord Bit : Bits)
@@ -141,6 +148,7 @@ public:
   }
 
   /// find_first - Returns the index of the first set bit.
+  /// @return Local index of the first set bit.
   int find_first() const {
     for (unsigned i = 0; i < BITWORDS_PER_ELEMENT; ++i)
       if (Bits[i] != 0)
@@ -149,6 +157,7 @@ public:
   }
 
   /// find_last - Returns the index of the last set bit.
+  /// @return Local index of the last set bit.
   int find_last() const {
     for (unsigned I = 0; I < BITWORDS_PER_ELEMENT; ++I) {
       unsigned Idx = BITWORDS_PER_ELEMENT - I - 1;
@@ -161,6 +170,8 @@ public:
 
   /// find_next - Returns the index of the next set bit starting from the
   /// "Curr" bit. Returns -1 if the next set bit is not found.
+  /// @param Curr Local bit index within this element from which to search.
+  /// @return Local index of the next set bit, or -1 if none.
   int find_next(unsigned Curr) const {
     if (Curr >= BITS_PER_ELEMENT)
       return -1;
@@ -201,6 +212,7 @@ public:
 
   /// Return true if this element and \p RHS share any set bit.
   /// @param RHS Element to test for overlapping set bits.
+  /// @return True if any bit is set in both elements.
   bool intersects(const SparseBitVectorElement &RHS) const {
     for (unsigned i = 0; i < BITWORDS_PER_ELEMENT; ++i) {
       if (RHS.Bits[i] & Bits[i])
@@ -519,6 +531,7 @@ public:
 
   /// Return true if bit \p Idx is set.
   /// @param Idx Absolute bit index to test.
+  /// @return True if bit \p Idx is set.
   bool test(unsigned Idx) const {
     if (Elements.empty())
       return false;
@@ -597,12 +610,14 @@ public:
 
   /// Return true if this vector's set of bits differs from \p RHS.
   /// @param RHS Sparse bit vector to compare against.
+  /// @return True if the set bits differ.
   bool operator!=(const SparseBitVector &RHS) const {
     return !(*this == RHS);
   }
 
   /// Return true if this vector has the same set bits as \p RHS.
   /// @param RHS Sparse bit vector to compare against.
+  /// @return True if the set bits are equal.
   bool operator==(const SparseBitVector &RHS) const {
     ElementListConstIter Iter1 = Elements.begin();
     ElementListConstIter Iter2 = RHS.Elements.begin();
@@ -811,12 +826,14 @@ public:
 
   /// Return true if this vector and \p *RHS share any set bit.
   /// @param RHS Pointer to the sparse bit vector to test against.
+  /// @return True if any bit is set in both vectors.
   bool intersects(const SparseBitVector<ElementSize> *RHS) const {
     return intersects(*RHS);
   }
 
   /// Return true if this vector and \p RHS share any set bit.
   /// @param RHS Sparse bit vector to test against.
+  /// @return True if any bit is set in both vectors.
   bool intersects(const SparseBitVector<ElementSize> &RHS) const {
     ElementListConstIter Iter1 = Elements.begin();
     ElementListConstIter Iter2 = RHS.Elements.begin();
@@ -846,6 +863,7 @@ public:
 
   /// Return true if every bit set in \p RHS is also set in this vector.
   /// @param RHS Sparse bit vector whose set bits must be covered.
+  /// @return True if every set bit of \p RHS is also set here.
   bool contains(const SparseBitVector<ElementSize> &RHS) const {
     SparseBitVector<ElementSize> Result(*this);
     Result &= RHS;
@@ -853,6 +871,7 @@ public:
   }
 
   /// Return the index of the first set bit, or -1 if none are set.
+  /// @return Absolute index of the first set bit, or -1 if none.
   int find_first() const {
     if (Elements.empty())
       return -1;
@@ -861,6 +880,7 @@ public:
   }
 
   /// Return the index of the last set bit, or -1 if none are set.
+  /// @return Absolute index of the last set bit, or -1 if none.
   int find_last() const {
     if (Elements.empty())
       return -1;
@@ -869,11 +889,13 @@ public:
   }
 
   /// Return true if this vector stores no elements (no bits are set).
+  /// @return True if no bits are set.
   bool empty() const {
     return Elements.empty();
   }
 
   /// Return the total number of bits set across all elements.
+  /// @return Total number of set bits.
   unsigned count() const {
     unsigned BitCount = 0;
     for (const SparseBitVectorElement<ElementSize> &Elem : Elements)
@@ -882,11 +904,13 @@ public:
   }
 
   /// Return an iterator to the first set bit, or end() if none are set.
+  /// @return Iterator to the first set bit, or end() if none.
   iterator begin() const {
     return iterator(this);
   }
 
   /// Return a past-the-end iterator for the set-bits range.
+  /// @return Past-the-end iterator for the set-bits range.
   iterator end() const {
     return iterator(this, true);
   }

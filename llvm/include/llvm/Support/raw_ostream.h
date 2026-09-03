@@ -38,7 +38,6 @@ class FormattedNumber;
 class FormattedBytes;
 template <class T> class [[nodiscard]] Expected;
 
-/// Host system utilities.
 namespace sys {
 /// Filesystem path and open-flag helpers.
 namespace fs {
@@ -53,10 +52,10 @@ class FileLocker;
 } // end namespace fs
 } // end namespace sys
 
-/// This class implements an extremely fast bulk output stream that can *only*
-/// output to a stream.  It does not support seeking, reopening, rewinding, line
-/// buffered disciplines etc. It is a simple buffer that outputs
-/// a chunk at a time.
+/// Extremely fast bulk output stream that only supports sequential writing.
+///
+/// It does not support seeking, reopening, rewinding, line buffered
+/// disciplines etc. It is a simple buffer that outputs a chunk at a time.
 class LLVM_ABI raw_ostream {
 public:
   // Class kinds to support LLVM-style RTTI.
@@ -168,6 +167,9 @@ public:
   static constexpr Colors RESET = Colors::RESET;
 
   /// Construct a stream, optionally unbuffered, of kind \p K.
+  ///
+  /// \param unbuffered If true, start in unbuffered mode.
+  /// \param K Concrete stream kind discriminator.
   explicit raw_ostream(bool unbuffered = false,
                        OStreamKind K = OStreamKind::OK_OStream)
       : Kind(K), BufferMode(unbuffered ? BufferKind::Unbuffered
@@ -177,17 +179,25 @@ public:
   }
 
   /// Copy construction is deleted.
-  raw_ostream(const raw_ostream &) = delete;
+  ///
+  /// \param Other Unused; copy construction is deleted.
+  raw_ostream(const raw_ostream &Other) = delete;
   /// Copy-assignment is deleted.
-  void operator=(const raw_ostream &) = delete;
+  ///
+  /// \param Other Unused; copy assignment is deleted.
+  void operator=(const raw_ostream &Other) = delete;
 
   /// Destroy the stream, flushing any buffered output.
   virtual ~raw_ostream();
 
   /// tell - Return the current offset with the file.
+  ///
+  /// \return The current offset including bytes still in the buffer.
   uint64_t tell() const { return current_pos() + GetNumBytesInBuffer(); }
 
   /// Return the concrete stream kind discriminator.
+  ///
+  /// \return The concrete stream kind discriminator.
   OStreamKind get_kind() const { return Kind; }
 
   //===--------------------------------------------------------------------===//
@@ -195,10 +205,13 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// If possible, pre-allocate \p ExtraSize bytes for stream data.
-  /// i.e. it extends internal buffers to keep additional ExtraSize bytes.
-  /// So that the stream could keep at least tell() + ExtraSize bytes
-  /// without re-allocations. reserveExtraSpace() does not change
-  /// the size/data of the stream.
+  ///
+  /// Extends internal buffers to keep additional ExtraSize bytes so that the
+  /// stream could keep at least tell() + ExtraSize bytes without
+  /// re-allocations. reserveExtraSpace() does not change the size/data of the
+  /// stream.
+  ///
+  /// \param ExtraSize Additional bytes to reserve beyond the current tell().
   virtual void reserveExtraSpace(uint64_t ExtraSize) { (void)ExtraSize; }
 
   /// Set the stream to be buffered, with an automatically determined buffer
@@ -206,6 +219,8 @@ public:
   void SetBuffered();
 
   /// Set the stream to be buffered, using the specified buffer size.
+  ///
+  /// \param Size Desired internal buffer size in bytes.
   void SetBufferSize(size_t Size) {
     flush();
     SetBufferAndMode(new char[Size], Size, BufferKind::InternalBuffer);
@@ -213,6 +228,8 @@ public:
 
   /// Return the size of the current stream buffer, or the preferred size if
   /// buffering is enabled but the buffer has not been allocated yet.
+  ///
+  /// \return The current or preferred buffer size in bytes.
   size_t GetBufferSize() const {
     // If we're supposed to be buffered but haven't actually gotten around
     // to allocating the buffer yet, return the value that would be used.
@@ -223,15 +240,19 @@ public:
     return OutBufEnd - OutBufStart;
   }
 
-  /// Set the stream to be unbuffered. When unbuffered, the stream will flush
-  /// after every write. This routine will also flush the buffer immediately
-  /// when the stream is being set to unbuffered.
+  /// Set the stream to be unbuffered.
+  ///
+  /// When unbuffered, the stream will flush after every write. This routine
+  /// will also flush the buffer immediately when the stream is being set to
+  /// unbuffered.
   void SetUnbuffered() {
     flush();
     SetBufferAndMode(nullptr, 0, BufferKind::Unbuffered);
   }
 
   /// Return the number of bytes currently held in the stream buffer.
+  ///
+  /// \return The number of bytes currently held in the stream buffer.
   size_t GetNumBytesInBuffer() const {
     return OutBufCur - OutBufStart;
   }
@@ -247,6 +268,9 @@ public:
   }
 
   /// Write character \p C to the stream.
+  ///
+  /// \param C Character to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(char C) {
     if (OutBufCur >= OutBufEnd)
       return write(C);
@@ -255,6 +279,9 @@ public:
   }
 
   /// Write unsigned character \p C to the stream.
+  ///
+  /// \param C Character to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(unsigned char C) {
     if (OutBufCur >= OutBufEnd)
       return write(C);
@@ -263,6 +290,9 @@ public:
   }
 
   /// Write signed character \p C to the stream.
+  ///
+  /// \param C Character to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(signed char C) {
     if (OutBufCur >= OutBufEnd)
       return write(C);
@@ -271,6 +301,9 @@ public:
   }
 
   /// Write \p Str to the stream.
+  ///
+  /// \param Str String contents to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(StringRef Str) {
     // Inline fast path, particularly for strings with a known length.
     size_t Size = Str.size();
@@ -298,10 +331,15 @@ public:
   // or use `reinterpret_cast`:
   // e.g. replace `u8"\u00a0"` by `reinterpret_cast<const char *>(u8"\u00a0")`
   /// Deleted: UTF-8 char8_t strings are not supported.
+  ///
+  /// \param Str Unused; UTF-8 char8_t streaming is deleted.
   raw_ostream &operator<<(const char8_t *Str) = delete;
 #endif
 
   /// Write null-terminated C string \p Str to the stream.
+  ///
+  /// \param Str Null-terminated C string to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(const char *Str) {
     // Inline fast path, particularly for constant strings where a sufficiently
     // smart compiler will simplify strlen.
@@ -310,87 +348,161 @@ public:
   }
 
   /// Write std::string \p Str to the stream.
+  ///
+  /// \param Str String to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(const std::string &Str) {
     // Avoid the fast path, it would only increase code size for a marginal win.
     return write(Str.data(), Str.length());
   }
 
   /// Write string_view \p Str to the stream.
+  ///
+  /// \param Str String view to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(const std::string_view &Str) {
     return write(Str.data(), Str.length());
   }
 
   /// Write SmallVector characters \p Str to the stream.
+  ///
+  /// \param Str Character vector to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(const SmallVectorImpl<char> &Str) {
     return write(Str.data(), Str.size());
   }
 
   /// Write unsigned long \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(unsigned long N);
   /// Write long \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(long N);
   /// Write unsigned long long \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(unsigned long long N);
   /// Write long long \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(long long N);
   /// Write pointer \p P to the stream.
+  ///
+  /// \param P Pointer value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(const void *P);
 
   /// Write unsigned int \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(unsigned int N) {
     return this->operator<<(static_cast<unsigned long>(N));
   }
 
   /// Write \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(int N) {
     return this->operator<<(static_cast<long>(N));
   }
 
   /// Write floating-point value \p N to the stream.
+  ///
+  /// \param N Value to write.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(double N);
 
   /// Output \p N in hexadecimal, without any prefix or padding.
+  ///
+  /// \param N Value to write as hexadecimal.
+  /// \return This stream, for chaining.
   raw_ostream &write_hex(unsigned long long N);
 
   /// Change the foreground color of text.
+  ///
+  /// \param C Color to apply to subsequent output.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(Colors C);
 
   /// Output a formatted UUID with dash separators.
   using uuid_t = uint8_t[16];
   /// Write UUID \p UUID to the stream.
+  ///
+  /// \param UUID 16-byte UUID to format and write.
+  /// \return This stream, for chaining.
   raw_ostream &write_uuid(const uuid_t UUID);
 
   /// Output \p Str, turning '\\', '\t', '\n', '"', and anything that doesn't
   /// satisfy llvm::isPrint into an escape sequence.
+  ///
+  /// \param Str String to write with escapes.
+  /// \param UseHexEscapes If true, use hex escapes for non-printable bytes.
+  /// \return This stream, for chaining.
   raw_ostream &write_escaped(StringRef Str, bool UseHexEscapes = false);
 
   /// Write byte \p C to the stream.
+  ///
+  /// \param C Byte to write.
+  /// \return This stream, for chaining.
   raw_ostream &write(unsigned char C);
   /// Write \p Size bytes starting at \p Ptr to the stream.
+  ///
+  /// \param Ptr Start of the bytes to write.
+  /// \param Size Number of bytes to write.
+  /// \return This stream, for chaining.
   raw_ostream &write(const char *Ptr, size_t Size);
 
   // Formatted output, see the format() function in Support/Format.h.
   /// Write output produced by snprintf-style callback \p Snprint.
+  ///
+  /// \param Snprint Callback that formats into a provided buffer.
+  /// \return This stream, for chaining.
   raw_ostream &operator<<(function_ref<int(char *, size_t)> Snprint);
 
   // Formatted output, see the leftJustify() function in Support/Format.h.
   /// Write a FormattedString with width and justification applied.
-  raw_ostream &operator<<(const FormattedString &);
+  ///
+  /// \param FS Formatted string to write.
+  /// \return This stream, for chaining.
+  raw_ostream &operator<<(const FormattedString &FS);
 
   /// Write a formatted number to the stream.
-  raw_ostream &operator<<(const FormattedNumber &);
+  ///
+  /// \param FN Formatted number to write.
+  /// \return This stream, for chaining.
+  raw_ostream &operator<<(const FormattedNumber &FN);
 
   /// Write a formatv object to the stream.
-  raw_ostream &operator<<(const formatv_object_base &);
+  ///
+  /// \param Obj formatv object to write.
+  /// \return This stream, for chaining.
+  raw_ostream &operator<<(const formatv_object_base &Obj);
 
   // Formatted output, see the format_bytes() function in Support/Format.h.
   /// Write formatted bytes to the stream.
-  raw_ostream &operator<<(const FormattedBytes &);
+  ///
+  /// \param FB Formatted bytes to write.
+  /// \return This stream, for chaining.
+  raw_ostream &operator<<(const FormattedBytes &FB);
 
   /// indent - Insert 'NumSpaces' spaces.
+  ///
+  /// \param NumSpaces Number of space characters to write.
+  /// \return This stream, for chaining.
   raw_ostream &indent(unsigned NumSpaces);
 
   /// write_zeros - Insert 'NumZeros' nulls.
+  ///
+  /// \param NumZeros Number of zero bytes to write.
+  /// \return This stream, for chaining.
   raw_ostream &write_zeros(unsigned NumZeros);
 
   /// Changes the foreground color of text that will be output from this point
@@ -407,24 +519,37 @@ public:
 
   /// Resets the colors to terminal defaults. Call this when you are done
   /// outputting colored text, or before program exit.
+  ///
+  /// \return This stream, for chaining.
   virtual raw_ostream &resetColor();
 
   /// Reverses the foreground and background colors.
+  ///
+  /// \return This stream, for chaining.
   virtual raw_ostream &reverseColor();
 
-  /// This function determines if this stream is connected to a "tty" or
-  /// "console" window. That is, the output would be displayed to the user
-  /// rather than being put on a pipe or stored in a file.
+  /// Return true if this stream is connected to a tty or console.
+  ///
+  /// That is, the output would be displayed to the user rather than being put
+  /// on a pipe or stored in a file.
+  ///
+  /// \return True if this stream is connected to a tty or console.
   virtual bool is_displayed() const { return false; }
 
   /// This function determines if this stream is displayed and supports colors.
   /// The result is unaffected by calls to enable_color().
+  ///
+  /// \return True if this stream is displayed and supports colors.
   virtual bool has_colors() const { return is_displayed(); }
 
   /// Enable or disable ANSI color output for subsequent writes.
+  ///
+  /// \param enable If true, enable colors; otherwise disable them.
   virtual void enable_colors(bool enable) { ColorEnabled = enable; }
 
   /// Return true if ANSI color output is currently enabled.
+  ///
+  /// \return True if ANSI color output is currently enabled.
   bool colors_enabled() const { return ColorEnabled; }
 
   //===--------------------------------------------------------------------===//
@@ -452,18 +577,27 @@ private:
   virtual uint64_t current_pos() const = 0;
 
 protected:
-  /// Use the provided buffer as the raw_ostream buffer. This is intended for
-  /// use only by subclasses which can arrange for the output to go directly
-  /// into the desired output buffer, instead of being copied on each flush.
+  /// Use the provided buffer as the raw_ostream buffer.
+  ///
+  /// This is intended for use only by subclasses which can arrange for the
+  /// output to go directly into the desired output buffer, instead of being
+  /// copied on each flush.
+  ///
+  /// \param BufferStart Start of the external buffer to install.
+  /// \param Size Size of the external buffer in bytes.
   void SetBuffer(char *BufferStart, size_t Size) {
     SetBufferAndMode(BufferStart, Size, BufferKind::ExternalBuffer);
   }
 
   /// Return an efficient buffer size for the underlying output mechanism.
+  ///
+  /// \return An efficient buffer size for the underlying output mechanism.
   virtual size_t preferred_buffer_size() const;
 
   /// Return the beginning of the current stream buffer, or 0 if the stream is
   /// unbuffered.
+  ///
+  /// \return The beginning of the current stream buffer, or null if unbuffered.
   const char *getBufferStart() const { return OutBufStart; }
 
   //===--------------------------------------------------------------------===//
@@ -490,6 +624,10 @@ private:
 
 /// Call the appropriate insertion operator, given an rvalue reference to a
 /// raw_ostream object and return a stream of the same type as the argument.
+///
+/// \param OS Rvalue raw_ostream (or derived) to insert into.
+/// \param Value Value to stream into \p OS.
+/// \return An rvalue reference to \p OS after inserting \p Value.
 template <typename OStream, typename T>
 std::enable_if_t<!std::is_reference_v<OStream> &&
                      std::is_base_of_v<raw_ostream, OStream>,
@@ -499,19 +637,27 @@ operator<<(OStream &&OS, const T &Value) {
   return std::move(OS);
 }
 
-/// An abstract base class for streams implementations that also support a
-/// pwrite operation. This is useful for code that can mostly stream out data,
-/// but needs to patch in a header that needs to know the output size.
+/// Abstract base for streams that also support a pwrite operation.
+///
+/// This is useful for code that can mostly stream out data, but needs to patch
+/// in a header that needs to know the output size.
 class LLVM_ABI raw_pwrite_stream : public raw_ostream {
   virtual void pwrite_impl(const char *Ptr, size_t Size, uint64_t Offset) = 0;
   void anchor() override;
 
 public:
   /// Construct a pwrite-capable stream, optionally unbuffered.
+  ///
+  /// \param Unbuffered If true, disable buffering.
+  /// \param K Concrete stream kind discriminator.
   explicit raw_pwrite_stream(bool Unbuffered = false,
                              OStreamKind K = OStreamKind::OK_OStream)
       : raw_ostream(Unbuffered, K) {}
   /// Write \p Size bytes from \p Ptr at absolute stream offset \p Offset.
+  ///
+  /// \param Ptr Bytes to write.
+  /// \param Size Number of bytes to write.
+  /// \param Offset Absolute offset in the stream at which to write.
   void pwrite(const char *Ptr, size_t Size, uint64_t Offset) {
 #ifndef NDEBUG
     uint64_t Pos = tell();
@@ -567,42 +713,76 @@ class LLVM_ABI raw_fd_ostream : public raw_pwrite_stream {
 
 protected:
   /// Set the flag indicating that an output error has been encountered.
+  ///
+  /// \param EC Error code to record as the sticky stream error.
   void error_detected(std::error_code EC) { this->EC = EC; }
 
   /// Return the file descriptor.
+  ///
+  /// \return The underlying file descriptor.
   int get_fd() const { return FD; }
 
   /// Advance the tracked file position by \p Delta bytes.
+  ///
+  /// \param Delta Number of bytes to add to the tracked position.
   void inc_pos(uint64_t Delta) { pos += Delta; }
 
 public:
-  /// Open the specified file for writing. If an error occurs, information
-  /// about the error is put into EC, and the stream should be immediately
-  /// destroyed;
-  /// \p Flags allows optional flags to control how the file will be opened.
+  /// Open the specified file for writing.
+  ///
+  /// If an error occurs, information about the error is put into EC, and the
+  /// stream should be immediately destroyed; Flags allows optional flags to
+  /// control how the file will be opened.
   ///
   /// As a special case, if Filename is "-", then the stream will use
   /// STDOUT_FILENO instead of opening a file. This will not close the stdout
   /// descriptor.
+  ///
+  /// \param Filename Path to open, or "-" for stdout.
+  /// \param EC Set to the error code if opening fails.
   raw_fd_ostream(StringRef Filename, std::error_code &EC);
   /// Open \p Filename with creation disposition \p Disp and report errors in \p EC.
+  ///
+  /// \param Filename Path to open, or "-" for stdout.
+  /// \param EC Set to the error code if opening fails.
+  /// \param Disp Creation disposition controlling truncate vs. create.
   raw_fd_ostream(StringRef Filename, std::error_code &EC,
                  sys::fs::CreationDisposition Disp);
   /// Open \p Filename with access mode \p Access and report errors in \p EC.
+  ///
+  /// \param Filename Path to open, or "-" for stdout.
+  /// \param EC Set to the error code if opening fails.
+  /// \param Access File access mode flags.
   raw_fd_ostream(StringRef Filename, std::error_code &EC,
                  sys::fs::FileAccess Access);
   /// Open \p Filename for writing using open flags \p Flags.
+  ///
+  /// \param Filename Path to open, or "-" for stdout.
+  /// \param EC Set to the error code if opening fails.
+  /// \param Flags Optional flags controlling how the file is opened.
   raw_fd_ostream(StringRef Filename, std::error_code &EC,
                  sys::fs::OpenFlags Flags);
   /// Open \p Filename with disposition, access mode, and open flags.
+  ///
+  /// \param Filename Path to open, or "-" for stdout.
+  /// \param EC Set to the error code if opening fails.
+  /// \param Disp Creation disposition controlling truncate vs. create.
+  /// \param Access File access mode flags.
+  /// \param Flags Optional flags controlling how the file is opened.
   raw_fd_ostream(StringRef Filename, std::error_code &EC,
                  sys::fs::CreationDisposition Disp, sys::fs::FileAccess Access,
                  sys::fs::OpenFlags Flags);
 
-  /// FD is the file descriptor that this writes to.  If ShouldClose is true,
+  /// Construct a stream writing to file descriptor \p fd.
+  ///
+  /// FD is the file descriptor that this writes to. If ShouldClose is true,
   /// this closes the file when the stream is destroyed. If FD is for stdout or
   /// stderr, it will not be closed.
-  /// Construct a stream writing to file descriptor \p fd.
+  ///
+  /// \param fd File descriptor to write to.
+  /// \param shouldClose If true, close \p fd when the stream is destroyed.
+  /// \param unbuffered If true, disable buffering.
+  /// \param K Concrete stream kind discriminator.
   raw_fd_ostream(int fd, bool shouldClose, bool unbuffered = false,
                  OStreamKind K = OStreamKind::OK_OStream);
 
@@ -614,41 +794,60 @@ public:
   void close();
 
   /// Return true if this stream can seek its underlying file descriptor.
+  ///
+  /// \return True if this stream can seek its underlying file descriptor.
   bool supportsSeeking() const { return SupportsSeeking; }
 
   /// Return true if the underlying file is a regular file.
+  ///
+  /// \return True if the underlying file is a regular file.
   bool isRegularFile() const { return IsRegularFile; }
 
   /// Flushes the stream and repositions the underlying file descriptor position
   /// to the offset specified from the beginning of the file.
+  ///
+  /// \param off Absolute byte offset from the start of the file.
+  /// \return The resulting file position after seeking.
   uint64_t seek(uint64_t off);
 
   /// Return true if output from this stream is shown to the user (e.g. a TTY).
+  ///
+  /// \return True if output from this stream is shown to the user.
   bool is_displayed() const override;
 
   /// Return true if the file stream supports ANSI colors.
+  ///
+  /// \return True if the file stream supports ANSI colors.
   bool has_colors() const override;
 
-  /// Tie this stream to the specified stream. Replaces any existing tied-to
-  /// stream. Specifying a nullptr unties the stream. This is intended for to
-  /// tie errs() to outs(), so that outs() is flushed whenever something is
-  /// written to errs(), preventing weird and hard-to-test output when stderr
-  /// is redirected to stdout.
+  /// Tie this stream to another stream so that stream is flushed first.
+  ///
+  /// Replaces any existing tied-to stream. Specifying a nullptr unties the
+  /// stream. This is intended to tie errs() to outs(), so that outs() is
+  /// flushed whenever something is written to errs(), preventing weird and
+  /// hard-to-test output when stderr is redirected to stdout.
+  ///
+  /// \param TieTo Stream to flush before writes to this stream, or nullptr.
   void tie(raw_ostream *TieTo) { TiedStream = TieTo; }
 
   /// Return the sticky error code for this stream.
+  ///
+  /// \return The sticky error code for this stream.
   std::error_code error() const { return EC; }
 
-  /// Return the value of the flag in this raw_fd_ostream indicating whether an
-  /// output error has been encountered.
-  /// This doesn't implicitly flush any pending output.  Also, it doesn't
+  /// Return whether an output error has been encountered.
+  ///
+  /// This doesn't implicitly flush any pending output. Also, it doesn't
   /// guarantee to detect all errors unless the stream has been closed.
+  ///
+  /// \return True if an output error has been encountered.
   bool has_error() const { return bool(EC); }
 
-  /// Set the flag read by has_error() to false. If the error flag is set at the
-  /// time when this raw_ostream's destructor is called, report_fatal_error is
-  /// called to report the error. Use clear_error() after handling the error to
-  /// avoid this behavior.
+  /// Clear the sticky output error flag read by has_error().
+  ///
+  /// If the error flag is set at the time when this raw_ostream's destructor
+  /// is called, report_fatal_error is called to report the error. Use
+  /// clear_error() after handling the error to avoid this behavior.
   ///
   ///   "Errors should never pass silently.
   ///    Unless explicitly silenced."
@@ -685,22 +884,31 @@ public:
   ///          error code.
   ///
   /// It is used as @ref lock.
+  ///
+  /// \param Timeout Maximum time to wait for the lock.
   [[nodiscard]] Expected<sys::fs::FileLocker>
   tryLockFor(Duration const &Timeout);
 };
 
 /// This returns a reference to a raw_fd_ostream for standard output. Use it
 /// like: outs() << "foo" << "bar";
+///
+/// \return A reference to the standard output stream.
 LLVM_ABI raw_fd_ostream &outs();
 
-/// This returns a reference to a raw_ostream for standard error.
+/// Return a raw_ostream reference for standard error.
+///
 /// Use it like: errs() << "foo" << "bar";
 /// By default, the stream is tied to stdout to ensure stdout is flushed before
 /// stderr is written, to ensure the error messages are written in their
 /// expected place.
+///
+/// \return A reference to the standard error stream.
 LLVM_ABI raw_fd_ostream &errs();
 
 /// This returns a reference to a raw_ostream which simply discards output.
+///
+/// \return A reference to a raw_ostream that discards all output.
 LLVM_ABI raw_ostream &nulls();
 
 //===----------------------------------------------------------------------===//
@@ -711,12 +919,19 @@ LLVM_ABI raw_ostream &nulls();
 ///
 class raw_fd_stream : public raw_fd_ostream {
 public:
-  /// Open the specified file for reading/writing/seeking. If an error occurs,
-  /// information about the error is put into EC, and the stream should be
-  /// immediately destroyed.
+  /// Open \p Filename for reading, writing, and seeking.
+  ///
+  /// If an error occurs, information about the error is put into EC, and the
+  /// stream should be immediately destroyed.
+  ///
+  /// \param Filename Path of the file to open.
+  /// \param EC Set to the error code if opening fails.
   LLVM_ABI raw_fd_stream(StringRef Filename, std::error_code &EC);
 
   /// Construct a read/write/seek stream from file descriptor \p fd.
+  ///
+  /// \param fd Open file descriptor to wrap.
+  /// \param shouldClose If true, close \p fd when the stream is destroyed.
   LLVM_ABI raw_fd_stream(int fd, bool shouldClose);
 
   /// This reads the \p Size bytes into a buffer pointed by \p Ptr.
@@ -728,9 +943,14 @@ public:
   /// On success, the number of bytes read is returned, and the file position is
   /// advanced by this number. On error, -1 is returned, use error() to get the
   /// error code.
+  ///
+  /// \return The number of bytes read on success, or -1 on error.
   LLVM_ABI ssize_t read(char *Ptr, size_t Size);
 
   /// Check if \p OS is a pointer of type raw_fd_stream*.
+  ///
+  /// \param OS Stream pointer to test.
+  /// \return True if \p OS is a raw_fd_stream.
   LLVM_ABI static bool classof(const raw_ostream *OS);
 };
 
@@ -754,6 +974,8 @@ class LLVM_ABI raw_string_ostream : public raw_ostream {
 
 public:
   /// Construct a stream that appends into string \p O.
+  ///
+  /// \param O String that receives all streamed output.
   explicit raw_string_ostream(std::string &O) : OS(O) {
     SetUnbuffered();
   }
@@ -761,19 +983,24 @@ public:
   /// Returns the string's reference. In most cases it is better to simply use
   /// the underlying std::string directly.
   /// TODO: Consider removing this API.
+  ///
+  /// \return A reference to the underlying std::string.
   std::string &str() { return OS; }
 
   /// Reserve capacity so the string can hold tell() + \p ExtraSize bytes.
+  ///
+  /// \param ExtraSize Additional bytes to reserve beyond the current tell().
   void reserveExtraSpace(uint64_t ExtraSize) override {
     OS.reserve(tell() + ExtraSize);
   }
 };
 
-/// A raw_ostream that writes to an SmallVector or SmallString.  This is a
-/// simple adaptor class. This class does not encounter output errors.
-/// raw_svector_ostream operates without a buffer, delegating all memory
-/// management to the SmallString. Thus the SmallString is always up-to-date,
-/// may be used directly and there is no need to call flush().
+/// A raw_ostream that writes to a SmallVector or SmallString.
+///
+/// This is a simple adaptor class. This class does not encounter output
+/// errors. raw_svector_ostream operates without a buffer, delegating all
+/// memory management to the SmallString. Thus the SmallString is always
+/// up-to-date, may be used directly and there is no need to call flush().
 class LLVM_ABI raw_svector_ostream : public raw_pwrite_stream {
   SmallVectorImpl<char> &OS;
 
@@ -805,16 +1032,25 @@ public:
   void flush() = delete;
 
   /// Return a StringRef for the vector contents.
+  ///
+  /// \return A StringRef referring to the vector contents.
   StringRef str() const { return StringRef(OS.data(), OS.size()); }
   /// Return a mutable reference to the backing SmallVector.
+  ///
+  /// \return A mutable reference to the backing SmallVector.
   SmallVectorImpl<char> &buffer() { return OS; }
 
   /// Reserve capacity so the vector can hold tell() + \p ExtraSize bytes.
+  ///
+  /// \param ExtraSize Additional bytes to reserve beyond the current tell().
   void reserveExtraSpace(uint64_t ExtraSize) override {
     OS.reserve(tell() + ExtraSize);
   }
 
   /// Return true if \p OS is a raw_svector_ostream.
+  ///
+  /// \param OS Stream pointer to test.
+  /// \return True if \p OS is a raw_svector_ostream.
   static bool classof(const raw_ostream *OS);
 };
 
@@ -835,6 +1071,7 @@ public:
   ~raw_null_ostream() override;
 };
 
+/// raw_svector_ostream that buffers output and flushes to another stream.
 class LLVM_ABI buffer_ostream : public raw_svector_ostream {
   raw_ostream &OS;
   SmallVector<char, 0> Buffer;
@@ -843,11 +1080,14 @@ class LLVM_ABI buffer_ostream : public raw_svector_ostream {
 
 public:
   /// Buffer writes and flush them to underlying stream \p OS on destruction.
+  ///
+  /// \param OS Destination stream flushed when this object is destroyed.
   buffer_ostream(raw_ostream &OS) : raw_svector_ostream(Buffer), OS(OS) {}
   /// Flush buffered contents into the underlying stream.
   ~buffer_ostream() override { OS << str(); }
 };
 
+/// raw_svector_ostream that owns another stream and buffers until destruction.
 class LLVM_ABI buffer_unique_ostream : public raw_svector_ostream {
   std::unique_ptr<raw_ostream> OS;
   SmallVector<char, 0> Buffer;
@@ -856,6 +1096,8 @@ class LLVM_ABI buffer_unique_ostream : public raw_svector_ostream {
 
 public:
   /// Own \p OS and buffer all writes until destruction.
+  ///
+  /// \param OS Owned destination stream flushed when this object is destroyed.
   buffer_unique_ostream(std::unique_ptr<raw_ostream> OS)
       : raw_svector_ostream(Buffer), OS(std::move(OS)) {
     // Turn off buffering on OS, which we now own, to avoid allocating a buffer
@@ -883,49 +1125,75 @@ struct indent {
   unsigned Scale;
 
   /// Construct an indent of \p NumIndents steps of \p Scale spaces each.
+  ///
+  /// \param NumIndents Number of indentation steps.
+  /// \param Scale Spaces per indentation step (default 1).
   explicit indent(unsigned NumIndents, unsigned Scale = 1)
       : NumIndents(NumIndents), Scale(Scale) {}
 
   // These arithmeric operators preserve scale.
   /// Increase the indentation step count by \p N.
+  ///
+  /// \param N Number of steps to add.
   void operator+=(unsigned N) { NumIndents += N; }
   /// Decrease the indentation step count by \p N.
+  ///
+  /// \param N Number of steps to subtract.
   void operator-=(unsigned N) {
     assert(NumIndents >= N && "Indentation underflow");
     NumIndents -= N;
   }
   /// Return an indent value increased by \p N steps.
+  ///
+  /// \param N Number of steps to add.
+  /// \return An indent value increased by \p N steps.
   indent operator+(unsigned N) const { return indent(NumIndents + N, Scale); }
   /// Return an indent value decreased by \p N steps.
+  ///
+  /// \param N Number of steps to subtract.
+  /// \return An indent value decreased by \p N steps.
   indent operator-(unsigned N) const {
     assert(NumIndents >= N && "Indentation undeflow");
     return indent(NumIndents - N, Scale);
   }
   /// Pre-increment the indentation step count.
+  ///
+  /// \return A reference to this indent after incrementing.
   indent &operator++() { // Prefix ++.
     ++NumIndents;
     return *this;
   }
   /// Post-increment the indentation step count.
-  indent operator++(int) { // Postfix ++.
+  ///
+  /// \param Unused Dummy argument distinguishing post-increment.
+  /// \return A copy of the indent before incrementing.
+  indent operator++(int Unused) { // Postfix ++.
     indent Old = *this;
     ++NumIndents;
     return Old;
   }
   /// Pre-decrement the indentation step count.
+  ///
+  /// \return A reference to this indent after decrementing.
   indent &operator--() { // Prefix --.
     assert(NumIndents >= 1);
     --NumIndents;
     return *this;
   }
   /// Post-decrement the indentation step count.
-  indent operator--(int) { // Postfix --.
+  ///
+  /// \param Unused Dummy argument distinguishing post-decrement.
+  /// \return A copy of the indent before decrementing.
+  indent operator--(int Unused) { // Postfix --.
     indent Old = *this;
     assert(NumIndents >= 1);
     --NumIndents;
     return Old;
   }
   /// Set the indentation step count to \p N.
+  ///
+  /// \param N New indentation step count.
+  /// \return A reference to this indent after assignment.
   indent &operator=(unsigned N) {
     NumIndents = N;
     return *this;
@@ -933,25 +1201,42 @@ struct indent {
 };
 
 /// Write \p Indent spaces to \p OS.
+///
+/// \param OS Stream to write to.
+/// \param Indent Indentation amount to emit as spaces.
+/// \return The stream \p OS, for chaining.
 inline raw_ostream &operator<<(raw_ostream &OS, const indent &Indent) {
   return OS.indent(Indent.NumIndents * Indent.Scale);
 }
 
 class Error;
 
-/// This helper creates an output stream and then passes it to \p Write.
-/// The stream created is based on the specified \p OutputFileName:
-/// llvm::outs for "-", raw_null_ostream for "/dev/null", and raw_fd_ostream
-/// for other names. For raw_fd_ostream instances, the stream writes to
-/// a temporary file. The final output file is atomically replaced with the
-/// temporary file after the \p Write function is finished.
+/// Create an output stream for \p OutputFileName and pass it to \p Write.
+///
+/// The stream created is based on the specified OutputFileName: llvm::outs
+/// for "-", raw_null_ostream for "/dev/null", and raw_fd_ostream for other
+/// names. For raw_fd_ostream instances, the stream writes to a temporary
+/// file. The final output file is atomically replaced with the temporary
+/// file after the Write function is finished.
+///
+/// \param OutputFileName Path or special name ("-" / "/dev/null") to write.
+/// \param Write Callback that receives the stream and returns an Error.
+/// \return Success, or the error from opening the file or from \p Write.
 LLVM_ABI Error writeToOutput(StringRef OutputFileName,
                              std::function<Error(raw_ostream &)> Write);
 
 /// Write a representation of \c std::nullopt to \p OS.
-LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, std::nullopt_t);
+///
+/// \param OS Stream to write to.
+/// \param NullOpt Unused nullopt tag value.
+/// \return The stream \p OS, for chaining.
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, std::nullopt_t NullOpt);
 
 /// Write optional value \p O to \p OS, or \c std::nullopt if empty.
+///
+/// \param OS Stream to write to.
+/// \param O Optional value to stream, or empty for nullopt.
+/// \return The stream \p OS, for chaining.
 template <typename T, typename = decltype(std::declval<raw_ostream &>()
                                           << std::declval<const T &>())>
 raw_ostream &operator<<(raw_ostream &OS, const std::optional<T> &O) {

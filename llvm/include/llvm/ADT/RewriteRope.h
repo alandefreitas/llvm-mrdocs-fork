@@ -78,17 +78,21 @@ struct RopePiece {
   /// Access the character at offset \p Offset within this piece.
   ///
   /// \param Offset Zero-based offset relative to \c StartOffs.
+  /// \return Const reference to the character at \p Offset.
   const char &operator[](unsigned Offset) const {
     return StrData->Data[Offset + StartOffs];
   }
   /// Access the character at offset \p Offset within this piece.
   ///
   /// \param Offset Zero-based offset relative to \c StartOffs.
+  /// \return Mutable reference to the character at \p Offset.
   char &operator[](unsigned Offset) {
     return StrData->Data[Offset + StartOffs];
   }
 
   /// Return the number of characters in this piece.
+  ///
+  /// \return The character count (`EndOffs - StartOffs`).
   unsigned size() const { return EndOffs - StartOffs; }
 };
 
@@ -131,18 +135,28 @@ public:
   LLVM_ABI RopePieceBTreeIterator(const void /*RopePieceBTreeNode*/ *N);
 
   /// Return the current character in the rope.
+  ///
+  /// \return The character at the current iterator position.
   char operator*() const { return (*CurPiece)[CurChar]; }
 
   /// Return true if both iterators point at the same character position.
+  ///
+  /// \param RHS Iterator to compare against.
+  /// \return True if both iterators refer to the same character position.
   bool operator==(const RopePieceBTreeIterator &RHS) const {
     return CurPiece == RHS.CurPiece && CurChar == RHS.CurChar;
   }
   /// Return true if the iterators point at different positions.
+  ///
+  /// \param RHS Iterator to compare against.
+  /// \return True if the iterators refer to different character positions.
   bool operator!=(const RopePieceBTreeIterator &RHS) const {
     return !operator==(RHS);
   }
 
   /// Advance to the next character in the rope.
+  ///
+  /// \return Reference to this iterator after advancing.
   RopePieceBTreeIterator &operator++() { // Preincrement
     if (CurChar + 1 < CurPiece->size())
       ++CurChar;
@@ -152,13 +166,19 @@ public:
   }
 
   /// Advance to the next character, returning the prior iterator value.
-  RopePieceBTreeIterator operator++(int) { // Postincrement
+  ///
+  /// \param Unused Dummy parameter distinguishing post-increment from
+  ///        pre-increment.
+  /// \return Copy of the iterator before it was advanced.
+  RopePieceBTreeIterator operator++(int Unused) { // Postincrement
     RopePieceBTreeIterator tmp = *this;
     ++*this;
     return tmp;
   }
 
   /// Return the remaining unread bytes of the current RopePiece as a StringRef.
+  ///
+  /// \return StringRef covering the full current RopePiece.
   llvm::StringRef piece() const {
     return llvm::StringRef(&(*CurPiece)[0], CurPiece->size());
   }
@@ -179,9 +199,13 @@ public:
   /// Construct an empty rope piece tree.
   LLVM_ABI RopePieceBTree();
   /// Copy-construct from another rope piece tree.
+  ///
+  /// \param RHS Tree to copy.
   LLVM_ABI RopePieceBTree(const RopePieceBTree &RHS);
   /// Copy assignment is deleted.
-  RopePieceBTree &operator=(const RopePieceBTree &) = delete;
+  ///
+  /// \param RHS Unused; copy assignment is not supported.
+  RopePieceBTree &operator=(const RopePieceBTree &RHS) = delete;
   /// Destroy the tree and free its nodes.
   LLVM_ABI ~RopePieceBTree();
 
@@ -189,12 +213,20 @@ public:
   using iterator = RopePieceBTreeIterator;
 
   /// Iterator to the first character, or end if empty.
+  ///
+  /// \return Iterator positioned at the first character, or end if empty.
   iterator begin() const { return iterator(Root); }
   /// Past-the-end character iterator.
+  ///
+  /// \return Past-the-end iterator over characters in the tree.
   iterator end() const { return iterator(); }
   /// Return the number of characters stored in the tree.
+  ///
+  /// \return The total number of characters across all pieces.
   LLVM_ABI unsigned size() const;
   /// Return non-zero if the tree stores no characters.
+  ///
+  /// \return Non-zero when the tree is empty; zero otherwise.
   unsigned empty() const { return size() == 0; }
 
   /// Remove all pieces from the tree.
@@ -231,10 +263,14 @@ public:
   /// Construct an empty rewrite rope.
   RewriteRope() = default;
   /// Copy-construct from another rewrite rope, sharing piece storage.
+  ///
+  /// \param RHS Rope whose chunks are copied into this one.
   RewriteRope(const RewriteRope &RHS) : Chunks(RHS.Chunks) {}
 
   /// Copy assignment is deleted.
-  RewriteRope &operator=(const RewriteRope &) = delete;
+  ///
+  /// \param RHS Unused; copy assignment is not supported.
+  RewriteRope &operator=(const RewriteRope &RHS) = delete;
 
   /// Character iterator over the rope contents.
   using iterator = RopePieceBTree::iterator;
@@ -242,10 +278,16 @@ public:
   using const_iterator = RopePieceBTree::iterator;
 
   /// Iterator to the first character.
+  ///
+  /// \return Iterator positioned at the first character of the rope.
   iterator begin() const { return Chunks.begin(); }
   /// Past-the-end character iterator.
+  ///
+  /// \return Past-the-end iterator over characters in the rope.
   iterator end() const { return Chunks.end(); }
   /// Return the number of characters in the rope.
+  ///
+  /// \return The total number of characters stored in the rope.
   unsigned size() const { return Chunks.size(); }
 
   /// Remove all characters from the rope.

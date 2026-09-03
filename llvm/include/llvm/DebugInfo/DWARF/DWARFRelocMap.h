@@ -19,15 +19,17 @@ namespace llvm {
 /// RelocAddrEntry contains relocated value and section index.
 /// Section index is -1LL if relocation points to absolute symbol.
 struct RelocAddrEntry {
-  uint64_t SectionIndex;
+  uint64_t SectionIndex; ///< Section index of the relocated target, or -1 if absolute.
   /// Primary relocation applied at this address.
   object::RelocationRef Reloc;
-  uint64_t SymbolValue;
-  std::optional<object::RelocationRef> Reloc2;
-  uint64_t SymbolValue2;
-  object::RelocationResolver Resolver;
+  uint64_t SymbolValue; ///< Value of the primary relocation's symbol.
+  std::optional<object::RelocationRef> Reloc2; ///< Optional second relocation at the same address.
+  uint64_t SymbolValue2; ///< Value of the secondary relocation's symbol, if any.
+  object::RelocationResolver Resolver; ///< Resolver used to apply the relocation(s).
 };
 
+/// Side table mapping DWARF section offsets to relocation address entries.
+///
 /// In place of applying the relocations to the data we've read from disk we use
 /// a separate mapping table to the side and checking that at locations in the
 /// dwarf where we expect relocated values. This adds a bit of complexity to the

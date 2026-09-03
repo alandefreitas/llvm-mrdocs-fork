@@ -26,7 +26,12 @@ class Module;
 /// Pass to remove unused function declarations.
 struct StripDeadPrototypesPass
     : OptionalPassInfoMixin<StripDeadPrototypesPass> {
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Remove unused function declarations from the given module.
+  ///
+  /// \param M Module whose dead declarations are stripped.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 }
 

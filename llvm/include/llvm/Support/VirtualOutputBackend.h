@@ -40,6 +40,8 @@ public:
   ///
   /// Not thread-safe, but all operations are thread-safe when performed on
   /// separate clones of the same backend.
+  /// \returns A backend that points to the same destination with independent
+  /// settings.
   IntrusiveRefCntPtr<OutputBackend> clone() const { return cloneImpl(); }
 
   /// Create a file. If \p Config is \c std::nullopt, uses the backend's default
@@ -47,6 +49,10 @@ public:
   /// have been customized).
   ///
   /// Thread-safe.
+  /// \param Path Path of the output file to create.
+  /// \param Config Optional output configuration; nullopt uses the backend
+  /// default.
+  /// \returns The created output file, or an error on failure.
   Expected<OutputFile>
   createFile(const Twine &Path,
              std::optional<OutputConfig> Config = std::nullopt);
@@ -54,17 +60,24 @@ public:
 protected:
   /// Must be thread-safe. Virtual function has a different name than \a
   /// clone() so that implementations can override the return value.
+  /// \returns A clone of this backend.
   virtual IntrusiveRefCntPtr<OutputBackend> cloneImpl() const = 0;
 
   /// Create a file for \p Path. Must be thread-safe.
   ///
   /// \pre \p Config is valid or std::nullopt.
+  /// \param Path Path of the output file to create.
+  /// \param Config Optional output configuration; nullopt uses the backend
+  /// default.
+  /// \returns The created file implementation, or an error on failure.
   virtual Expected<std::unique_ptr<OutputFileImpl>>
   createFileImpl(StringRef Path, std::optional<OutputConfig> Config) = 0;
 
+  /// Construct an output backend.
   OutputBackend() = default;
 
 public:
+  /// Destroy the output backend.
   virtual ~OutputBackend() = default;
 };
 

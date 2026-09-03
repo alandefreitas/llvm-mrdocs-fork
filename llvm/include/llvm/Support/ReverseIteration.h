@@ -7,6 +7,7 @@
 namespace llvm {
 
 /// Return true if containers of \p T should iterate in reverse order.
+/// \return True if containers of \p T should iterate in reverse order.
 template <class T = void *> constexpr bool shouldReverseIterate() {
 #if LLVM_ENABLE_REVERSE_ITERATION
   return detail::IsPointerLike<T>::value;

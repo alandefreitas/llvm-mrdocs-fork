@@ -70,28 +70,48 @@ namespace consthoist {
 /// Keeps track of the user of a constant and the operand index where the
 /// constant is used.
 struct ConstantUser {
+  /// Instruction that uses the constant.
   Instruction *Inst;
+  /// Operand index of the constant use in the user instruction.
   unsigned OpndIdx;
 
+  /// Create a constant user for instruction \p Inst at operand \p Idx.
+  /// @param Inst Instruction that uses the constant.
+  /// @param Idx Operand index of the constant use in \p Inst.
   ConstantUser(Instruction *Inst, unsigned Idx) : Inst(Inst), OpndIdx(Idx) {}
 };
 
+/// List of instructions that use a constant candidate.
 using ConstantUseListType = SmallVector<ConstantUser, 8>;
 
 /// Keeps track of a constant candidate and its uses.
 struct ConstantCandidate {
+  /// Uses of this constant candidate across the function.
   ConstantUseListType Uses;
-  // If the candidate is a ConstantExpr (currely only constant GEP expressions
-  // whose base pointers are GlobalVariables are supported), ConstInt records
-  // its offset from the base GV, ConstExpr tracks the candidate GEP expr.
+  /// Integer constant, or offset from a base GV for a constant GEP candidate.
+  ///
+  /// For ConstantExpr candidates (currently only constant GEP expressions
+  /// whose base pointers are GlobalVariables), this records the offset from
+  /// the base GV.
   ConstantInt *ConstInt;
+  /// Optional constant GEP expression for this candidate, or nullptr.
+  ///
+  /// When non-null, tracks the candidate GEP whose base is a GlobalVariable;
+  /// ConstInt then holds the offset from that base.
   ConstantExpr *ConstExpr;
+  /// Sum of materialization costs across all recorded uses.
   unsigned CumulativeCost = 0;
 
+  /// Create a candidate for \p ConstInt, optionally backed by \p ConstExpr.
+  /// @param ConstInt Integer constant or GEP offset for this candidate.
+  /// @param ConstExpr Optional constant GEP expression, or nullptr.
   ConstantCandidate(ConstantInt *ConstInt, ConstantExpr *ConstExpr=nullptr) :
       ConstInt(ConstInt), ConstExpr(ConstExpr) {}
 
   /// Add the user to the use list and update the cost.
+  /// @param Inst Instruction that uses the constant.
+  /// @param Idx Operand index of the constant use in \p Inst.
+  /// @param Cost Materialization cost contributed by this use.
   void addUser(Instruction *Inst, unsigned Idx, unsigned Cost) {
     CumulativeCost += Cost;
     Uses.push_back(ConstantUser(Inst, Idx));
@@ -101,38 +121,71 @@ struct ConstantCandidate {
 /// This represents a constant that has been rebased with respect to a
 /// base constant. The difference to the base constant is recorded in Offset.
 struct RebasedConstantInfo {
+  /// Uses of the original constant that will be rewritten relative to the base.
   ConstantUseListType Uses;
+  /// Difference from the shared base constant used to re-materialize this one.
   Constant *Offset;
+  /// Optional type used when adjusting users of this rebased constant.
   Type *Ty;
 
+  /// Create rebased-constant info for \p Uses with difference \p Offset.
+  /// @param Uses Uses of the original constant being rebased.
+  /// @param Offset Difference from the shared base constant.
+  /// @param Ty Optional type used when adjusting users, or nullptr.
   RebasedConstantInfo(ConstantUseListType &&Uses, Constant *Offset,
       Type *Ty=nullptr) : Uses(std::move(Uses)), Offset(Offset), Ty(Ty) {}
 };
 
+/// List of constants rebased relative to a shared base constant.
 using RebasedConstantListType = SmallVector<RebasedConstantInfo, 4>;
 
 /// A base constant and all its rebased constants.
 struct ConstantInfo {
-  // If the candidate is a ConstantExpr (currely only constant GEP expressions
-  // whose base pointers are GlobalVariables are supported), ConstInt records
-  // its offset from the base GV, ConstExpr tracks the candidate GEP expr.
+  /// Base integer constant, or offset from a base GV for a constant GEP.
+  ///
+  /// For ConstantExpr bases (currently only constant GEP expressions whose
+  /// base pointers are GlobalVariables), this records the offset from the
+  /// base GV.
   ConstantInt *BaseInt;
+  /// Optional constant GEP expression used as the base, or nullptr.
+  ///
+  /// When non-null, tracks the base GEP whose base is a GlobalVariable;
+  /// BaseInt then holds the offset from that base.
   ConstantExpr *BaseExpr;
+  /// Constants rebased relative to this base, including their uses and offsets.
   RebasedConstantListType RebasedConstants;
 };
 
 } // end namespace consthoist
 
+/// Pass that hoists and coalesces expensive constants for codegen.
+///
+/// Identifies expensive integer constants and simple constant cast
+/// expressions, coalesces similar ones to reduce register pressure, and
+/// hides hoisted values behind bitcasts so SelectionDAG keeps a single
+/// live-out copy instead of duplicating materialization per basic block.
 class ConstantHoistingPass
     : public OptionalPassInfoMixin<ConstantHoistingPass> {
 public:
+  /// Run constant hoisting over the function.
+  /// @param F Function whose expensive constants may be hoisted.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
-  // Glue for old PM.
+  /// Run constant hoisting using already-fetched analyses (legacy PM glue).
+  /// @param F Function whose expensive constants may be hoisted.
+  /// @param TTI Target transform info used to cost immediate materialization.
+  /// @param DT Dominator tree used to place hoisted constants.
+  /// @param BFI Optional block frequency info for cost heuristics.
+  /// @param Entry Function entry block used as a fallback insertion point.
+  /// @param PSI Profile summary info used with BFI for size/opt decisions.
+  /// @return True if the function was modified.
   LLVM_ABI bool runImpl(Function &F, TargetTransformInfo &TTI,
                         DominatorTree &DT, BlockFrequencyInfo *BFI,
                         BasicBlock &Entry, ProfileSummaryInfo *PSI);
 
+  /// Clear pass-local candidate and cast-clone maps after a run.
   void cleanup() {
     ClonedCastMap.clear();
     ConstIntCandVec.clear();

@@ -20,15 +20,19 @@ namespace llvm {
 
 class AsmCond {
 public:
+  /// Kind of conditional-assembly directive currently being processed.
   enum ConditionalAssemblyType {
-    NoCond,     // no conditional is being processed
-    IfCond,     // inside if conditional
-    ElseIfCond, // inside elseif conditional
-    ElseCond    // inside else conditional
+    NoCond,     ///< No conditional is being processed.
+    IfCond,     ///< Inside an .if conditional.
+    ElseIfCond, ///< Inside an .elseif conditional.
+    ElseCond    ///< Inside an .else conditional.
   };
 
+  /// Current conditional-assembly directive kind.
   ConditionalAssemblyType TheCond = NoCond;
+  /// True if a prior branch of this conditional already matched.
   bool CondMet = false;
+  /// True when the current conditional block should be skipped.
   bool Ignore = false;
 };
 

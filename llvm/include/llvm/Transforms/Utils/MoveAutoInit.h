@@ -20,8 +20,16 @@
 
 namespace llvm {
 
+/// Pass that moves auto-init instructions closer to their uses when profitable.
+///
+/// Instructions marked as auto-init are sunk toward their uses, generally under
+/// a guard, so the overhead of auto-init can be skipped on some execution paths.
 class MoveAutoInitPass : public OptionalPassInfoMixin<MoveAutoInitPass> {
 public:
+  /// Run the move-auto-init pass over the function.
+  /// @param F Function whose auto-init instructions may be moved.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // end namespace llvm

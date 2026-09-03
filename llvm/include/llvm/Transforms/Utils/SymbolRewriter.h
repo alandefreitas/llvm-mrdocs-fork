@@ -52,39 +52,73 @@ class Stream;
 
 } // end namespace yaml
 
+/// Utilities and descriptors for rewriting IR symbol names.
 namespace SymbolRewriter {
 
 /// The basic entity representing a rewrite operation.
 ///
-/// It serves as the base class for any rewrite descriptor. It has a certain set of specializations which describe a particular rewrite. The RewriteMapParser can be used to parse a mapping file that provides the mapping for rewriting the symbols. The descriptors individually describe whether to rewrite a function, global variable, or global alias. Each of these can be selected either by explicitly providing a name for the ones to be rewritten or providing a (posix compatible) regular expression that will select the symbols to rewrite. This descriptor list is passed to the SymbolRewriter pass.
+/// It serves as the base class for any rewrite descriptor. It has a certain
+/// set of specializations which describe a particular rewrite. The
+/// RewriteMapParser can be used to parse a mapping file that provides the
+/// mapping for rewriting the symbols. The descriptors individually describe
+/// whether to rewrite a function, global variable, or global alias. Each of
+/// these can be selected either by explicitly providing a name for the ones to
+/// be rewritten or providing a (posix compatible) regular expression that will
+/// select the symbols to rewrite. This descriptor list is passed to the
+/// SymbolRewriter pass.
 class RewriteDescriptor {
 public:
+  /// Kind of symbol targeted by a rewrite descriptor.
   enum class Type {
-    Invalid,        /// invalid
-    Function,       /// function - descriptor rewrites a function
-    GlobalVariable, /// global variable - descriptor rewrites a global variable
-    NamedAlias,     /// named alias - descriptor rewrites a global alias
+    /// Sentinel for an invalid or uninitialized descriptor kind.
+    Invalid,
+    /// Descriptor rewrites a function.
+    Function,
+    /// Descriptor rewrites a global variable.
+    GlobalVariable,
+    /// Descriptor rewrites a global alias.
+    NamedAlias,
   };
 
-  RewriteDescriptor(const RewriteDescriptor &) = delete;
-  RewriteDescriptor &operator=(const RewriteDescriptor &) = delete;
+  /// Deleted copy constructor; RewriteDescriptor is not copyable.
+  /// @param Other Unused; copy construction is not allowed.
+  RewriteDescriptor(const RewriteDescriptor &Other) = delete;
+
+  /// Deleted copy assignment; RewriteDescriptor cannot be copy-assigned.
+  /// @param Other Unused; copy assignment is not allowed.
+  RewriteDescriptor &operator=(const RewriteDescriptor &Other) = delete;
+
+  /// Destroy the rewrite descriptor.
   virtual ~RewriteDescriptor() = default;
 
+  /// Return the kind of symbol this descriptor rewrites.
+  /// @return The descriptor's symbol type.
   Type getType() const { return Kind; }
 
+  /// Apply this rewrite to matching symbols in \p M.
+  /// @param M Module whose symbols should be rewritten.
+  /// @return True if the module was modified.
   virtual bool performOnModule(Module &M) = 0;
 
 protected:
+  /// Construct a rewrite descriptor of the given kind.
+  /// @param T Symbol kind this descriptor targets.
   explicit RewriteDescriptor(Type T) : Kind(T) {}
 
 private:
   const Type Kind;
 };
 
+/// Ordered list of owned rewrite descriptors.
 using RewriteDescriptorList = std::list<std::unique_ptr<RewriteDescriptor>>;
 
+/// Parser that builds rewrite descriptors from a mapping file.
 class RewriteMapParser {
 public:
+  /// Parse rewrite descriptors from the mapping file at \p MapFile.
+  /// @param MapFile Path to the rewrite mapping file.
+  /// @param Descriptors List that receives the parsed descriptors.
+  /// @return True if parsing succeeded.
   LLVM_ABI bool parse(const std::string &MapFile,
                       RewriteDescriptorList *Descriptors);
 
@@ -107,17 +141,27 @@ private:
 
 } // end namespace SymbolRewriter
 
+/// Pass that rewrites module-level symbol names per configured descriptors.
 class RewriteSymbolPass : public OptionalPassInfoMixin<RewriteSymbolPass> {
 public:
+  /// Construct a rewrite-symbol pass that loads descriptors from map files.
   RewriteSymbolPass() { loadAndParseMapFiles(); }
 
+  /// Construct a rewrite-symbol pass that takes ownership of \p DL.
+  /// @param DL Descriptor list to consume; emptied by the constructor.
   RewriteSymbolPass(SymbolRewriter::RewriteDescriptorList &DL) {
     Descriptors.splice(Descriptors.begin(), DL);
   }
 
+  /// Run the rewrite-symbol pass over the module.
+  /// @param M Module whose symbols should be rewritten.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
-  // Glue for old PM
+  /// Apply rewrite descriptors to \p M for the legacy pass manager.
+  /// @param M Module whose symbols should be rewritten.
+  /// @return True if the module was modified.
   LLVM_ABI bool runImpl(Module &M);
 
 private:

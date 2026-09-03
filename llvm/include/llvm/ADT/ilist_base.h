@@ -21,6 +21,8 @@ public:
   using node_base_type = ilist_node_base<EnableSentinelTracking, ParentTy>;
 
   /// Insert \p N immediately before \p Next in the circular list.
+  /// @param Next Node currently at the insertion point.
+  /// @param N Node to insert.
   static void insertBeforeImpl(node_base_type &Next, node_base_type &N) {
     node_base_type &Prev = *Next.getPrev();
     N.setNext(&Next);
@@ -30,6 +32,7 @@ public:
   }
 
   /// Unlink \p N from its neighbors without deleting it.
+  /// @param N Node to unlink.
   static void removeImpl(node_base_type &N) {
     node_base_type *Prev = N.getPrev();
     node_base_type *Next = N.getNext();
@@ -42,6 +45,8 @@ public:
   }
 
   /// Unlink the half-open node range [\p First, \p Last) from the list.
+  /// @param First First node to remove.
+  /// @param Last Node after the last removed node.
   static void removeRangeImpl(node_base_type &First, node_base_type &Last) {
     node_base_type *Prev = First.getPrev();
     node_base_type *Final = Last.getPrev();
@@ -54,6 +59,9 @@ public:
   }
 
   /// Move [\p First, \p Last) so it appears immediately before \p Next.
+  /// @param Next Node currently at the destination insertion point.
+  /// @param First First node of the half-open range to move.
+  /// @param Last Node after the last moved node.
   static void transferBeforeImpl(node_base_type &Next, node_base_type &First,
                                  node_base_type &Last) {
     if (&Next == &Last || &First == &Last)
@@ -86,6 +94,7 @@ public:
   }
 
   /// Unlink typed node \p N from its list.
+  /// @param N Node to unlink.
   template <class T> static void remove(T &N) { removeImpl(N); }
   /// Unlink the half-open typed range [\p First, \p Last) from its list.
   /// @param First First node to remove.
@@ -95,6 +104,9 @@ public:
   }
 
   /// Move typed range [\p First, \p Last) before \p Next.
+  /// @param Next Node currently at the destination insertion point.
+  /// @param First First node of the half-open range to move.
+  /// @param Last Node after the last moved node.
   template <class T> static void transferBefore(T &Next, T &First, T &Last) {
     transferBeforeImpl(Next, First, Last);
   }

@@ -13,6 +13,7 @@
 
 namespace llvm {
 
+/// Target asm properties for ELF-based targets.
 class LLVM_ABI MCAsmInfoELF : public MCAsmInfo {
   virtual void anchor();
   MCSection *getStackSection(MCContext &Ctx, bool Exec) const override;
@@ -21,6 +22,8 @@ class LLVM_ABI MCAsmInfoELF : public MCAsmInfo {
   bool useCodeAlign(const MCSection &Sec) const final;
 
 protected:
+  /// Construct ELF asm info using the given target options.
+  /// @param Options Target MC options to retain for later queries.
   MCAsmInfoELF(const MCTargetOptions &Options);
 };
 

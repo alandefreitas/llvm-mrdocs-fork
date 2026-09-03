@@ -303,8 +303,11 @@ namespace CallingConv {
 
 } // end namespace CallingConv
 
-/// \return true if the calling convention allows the function to be called
+/// Return true if the calling convention allows the function to be called
 /// directly or indirectly via a call-like instruction.
+///
+/// \param CC The calling convention to check.
+/// \return True if the calling convention allows call-like invocation.
 constexpr bool isCallableCC(CallingConv::ID CC) {
   switch (CC) {
   // Called with special intrinsics:

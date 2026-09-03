@@ -275,9 +275,14 @@ public:
   /// Construct an empty radix tree.
   RadixTree() = default;
   /// Move-construct from another radix tree.
-  RadixTree(RadixTree &&) = default;
+  ///
+  /// \param Other Tree to move from.
+  RadixTree(RadixTree &&Other) = default;
   /// Move-assign from another radix tree.
-  RadixTree &operator=(RadixTree &&) = default;
+  ///
+  /// \param Other Tree to move from.
+  /// \return Reference to this tree.
+  RadixTree &operator=(RadixTree &&Other) = default;
 
   /// Mutable iterator over key/value pairs that are prefixes of a query key.
   using prefix_iterator = IteratorImpl<value_type>;
@@ -290,25 +295,39 @@ public:
   using const_iterator = typename ContainerType::const_iterator;
 
   /// Returns true if the tree is empty.
+  ///
+  /// \return True if the tree contains no elements.
   bool empty() const { return KeyValuePairs.empty(); }
 
   /// Returns the number of elements in the tree.
+  ///
+  /// \return The number of key/value pairs stored in the tree.
   size_t size() const { return KeyValuePairs.size(); }
 
   /// Returns the number of nodes in the tree.
   ///
   /// This function counts all internal nodes in the tree. It can be useful for
   /// understanding the memory footprint or complexity of the tree structure.
+  ///
+  /// \return The number of nodes in the tree, including internal nodes.
   size_t countNodes() const { return Root.countNodes(); }
 
   /// Returns an iterator to the first element.
+  ///
+  /// \return Iterator to the first stored key/value pair.
   iterator begin() { return KeyValuePairs.begin(); }
   /// Const iterator to the first stored key/value pair.
+  ///
+  /// \return Const iterator to the first stored key/value pair.
   const_iterator begin() const { return KeyValuePairs.begin(); }
 
   /// Returns an iterator to the end of the tree.
+  ///
+  /// \return Past-the-end iterator over stored key/value pairs.
   iterator end() { return KeyValuePairs.end(); }
   /// Const past-the-end iterator over stored key/value pairs.
+  ///
+  /// \return Const past-the-end iterator over stored key/value pairs.
   const_iterator end() const { return KeyValuePairs.end(); }
 
   /// Constructs and inserts a new element into the tree.

@@ -27,6 +27,8 @@ namespace vfs {
 class FileSystem;
 } // namespace vfs
 
+/// Module pass that instruments functions for SanitizerCoverage.
+///
 /// This is the ModuleSanitizerCoverage pass used in the new pass manager. The
 /// pass instruments functions for coverage, adds initialization calls to the
 /// module for trace PC guards and 8bit counters if they are requested, and
@@ -34,11 +36,20 @@ class FileSystem;
 class SanitizerCoveragePass
     : public RequiredPassInfoMixin<SanitizerCoveragePass> {
 public:
+  /// Construct a SanitizerCoverage pass with the given options and lists.
+  /// @param Options Instrumentation options for the pass.
+  /// @param VFS Virtual filesystem used to load allowlist/blocklist files.
+  /// @param AllowlistFiles Paths to allowlist files restricting instrumentation.
+  /// @param BlocklistFiles Paths to blocklist files excluding instrumentation.
   LLVM_ABI explicit SanitizerCoveragePass(
       SanitizerCoverageOptions Options = SanitizerCoverageOptions(),
       IntrusiveRefCntPtr<vfs::FileSystem> VFS = nullptr,
       const std::vector<std::string> &AllowlistFiles = {},
       const std::vector<std::string> &BlocklistFiles = {});
+  /// Run SanitizerCoverage instrumentation over the module.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:

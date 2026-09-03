@@ -26,20 +26,41 @@ namespace llvm::orc {
 /// ExecutionSession.
 class MangleAndInterner {
 public:
+  /// Target-specific linker name-mangling convention.
   enum class ManglingMode {
+    /// No special prefix; pass names through unchanged.
     None,
+    /// ELF mangling (DataLayout \c m:e).
     ELF,
+    /// Mach-O mangling; prepends an underscore (DataLayout \c m:o).
     MachO,
+    /// Windows COFF mangling (DataLayout \c m:w).
     WinCOFF,
+    /// Windows COFF x86 mangling; prepends an underscore (DataLayout \c m:x).
     WinCOFFX86,
+    /// GOFF mangling (DataLayout \c m:l).
     GOFF,
+    /// Mips mangling (DataLayout \c m:m).
     Mips,
+    /// XCOFF mangling (DataLayout \c m:a).
     XCOFF
   };
 
+  /// Construct a mangler using the session target triple and optional ABI.
+  /// @param ES Session whose symbol pool receives interned names.
+  /// @param ABIName Optional ABI name used when computing the data layout.
   LLVM_ABI MangleAndInterner(ExecutionSession &ES, StringRef ABIName = "");
+  /// Construct a mangler with an explicit mangling mode.
+  /// @param ES Session whose symbol pool receives interned names.
+  /// @param Mode Linker mangling convention to apply.
   LLVM_ABI MangleAndInterner(ExecutionSession &ES, ManglingMode Mode);
+  /// Construct a mangler whose mode is derived from a data layout.
+  /// @param ES Session whose symbol pool receives interned names.
+  /// @param DL Data layout whose mangling specifier selects the mode.
   LLVM_ABI MangleAndInterner(ExecutionSession &ES, const DataLayout &DL);
+  /// Mangle \p Name and intern the result in the execution session.
+  /// @param Name Unmangled symbol name to process.
+  /// @return Interned pointer to the mangled symbol name.
   LLVM_ABI SymbolStringPtr operator()(StringRef Name);
 
 private:
@@ -57,18 +78,27 @@ private:
 /// This utility can be used when adding new IR globals in the JIT.
 class IRSymbolMapper {
 public:
+  /// Options that control how IR globals are mapped to linker symbols.
   struct ManglingOptions {
+    /// If true, emit emulated-TLS helper symbols for thread-local globals.
     bool EmulatedTLS = false;
   };
 
+  /// Map from mangled symbol names to the IR globals that define them.
   using SymbolNameToDefinitionMap = std::map<SymbolStringPtr, GlobalValue *>;
 
   /// Add mangled symbols for the given GlobalValues to SymbolFlags.
+  ///
   /// If a SymbolToDefinitionMap pointer is supplied then it will be populated
   /// with Name-to-GlobalValue* mappings. Note that this mapping is not
   /// necessarily one-to-one: thread-local GlobalValues, for example, may
   /// produce more than one symbol, in which case the map will contain duplicate
   /// values.
+  /// @param ES Session used to mangle and intern symbol names.
+  /// @param MO Options controlling emulated-TLS and related mangling.
+  /// @param GVs Global values whose linker symbols should be recorded.
+  /// @param SymbolFlags Map updated with mangled names and JIT symbol flags.
+  /// @param SymbolToDefinition Optional map of mangled names to defining GVs.
   LLVM_ABI static void
   add(ExecutionSession &ES, const ManglingOptions &MO,
       ArrayRef<GlobalValue *> GVs, SymbolFlagsMap &SymbolFlags,

@@ -14,6 +14,9 @@
 namespace llvm {
 template <typename, unsigned> class EnumStrings;
 namespace pdb {
+/// Return the enumerator name table for \c OMFSegDescFlags.
+///
+/// \returns The enumerator name table for \c OMFSegDescFlags.
 LLVM_ABI EnumStrings<uint16_t, 1> getOMFSegMapDescFlagNames();
 }
 }

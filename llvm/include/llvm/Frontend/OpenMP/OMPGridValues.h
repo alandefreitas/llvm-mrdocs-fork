@@ -18,14 +18,15 @@ namespace llvm {
 
 namespace omp {
 
-/// \brief Defines various target-specific GPU grid values that must be
-///        consistent between host RTL (plugin), device RTL, and clang.
-///        We can change grid values for a "fat" binary so that different
-///        passes get the correct values when generating code for a
-///        multi-target binary. Both amdgcn and nvptx values are stored in
-///        this file. In the future, should there be differences between GPUs
-///        of the same architecture, then simply make a different array and
-///        use the new array name.
+/// Target-specific GPU grid values shared by host RTL, device RTL, and clang.
+///
+/// Defines various target-specific GPU grid values that must be consistent
+/// between host RTL (plugin), device RTL, and clang. We can change grid values
+/// for a "fat" binary so that different passes get the correct values when
+/// generating code for a multi-target binary. Both amdgcn and nvptx values are
+/// stored in this file. In the future, should there be differences between GPUs
+/// of the same architecture, then simply make a different array and use the new
+/// array name.
 ///
 /// Example usage in clang:
 ///   const unsigned slot_size =
@@ -60,24 +61,30 @@ struct GV {
   /// The default value of maximum number of threads in a worker warp.
   unsigned GV_Warp_Size;
 
+  /// Return the shared-memory slot size for one warp.
+  /// \return The shared-memory slot size for one warp.
   constexpr unsigned warpSlotSize() const {
     return GV_Warp_Size * GV_Slot_Size;
   }
 
   /// the maximum number of teams.
   unsigned GV_Max_Teams;
-  // The default number of teams in the absence of any other information.
+  /// The default number of teams in the absence of any other information.
   unsigned GV_Default_Num_Teams;
 
-  // An alternative to the heavy data sharing infrastructure that uses global
-  // memory is one that uses device __shared__ memory.  The amount of such space
-  // (in bytes) reserved by the OpenMP runtime is noted here.
+  /// Bytes of device shared memory reserved by the OpenMP runtime.
+  ///
+  /// An alternative to the heavy data sharing infrastructure that uses global
+  /// memory is one that uses device __shared__ memory. The amount of such space
+  /// (in bytes) reserved by the OpenMP runtime is noted here.
   unsigned GV_SimpleBufferSize;
-  // The absolute maximum team size for a working group
+  /// The absolute maximum team size for a working group.
   unsigned GV_Max_WG_Size;
-  // The default maximum team size for a working group
+  /// The default maximum team size for a working group.
   unsigned GV_Default_WG_Size;
 
+  /// Return the maximum number of warps in a working group.
+  /// \return The maximum number of warps in a working group.
   constexpr unsigned maxWarpNumber() const {
     return GV_Max_WG_Size / GV_Warp_Size;
   }
@@ -104,6 +111,9 @@ static constexpr GV AMDGPUGridValues32 = {
     256,       // GV_Default_WG_Size
 };
 
+/// Return the AMDGPU grid values for the given wavefront size.
+/// \tparam wavesize Wavefront size; must be 32 or 64.
+/// \return The AMDGPU grid values for wavefront size 32 or 64.
 template <unsigned wavesize> constexpr const GV &getAMDGPUGridValues() {
   static_assert(wavesize == 32 || wavesize == 64, "Unexpected wavesize");
   return wavesize == 32 ? AMDGPUGridValues32 : AMDGPUGridValues64;

@@ -48,6 +48,7 @@ public:
 /// Invoke \p P's print callback on \p OS and return \p OS.
 /// @param OS Destination stream.
 /// @param P Printable object to write.
+/// @return The destination stream \p OS.
 inline raw_ostream &operator<<(raw_ostream &OS, const Printable &P) {
   P.Print(OS);
   return OS;

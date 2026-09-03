@@ -12,12 +12,16 @@
 #include <optional>
 
 namespace llvm {
+/// Tools and configuration for copying and transforming object files.
 namespace objcopy {
 
-// Coff specific configuration for copying/stripping a single file.
+/// COFF-specific configuration for copying or stripping a single file.
 struct COFFConfig {
+  /// Optional Windows subsystem to write into the PE header.
   std::optional<unsigned> Subsystem;
+  /// Optional major subsystem version to write into the PE header.
   std::optional<unsigned> MajorSubsystemVersion;
+  /// Optional minor subsystem version to write into the PE header.
   std::optional<unsigned> MinorSubsystemVersion;
 };
 

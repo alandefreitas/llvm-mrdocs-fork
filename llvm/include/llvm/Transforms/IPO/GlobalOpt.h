@@ -24,6 +24,11 @@ class Module;
 /// Optimize globals that never have their address taken.
 class GlobalOptPass : public OptionalPassInfoMixin<GlobalOptPass> {
 public:
+  /// Run global optimization over the given module.
+  ///
+  /// \param M Module whose address-not-taken globals are optimized.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

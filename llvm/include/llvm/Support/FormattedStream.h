@@ -21,13 +21,13 @@
 
 namespace llvm {
 
-/// formatted_raw_ostream - A raw_ostream that wraps another one and keeps track
-/// of line and column position, allowing padding out to specific column
-/// boundaries and querying the number of lines written to the stream. This
-/// assumes that the contents of the stream is valid UTF-8 encoded text. This
-/// doesn't attempt to handle everything Unicode can do (combining characters,
-/// right-to-left markers, etc), but should cover the cases likely to appear in
-/// source code or diagnostic messages.
+/// A raw_ostream that wraps another and tracks line and column position.
+///
+/// Allows padding out to specific column boundaries and querying the number of
+/// lines written to the stream. This assumes that the contents of the stream is
+/// valid UTF-8 encoded text. This doesn't attempt to handle everything Unicode
+/// can do (combining characters, right-to-left markers, etc), but should cover
+/// the cases likely to appear in source code or diagnostic messages.
 class LLVM_ABI formatted_raw_ostream : public raw_ostream {
   /// TheStream - The real stream we output to. We set it to be
   /// unbuffered, since we're already doing our own buffering.
@@ -122,24 +122,24 @@ class LLVM_ABI formatted_raw_ostream : public raw_ostream {
   };
 
 public:
-  /// formatted_raw_ostream - Open the specified file for
-  /// writing. If an error occurs, information about the error is
-  /// put into ErrorInfo, and the stream should be immediately
-  /// destroyed; the string will be empty if no error occurred.
+  /// Construct a formatted stream that wraps \p Stream.
   ///
-  /// As a side effect, the given Stream is set to be Unbuffered.
-  /// This is because formatted_raw_ostream does its own buffering,
-  /// so it doesn't want another layer of buffering to be happening
-  /// underneath it.
+  /// As a side effect, the given Stream is set to be Unbuffered. This is
+  /// because formatted_raw_ostream does its own buffering, so it doesn't want
+  /// another layer of buffering to be happening underneath it.
   ///
+  /// \param Stream The underlying stream to wrap and write through.
   formatted_raw_ostream(raw_ostream &Stream)
       : TheStream(nullptr), Position(0, 0), DisableScan(false) {
     setStream(Stream);
   }
+
+  /// Construct a formatted stream with no underlying stream.
   explicit formatted_raw_ostream()
       : TheStream(nullptr), Position(0, 0), Scanned(nullptr),
         DisableScan(false) {}
 
+  /// Destroy the stream, flushing and releasing the underlying stream.
   ~formatted_raw_ostream() override {
     flush();
     releaseStream();
@@ -150,20 +150,30 @@ public:
   /// space.
   ///
   /// \param NewCol - The column to move to.
+  /// \return This stream, for chaining.
   formatted_raw_ostream &PadToColumn(unsigned NewCol);
 
+  /// Return the current output column (zero-based).
+  ///
+  /// \return The current output column (zero-based).
   unsigned getColumn() {
     // Calculate current position, taking buffer contents into account.
     ComputePosition(getBufferStart(), GetNumBytesInBuffer());
     return Position.first;
   }
 
+  /// Return the current output line (zero-based).
+  ///
+  /// \return The current output line (zero-based).
   unsigned getLine() {
     // Calculate current position, taking buffer contents into account.
     ComputePosition(getBufferStart(), GetNumBytesInBuffer());
     return Position.second;
   }
 
+  /// Reset the colors to terminal defaults without advancing position.
+  ///
+  /// \return This stream, for chaining.
   raw_ostream &resetColor() override {
     if (colors_enabled()) {
       DisableScanScope S(this);
@@ -172,6 +182,9 @@ public:
     return *this;
   }
 
+  /// Reverse the foreground and background colors without advancing position.
+  ///
+  /// \return This stream, for chaining.
   raw_ostream &reverseColor() override {
     if (colors_enabled()) {
       DisableScanScope S(this);
@@ -180,6 +193,12 @@ public:
     return *this;
   }
 
+  /// Change the foreground or background color without advancing position.
+  ///
+  /// \param Color ANSI color to use; SAVEDCOLOR changes only the bold attribute.
+  /// \param Bold Bold/brighter text, default false.
+  /// \param BG If true, change the background; otherwise the foreground.
+  /// \return This stream, for chaining.
   raw_ostream &changeColor(enum Colors Color, bool Bold = false,
                            bool BG = false) override {
     if (colors_enabled()) {
@@ -189,6 +208,9 @@ public:
     return *this;
   }
 
+  /// Return true if the underlying stream is connected to a tty or console.
+  ///
+  /// \return True if the underlying stream is connected to a tty or console.
   bool is_displayed() const override {
     return TheStream->is_displayed();
   }
@@ -208,14 +230,20 @@ private:
 
 /// fouts() - This returns a reference to a formatted_raw_ostream for
 /// standard output.  Use it like: fouts() << "foo" << "bar";
+///
+/// \return A reference to the formatted standard output stream.
 LLVM_ABI formatted_raw_ostream &fouts();
 
 /// ferrs() - This returns a reference to a formatted_raw_ostream for
 /// standard error.  Use it like: ferrs() << "foo" << "bar";
+///
+/// \return A reference to the formatted standard error stream.
 LLVM_ABI formatted_raw_ostream &ferrs();
 
 /// fdbgs() - This returns a reference to a formatted_raw_ostream for
 /// debug output.  Use it like: fdbgs() << "foo" << "bar";
+///
+/// \return A reference to the formatted debug output stream.
 LLVM_ABI formatted_raw_ostream &fdbgs();
 
 } // end llvm namespace

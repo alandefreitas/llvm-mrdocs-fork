@@ -37,14 +37,29 @@ namespace rt_bootstrap {
 /// Simple page-based allocator.
 class LLVM_ABI SimpleExecutorDylibManager : public ExecutorBootstrapService {
 public:
+  /// Destroy a SimpleExecutorDylibManager.
   ~SimpleExecutorDylibManager() override;
 
+  /// Open the dynamic library at \p Path.
+  /// \param Path Filesystem path of the library to load, or empty for the
+  ///        main program.
+  /// \param Mode Open mode bits; currently must be zero.
+  /// \return A handle for the opened library, or an error.
   Expected<tpctypes::DylibHandle> open(const std::string &Path, uint64_t Mode);
 
+  /// Resolve the symbols in \p Lookup using the resolver at \p Resolver.
+  /// \param Resolver Address of the ExecutorResolver to use.
+  /// \param Lookup Set of remote symbols to look up.
+  /// \return Addresses for the looked-up symbols, or an error.
   ExecutorResolver::ResolveResult resolve(ExecutorAddr Resolver,
                                           RemoteSymbolLookupSet Lookup);
 
+  /// Shut down this service and release any associated resources.
+  /// \return Success, or an error if shutdown fails.
   Error shutdown() override;
+
+  /// Add this service's bootstrap symbols to \p M.
+  /// \param M Map of bootstrap symbol names to executor addresses to update.
   void addBootstrapSymbols(StringMap<ExecutorAddr> &M) override;
 
 private:

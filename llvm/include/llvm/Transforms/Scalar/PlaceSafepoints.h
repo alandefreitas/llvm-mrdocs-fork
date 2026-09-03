@@ -56,12 +56,26 @@ namespace llvm {
 
 class TargetLibraryInfo;
 
+/// Pass that inserts GC safepoints into IR at call sites, entries, and loops.
+///
+/// Places call parse points and entry/backedge safepoint polls so executing
+/// code reaches a well-defined state for the collector in finite time.
+/// Relocation and liveness are handled later by RewriteStatepointsForGC.
 class PlaceSafepointsPass : public OptionalPassInfoMixin<PlaceSafepointsPass> {
 public:
+  /// Run place-safepoints over the function.
+  /// @param F Function that may need safepoints inserted.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
+  /// Insert safepoints into \p F using the given target library info.
+  /// @param F Function to transform.
+  /// @param TLI Target library info used when deciding where to poll.
+  /// @return True if the function was changed.
   LLVM_ABI bool runImpl(Function &F, const TargetLibraryInfo &TLI);
 
+  /// Clear pass-local state after a run.
   void cleanup() {}
 
 private:

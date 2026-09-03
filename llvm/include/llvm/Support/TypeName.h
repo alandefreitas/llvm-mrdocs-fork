@@ -38,6 +38,8 @@ namespace llvm {
 /// The returned StringRef will point into a static storage duration string.
 /// However, it may not be null terminated and may be some strangely aligned
 /// inner substring of a larger string.
+///
+/// @return A StringRef naming the type, pointing into static storage.
 template <typename DesiredTypeName>
 inline LLVM_GET_TYPE_NAME_CONSTEXPR StringRef getTypeName() {
 #if defined(__clang__) || defined(__GNUC__)

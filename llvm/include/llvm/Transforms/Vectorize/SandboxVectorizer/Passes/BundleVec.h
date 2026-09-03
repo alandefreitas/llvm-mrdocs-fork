@@ -25,7 +25,8 @@
 
 namespace llvm::sandboxir {
 
-/// This is a simple bottom-up (top-down) vectorizer Region pass.
+/// A simple bottom-up or top-down vectorizer Region pass.
+///
 /// It expects a "seed slice" as an input in the Region's Aux vector.
 /// The "seed slice" is a vector of instructions that can be used as a starting
 /// point for vectorization, like stores (loads) to consecutive memory
@@ -108,6 +109,10 @@ private:
   bool tryVectorize(ArrayRef<Value *> Seeds, LegalityAnalysis &Legality);
 
 public:
+  /// Construct a BundleVec pass configured for bottom-up or top-down
+  /// vectorization.
+  /// \param AuxArg Must be "bottom-up" or "top-down"; any other value is a
+  /// fatal error.
   BundleVec(StringRef AuxArg) : RegionPass("bundle-vec") {
     if (AuxArg == BottomUpArgStr) {
       Dir = SchedDirection::BottomUp;
@@ -122,6 +127,10 @@ public:
     }
   }
 
+  /// Run bundle vectorization on the region's seed slice.
+  /// \param Rgn Region whose Aux vector provides the seed instructions.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the IR was modified.
   bool runOnRegion(Region &Rgn, const Analyses &A) final;
 };
 

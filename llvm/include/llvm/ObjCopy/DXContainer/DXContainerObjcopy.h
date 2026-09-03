@@ -23,12 +23,17 @@ namespace objcopy {
 struct CommonConfig;
 struct DXContainerConfig;
 
+/// DXContainer-specific object-file copying and stripping operations.
 namespace dxbc {
 /// Apply the transformations described by \p Config and \p DXContainerConfig
 /// to \p In and writes the result into \p Out.
+/// \param Config Common objcopy configuration options.
+/// \param DXContainerConfig DXContainer-specific configuration options.
+/// \param In Input DXContainer object file to transform.
+/// \param Out Output stream to write the transformed binary to.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const CommonConfig &Config,
-                                      const DXContainerConfig &,
+                                      const DXContainerConfig &DXContainerConfig,
                                       object::DXContainerObjectFile &In,
                                       raw_ostream &Out);
 } // end namespace dxbc

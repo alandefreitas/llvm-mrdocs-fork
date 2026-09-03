@@ -19,8 +19,17 @@
 
 namespace llvm {
 
+/// Pass that converts invoke instructions to call instructions.
+///
+/// Designed for code generators that do not yet support stack unwinding.
+/// After conversion, exception-handling landingpad blocks become dead code
+/// (which can be removed by running the '-simplifycfg' pass afterwards).
 class LowerInvokePass : public RequiredPassInfoMixin<LowerInvokePass> {
 public:
+  /// Run the lower-invoke pass over the function.
+  /// @param F Function whose invoke instructions should be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

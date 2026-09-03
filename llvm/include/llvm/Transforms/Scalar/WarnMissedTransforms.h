@@ -16,12 +16,17 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
-// New pass manager boilerplate.
+/// Pass that emits warnings when forced transformations were not performed.
 class WarnMissedTransformationsPass
     : public OptionalPassInfoMixin<WarnMissedTransformationsPass> {
 public:
+  /// Construct a pass that warns about missed transformations.
   explicit WarnMissedTransformationsPass() = default;
 
+  /// Emit warnings for forced transformations that were not applied.
+  /// @param F Function to check for missed forced transformations.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // end namespace llvm

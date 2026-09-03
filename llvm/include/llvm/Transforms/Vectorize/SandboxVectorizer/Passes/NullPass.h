@@ -19,14 +19,24 @@ namespace llvm::sandboxir {
 class Region;
 
 /// A Region pass that does nothing, for use as a placeholder in tests.
+///
 /// It can also echo the AuxArg passed to it by the pass builder, which is used
 /// for AuxArg testing.
 class NullPass final : public RegionPass {
   StringRef AuxArg;
 
 public:
+  /// Construct a NullPass that stores \p AuxArg for later retrieval.
+  /// \param AuxArg Auxiliary argument from the pass builder; echoed by
+  /// getAuxArg() for AuxArg testing.
   NullPass(StringRef AuxArg) : RegionPass("null"), AuxArg(AuxArg) {}
+  /// Run on region \p R; always a no-op.
+  /// \param R Region to transform.
+  /// \param A Analyses available to the pass.
+  /// \returns False; this pass never modifies the IR.
   bool runOnRegion(Region &R, const Analyses &A) final { return false; }
+  /// Return the AuxArg passed to the constructor.
+  /// \returns The auxiliary argument stored at construction.
   StringRef getAuxArg() const { return AuxArg; }
 };
 

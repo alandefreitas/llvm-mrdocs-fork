@@ -21,48 +21,83 @@ namespace sampleprof {
 
 struct ProfiledCallGraphNode;
 
+/// Directed call-graph edge weighted by sample profile data.
 struct ProfiledCallGraphEdge {
+  /// Construct an edge from \p Source to \p Target with sample \p Weight.
+  ///
+  /// \param Source Caller node that owns this edge.
+  /// \param Target Callee node this edge points to.
+  /// \param Weight Sample count associated with the call edge.
   ProfiledCallGraphEdge(ProfiledCallGraphNode *Source,
                         ProfiledCallGraphNode *Target, uint64_t Weight)
       : Source(Source), Target(Target), Weight(Weight) {}
+  /// Caller node that owns this edge.
   ProfiledCallGraphNode *Source;
+  /// Callee node this edge points to.
   ProfiledCallGraphNode *Target;
+  /// Sample count associated with the call edge.
   uint64_t Weight;
 
-  // The call destination is the only important data here,
-  // allow to transparently unwrap into it.
+  /// Convert this edge to its callee node pointer.
+  ///
+  /// The call destination is the only important data here, allow to
+  /// transparently unwrap into it.
+  ///
+  /// \return The callee node pointed to by this edge.
   operator ProfiledCallGraphNode *() const { return Target; }
 };
 
+/// Call-graph node representing a profiled function and its outgoing edges.
 struct ProfiledCallGraphNode {
 
-  // Sort edges by callee names only since all edges to be compared are from
-  // same caller. Edge weights are not considered either because for the same
-  // callee only the edge with the largest weight is added to the edge set.
+  /// Comparator that orders edges by callee function name.
+  ///
+  /// Sort edges by callee names only since all edges to be compared are from
+  /// same caller. Edge weights are not considered either because for the same
+  /// callee only the edge with the largest weight is added to the edge set.
   struct ProfiledCallGraphEdgeComparer {
+    /// Return true when edge \p L should sort before edge \p R by callee name.
+    ///
+    /// \param L Left-hand edge in the comparison.
+    /// \param R Right-hand edge in the comparison.
+    /// \return True if \p L's callee name sorts before \p R's.
     bool operator()(const ProfiledCallGraphEdge &L,
                     const ProfiledCallGraphEdge &R) const {
       return L.Target->Name < R.Target->Name;
     }
   };
 
+  /// Alias for a profiled call-graph edge.
   using edge = ProfiledCallGraphEdge;
+  /// Ordered set of outgoing edges from this node.
   using edges = std::set<edge, ProfiledCallGraphEdgeComparer>;
+  /// Mutable iterator over outgoing edges.
   using iterator = edges::iterator;
+  /// Const iterator over outgoing edges.
   using const_iterator = edges::const_iterator;
   
+  /// Construct a node for the function named \p FName.
+  ///
+  /// \param FName Function id for this node; empty for the synthetic root.
   ProfiledCallGraphNode(FunctionId FName = FunctionId()) : Name(FName)
   {}
   
+  /// Function id identifying this call-graph node.
   FunctionId Name;
+  /// Outgoing call edges from this function.
   edges Edges;
 };
 
+/// Call graph built from sample profiles for IPO analyses.
 class ProfiledCallGraph {
 public:
+  /// Iterator over edges from the synthetic root node.
   using iterator = ProfiledCallGraphNode::iterator;
 
-  // Constructor for non-CS profile.
+  /// Construct a call graph from a non-context-sensitive profile map.
+  ///
+  /// \param ProfileMap Flat sample profile map used to build call edges.
+  /// \param IgnoreColdCallThreshold Maximum edge weight trimmed as cold.
   ProfiledCallGraph(SampleProfileMap &ProfileMap,
                     uint64_t IgnoreColdCallThreshold = 0) {
     assert(!FunctionSamples::ProfileIsCS &&
@@ -76,7 +111,10 @@ public:
     trimColdEges(IgnoreColdCallThreshold);
   }
 
-  // Constructor for CS profile.
+  /// Construct a call graph from a context-sensitive profile tracker.
+  ///
+  /// \param ContextTracker Context tracker whose trie supplies call edges.
+  /// \param IgnoreColdCallThreshold Maximum edge weight trimmed as cold.
   ProfiledCallGraph(SampleContextTracker &ContextTracker,
                     uint64_t IgnoreColdCallThreshold = 0) {
     // BFS traverse the context profile trie to add call edges for calls shown
@@ -130,10 +168,25 @@ public:
     trimColdEges(IgnoreColdCallThreshold);
   }
 
+  /// Return an iterator to the first edge from the synthetic root.
+  ///
+  /// \return Iterator to the first root edge.
   iterator begin() { return Root.Edges.begin(); }
+  /// Return an iterator past the last edge from the synthetic root.
+  ///
+  /// \return Iterator past the last root edge.
   iterator end() { return Root.Edges.end(); }
+  /// Return the synthetic root node of the profiled call graph.
+  ///
+  /// \return Pointer to the synthetic root node.
   ProfiledCallGraphNode *getEntryNode() { return &Root; }
   
+  /// Ensure a node exists for the profiled function named \p Name.
+  ///
+  /// Links newly inserted nodes to the synthetic root so every node is
+  /// reachable from the root without affecting SCC order.
+  ///
+  /// \param Name Function id of the profiled function to insert.
   void addProfiledFunction(FunctionId Name) {
     auto [It, Inserted] = ProfiledFunctions.try_emplace(Name);
     if (Inserted) {
@@ -213,28 +266,52 @@ private:
 
 } // end namespace sampleprof
 
+/// GraphTraits specialization for ProfiledCallGraphNode pointers.
 template <> struct GraphTraits<ProfiledCallGraphNode *> {
+  /// Graph node value type for a ProfiledCallGraphNode.
   using NodeType = ProfiledCallGraphNode;
+  /// Graph node type for a ProfiledCallGraphNode pointer.
   using NodeRef = ProfiledCallGraphNode *;
+  /// Edge type connecting profiled call-graph nodes.
   using EdgeType = NodeType::edge;
+  /// Const iterator over child (callee) edges of a node.
   using ChildIteratorType = NodeType::const_iterator;
 
+  /// Return \p PCGN as the graph entry node.
+  /// @param PCGN Profiled call-graph node used as the entry.
+  /// @return \p PCGN as the entry node reference.
   static NodeRef getEntryNode(NodeRef PCGN) { return PCGN; }
+  /// Return the begin iterator over callees of \p N.
+  /// @param N Parent profiled call-graph node.
+  /// @return Begin iterator over the callees of \p N.
   static ChildIteratorType child_begin(NodeRef N) { return N->Edges.begin(); }
+  /// Return the end iterator over callees of \p N.
+  /// @param N Parent profiled call-graph node.
+  /// @return End iterator over the callees of \p N.
   static ChildIteratorType child_end(NodeRef N) { return N->Edges.end(); }
 };
 
+/// GraphTraits specialization treating a ProfiledCallGraph as a graph of nodes.
 template <>
 struct GraphTraits<ProfiledCallGraph *>
     : public GraphTraits<ProfiledCallGraphNode *> {
+  /// Return the synthetic root node of profiled call graph \p PCG.
+  /// @param PCG Profiled call graph whose root is the entry.
+  /// @return The synthetic root node of \p PCG.
   static NodeRef getEntryNode(ProfiledCallGraph *PCG) {
     return PCG->getEntryNode();
   }
 
+  /// Return the begin iterator over root edges of \p PCG.
+  /// @param PCG Profiled call graph whose root edges are iterated.
+  /// @return Begin iterator over the root edges of \p PCG.
   static ChildIteratorType nodes_begin(ProfiledCallGraph *PCG) {
     return PCG->begin();
   }
 
+  /// Return the end iterator over root edges of \p PCG.
+  /// @param PCG Profiled call graph whose root edges are iterated.
+  /// @return End iterator over the root edges of \p PCG.
   static ChildIteratorType nodes_end(ProfiledCallGraph *PCG) {
     return PCG->end();
   }

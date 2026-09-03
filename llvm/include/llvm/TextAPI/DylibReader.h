@@ -20,8 +20,12 @@
 #include "llvm/TextAPI/ArchitectureSet.h"
 #include "llvm/TextAPI/RecordsSlice.h"
 
-namespace llvm::MachO::DylibReader {
+namespace llvm {
+namespace MachO {
+/// Utilities for reading Mach-O dynamic libraries and extracting TAPI attributes.
+namespace DylibReader {
 
+/// Options controlling which attributes to extract from a dylib.
 struct ParseOption {
   /// Determines arch slice to parse.
   ArchitectureSet Archs = ArchitectureSet::All();
@@ -36,7 +40,7 @@ struct ParseOption {
 /// Parse Mach-O dynamic libraries to extract TAPI attributes.
 ///
 /// \param Buffer Data that points to dylib.
-/// \param Options Determines which attributes to extract.
+/// \param Opt Determines which attributes to extract.
 /// \return List of record slices.
 LLVM_ABI Expected<Records> readFile(MemoryBufferRef Buffer,
                                     const ParseOption &Opt);
@@ -44,16 +48,21 @@ LLVM_ABI Expected<Records> readFile(MemoryBufferRef Buffer,
 /// Get TAPI file representation of binary dylib.
 ///
 /// \param Buffer Data that points to dylib.
+/// \return The InterfaceFile for the dylib, or an error.
 LLVM_ABI Expected<std::unique_ptr<InterfaceFile>> get(MemoryBufferRef Buffer);
 
+/// Map from symbol name to its source location in a dylib.
 using SymbolToSourceLocMap = llvm::StringMap<RecordLoc>;
 /// Get the source location for each symbol from dylib.
 ///
 /// \param DSYM Path to DSYM file.
 /// \param T Requested target slice for dylib.
+/// \return Map from symbol name to its source location.
 LLVM_ABI SymbolToSourceLocMap accumulateSourceLocFromDSYM(const StringRef DSYM,
                                                           const Target &T);
 
-} // namespace llvm::MachO::DylibReader
+} // namespace DylibReader
+} // namespace MachO
+} // namespace llvm
 
 #endif // LLVM_TEXTAPI_DYLIBREADER_H

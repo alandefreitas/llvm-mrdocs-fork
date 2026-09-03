@@ -33,9 +33,13 @@ namespace llvm {
 /// \endcode
 class ExponentialBackoff {
 public:
+  /// Steady-clock duration used for timeouts and wait intervals.
   using duration = std::chrono::steady_clock::duration;
+  /// Steady-clock time point used to track when the timeout expires.
   using time_point = std::chrono::steady_clock::time_point;
 
+  /// Construct an exponential backoff with the given timeout and wait bounds.
+  ///
   /// \param Timeout the maximum wall time this should run for starting when
   ///        this object is constructed.
   /// \param MinWait the minimum amount of time `waitForNextAttempt` will sleep

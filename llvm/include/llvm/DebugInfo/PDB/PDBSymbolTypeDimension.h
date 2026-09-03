@@ -16,12 +16,38 @@ namespace llvm {
 
 namespace pdb {
 
+/// PDB symbol for an array or matrix dimension.
+///
+/// Exposes lower- and upper-bound symbol ids for a SymTagDimension symbol,
+/// typically used with FORTRAN multi-dimensional array types.
 class LLVM_ABI PDBSymbolTypeDimension : public PDBSymbol {
-  DECLARE_PDB_SYMBOL_CONCRETE_TYPE(PDB_SymType::Dimension)
+private:
+  using PDBSymbol::PDBSymbol;
+  friend class PDBSymbol;
+
 public:
+  /// The PDB symbol tag for dimension symbols (`PDB_SymType::Dimension`).
+  static const PDB_SymType Tag = PDB_SymType::Dimension;
+
+  /// True if \p S is a dimension PDB symbol.
+  ///
+  /// \param S Symbol to test.
+  ///
+  /// \returns True if \p S is a dimension PDB symbol.
+  static bool classof(const PDBSymbol *S) { return S->getSymTag() == Tag; }
+
+  /// Dump this dimension symbol using the given dumper.
+  ///
+  /// \param Dumper Visitor used to format and emit the symbol.
   void dump(PDBSymDumper &Dumper) const override;
 
+  /// Return the symbol id of this dimension's lower bound.
+  ///
+  /// \returns The symbol id of this dimension's lower bound.
   FORWARD_SYMBOL_METHOD(getLowerBoundId)
+  /// Return the symbol id of this dimension's upper bound.
+  ///
+  /// \returns The symbol id of this dimension's upper bound.
   FORWARD_SYMBOL_METHOD(getUpperBoundId)
 };
 

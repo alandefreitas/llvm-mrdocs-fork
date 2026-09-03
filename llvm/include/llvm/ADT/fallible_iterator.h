@@ -80,6 +80,10 @@ public:
   ///
   /// The error that is passed in will be initially marked as checked, so if the
   /// iterator is not used at all the Error need not be checked.
+  ///
+  /// \param I underlying iterator
+  /// \param Err error out-parameter for increment/decrement failures
+  /// \return Fallible iterator wrapping \p I and reporting failures via \p Err
   static fallible_iterator itr(Underlying I, Error &Err) {
     (void)!!Err;
     return fallible_iterator(std::move(I), &Err);
@@ -90,18 +94,27 @@ public:
   /// A value created by this method can be dereferenced (if the underlying
   /// value points at a valid value) and compared, but not incremented or
   /// decremented.
+  ///
+  /// \param I underlying end iterator
+  /// \return Fallible end-of-range iterator wrapping \p I
   static fallible_iterator end(Underlying I) {
     return fallible_iterator(std::move(I), nullptr);
   }
 
   /// Forward dereference to the underlying iterator.
+  ///
+  /// \return Result of dereferencing the underlying iterator
   decltype(auto) operator*() { return *I; }
 
   /// Forward const dereference to the underlying iterator.
+  ///
+  /// \return Result of dereferencing the underlying iterator
   decltype(auto) operator*() const { return *I; }
 
   /// Forward structure dereference to the underlying iterator (if the
   /// underlying iterator supports it).
+  ///
+  /// \return Result of structure-dereferencing the underlying iterator
   template <typename T = Underlying>
   enable_if_struct_deref_supported<T> operator->() {
     return I.operator->();
@@ -109,6 +122,8 @@ public:
 
   /// Forward const structure dereference to the underlying iterator (if the
   /// underlying iterator supports it).
+  ///
+  /// \return Result of structure-dereferencing the underlying iterator
   template <typename T = Underlying>
   enable_if_struct_deref_supported<const T> operator->() const {
     return I.operator->();
@@ -121,6 +136,8 @@ public:
   ///
   /// The Error value is marked as needing checking, regardless of whether the
   /// 'inc' operation succeeds or fails.
+  ///
+  /// \return Reference to this iterator
   fallible_iterator &operator++() {
     assert(getErrPtr() && "Cannot increment end iterator");
     if (auto Err = I.inc())
@@ -137,6 +154,8 @@ public:
   ///
   /// The Error value is marked as needing checking, regardless of whether the
   /// 'dec' operation succeeds or fails.
+  ///
+  /// \return Reference to this iterator
   fallible_iterator &operator--() {
     assert(getErrPtr() && "Cannot decrement end iterator");
     if (auto Err = I.dec())
@@ -158,6 +177,11 @@ public:
   /// false against end-of-range is equivalent to checking that the Error value
   /// is success. This flag management enables early returns from loop bodies
   /// without redundant Error checks.
+  ///
+  /// \param LHS left-hand fallible iterator
+  /// \param RHS right-hand fallible iterator
+  /// \return True if both are end values, or both are non-end values whose
+  /// underlying iterators compare equal
   friend bool operator==(const fallible_iterator &LHS,
                          const fallible_iterator &RHS) {
     // If both iterators are in the end state they compare
@@ -185,6 +209,10 @@ public:
   /// Compare fallible iterators for inequality.
   ///
   /// See notes for operator==.
+  ///
+  /// \param LHS left-hand fallible iterator
+  /// \param RHS right-hand fallible iterator
+  /// \return True if the iterators are not equal
   friend bool operator!=(const fallible_iterator &LHS,
                          const fallible_iterator &RHS) {
     return !(LHS == RHS);
@@ -216,6 +244,10 @@ private:
 
 /// Convenience wrapper to make a fallible_iterator value from an instance
 /// of an underlying iterator and an Error reference.
+///
+/// \param I underlying iterator
+/// \param Err error out-parameter for increment/decrement failures
+/// \return Fallible iterator wrapping \p I and reporting failures via \p Err
 template <typename Underlying>
 fallible_iterator<Underlying> make_fallible_itr(Underlying I, Error &Err) {
   return fallible_iterator<Underlying>::itr(std::move(I), Err);
@@ -223,6 +255,9 @@ fallible_iterator<Underlying> make_fallible_itr(Underlying I, Error &Err) {
 
 /// Convenience wrapper to make a fallible_iterator end value from an instance
 /// of an underlying iterator.
+///
+/// \param E underlying end iterator
+/// \return Fallible end-of-range iterator wrapping \p E
 template <typename Underlying>
 fallible_iterator<Underlying> make_fallible_end(Underlying E) {
   return fallible_iterator<Underlying>::end(std::move(E));
@@ -233,6 +268,7 @@ fallible_iterator<Underlying> make_fallible_end(Underlying E) {
 /// \param I beginning underlying iterator
 /// \param E end underlying iterator
 /// \param Err error out-parameter shared by the fallible begin iterator
+/// \return Iterator range from fallible begin to fallible end
 template <typename Underlying>
 iterator_range<fallible_iterator<Underlying>>
 make_fallible_range(Underlying I, Underlying E, Error &Err) {

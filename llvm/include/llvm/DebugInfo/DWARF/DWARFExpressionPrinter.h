@@ -26,18 +26,22 @@ class DWARFUnit;
 struct DIDumpOptions;
 class raw_ostream;
 
-/// Print a Dwarf expression/
+/// Print a DWARF expression.
 /// \param E to be printed
 /// \param OS to this stream
-/// \param GetNameForDWARFReg callback to return dwarf register name
+/// \param DumpOpts Options controlling dump formatting.
+/// \param U DWARF unit providing context for the expression, if any.
+/// \param IsEH True if the expression comes from .eh_frame rather than
+/// .debug_frame.
 LLVM_ABI void printDwarfExpression(const DWARFExpression *E, raw_ostream &OS,
                                    DIDumpOptions DumpOpts, DWARFUnit *U,
                                    bool IsEH = false);
 
-/// Print the expression in a format intended to be compact and useful to a
-/// user, but not perfectly unambiguous, or capable of representing every
-/// valid DWARF expression. Returns true if the expression was sucessfully
-/// printed.
+/// Print a DWARF expression in a compact, user-oriented format.
+///
+/// The format is intended to be compact and useful to a user, but not
+/// perfectly unambiguous, or capable of representing every valid DWARF
+/// expression.
 ///
 /// \param E to be printed
 /// \param OS to this stream
@@ -58,7 +62,7 @@ LLVM_ABI bool printDwarfExpressionCompact(
 /// \param Opcode to print
 /// \param Operands to the opcode
 ///
-/// returns true if the Op was successfully printed
+/// \returns true if the Op was successfully printed
 LLVM_ABI bool prettyPrintRegisterOp(DWARFUnit *U, raw_ostream &OS,
                                     DIDumpOptions DumpOpts, uint8_t Opcode,
                                     ArrayRef<uint64_t> Operands);

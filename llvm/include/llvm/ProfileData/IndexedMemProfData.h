@@ -25,31 +25,44 @@
 namespace llvm {
 namespace memprof {
 class MemProfSummary;
+/// Space-optimized container for indexed MemProf profile data.
 struct IndexedMemProfData {
-  // A map to hold memprof data per function. The lower 64 bits obtained from
-  // the md5 hash of the function name is used to index into the map.
+  /// Map from function GUID to indexed MemProf record.
+  ///
+  /// The lower 64 bits obtained from the md5 hash of the function name is used
+  /// to index into the map.
   llvm::MapVector<GlobalValue::GUID, IndexedMemProfRecord> Records;
 
-  // A map to hold frame id to frame mappings. The mappings are used to
-  // convert IndexedMemProfRecord to MemProfRecords with frame information
-  // inline.
+  /// Map from frame id to frame contents.
+  ///
+  /// The mappings are used to convert IndexedMemProfRecord to MemProfRecords
+  /// with frame information inline.
   llvm::MapVector<FrameId, Frame> Frames;
 
-  // A map to hold call stack id to call stacks.
+  /// Map from call stack id to the sequence of frame ids in that call stack.
   llvm::MapVector<CallStackId, llvm::SmallVector<FrameId>> CallStacks;
 
+  /// Insert \p F into Frames and return its FrameId.
+  /// @param F Frame to insert.
+  /// @return FrameId of the inserted (or existing) frame.
   FrameId addFrame(const Frame &F) {
     const FrameId Id = hashFrame(F);
     Frames.try_emplace(Id, F);
     return Id;
   }
 
+  /// Insert call stack \p CS into CallStacks and return its CallStackId.
+  /// @param CS Sequence of frame ids forming the call stack.
+  /// @return CallStackId of the inserted (or existing) call stack.
   CallStackId addCallStack(ArrayRef<FrameId> CS) {
     CallStackId CSId = hashCallStack(CS);
     CallStacks.try_emplace(CSId, CS);
     return CSId;
   }
 
+  /// Insert call stack \p CS into CallStacks by move and return its CallStackId.
+  /// @param CS Sequence of frame ids forming the call stack; contents are moved.
+  /// @return CallStackId of the inserted (or existing) call stack.
   CallStackId addCallStack(SmallVector<FrameId> &&CS) {
     CallStackId CSId = hashCallStack(CS);
     CallStacks.try_emplace(CSId, std::move(CS));
@@ -86,7 +99,14 @@ private:
 };
 } // namespace memprof
 
-// Write the MemProf data to OS.
+/// Write MemProf profile data to \p OS in the requested indexed format version.
+/// @param OS Destination stream.
+/// @param MemProfData Indexed MemProf records, frames, and call stacks to write.
+/// @param MemProfVersionRequested Indexed format version to emit.
+/// @param MemProfFullSchema Whether to serialize the full MemInfoBlock schema.
+/// @param DataAccessProfileData Optional data-access profile (Version 4+).
+/// @param MemProfSum Optional MemProf summary (Version 4+).
+/// @return Success, or an error if writing fails.
 LLVM_ABI Error writeMemProf(
     ProfOStream &OS, memprof::IndexedMemProfData &MemProfData,
     memprof::IndexedVersion MemProfVersionRequested, bool MemProfFullSchema,

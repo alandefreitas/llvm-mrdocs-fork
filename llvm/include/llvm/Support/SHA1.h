@@ -26,30 +26,41 @@ class StringRef;
 /// A class that wrap the SHA1 algorithm.
 class SHA1 {
 public:
+  /// Construct a SHA1 hasher with initial state.
   SHA1() { init(); }
 
   /// Reinitialize the internal state
   LLVM_ABI void init();
 
   /// Digest more data.
+  ///
+  /// \param Data Bytes to absorb into the hash state.
   LLVM_ABI void update(ArrayRef<uint8_t> Data);
 
   /// Digest more data.
+  ///
+  /// \param Str String bytes to absorb into the hash state.
   LLVM_ABI void update(StringRef Str);
 
-  /// Return the current raw 160-bits SHA1 for the digested data
-  /// since the last call to init(). This call will add data to the internal
-  /// state and as such is not suited for getting an intermediate result
-  /// (see result()).
+  /// Return the current raw 160-bit SHA1 digest.
+  ///
+  /// This is the hash of data digested since the last call to init(). This call
+  /// will add data to the internal state and as such is not suited for getting
+  /// an intermediate result (see result()).
+  /// \return The finalized 20-byte SHA1 digest.
   LLVM_ABI std::array<uint8_t, 20> final();
 
-  /// Return the current raw 160-bits SHA1 for the digested data
-  /// since the last call to init(). This is suitable for getting the SHA1 at
-  /// any time without invalidating the internal state so that more calls can be
-  /// made into update.
+  /// Return the current raw 160-bit SHA1 digest without finalizing state.
+  ///
+  /// This is suitable for getting the SHA1 at any time without invalidating the
+  /// internal state so that more calls can be made into update.
+  /// \return The current 20-byte SHA1 digest.
   LLVM_ABI std::array<uint8_t, 20> result();
 
   /// Returns a raw 160-bit SHA1 hash for the given data.
+  ///
+  /// \param Data Bytes to hash in a single shot.
+  /// \return The 20-byte SHA1 digest of \p Data.
   LLVM_ABI static std::array<uint8_t, 20> hash(ArrayRef<uint8_t> Data);
 
 private:

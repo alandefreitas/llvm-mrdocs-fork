@@ -26,11 +26,14 @@ class raw_ostream;
 /// createDeadArgEliminationPass - This pass removes arguments from functions
 /// which are not used by the body of the function.
 ///
+/// @return A new ModulePass that eliminates unused function arguments.
 LLVM_ABI ModulePass *createDeadArgEliminationPass();
 
 //===----------------------------------------------------------------------===//
 /// createBarrierNoopPass - This pass is purely a module pass barrier in a pass
 /// manager.
+///
+/// @return A new ModulePass that acts as a no-op barrier.
 LLVM_ABI ModulePass *createBarrierNoopPass();
 
 /// What to do with the summary when running passes that operate on it.

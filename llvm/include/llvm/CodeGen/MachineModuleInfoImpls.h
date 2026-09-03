@@ -44,29 +44,47 @@ class LLVM_ABI MachineModuleInfoMachO : public MachineModuleInfoImpl {
   virtual void anchor(); // Out of line virtual method.
 
 public:
-  MachineModuleInfoMachO(const MachineModuleInfo &) {}
+  /// Construct MachO-specific module info for \p MMI.
+  /// \param MMI Owning machine module info.
+  MachineModuleInfoMachO(const MachineModuleInfo &MMI) {}
 
+  /// Return a mutable reference to the non-lazy pointer stub for \p Sym.
+  /// \param Sym Stub symbol key; must be non-null.
+  /// \return Stub value entry for \p Sym, inserting a default if absent.
   StubValueTy &getGVStubEntry(MCSymbol *Sym) {
     assert(Sym && "Key cannot be null");
     return GVStubs[Sym];
   }
 
+  /// Return a mutable reference to the thread-local stub for \p Sym.
+  /// \param Sym Stub symbol key; must be non-null.
+  /// \return Thread-local stub value entry for \p Sym, inserting a default if
+  ///         absent.
   StubValueTy &getThreadLocalGVStubEntry(MCSymbol *Sym) {
     assert(Sym && "Key cannot be null");
     return ThreadLocalGVStubs[Sym];
   }
 
+  /// Return a mutable reference to the authenticated pointer stub for \p Sym.
+  /// \param Sym Stub symbol key; must be non-null.
+  /// \return Authenticated pointer expression for \p Sym, inserting a default
+  ///         if absent.
   const MCExpr *&getAuthPtrStubEntry(MCSymbol *Sym) {
     assert(Sym && "Key cannot be null");
     return AuthPtrStubs[Sym];
   }
 
   /// Accessor methods to return the set of stubs in sorted order.
+  /// \return Sorted list of GV stub entries; clears the map.
   SymbolListTy GetGVStubList() { return getSortedStubs(GVStubs); }
+  /// Return the thread-local GV stubs in deterministic sorted order.
+  /// \return Sorted list of thread-local stub entries; clears the map.
   SymbolListTy GetThreadLocalGVStubList() {
     return getSortedStubs(ThreadLocalGVStubs);
   }
 
+  /// Return the authenticated pointer stubs in deterministic sorted order.
+  /// \return Sorted list of auth pointer stub entries; clears the map.
   ExprStubListTy getAuthGVStubList() {
     return getSortedExprStubs(AuthPtrStubs);
   }
@@ -90,26 +108,39 @@ class LLVM_ABI MachineModuleInfoELF : public MachineModuleInfoImpl {
   virtual void anchor(); // Out of line virtual method.
 
 public:
-  MachineModuleInfoELF(const MachineModuleInfo &);
+  /// Construct ELF-specific module info for \p MMI.
+  /// \param MMI Owning machine module info.
+  MachineModuleInfoELF(const MachineModuleInfo &MMI);
 
+  /// Return a mutable reference to the PIC GV stub for \p Sym.
+  /// \param Sym Stub symbol key; must be non-null.
+  /// \return Stub value entry for \p Sym, inserting a default if absent.
   StubValueTy &getGVStubEntry(MCSymbol *Sym) {
     assert(Sym && "Key cannot be null");
     return GVStubs[Sym];
   }
 
+  /// Return a mutable reference to the authenticated pointer stub for \p Sym.
+  /// \param Sym Stub symbol key; must be non-null.
+  /// \return Authenticated pointer expression for \p Sym, inserting a default
+  ///         if absent.
   const MCExpr *&getAuthPtrStubEntry(MCSymbol *Sym) {
     assert(Sym && "Key cannot be null");
     return AuthPtrStubs[Sym];
   }
 
   /// Accessor methods to return the set of stubs in sorted order.
-
+  /// \return Sorted list of GV stub entries; clears the map.
   SymbolListTy GetGVStubList() { return getSortedStubs(GVStubs); }
 
+  /// Return the authenticated pointer stubs in deterministic sorted order.
+  /// \return Sorted list of auth pointer stub entries; clears the map.
   ExprStubListTy getAuthGVStubList() {
     return getSortedExprStubs(AuthPtrStubs);
   }
 
+  /// Return true if the module uses a signed personality function.
+  /// \return True if the IR module has "ptrauth-sign-personality" set to 1.
   bool hasSignedPersonality() const { return HasSignedPersonality; }
 };
 
@@ -123,15 +154,20 @@ class LLVM_ABI MachineModuleInfoCOFF : public MachineModuleInfoImpl {
   virtual void anchor(); // Out of line virtual method.
 
 public:
-  MachineModuleInfoCOFF(const MachineModuleInfo &) {}
+  /// Construct COFF-specific module info for \p MMI.
+  /// \param MMI Owning machine module info.
+  MachineModuleInfoCOFF(const MachineModuleInfo &MMI) {}
 
+  /// Return a mutable reference to the PIC GV stub for \p Sym.
+  /// \param Sym Stub symbol key; must be non-null.
+  /// \return Stub value entry for \p Sym, inserting a default if absent.
   StubValueTy &getGVStubEntry(MCSymbol *Sym) {
     assert(Sym && "Key cannot be null");
     return GVStubs[Sym];
   }
 
   /// Accessor methods to return the set of stubs in sorted order.
-
+  /// \return Sorted list of GV stub entries; clears the map.
   SymbolListTy GetGVStubList() { return getSortedStubs(GVStubs); }
 };
 
@@ -141,8 +177,11 @@ class LLVM_ABI MachineModuleInfoWasm : public MachineModuleInfoImpl {
   virtual void anchor(); // Out of line virtual method.
 
 public:
-  MachineModuleInfoWasm(const MachineModuleInfo &) {}
+  /// Construct Wasm-specific module info for \p MMI.
+  /// \param MMI Owning machine module info.
+  MachineModuleInfoWasm(const MachineModuleInfo &MMI) {}
 
+  /// Machine symbols referenced by the module, in insertion order.
   SetVector<StringRef> MachineSymbolsUsed;
 };
 

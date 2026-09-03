@@ -13,11 +13,21 @@
 
 namespace llvm {
 
+/// New PM pass that processes IMPLICIT_DEF instructions.
 class ProcessImplicitDefsPass
     : public RequiredPassInfoMixin<ProcessImplicitDefsPass> {
 public:
+  /// Process IMPLICIT_DEF instructions in \p MF.
+  /// \param MF Machine function whose implicit defs are processed.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after processing implicit defs.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
+
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Processing implicit defs expects the function to be in SSA form.
+  /// \return Properties requiring the function to be in SSA form.
   MachineFunctionProperties getRequiredProperties() const {
     return MachineFunctionProperties().setIsSSA();
   }

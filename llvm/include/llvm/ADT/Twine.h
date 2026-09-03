@@ -249,13 +249,15 @@ public:
   /*implicit*/ Twine() { assert(isValid() && "Invalid twine!"); }
 
   /// Copy-construct a Twine (shallow; does not own string data).
-  Twine(const Twine &) = default;
+  /// @param Other Twine whose child pointers and kinds are copied.
+  Twine(const Twine &Other) = default;
 
   /// Construct from a C string.
   ///
   /// We take care here to optimize "" into the empty twine -- this will be
   /// optimized out for string constants. This allows Twine arguments have
   /// default "" values, without introducing unnecessary string constants.
+  /// @param Str NUL-terminated C string to reference.
   /*implicit*/ Twine(const char *Str) {
     if (Str[0] != '\0') {
       LHS.cString = Str;
@@ -268,18 +270,23 @@ public:
   }
   /// Delete the implicit conversion from nullptr as Twine(const char *)
   /// cannot take nullptr.
-  /*implicit*/ Twine(std::nullptr_t) = delete;
+  /// @param Null Unused; this overload is deleted.
+  /*implicit*/ Twine(std::nullptr_t Null) = delete;
 
   /// Construct from an std::string.
+  /// @param Str String whose data is referenced.
   /*implicit*/ Twine(const std::string &Str) : LHSKind(StdStringKind) {
     LHS.stdString = &Str;
     assert(isValid() && "Invalid twine!");
   }
 
-  /// Construct from an std::string_view by converting it to a pointer and
-  /// length.  This handles string_views on a pure API basis, and avoids
-  /// storing one (or a pointer to one) inside a Twine, which avoids problems
-  /// when mixing code compiled under various C++ standards.
+  /// Construct from an std::string_view.
+  ///
+  /// Converts the view to a pointer and length. This handles string_views on
+  /// a pure API basis, and avoids storing one (or a pointer to one) inside a
+  /// Twine, which avoids problems when mixing code compiled under various C++
+  /// standards.
+  /// @param Str View whose data and length are referenced.
   /*implicit*/ Twine(const std::string_view &Str) : LHSKind(PtrAndLengthKind) {
     LHS.ptrAndLength.ptr = Str.data();
     LHS.ptrAndLength.length = Str.length();
@@ -287,6 +294,7 @@ public:
   }
 
   /// Construct from a StringRef.
+  /// @param Str String reference whose data and size are referenced.
   /*implicit*/ Twine(StringRef Str) : LHSKind(PtrAndLengthKind) {
     LHS.ptrAndLength.ptr = Str.data();
     LHS.ptrAndLength.length = Str.size();
@@ -294,6 +302,7 @@ public:
   }
 
   /// Construct from a StringLiteral.
+  /// @param Str Compile-time string literal to reference.
   /*implicit*/ Twine(const StringLiteral &Str) : LHSKind(StringLiteralKind) {
     LHS.ptrAndLength.ptr = Str.data();
     LHS.ptrAndLength.length = Str.size();
@@ -301,6 +310,7 @@ public:
   }
 
   /// Construct from a SmallString.
+  /// @param Str SmallVector of characters whose data is referenced.
   /*implicit*/ Twine(const SmallVectorImpl<char> &Str)
       : LHSKind(PtrAndLengthKind) {
     LHS.ptrAndLength.ptr = Str.data();
@@ -309,6 +319,7 @@ public:
   }
 
   /// Construct from a formatv_object_base.
+  /// @param Fmt formatv object whose formatted text is referenced.
   /*implicit*/ Twine(const formatv_object_base &Fmt)
       : LHSKind(FormatvObjectKind) {
     LHS.formatvObject = &Fmt;
@@ -316,36 +327,45 @@ public:
   }
 
   /// Construct from a char.
+  /// @param Val Character value to render.
   explicit Twine(char Val) : LHSKind(CharKind) { LHS.character = Val; }
 
   /// Construct from a signed char.
+  /// @param Val Character value to render.
   explicit Twine(signed char Val) : LHSKind(CharKind) {
     LHS.character = static_cast<char>(Val);
   }
 
   /// Construct from an unsigned char.
+  /// @param Val Character value to render.
   explicit Twine(unsigned char Val) : LHSKind(CharKind) {
     LHS.character = static_cast<char>(Val);
   }
 
   /// Construct a twine to print \p Val as an unsigned decimal integer.
+  /// @param Val Unsigned value to render as decimal.
   explicit Twine(unsigned Val) : LHSKind(DecUIKind) { LHS.decUI = Val; }
 
   /// Construct a twine to print \p Val as a signed decimal integer.
+  /// @param Val Signed value to render as decimal.
   explicit Twine(int Val) : LHSKind(DecIKind) { LHS.decI = Val; }
 
   /// Construct a twine to print \p Val as an unsigned decimal integer.
+  /// @param Val Unsigned long value to render as decimal.
   explicit Twine(unsigned long Val) : LHSKind(DecULKind) { LHS.decUL = Val; }
 
   /// Construct a twine to print \p Val as a signed decimal integer.
+  /// @param Val Signed long value to render as decimal.
   explicit Twine(long Val) : LHSKind(DecLKind) { LHS.decL = Val; }
 
   /// Construct a twine to print \p Val as an unsigned decimal integer.
+  /// @param Val Unsigned long long value to render as decimal.
   explicit Twine(unsigned long long Val) : LHSKind(DecULLKind) {
     LHS.decULL = Val;
   }
 
   /// Construct a twine to print \p Val as a signed decimal integer.
+  /// @param Val Signed long long value to render as decimal.
   explicit Twine(long long Val) : LHSKind(DecLLKind) { LHS.decLL = Val; }
 
   // FIXME: Unfortunately, to make sure this is as efficient as possible we
@@ -354,6 +374,8 @@ public:
   // right thing. Yet.
 
   /// Construct as the concatenation of a C string and a StringRef.
+  /// @param LHS C string prefix.
+  /// @param RHS StringRef suffix.
   /*implicit*/ Twine(const char *LHS, StringRef RHS)
       : LHSKind(CStringKind), RHSKind(PtrAndLengthKind) {
     this->LHS.cString = LHS;
@@ -363,6 +385,8 @@ public:
   }
 
   /// Construct as the concatenation of a StringRef and a C string.
+  /// @param LHS StringRef prefix.
+  /// @param RHS C string suffix.
   /*implicit*/ Twine(StringRef LHS, const char *RHS)
       : LHSKind(PtrAndLengthKind), RHSKind(CStringKind) {
     this->LHS.ptrAndLength.ptr = LHS.data();
@@ -371,19 +395,25 @@ public:
     assert(isValid() && "Invalid twine!");
   }
 
+  /// Deleted assignment; Twines are temporary and must not be reassigned.
+  ///
   /// Since the intended use of twines is as temporary objects, assignments
-  /// when concatenating might cause undefined behavior or stack corruptions
-  Twine &operator=(const Twine &) = delete;
+  /// when concatenating might cause undefined behavior or stack corruptions.
+  /// @param Other Unused; assignment is deleted.
+  Twine &operator=(const Twine &Other) = delete;
 
   /// Create a 'null' string, which is an empty string that always
   /// concatenates to form another empty string.
+  /// @return A null Twine that always concatenates to itself.
   static Twine createNull() { return Twine(NullKind); }
 
   /// @}
   /// @name Numeric Conversions
   /// @{
 
-  // Construct a twine to print \p Val as an unsigned hexadecimal integer.
+  /// Construct a twine to print \p Val as an unsigned hexadecimal integer.
+  /// @param Val Value to render as hexadecimal.
+  /// @return A Twine that renders \p Val as hexadecimal.
   static Twine utohexstr(uint64_t Val) {
     Child LHS, RHS;
     LHS.uHex = Val;
@@ -397,15 +427,18 @@ public:
 
   /// Check if this twine is trivially empty; a false return value does not
   /// necessarily mean the twine is empty.
+  /// @return True if this twine is known to be empty without rendering.
   bool isTriviallyEmpty() const { return isNullary(); }
 
   /// Check if this twine is guaranteed to refer to single string literal.
+  /// @return True if this twine refers to a single string literal.
   bool isSingleStringLiteral() const {
     return isUnary() && getLHSKind() == StringLiteralKind;
   }
 
   /// Return true if this twine can be dynamically accessed as a single
   /// StringRef value with getSingleStringRef().
+  /// @return True if this twine is a single StringRef-compatible value.
   bool isSingleStringRef() const {
     if (getRHSKind() != EmptyKind)
       return false;
@@ -426,6 +459,9 @@ public:
   /// @name String Operations
   /// @{
 
+  /// Return a twine that concatenates this twine with \p Suffix.
+  /// @param Suffix Twine to append.
+  /// @return A Twine representing this twine followed by \p Suffix.
   Twine concat(const Twine &Suffix) const;
 
   /// @}
@@ -433,13 +469,16 @@ public:
   /// @{
 
   /// Return the twine contents as a std::string.
+  /// @return The concatenated string contents of this twine.
   LLVM_ABI std::string str() const;
 
   /// Append the concatenated string into the given SmallString or SmallVector.
+  /// @param Out Destination buffer that receives the concatenated characters.
   LLVM_ABI void toVector(SmallVectorImpl<char> &Out) const;
 
   /// This returns the twine as a single StringRef.  This method is only valid
   /// if isSingleStringRef() is true.
+  /// @return A StringRef referring to this twine's single string value.
   StringRef getSingleStringRef() const {
     assert(isSingleStringRef() && "This cannot be had as a single stringref!");
     switch (getLHSKind()) {
@@ -457,9 +496,13 @@ public:
     }
   }
 
-  /// This returns the twine as a single StringRef if it can be
-  /// represented as such. Otherwise the twine is written into the given
-  /// SmallVector and a StringRef to the SmallVector's data is returned.
+  /// Return this twine as a StringRef, using \p Out as scratch if needed.
+  ///
+  /// If the twine can be represented as a single StringRef, that view is
+  /// returned. Otherwise the twine is written into the given SmallVector and a
+  /// StringRef to the SmallVector's data is returned.
+  /// @param Out Scratch buffer used when the twine is not a single StringRef.
+  /// @return A StringRef view of this twine's contents.
   StringRef toStringRef(SmallVectorImpl<char> &Out) const {
     if (isSingleStringRef())
       return getSingleStringRef();
@@ -467,19 +510,26 @@ public:
     return StringRef(Out.data(), Out.size());
   }
 
-  /// This returns the twine as a single null terminated StringRef if it
-  /// can be represented as such. Otherwise the twine is written into the
-  /// given SmallVector and a StringRef to the SmallVector's data is returned.
+  /// Return this twine as a null-terminated StringRef, using \p Out if needed.
   ///
-  /// The returned StringRef's size does not include the null terminator.
+  /// If the twine can be represented as a single null-terminated StringRef,
+  /// that view is returned. Otherwise the twine is written into the given
+  /// SmallVector and a StringRef to the SmallVector's data is returned.
+  ///
+/// The returned StringRef's size does not include the null terminator.
+  /// @param Out Scratch buffer used when a null-terminated view is not already
+  /// available.
+  /// @return A null-terminated StringRef view of this twine's contents.
   LLVM_ABI StringRef
   toNullTerminatedStringRef(SmallVectorImpl<char> &Out) const;
 
   /// Write the concatenated string represented by this twine to the
   /// stream \p OS.
+  /// @param OS Stream that receives the concatenated string.
   LLVM_ABI void print(raw_ostream &OS) const;
 
   /// Write the representation of this twine to the stream \p OS.
+  /// @param OS Stream that receives the twine's internal representation.
   LLVM_ABI void printRepr(raw_ostream &OS) const;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -496,6 +546,9 @@ public:
 /// @name Twine Inline Implementations
 /// @{
 
+/// Return a twine that concatenates this twine with \p Suffix.
+/// @param Suffix Twine to append.
+/// @return A Twine representing this twine followed by \p Suffix.
 inline Twine Twine::concat(const Twine &Suffix) const {
   // Concatenation with null is null.
   if (isNull() || Suffix.isNull())
@@ -526,25 +579,39 @@ inline Twine Twine::concat(const Twine &Suffix) const {
 }
 
 /// Concatenate \p LHS and \p RHS into a new Twine.
+/// @param LHS Left-hand twine.
+/// @param RHS Right-hand twine.
+/// @return A Twine representing the concatenation of \p LHS and \p RHS.
 inline Twine operator+(const Twine &LHS, const Twine &RHS) {
   return LHS.concat(RHS);
 }
 
+/// Concatenate a C string and a StringRef with simplified codegen.
+///
 /// Additional overload to guarantee simplified codegen; this is equivalent to
 /// concat().
-
+/// @param LHS C string prefix.
+/// @param RHS StringRef suffix.
+/// @return A Twine representing the concatenation of \p LHS and \p RHS.
 inline Twine operator+(const char *LHS, StringRef RHS) {
   return Twine(LHS, RHS);
 }
 
+/// Concatenate a StringRef and a C string with simplified codegen.
+///
 /// Additional overload to guarantee simplified codegen; this is equivalent to
 /// concat().
-
+/// @param LHS StringRef prefix.
+/// @param RHS C string suffix.
+/// @return A Twine representing the concatenation of \p LHS and \p RHS.
 inline Twine operator+(StringRef LHS, const char *RHS) {
   return Twine(LHS, RHS);
 }
 
 /// Write \p RHS to \p OS.
+/// @param OS Stream that receives the twine contents.
+/// @param RHS Twine to print.
+/// @return The stream \p OS after printing.
 inline raw_ostream &operator<<(raw_ostream &OS, const Twine &RHS) {
   RHS.print(OS);
   return OS;

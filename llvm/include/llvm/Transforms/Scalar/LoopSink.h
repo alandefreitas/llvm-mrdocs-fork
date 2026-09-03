@@ -32,6 +32,10 @@ class Function;
 /// fundamental analyses and transforms of the loop.
 class LoopSinkPass : public OptionalPassInfoMixin<LoopSinkPass> {
 public:
+  /// Run profile-guided loop sinking over the function.
+  /// @param F Function whose loops may receive sunk instructions.
+  /// @param FAM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 }

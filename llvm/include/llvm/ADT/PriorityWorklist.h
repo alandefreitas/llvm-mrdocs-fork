@@ -69,28 +69,33 @@ public:
   PriorityWorklist() = default;
 
   /// Determine if the PriorityWorklist is empty or not.
+  /// \returns true if the worklist contains no elements.
   bool empty() const {
     return V.empty();
   }
 
   /// Returns the number of elements in the worklist.
+  /// \returns The number of elements currently in the worklist.
   size_type size() const {
     return M.size();
   }
 
   /// Count the number of elements of a given key in the PriorityWorklist.
+  /// @param key Key to look up.
   /// \returns 0 if the element is not in the PriorityWorklist, 1 if it is.
   size_type count(const key_type &key) const {
     return M.count(key);
   }
 
   /// Return the last element of the PriorityWorklist.
+  /// \returns A const reference to the last element.
   const T &back() const {
     assert(!empty() && "Cannot call back() on empty PriorityWorklist!");
     return V.back();
   }
 
   /// Insert a new element into the PriorityWorklist.
+  /// @param X Element to insert.
   /// \returns true if the element was inserted into the PriorityWorklist.
   bool insert(const T &X) {
     assert(X != T() && "Cannot insert a null (default constructed) value!");
@@ -113,6 +118,7 @@ public:
   }
 
   /// Insert a sequence of new elements into the PriorityWorklist.
+  /// @param Input Sequence of elements to insert.
   template <typename SequenceT>
   std::enable_if_t<!std::is_convertible<SequenceT, T>::value>
   insert(SequenceT &&Input) {
@@ -166,6 +172,8 @@ public:
   /// Erase an item from the worklist.
   ///
   /// Note that this is constant time due to the nature of the worklist implementation.
+  /// @param X Element to erase.
+  /// \returns true if the element was present and removed.
   bool erase(const T& X) {
     auto I = M.find(X);
     if (I == M.end())
@@ -195,6 +203,7 @@ public:
   /// However, PriorityWorklist doesn't expose non-const iterators, making any
   /// algorithm like remove_if impossible to use.
   ///
+  /// @param P Predicate that returns true for elements to remove.
   /// \returns true if any element is removed.
   template <typename UnaryPredicate>
   bool erase_if(UnaryPredicate P) {

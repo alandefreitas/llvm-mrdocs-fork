@@ -18,23 +18,33 @@
 
 namespace llvm {
 
-// Number of bits in data that are used for the sanitizer kind. Needs to match
-// __sanitizer::kKindBits in compiler-rt/lib/stats/stats.h
-enum { kSanitizerStatKindBits = 3 };
-
-enum SanitizerStatKind {
-  SanStat_CFI_VCall,
-  SanStat_CFI_NVCall,
-  SanStat_CFI_DerivedCast,
-  SanStat_CFI_UnrelatedCast,
-  SanStat_CFI_ICall,
+/// Number of bits reserved to encode a sanitizer statistic kind.
+///
+/// Needs to match \c __sanitizer::kKindBits in
+/// compiler-rt/lib/stats/stats.h.
+enum {
+  kSanitizerStatKindBits = 3 ///< Bit width of the sanitizer-kind tag field.
 };
 
+/// Kinds of control-flow integrity checks counted by sanitizer stats.
+enum SanitizerStatKind {
+  SanStat_CFI_VCall,         ///< CFI check on a virtual call.
+  SanStat_CFI_NVCall,        ///< CFI check on a non-virtual member call.
+  SanStat_CFI_DerivedCast,   ///< CFI check on a cast to a derived type.
+  SanStat_CFI_UnrelatedCast, ///< CFI check on a cast to an unrelated type.
+  SanStat_CFI_ICall,         ///< CFI check on an indirect call.
+};
+
+/// Emits and finalizes per-module sanitizer statistic counters.
 struct SanitizerStatReport {
+  /// Construct a sanitizer statistics report for module \p M.
+  /// @param M Module that will own the generated statistics globals.
   LLVM_ABI SanitizerStatReport(Module *M);
 
   /// Generates code into B that increments a location-specific counter tagged
   /// with the given sanitizer kind SK.
+  /// @param B IR builder used to emit the counter increment.
+  /// @param SK Sanitizer statistic kind that tags this counter.
   LLVM_ABI void create(IRBuilder<> &B, SanitizerStatKind SK);
 
   /// Finalize module stats array and add global constructor to register it.

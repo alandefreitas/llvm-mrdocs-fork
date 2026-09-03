@@ -30,48 +30,70 @@ class Profile;
 class Trace;
 
 /// This function will attempt to load an XRay Profiling Mode profile from the
-/// provided |Filename|.
+/// provided \p Filename.
 ///
 /// For any errors encountered in the loading of the profile data from
-/// |Filename|, this function will return an Error condition appropriately.
+/// \p Filename, this function will return an Error condition appropriately.
+/// \param Filename Path to the XRay profiling-mode profile file to load.
+/// \return Loaded Profile, or an Error on failure.
 LLVM_ABI Expected<Profile> loadProfile(StringRef Filename);
 
 /// This algorithm will merge two Profile instances into a single Profile
 /// instance, aggregating blocks by Thread ID.
+/// \param L Left-hand profile to merge.
+/// \param R Right-hand profile to merge.
+/// \return Profile with blocks aggregated by thread ID.
 LLVM_ABI Profile mergeProfilesByThread(const Profile &L, const Profile &R);
 
 /// This algorithm will merge two Profile instances into a single Profile
 /// instance, aggregating blocks by function call stack.
+/// \param L Left-hand profile to merge.
+/// \param R Right-hand profile to merge.
+/// \return Profile with blocks aggregated by call stack.
 LLVM_ABI Profile mergeProfilesByStack(const Profile &L, const Profile &R);
 
 /// This function takes a Trace and creates a Profile instance from it.
+/// \param T Trace whose records are converted into a profile.
+/// \return Profile built from \p T, or an error on failure.
 LLVM_ABI Expected<Profile> profileFromTrace(const Trace &T);
 
 /// Profile instances are thread-compatible.
 class Profile {
 public:
+  /// Identifier for a thread that contributed blocks to the profile.
   using ThreadID = uint64_t;
+  /// Opaque identifier for an interned call-stack path.
   using PathID = unsigned;
+  /// Identifier for an instrumented function in a call stack.
   using FuncID = int32_t;
 
+  /// Aggregated timing statistics for a single call-stack path.
   struct Data {
+    /// Number of times the path was executed.
     uint64_t CallCount;
+    /// Sum of local time spent on the path across all executions.
     uint64_t CumulativeLocalTime;
   };
 
+  /// Per-thread collection of path identifiers and their timing data.
   struct Block {
+    /// Thread that produced this block of path data.
     ThreadID Thread;
+    /// Path identifiers paired with their aggregated timing statistics.
     std::vector<std::pair<PathID, Data>> PathData;
   };
 
   /// Provides a sequence of function IDs from a previously interned PathID.
   ///
-  /// Returns an error if |P| had not been interned before into the Profile.
-  ///
+  /// Returns an error if \p P had not been interned before into the Profile.
+  /// \param P Interned path identifier to expand into a function ID sequence.
+  /// \return Function ID sequence for \p P, or an error if \p P was not interned.
   LLVM_ABI Expected<std::vector<FuncID>> expandPath(PathID P) const;
 
-  /// The stack represented in |P| must be in stack order (leaf to root). This
-  /// will always return the same PathID for |P| that has the same sequence.
+  /// The stack represented in \p P must be in stack order (leaf to root). This
+  /// will always return the same PathID for \p P that has the same sequence.
+  /// \param P Call-stack function IDs in leaf-to-root order to intern.
+  /// \return Stable PathID for the given call-stack sequence.
   LLVM_ABI PathID internPath(ArrayRef<FuncID> P);
 
   /// Appends a fully-formed Block instance into the Profile.
@@ -80,16 +102,25 @@ public:
   ///
   ///    - The PathData component of the Block is empty
   ///
+  /// \param B Block to move into this profile.
+  /// \return Success, or an error if PathData is empty.
   LLVM_ABI Error addBlock(Block &&B);
 
+  /// Construct an empty profile.
   Profile() = default;
+  /// Destroy the profile and release interned path data.
   ~Profile() = default;
 
+  /// Move-construct a profile from \p O.
+  /// \param O Profile to move from.
   Profile(Profile &&O) noexcept
       : Blocks(std::move(O.Blocks)), NodeStorage(std::move(O.NodeStorage)),
         Roots(std::move(O.Roots)), PathIDMap(std::move(O.PathIDMap)),
         NextID(O.NextID) {}
 
+  /// Move-assign from \p O.
+  /// \param O Profile to move from.
+  /// \return Reference to this profile.
   Profile &operator=(Profile &&O) noexcept {
     Blocks = std::move(O.Blocks);
     NodeStorage = std::move(O.NodeStorage);
@@ -99,9 +130,17 @@ public:
     return *this;
   }
 
-  LLVM_ABI Profile(const Profile &);
-  LLVM_ABI Profile &operator=(const Profile &);
+  /// Copy-construct a profile from \p O.
+  /// \param O Profile to copy from.
+  LLVM_ABI Profile(const Profile &O);
+  /// Copy-assign from \p O.
+  /// \param O Profile to copy from.
+  /// \return Reference to this profile.
+  LLVM_ABI Profile &operator=(const Profile &O);
 
+  /// Exchange the contents of profiles \p L and \p R.
+  /// \param L First profile to swap.
+  /// \param R Second profile to swap.
   friend void swap(Profile &L, Profile &R) {
     using std::swap;
     swap(L.Blocks, R.Blocks);
@@ -137,9 +176,16 @@ private:
   PathID NextID = 1;
 
 public:
+  /// Constant iterator over the profile's blocks.
   using const_iterator = BlockList::const_iterator;
+  /// Return an iterator to the first block in the profile.
+  /// \return Iterator to the first block.
   const_iterator begin() const { return Blocks.begin(); }
+  /// Return an iterator past the last block in the profile.
+  /// \return Iterator past the last block.
   const_iterator end() const { return Blocks.end(); }
+  /// Return true if the profile contains no blocks.
+  /// \return True if the profile contains no blocks.
   bool empty() const { return Blocks.empty(); }
 };
 

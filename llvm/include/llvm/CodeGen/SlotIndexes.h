@@ -40,6 +40,8 @@ namespace llvm {
 
 class raw_ostream;
 
+  /// An entry in the SlotIndexes index list.
+  ///
   /// This class represents an entry in the slot index list held in the
   /// SlotIndexes pass. It should not be used directly. See the
   /// SlotIndex & SlotIndexes classes for the public interface to this
@@ -49,14 +51,28 @@ class raw_ostream;
     unsigned index;
 
   public:
+    /// Construct an index-list entry for instruction \p mi at \p index.
+    ///
+    /// \param mi the machine instruction associated with this entry
+    /// \param index the dense index number for this entry
     IndexListEntry(MachineInstr *mi, unsigned index) : mi(mi), index(index) {}
 
+    /// Return the machine instruction associated with this entry.
+    /// @return The machine instruction associated with this entry.
     MachineInstr* getInstr() const { return mi; }
+    /// Set the machine instruction associated with this entry.
+    ///
+    /// \param mi the instruction to associate with this entry
     void setInstr(MachineInstr *mi) {
       this->mi = mi;
     }
 
+    /// Return the dense index number for this entry.
+    /// @return The dense index number for this entry.
     unsigned getIndex() const { return index; }
+    /// Set the dense index number for this entry.
+    ///
+    /// \param index the new dense index number
     void setIndex(unsigned index) {
       this->index = index;
     }
@@ -109,6 +125,7 @@ class raw_ostream;
     }
 
   public:
+    /// Constants related to SlotIndex spacing.
     enum {
       /// The default distance between instructions as returned by distance().
       /// This may vary as instructions are inserted and removed.
@@ -118,135 +135,196 @@ class raw_ostream;
     /// Construct an invalid index.
     SlotIndex() = default;
 
-    // Construct a new slot index from the given one, and set the slot.
+    /// Construct a new slot index from \p li with slot \p s.
+    ///
+    /// \param li existing index providing the list entry
+    /// \param s slot within the instruction to select
     SlotIndex(const SlotIndex &li, Slot s) : lie(li.listEntry(), unsigned(s)) {
       assert(isValid() && "Attempt to construct index with 0 pointer.");
     }
 
     /// Returns true if this is a valid index. Invalid indices do
     /// not point into an index table, and cannot be compared.
+    /// @return True if this is a valid index.
     bool isValid() const {
       return lie.getPointer();
     }
 
     /// Return true for a valid index.
+    /// @return True if this index is valid.
     explicit operator bool() const { return isValid(); }
 
     /// Print this index to the given raw_ostream.
+    ///
+    /// \param os stream to print to
     LLVM_ABI void print(raw_ostream &os) const;
 
     /// Dump this index to stderr.
     LLVM_ABI void dump() const;
 
     /// Compare two SlotIndex objects for equality.
+    ///
+    /// \param other index to compare against
+    /// @return True if the indexes are equal.
     bool operator==(SlotIndex other) const {
       return lie == other.lie;
     }
     /// Compare two SlotIndex objects for inequality.
+    ///
+    /// \param other index to compare against
+    /// @return True if the indexes are not equal.
     bool operator!=(SlotIndex other) const {
       return lie != other.lie;
     }
 
     /// Compare two SlotIndex objects. Return true if the first index
     /// is strictly lower than the second.
+    ///
+    /// \param other index to compare against
+    /// @return True if this index is strictly less than \p other.
     bool operator<(SlotIndex other) const {
       return getIndex() < other.getIndex();
     }
     /// Compare two SlotIndex objects. Return true if the first index
     /// is lower than, or equal to, the second.
+    ///
+    /// \param other index to compare against
+    /// @return True if this index is less than or equal to \p other.
     bool operator<=(SlotIndex other) const {
       return getIndex() <= other.getIndex();
     }
 
     /// Compare two SlotIndex objects. Return true if the first index
     /// is greater than the second.
+    ///
+    /// \param other index to compare against
+    /// @return True if this index is greater than \p other.
     bool operator>(SlotIndex other) const {
       return getIndex() > other.getIndex();
     }
 
     /// Compare two SlotIndex objects. Return true if the first index
     /// is greater than, or equal to, the second.
+    ///
+    /// \param other index to compare against
+    /// @return True if this index is greater than or equal to \p other.
     bool operator>=(SlotIndex other) const {
       return getIndex() >= other.getIndex();
     }
 
     /// isSameInstr - Return true if A and B refer to the same instruction.
+    ///
+    /// \param A first index
+    /// \param B second index
+    /// @return True if \p A and \p B refer to the same instruction.
     static bool isSameInstr(SlotIndex A, SlotIndex B) {
       return A.listEntry() == B.listEntry();
     }
 
     /// isEarlierInstr - Return true if A refers to an instruction earlier than
     /// B. This is equivalent to A < B && !isSameInstr(A, B).
+    ///
+    /// \param A first index
+    /// \param B second index
+    /// @return True if \p A refers to an instruction earlier than \p B.
     static bool isEarlierInstr(SlotIndex A, SlotIndex B) {
       return A.listEntry()->getIndex() < B.listEntry()->getIndex();
     }
 
     /// Return true if A refers to the same instruction as B or an earlier one.
     /// This is equivalent to !isEarlierInstr(B, A).
+    ///
+    /// \param A first index
+    /// \param B second index
+    /// @return True if \p A refers to the same or an earlier instruction than \p B.
     static bool isEarlierEqualInstr(SlotIndex A, SlotIndex B) {
       return !isEarlierInstr(B, A);
     }
 
     /// Return the distance from this index to the given one.
+    ///
+    /// \param other index to measure distance to
+    /// @return Distance from this index to \p other.
     int distance(SlotIndex other) const {
       return other.getIndex() - getIndex();
     }
 
+    /// Return the approximate instruction distance to \p other.
+    ///
     /// Return the scaled distance from this index to the given one, where all
     /// slots on the same instruction have zero distance, assuming that the slot
     /// indices are packed as densely as possible. There are normally gaps
     /// between instructions, so this assumption often doesn't hold. This
     /// results in this function often returning a value greater than the actual
     /// instruction distance.
+    ///
+    /// \param other index to measure distance to
+    /// @return Approximate instruction distance to \p other.
     int getApproxInstrDistance(SlotIndex other) const {
       return (other.listEntry()->getIndex() - listEntry()->getIndex())
         / Slot_Count;
     }
 
     /// isBlock - Returns true if this is a block boundary slot.
+    /// @return True if this is a block boundary slot.
     bool isBlock() const { return getSlot() == Slot_Block; }
 
     /// isEarlyClobber - Returns true if this is an early-clobber slot.
+    /// @return True if this is an early-clobber slot.
     bool isEarlyClobber() const { return getSlot() == Slot_EarlyClobber; }
 
     /// isRegister - Returns true if this is a normal register use/def slot.
     /// Note that early-clobber slots may also be used for uses and defs.
+    /// @return True if this is a normal register use/def slot.
     bool isRegister() const { return getSlot() == Slot_Register; }
 
     /// isDead - Returns true if this is a dead def kill slot.
+    /// @return True if this is a dead def kill slot.
     bool isDead() const { return getSlot() == Slot_Dead; }
 
-    /// Returns the base index for associated with this index. The base index
-    /// is the one associated with the Slot_Block slot for the instruction
-    /// pointed to by this index.
+    /// Returns the base index associated with this index.
+    ///
+    /// The base index is the one associated with the Slot_Block slot for the
+    /// instruction pointed to by this index.
+    /// @return The Slot_Block base SlotIndex for this instruction.
     SlotIndex getBaseIndex() const {
       return SlotIndex(listEntry(), Slot_Block);
     }
 
-    /// Returns the boundary index for associated with this index. The boundary
-    /// index is the one associated with the Slot_Block slot for the instruction
-    /// pointed to by this index.
+    /// Returns the boundary index associated with this index.
+    ///
+    /// The boundary index is the one associated with the Slot_Dead slot for the
+    /// instruction pointed to by this index.
+    /// @return The Slot_Dead boundary SlotIndex for this instruction.
     SlotIndex getBoundaryIndex() const {
       return SlotIndex(listEntry(), Slot_Dead);
     }
 
     /// Returns the register use/def slot in the current instruction for a
     /// normal or early-clobber def.
+    ///
+    /// \param EC if true, return the early-clobber slot; otherwise the normal
+    ///           register slot
+    /// @return The register use/def SlotIndex for the current instruction.
     SlotIndex getRegSlot(bool EC = false) const {
       return SlotIndex(listEntry(), EC ? Slot_EarlyClobber : Slot_Register);
     }
 
     /// Returns the dead def kill slot for the current instruction.
+    /// @return The dead def kill SlotIndex for the current instruction.
     SlotIndex getDeadSlot() const {
       return SlotIndex(listEntry(), Slot_Dead);
     }
 
-    /// Returns the next slot in the index list. This could be either the
-    /// next slot for the instruction pointed to by this index or, if this
-    /// index is a STORE, the first slot for the next instruction.
+    /// Returns the next slot in the index list.
+    ///
+    /// This could be either the next slot for the instruction pointed to by
+    /// this index or, if this index is a Slot_Dead, the first slot for the next
+    /// instruction.
     /// WARNING: This method is considerably more expensive than the methods
     /// that return specific slots (getUseIndex(), etc). If you can - please
     /// use one of those methods.
+    /// @return The next SlotIndex in the index list.
     SlotIndex getNextSlot() const {
       Slot s = getSlot();
       if (s == Slot_Dead) {
@@ -257,16 +335,20 @@ class raw_ostream;
 
     /// Returns the next index. This is the index corresponding to the this
     /// index's slot, but for the next instruction.
+    /// @return The same slot on the next instruction.
     SlotIndex getNextIndex() const {
       return SlotIndex(&*++listEntry()->getIterator(), getSlot());
     }
 
-    /// Returns the previous slot in the index list. This could be either the
-    /// previous slot for the instruction pointed to by this index or, if this
-    /// index is a Slot_Block, the last slot for the previous instruction.
+    /// Returns the previous slot in the index list.
+    ///
+    /// This could be either the previous slot for the instruction pointed to by
+    /// this index or, if this index is a Slot_Block, the last slot for the
+    /// previous instruction.
     /// WARNING: This method is considerably more expensive than the methods
     /// that return specific slots (getUseIndex(), etc). If you can - please
     /// use one of those methods.
+    /// @return The previous SlotIndex in the index list.
     SlotIndex getPrevSlot() const {
       Slot s = getSlot();
       if (s == Slot_Block) {
@@ -277,16 +359,23 @@ class raw_ostream;
 
     /// Returns the previous index. This is the index corresponding to this
     /// index's slot, but for the previous instruction.
+    /// @return The same slot on the previous instruction.
     SlotIndex getPrevIndex() const {
       return SlotIndex(&*--listEntry()->getIterator(), getSlot());
     }
   };
 
+  /// Print SlotIndex \p li to stream \p os.
+  ///
+  /// \param os output stream
+  /// \param li index to print
+  /// @return The output stream \p os.
   inline raw_ostream& operator<<(raw_ostream &os, SlotIndex li) {
     li.print(os);
     return os;
   }
 
+  /// Pair of a SlotIndex and the MachineBasicBlock that starts there.
   using IdxMBBPair = std::pair<SlotIndex, MachineBasicBlock *>;
 
   /// SlotIndexes pass.
@@ -335,45 +424,71 @@ class raw_ostream;
     LLVM_ABI void renumberIndexes(IndexList::iterator curItr);
 
   public:
-    SlotIndexes(SlotIndexes &&) = default;
+    /// Move-construct slot indexes from another instance.
+    ///
+    /// \param Other Slot indexes to move from.
+    SlotIndexes(SlotIndexes &&Other) = default;
 
+    /// Construct and analyze slot indexes for machine function \p MF.
+    ///
+    /// \param MF machine function to analyze
     SlotIndexes(MachineFunction &MF) { analyze(MF); }
 
+    /// Destroy the slot indexes analysis results.
     LLVM_ABI ~SlotIndexes();
 
+    /// Clear and reanalyze slot indexes for machine function \p MF.
+    ///
+    /// \param MF machine function to reanalyze
     void reanalyze(MachineFunction &MF) {
       clear();
       analyze(MF);
     }
 
+    /// Print the slot indexes to stream \p OS.
+    ///
+    /// \param OS output stream
     LLVM_ABI void print(raw_ostream &OS) const;
 
     /// Dump the indexes.
     LLVM_ABI void dump() const;
 
     /// Repair indexes after adding and removing instructions.
+    ///
+    /// \param MBB basic block containing the range to repair
+    /// \param Begin start of the iterator range to repair
+    /// \param End end of the iterator range to repair
     LLVM_ABI void repairIndexesInRange(MachineBasicBlock *MBB,
                                        MachineBasicBlock::iterator Begin,
                                        MachineBasicBlock::iterator End);
 
     /// Returns the zero index for this analysis.
+    /// @return The zero SlotIndex for this analysis.
     SlotIndex getZeroIndex() {
       assert(indexList.front().getIndex() == 0 && "First index is not 0?");
       return SlotIndex(&indexList.front(), 0);
     }
 
     /// Returns the base index of the last slot in this analysis.
+    /// @return The base SlotIndex of the last slot in this analysis.
     SlotIndex getLastIndex() {
       return SlotIndex(&indexList.back(), 0);
     }
 
     /// Returns true if the given machine instr is mapped to an index,
     /// otherwise returns false.
+    ///
+    /// \param instr instruction to query
+    /// @return True if \p instr is mapped to an index.
     bool hasIndex(const MachineInstr &instr) const {
       return mi2iMap.count(&instr);
     }
 
     /// Returns the base index for the given instruction.
+    ///
+    /// \param MI instruction to look up
+    /// \param IgnoreBundle if true, index \p MI itself rather than its bundle
+    /// @return The base SlotIndex for \p MI.
     SlotIndex getInstructionIndex(const MachineInstr &MI,
                                   bool IgnoreBundle = false) const {
       // Instructions inside a bundle have the same number as the bundle itself.
@@ -392,12 +507,18 @@ class raw_ostream;
 
     /// Returns the instruction for the given index, or null if the given
     /// index has no instruction associated with it.
+    ///
+    /// \param index slot index to look up
+    /// @return The MachineInstr for \p index, or null if none is associated.
     MachineInstr* getInstructionFromIndex(SlotIndex index) const {
       return index.listEntry()->getInstr();
     }
 
     /// Returns the next non-null index, if one exists.
     /// Otherwise returns getLastIndex().
+    ///
+    /// \param Index starting index
+    /// @return The next non-null SlotIndex, or getLastIndex() if none exists.
     SlotIndex getNextNonNullIndex(SlotIndex Index) {
       IndexList::iterator I = Index.listEntry()->getIterator();
       IndexList::iterator E = indexList.end();
@@ -411,6 +532,9 @@ class raw_ostream;
     /// getIndexBefore - Returns the index of the last indexed instruction
     /// before MI, or the start index of its basic block.
     /// MI is not required to have an index.
+    ///
+    /// \param MI instruction to search before
+    /// @return Index of the last indexed instruction before \p MI, or the MBB start index.
     SlotIndex getIndexBefore(const MachineInstr &MI) const {
       const MachineBasicBlock *MBB = MI.getParent();
       assert(MBB && "MI must be inserted in a basic block");
@@ -430,6 +554,9 @@ class raw_ostream;
     /// getIndexAfter - Returns the index of the first indexed instruction
     /// after MI, or the end index of its basic block.
     /// MI is not required to have an index.
+    ///
+    /// \param MI instruction to search after
+    /// @return Index of the first indexed instruction after \p MI, or the MBB end index.
     SlotIndex getIndexAfter(const MachineInstr &MI) const {
       const MachineBasicBlock *MBB = MI.getParent();
       assert(MBB && "MI must be inserted in a basic block");
@@ -447,28 +574,41 @@ class raw_ostream;
     }
 
     /// Return the (start,end) range of the given basic block.
+    ///
+    /// \param MBB basic block to query
+    /// @return Pair of (start, end) SlotIndexes for \p MBB.
     const std::pair<SlotIndex, SlotIndex> &
     getMBBRange(const MachineBasicBlock *MBB) const {
       return MBBRanges[MBB->getAnalysisNumber()];
     }
 
     /// Returns the first index in the given basic block.
+    ///
+    /// \param mbb basic block to query
+    /// @return The first SlotIndex in \p mbb.
     SlotIndex getMBBStartIdx(const MachineBasicBlock *mbb) const {
       return getMBBRange(mbb).first;
     }
 
     /// Returns the index past the last valid index in the given basic block.
+    ///
+    /// \param mbb basic block to query
+    /// @return The SlotIndex past the last valid index in \p mbb.
     SlotIndex getMBBEndIdx(const MachineBasicBlock *mbb) const {
       return getMBBRange(mbb).second;
     }
 
     /// Returns the last valid index in the given basic block.
+    ///
     /// This index corresponds to the dead slot of the last non-debug
     /// instruction and can be used to find live-out ranges of the block. Note
     /// that getMBBEndIdx returns the start index of the next block, which is
     /// also used as the start index for segments with phi-def values. If the
     /// basic block doesn't contain any non-debug instructions, this returns
     /// the same as getMBBStartIdx.getDeadSlot().
+    ///
+    /// \param MBB basic block to query
+    /// @return The last valid SlotIndex in \p MBB.
     SlotIndex getMBBLastIdx(const MachineBasicBlock *MBB) const {
       return getMBBEndIdx(MBB).getPrevSlot();
     }
@@ -477,21 +617,34 @@ class raw_ostream;
     /// begin and basic block)
     using MBBIndexIterator = SmallVectorImpl<IdxMBBPair>::const_iterator;
 
+    /// Get a lower-bound iterator into idx2MBBMap for \p Idx.
+    ///
     /// Get an iterator pointing to the first IdxMBBPair with SlotIndex greater
     /// than or equal to \p Idx. If \p Start is provided, only search the range
     /// from \p Start to the end of the function.
+    ///
+    /// \param Start iterator at which to begin the search
+    /// \param Idx slot index to search for
+    /// @return Lower-bound iterator into idx2MBBMap for \p Idx.
     MBBIndexIterator getMBBLowerBound(MBBIndexIterator Start,
                                       SlotIndex Idx) const {
       return std::lower_bound(
           Start, MBBIndexEnd(), Idx,
           [](const IdxMBBPair &IM, SlotIndex Idx) { return IM.first < Idx; });
     }
+    /// Get a lower-bound iterator into idx2MBBMap for \p Idx.
+    ///
+    /// \param Idx slot index to search for
+    /// @return Lower-bound iterator into idx2MBBMap for \p Idx.
     MBBIndexIterator getMBBLowerBound(SlotIndex Idx) const {
       return getMBBLowerBound(MBBIndexBegin(), Idx);
     }
 
     /// Get an iterator pointing to the first IdxMBBPair with SlotIndex greater
     /// than \p Idx.
+    ///
+    /// \param Idx slot index to search for
+    /// @return Iterator to the first IdxMBBPair with SlotIndex greater than \p Idx.
     MBBIndexIterator getMBBUpperBound(SlotIndex Idx) const {
       return std::upper_bound(
           MBBIndexBegin(), MBBIndexEnd(), Idx,
@@ -499,16 +652,21 @@ class raw_ostream;
     }
 
     /// Returns an iterator for the begin of the idx2MBBMap.
+    /// @return Begin iterator for the idx2MBBMap.
     MBBIndexIterator MBBIndexBegin() const {
       return idx2MBBMap.begin();
     }
 
     /// Return an iterator for the end of the idx2MBBMap.
+    /// @return End iterator for the idx2MBBMap.
     MBBIndexIterator MBBIndexEnd() const {
       return idx2MBBMap.end();
     }
 
     /// Returns the basic block which the given index falls in.
+    ///
+    /// \param index slot index to look up
+    /// @return The MachineBasicBlock containing \p index.
     MachineBasicBlock* getMBBFromIndex(SlotIndex index) const {
       if (MachineInstr *MI = getInstructionFromIndex(index))
         return MI->getParent();
@@ -520,11 +678,16 @@ class raw_ostream;
       return I->second;
     }
 
-    /// Insert the given machine instruction into the mapping. Returns the
-    /// assigned index.
+    /// Insert the given machine instruction into the mapping.
+    ///
+    /// Returns the assigned index.
     /// If Late is set and there are null indexes between mi's neighboring
     /// instructions, create the new index after the null indexes instead of
     /// before them.
+    ///
+    /// \param MI instruction to insert into the maps
+    /// \param Late if true, prefer placing the new index after null indexes
+    /// @return The SlotIndex assigned to \p MI.
     SlotIndex insertMachineInstrInMaps(MachineInstr &MI, bool Late = false) {
       assert(!MI.isInsideBundle() &&
              "Instructions inside bundles should use bundle start's slot.");
@@ -566,22 +729,33 @@ class raw_ostream;
     }
 
     /// Removes machine instruction (bundle) \p MI from the mapping.
+    ///
     /// This should be called before MachineInstr::eraseFromParent() is used to
     /// remove a whole bundle or an unbundled instruction.
     /// If \p AllowBundled is set then this can be used on a bundled
     /// instruction; however, this exists to support handleMoveIntoBundle,
     /// and in general removeSingleMachineInstrFromMaps should be used instead.
+    ///
+    /// \param MI instruction (or bundle) to remove from the maps
+    /// \param AllowBundled allow removing an instruction that is inside a
+    ///                     bundle
     LLVM_ABI void removeMachineInstrFromMaps(MachineInstr &MI,
                                              bool AllowBundled = false);
 
     /// Removes a single machine instruction \p MI from the mapping.
+    ///
     /// This should be called before MachineInstr::eraseFromBundle() is used to
     /// remove a single instruction (out of a bundle).
+    ///
+    /// \param MI instruction to remove from the maps
     LLVM_ABI void removeSingleMachineInstrFromMaps(MachineInstr &MI);
 
     /// ReplaceMachineInstrInMaps - Replacing a machine instr with a new one in
     /// maps used by register allocator. \returns the index where the new
     /// instruction was inserted.
+    ///
+    /// \param MI instruction currently in the maps
+    /// \param NewMI instruction that replaces \p MI
     SlotIndex replaceMachineInstrInMaps(MachineInstr &MI, MachineInstr &NewMI) {
       Mi2IndexMap::iterator mi2iItr = mi2iMap.find(&MI);
       if (mi2iItr == mi2iMap.end())
@@ -597,9 +771,12 @@ class raw_ostream;
     }
 
     /// Add the given MachineBasicBlock into the maps.
+    ///
     /// If it contains any instructions then they must already be in the maps.
     /// This is used after a block has been split by moving some suffix of its
     /// instructions into a newly created block.
+    ///
+    /// \param mbb basic block to insert into the maps
     void insertMBBInMaps(MachineBasicBlock *mbb) {
       assert(mbb != &mbb->getParent()->front() &&
              "Can't insert a new block at the beginning of a function.");
@@ -633,46 +810,76 @@ class raw_ostream;
     LLVM_ABI void packIndexes();
   };
 
-  // Specialize IntervalMapInfo for half-open slot index intervals.
+  /// Traits specializing IntervalMap for half-open SlotIndex intervals.
   template <>
   struct IntervalMapInfo<SlotIndex> : IntervalMapHalfOpenInfo<SlotIndex> {
   };
 
+  /// Analysis pass that computes SlotIndexes for a MachineFunction.
   class SlotIndexesAnalysis : public AnalysisInfoMixin<SlotIndexesAnalysis> {
     friend AnalysisInfoMixin<SlotIndexesAnalysis>;
     LLVM_ABI static AnalysisKey Key;
 
   public:
+    /// Result type produced by this analysis.
     using Result = SlotIndexes;
-    LLVM_ABI Result run(MachineFunction &MF, MachineFunctionAnalysisManager &);
+    /// Run the SlotIndexes analysis on \p MF.
+    ///
+    /// \param MF machine function to analyze
+    /// \param MFAM analysis manager (unused)
+    /// @return Computed SlotIndexes for \p MF.
+    LLVM_ABI Result run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
   };
 
+  /// Printer pass for the SlotIndexes analysis.
   class SlotIndexesPrinterPass
       : public RequiredPassInfoMixin<SlotIndexesPrinterPass> {
     raw_ostream &OS;
 
   public:
+    /// Construct a printer that writes SlotIndexes to \p OS.
+    ///
+    /// \param OS output stream
     explicit SlotIndexesPrinterPass(raw_ostream &OS) : OS(OS) {}
+    /// Print SlotIndexes for \p MF and preserve all analyses.
+    ///
+    /// \param MF machine function to print
+    /// \param MFAM analysis manager providing SlotIndexes
+    /// @return PreservedAnalyses::all(), since printing does not mutate IR.
     LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                    MachineFunctionAnalysisManager &MFAM);
   };
 
+  /// Legacy MachineFunctionPass wrapper around SlotIndexes.
   class LLVM_ABI SlotIndexesWrapperPass : public MachineFunctionPass {
     SlotIndexes SI;
 
   public:
+    /// Pass identification, replacement for typeid.
     static char ID;
 
+    /// Construct the legacy SlotIndexes wrapper pass.
     SlotIndexesWrapperPass();
 
+    /// Specify that this pass preserves all analyses.
+    ///
+    /// \param au analysis usage to update
     void getAnalysisUsage(AnalysisUsage &au) const override;
+    /// Release memory held by the SlotIndexes analysis.
     void releaseMemory() override { SI.clear(); }
 
+    /// Run SlotIndexes analysis on machine function \p fn.
+    ///
+    /// \param fn machine function to analyze
+    /// @return False; this analysis does not modify the function.
     bool runOnMachineFunction(MachineFunction &fn) override {
       SI.analyze(fn);
       return false;
     }
 
+    /// Return the SlotIndexes analysis result.
+    /// @return Reference to the SlotIndexes analysis result.
     SlotIndexes &getSI() { return SI; }
   };
 

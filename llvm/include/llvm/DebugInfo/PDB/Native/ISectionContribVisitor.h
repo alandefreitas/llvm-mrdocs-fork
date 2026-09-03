@@ -15,11 +15,20 @@ namespace pdb {
 struct SectionContrib;
 struct SectionContrib2;
 
+/// Interface for visiting section contribution records from a PDB DBI stream.
 class ISectionContribVisitor {
 public:
+  /// Destroy the section contribution visitor.
   virtual ~ISectionContribVisitor() = default;
 
+  /// Visit a version-1 section contribution record.
+  ///
+  /// \param C The section contribution to visit.
   virtual void visit(const SectionContrib &C) = 0;
+
+  /// Visit a version-2 section contribution record.
+  ///
+  /// \param C The section contribution to visit.
   virtual void visit(const SectionContrib2 &C) = 0;
 };
 

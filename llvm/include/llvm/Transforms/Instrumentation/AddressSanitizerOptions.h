@@ -21,8 +21,8 @@ enum class AsanDtorKind {
 
 /// Types of ASan module constructors supported
 enum class AsanCtorKind {
-  None,
-  Global
+  None,   ///< Do not emit any constructors for ASan
+  Global, ///< Append to llvm.global_ctors
 };
 
 /// Mode of ASan detect stack use after return

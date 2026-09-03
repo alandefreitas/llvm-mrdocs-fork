@@ -18,18 +18,25 @@ namespace llvm {
 
 /// Enumeration to track whether we are interested in Undef, Poison, or both.
 enum class UndefPoisonKind {
+  /// Interest in poison values only.
   PoisonOnly = (1 << 0),
+  /// Interest in undef values only.
   UndefOnly = (1 << 1),
+  /// Interest in either undef or poison values.
   UndefOrPoison = PoisonOnly | UndefOnly,
 };
 
 /// Returns true if \p Kind includes the Poison bit.
+/// \param Kind Undef/poison interest flags to test.
+/// \return True if \p Kind includes the Poison bit.
 inline bool includesPoison(UndefPoisonKind Kind) {
   return (static_cast<unsigned>(Kind) &
           static_cast<unsigned>(UndefPoisonKind::PoisonOnly)) != 0;
 }
 
 /// Returns true if \p Kind includes the Undef bit.
+/// \param Kind Undef/poison interest flags to test.
+/// \return True if \p Kind includes the Undef bit.
 inline bool includesUndef(UndefPoisonKind Kind) {
   return (static_cast<unsigned>(Kind) &
           static_cast<unsigned>(UndefPoisonKind::UndefOnly)) != 0;

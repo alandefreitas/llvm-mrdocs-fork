@@ -28,25 +28,36 @@ class TargetMachine;
 
 namespace orc {
 
+/// Build IR mangling options from the given target options.
+/// \param Opts Target options to derive mangling options from.
+/// \return Mangling options derived from \p Opts.
 LLVM_ABI IRSymbolMapper::ManglingOptions
 irManglingOptionsFromTargetOptions(const TargetOptions &Opts);
 
-/// Simple compile functor: Takes a single IR module and returns an ObjectFile.
-/// This compiler supports a single compilation thread and LLVMContext only.
-/// For multithreaded compilation, use ConcurrentIRCompiler below.
+/// Compile functor that turns one IR module into an object file.
+///
+/// Takes a single IR module and returns an ObjectFile. This compiler supports
+/// a single compilation thread and LLVMContext only. For multithreaded
+/// compilation, use ConcurrentIRCompiler below.
 class LLVM_ABI SimpleCompiler : public IRCompileLayer::IRCompiler {
 public:
+  /// Memory buffer holding a compiled object file.
   using CompileResult = std::unique_ptr<MemoryBuffer>;
 
   /// Construct a simple compile functor with the given target.
+  /// \param TM Target machine used for compilation.
+  /// \param ObjCache Optional object cache to query before compiling.
   SimpleCompiler(TargetMachine &TM, ObjectCache *ObjCache = nullptr)
       : IRCompiler(irManglingOptionsFromTargetOptions(TM.Options)), TM(TM),
         ObjCache(ObjCache) {}
 
   /// Set an ObjectCache to query before compiling.
+  /// \param NewCache Object cache to use, or nullptr to disable caching.
   void setObjectCache(ObjectCache *NewCache) { ObjCache = NewCache; }
 
   /// Compile a Module to an ObjectFile.
+  /// \param M Module to compile.
+  /// \return Memory buffer holding the compiled object file, or an error.
   Expected<CompileResult> operator()(Module &M) override;
 
 private:
@@ -66,6 +77,9 @@ private:
 /// e.g. LLJIT.
 class TMOwningSimpleCompiler : public SimpleCompiler {
 public:
+  /// Construct a SimpleCompiler that takes ownership of \p TM.
+  /// \param TM Target machine to own and use for compilation.
+  /// \param ObjCache Optional object cache to query before compiling.
   TMOwningSimpleCompiler(std::unique_ptr<TargetMachine> TM,
                          ObjectCache *ObjCache = nullptr)
       : SimpleCompiler(*TM, ObjCache), TM(std::move(TM)) {}
@@ -82,11 +96,19 @@ private:
 /// compile.
 class LLVM_ABI ConcurrentIRCompiler : public IRCompileLayer::IRCompiler {
 public:
+  /// Construct a ConcurrentIRCompiler from a JIT target machine builder.
+  /// \param JTMB Builder used to create a TargetMachine per compile.
+  /// \param ObjCache Optional object cache to query before compiling.
   ConcurrentIRCompiler(JITTargetMachineBuilder JTMB,
                        ObjectCache *ObjCache = nullptr);
 
+  /// Set an ObjectCache to query before compiling.
+  /// \param ObjCache Object cache to use, or nullptr to disable caching.
   void setObjectCache(ObjectCache *ObjCache) { this->ObjCache = ObjCache; }
 
+  /// Compile a Module to an ObjectFile on a fresh TargetMachine.
+  /// \param M Module to compile.
+  /// \return Memory buffer holding the compiled object file, or an error.
   Expected<std::unique_ptr<MemoryBuffer>> operator()(Module &M) override;
 
 private:

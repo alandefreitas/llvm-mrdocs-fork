@@ -18,11 +18,21 @@
 
 namespace llvm {
 
+/// Traits describing how to obtain the size and bytes of a stream item.
 template <typename T> struct BinaryItemTraits {
+  /// Return the length in bytes of \p Item.
+  ///
+  /// \param Item The item whose length is requested.
   static size_t length(const T &Item) = delete;
+
+  /// Return the bytes that make up \p Item.
+  ///
+  /// \param Item The item whose bytes are requested.
   static ArrayRef<uint8_t> bytes(const T &Item) = delete;
 };
 
+/// A BinaryStream over a sequence of items from an external container.
+///
 /// BinaryItemStream represents a sequence of objects stored in some kind of
 /// external container but for which it is useful to view as a stream of
 /// contiguous bytes.  An example of this might be if you have a collection of
@@ -33,10 +43,24 @@ template <typename T> struct BinaryItemTraits {
 template <typename T, typename Traits = BinaryItemTraits<T>>
 class BinaryItemStream : public BinaryStream {
 public:
+  /// Construct a BinaryItemStream with the given endianness.
+  ///
+  /// \param Endian Endianness of multi-byte values in the stream.
   explicit BinaryItemStream(llvm::endianness Endian) : Endian(Endian) {}
 
+  /// Return the endianness of multi-byte values in this stream.
+  ///
+  /// \returns The endianness of multi-byte values in this stream.
   llvm::endianness getEndian() const override { return Endian; }
 
+  /// Read \p Size bytes starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Size Number of bytes to read.
+  /// \param Buffer Set to the requested slice of the item that contains
+  ///        \p Offset.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error readBytes(uint64_t Offset, uint64_t Size,
                   ArrayRef<uint8_t> &Buffer) override {
     auto ExpectedIndex = translateOffsetIndex(Offset);
@@ -51,6 +75,12 @@ public:
     return Error::success();
   }
 
+  /// Read the longest contiguous chunk starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Buffer Set to the bytes of the item that contains \p Offset.
+  ///
+  /// \returns Error::success() on success, or an error if \p Offset is invalid.
   Error readLongestContiguousChunk(uint64_t Offset,
                                    ArrayRef<uint8_t> &Buffer) override {
     auto ExpectedIndex = translateOffsetIndex(Offset);
@@ -60,11 +90,17 @@ public:
     return Error::success();
   }
 
+  /// Replace the items that back this stream.
+  ///
+  /// \param ItemArray The items to expose as a contiguous byte stream.
   void setItems(ArrayRef<T> ItemArray) {
     Items = ItemArray;
     computeItemOffsets();
   }
 
+  /// Return the total number of bytes across all items in this stream.
+  ///
+  /// \returns The total number of bytes across all items in this stream.
   uint64_t getLength() override {
     return ItemEndOffsets.empty() ? 0 : ItemEndOffsets.back();
   }

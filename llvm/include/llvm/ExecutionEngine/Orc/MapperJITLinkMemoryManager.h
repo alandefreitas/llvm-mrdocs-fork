@@ -21,12 +21,22 @@
 namespace llvm {
 namespace orc {
 
+/// JITLinkMemoryManager that allocates memory through a MemoryMapper.
 class LLVM_ABI MapperJITLinkMemoryManager
     : public jitlink::JITLinkMemoryManager {
 public:
+  /// Create a MapperJITLinkMemoryManager with the given reservation
+  /// granularity and memory mapper.
+  /// \param ReservationGranularity Size of address-space reservation units.
+  /// \param Mapper Mapper used to reserve and map executor memory.
   MapperJITLinkMemoryManager(size_t ReservationGranularity,
                              std::unique_ptr<MemoryMapper> Mapper);
 
+  /// Create a MapperJITLinkMemoryManager that owns a newly constructed
+  /// MemoryMapper of type \p MemoryMapperType.
+  /// \param ReservationGranularity Size of address-space reservation units.
+  /// \param A Arguments forwarded to MemoryMapperType::Create.
+  /// \return A MapperJITLinkMemoryManager on success, or an error on failure.
   template <class MemoryMapperType, class... Args>
   static Expected<std::unique_ptr<MapperJITLinkMemoryManager>>
   CreateWithMapper(size_t ReservationGranularity, Args &&...A) {
@@ -38,14 +48,21 @@ public:
                                                         std::move(*Mapper));
   }
 
+  /// Allocate memory for the segments of \p G via the owned MemoryMapper.
+  /// \param JD JITLink dylib associated with the allocation, or null.
+  /// \param G Link graph whose segments are being allocated.
+  /// \param OnAllocated Continuation invoked when allocation completes.
   void allocate(const jitlink::JITLinkDylib *JD, jitlink::LinkGraph &G,
                 OnAllocatedFunction OnAllocated) override;
-  // synchronous overload
+  /// Inherit the convenience allocate overloads from the base class.
   using JITLinkMemoryManager::allocate;
 
+  /// Deallocate a list of finalized allocations via the owned MemoryMapper.
+  /// \param Allocs Finalized allocations to deallocate.
+  /// \param OnDeallocated Continuation invoked when deallocation completes.
   void deallocate(std::vector<FinalizedAlloc> Allocs,
                   OnDeallocatedFunction OnDeallocated) override;
-  // synchronous overload
+  /// Inherit the convenience deallocate overloads from the base class.
   using JITLinkMemoryManager::deallocate;
 
 private:

@@ -36,39 +36,54 @@ class raw_ostream;
 
 #ifndef NDEBUG
 
-/// isCurrentDebugType - Return true if the specified string is the debug type
-/// specified on the command line, or if none was specified on the command line
-/// with the -debug-only=X option.
-/// An optional level can be provided to control the verbosity of the output.
-/// If the provided level is not 0 and user specified a level below the provided
-/// level, return false.
+/// Return true if \p Type matches the active -debug-only filter.
+///
+/// Returns true if the specified string is the debug type specified on the
+/// command line, or if none was specified on the command line with the
+/// -debug-only=X option. An optional level can be provided to control the
+/// verbosity of the output. If the provided level is not 0 and the user
+/// specified a level below the provided level, return false.
+///
+/// \param Type Debug type name to test against the -debug-only filter.
+/// \param Level Minimum verbosity level required for a match (0 skips the
+///        level check).
+/// \return True if \p Type matches the active -debug-only filter (and level).
 LLVM_ABI bool isCurrentDebugType(const char *Type, int Level = 0);
 
-/// setCurrentDebugType - Set the current debug type, as if the -debug-only=X
-/// option were specified.  Note that DebugFlag also needs to be set to true for
-/// debug output to be produced.
-/// The debug type format is "type[:level]", where the level is an optional
-/// integer. If a level is provided, the debug output is enabled only if the
-/// user specified a level at least as high as the provided level.
-/// 0 is a special level that acts as an opt-out for this specific debug type
-/// without affecting the other debug output.
+/// Set the current debug type as if -debug-only=\p Type were specified.
+///
+/// Note that DebugFlag also needs to be set to true for debug output to be
+/// produced. The debug type format is "type[:level]", where the level is an
+/// optional integer. If a level is provided, the debug output is enabled only
+/// if the user specified a level at least as high as the provided level. 0 is
+/// a special level that acts as an opt-out for this specific debug type without
+/// affecting the other debug output.
+///
+/// \param Type Debug type string in "type[:level]" form.
 LLVM_ABI void setCurrentDebugType(const char *Type);
 
-/// setCurrentDebugTypes - Set the current debug type, as if the
-/// -debug-only=X,Y,Z option were specified. Note that DebugFlag
-/// also needs to be set to true for debug output to be produced.
+/// Set the current debug types as if -debug-only=X,Y,Z were specified.
 ///
+/// Note that DebugFlag also needs to be set to true for debug output to be
+/// produced.
+///
+/// \param Types Array of debug type strings (each may use "type[:level]").
+/// \param Count Number of entries in \p Types.
 LLVM_ABI void setCurrentDebugTypes(const char **Types, unsigned Count);
 
-/// DEBUG_WITH_TYPE macro - This macro should be used by passes to emit debug
-/// information.  If the '-debug' option is specified on the commandline, and if
-/// this is a debug build, then the code specified as the option to the macro
-/// will be executed.  Otherwise it will not be.  Example:
+/// Execute \p __VA_ARGS__ when -debug is enabled for \p TYPE.
+///
+/// This macro should be used by passes to emit debug information. If the
+/// '-debug' option is specified on the command line, and if this is a debug
+/// build, then the code specified as the option to the macro will be executed.
+/// Otherwise it will not be. Example:
 ///
 /// DEBUG_WITH_TYPE("bitset", dbgs() << "Bitset contains: " << Bitset << "\n");
 ///
 /// This will emit the debug information if -debug is present, and -debug-only
 /// is not specified, or is specified as "bitset".
+///
+/// \param TYPE Debug type name that must match the -debug-only filter.
 #define DEBUG_WITH_TYPE(TYPE, ...)                                             \
   do {                                                                         \
     if (::llvm::DebugFlag && ::llvm::isCurrentDebugType(TYPE, 1)) {            \
@@ -85,23 +100,24 @@ LLVM_ABI void setCurrentDebugTypes(const char **Types, unsigned Count);
   } while (false)
 #endif
 
-/// This boolean is set to true if the '-debug' command line option
-/// is specified.  This should probably not be referenced directly, instead, use
-/// the DEBUG macro below.
+/// True when the '-debug' command line option is specified.
 ///
+/// This should probably not be referenced directly; instead, use the DEBUG
+/// macro below.
 LLVM_ABI extern bool DebugFlag;
 
-/// EnableDebugBuffering - This defaults to false.  If true, the debug
-/// stream will install signal handlers to dump any buffered debug
-/// output.  It allows clients to selectively allow the debug stream
-/// to install signal handlers if they are certain there will be no
-/// conflict.
+/// When true, the debug stream installs signal handlers to dump buffered output.
 ///
+/// Defaults to false. Clients can selectively allow the debug stream to
+/// install signal handlers if they are certain there will be no conflict.
 LLVM_ABI extern bool EnableDebugBuffering;
 
 /// dbgs() - This returns a reference to a raw_ostream for debugging
 /// messages.  If debugging is disabled it returns errs().  Use it
 /// like: dbgs() << "foo" << "bar";
+///
+/// \return A reference to the debug stream, or \c errs() when debugging is
+///         disabled.
 LLVM_ABI raw_ostream &dbgs();
 
 /// If EnableDebugBuffering is true, this flushes the debug stream with

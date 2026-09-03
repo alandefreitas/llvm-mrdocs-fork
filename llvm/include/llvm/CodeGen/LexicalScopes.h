@@ -43,6 +43,12 @@ using InsnRange = std::pair<const MachineInstr *, const MachineInstr *>;
 ///
 class LexicalScope {
 public:
+  /// Construct a lexical scope under \p P for descriptor \p D.
+  ///
+  /// \param P Parent scope, or nullptr for a top-level scope.
+  /// \param D Debug-info local scope descriptor for this scope.
+  /// \param I Inlined-at location, or nullptr if not inlined.
+  /// \param A True if this is an abstract scope.
   LexicalScope(LexicalScope *P, const DILocalScope *D, const DILocation *I,
                bool A)
       : Parent(P), Desc(D), InlinedAtLocation(I), AbstractScope(A) {
@@ -56,22 +62,52 @@ public:
       Parent->addChild(this);
   }
 
-  LexicalScope(const LexicalScope &) = delete;
-  LexicalScope &operator=(const LexicalScope &) = delete;
+  /// Deleted copy constructor; LexicalScope is not copyable.
+  ///
+  /// \param RHS Unused; copy construction is deleted.
+  LexicalScope(const LexicalScope &RHS) = delete;
+  /// Deleted copy assignment; LexicalScope is not copyable.
+  ///
+  /// \param RHS Unused; copy assignment is deleted.
+  LexicalScope &operator=(const LexicalScope &RHS) = delete;
 
-  // Accessors.
+  /// Return the parent of this lexical scope, or nullptr if none.
+  ///
+  /// \return Parent lexical scope, or nullptr if this is a top-level scope.
   LexicalScope *getParent() const { return Parent; }
+  /// Return the debug-info descriptor associated with this scope.
+  ///
+  /// \return Debug-info local scope descriptor for this scope.
   const MDNode *getDesc() const { return Desc; }
+  /// Return the inlined-at location for this scope, or nullptr if not inlined.
+  ///
+  /// \return Inlined-at location, or nullptr if this scope is not inlined.
   const DILocation *getInlinedAt() const { return InlinedAtLocation; }
+  /// Return the DILocalScope node that describes this lexical scope.
+  ///
+  /// \return DILocalScope node describing this lexical scope.
   const DILocalScope *getScopeNode() const { return Desc; }
+  /// Return true if this is an abstract lexical scope.
+  ///
+  /// \return True if this is an abstract lexical scope.
   bool isAbstractScope() const { return AbstractScope; }
+  /// Return the child scopes nested under this scope.
+  ///
+  /// \return Mutable list of child scopes nested under this scope.
   SmallVectorImpl<LexicalScope *> &getChildren() { return Children; }
+  /// Return the instruction ranges covered by this scope.
+  ///
+  /// \return Mutable list of instruction ranges covered by this scope.
   SmallVectorImpl<InsnRange> &getRanges() { return Ranges; }
 
   /// Add a child scope.
+  ///
+  /// \param S Child lexical scope to attach under this scope.
   void addChild(LexicalScope *S) { Children.push_back(S); }
 
   /// This scope covers instruction range starting from MI.
+  ///
+  /// \param MI First machine instruction in the opened range.
   void openInsnRange(const MachineInstr *MI) {
     if (!FirstInsn)
       FirstInsn = MI;
@@ -81,6 +117,8 @@ public:
   }
 
   /// Extend the current instruction range covered by this scope.
+  ///
+  /// \param MI Machine instruction that extends the open range.
   void extendInsnRange(const MachineInstr *MI) {
     assert(FirstInsn && "MI Range is not open!");
     LastInsn = MI;
@@ -91,6 +129,8 @@ public:
   /// Create a range based on FirstInsn and LastInsn collected until now.
   /// This is used when a new scope is encountered while walking machine
   /// instructions.
+  ///
+  /// \param NewScope Newly entered scope, or nullptr if closing without one.
   void closeInsnRange(LexicalScope *NewScope = nullptr) {
     assert(LastInsn && "Last insn missing!");
     Ranges.push_back(InsnRange(FirstInsn, LastInsn));
@@ -103,6 +143,9 @@ public:
   }
 
   /// Return true if current scope dominates given lexical scope.
+  ///
+  /// \param S Lexical scope to test for domination by this scope.
+  /// \return True if this scope dominates \p S.
   bool dominates(const LexicalScope *S) const {
     if (S == this)
       return true;
@@ -112,12 +155,26 @@ public:
   }
 
   // Depth First Search support to walk and manipulate LexicalScope hierarchy.
+  /// Return the DFS-out number used for scope nesting tests.
+  ///
+  /// \return DFS-out number used for scope nesting tests.
   unsigned getDFSOut() const { return DFSOut; }
+  /// Set the DFS-out number used for scope nesting tests.
+  ///
+  /// \param O DFS-out number to assign.
   void setDFSOut(unsigned O) { DFSOut = O; }
+  /// Return the DFS-in number used for scope nesting tests.
+  ///
+  /// \return DFS-in number used for scope nesting tests.
   unsigned getDFSIn() const { return DFSIn; }
+  /// Set the DFS-in number used for scope nesting tests.
+  ///
+  /// \param I DFS-in number to assign.
   void setDFSIn(unsigned I) { DFSIn = I; }
 
   /// Print lexical scope.
+  ///
+  /// \param Indent Indentation level for the dumped output.
   LLVM_ABI void dump(unsigned Indent = 0) const;
 
 private:
@@ -142,17 +199,28 @@ private:
 ///
 class LexicalScopes {
 public:
+  /// Construct an empty LexicalScopes analysis instance.
   LexicalScopes() = default;
 
-  LexicalScopes(const LexicalScopes &) = delete;
-  LexicalScopes &operator=(const LexicalScopes &) = delete;
+  /// Deleted copy constructor; LexicalScopes is not copyable.
+  ///
+  /// \param RHS Unused; copy construction is deleted.
+  LexicalScopes(const LexicalScopes &RHS) = delete;
+  /// Deleted copy assignment; LexicalScopes is not copyable.
+  ///
+  /// \param RHS Unused; copy assignment is deleted.
+  LexicalScopes &operator=(const LexicalScopes &RHS) = delete;
 
   /// Scan module to build subprogram-to-function map.
-  LLVM_ABI void initialize(const Module &);
+  ///
+  /// \param M Module whose functions are indexed by subprogram.
+  LLVM_ABI void initialize(const Module &M);
 
   /// Scan machine function and constuct lexical scope nest, resets
   /// the instance if necessary.
-  LLVM_ABI void scanFunction(const MachineFunction &);
+  ///
+  /// \param MF Machine function whose lexical scopes are collected.
+  LLVM_ABI void scanFunction(const MachineFunction &MF);
 
   /// Reset the instance so that it's prepared for another module.
   LLVM_ABI void resetModule();
@@ -160,55 +228,87 @@ public:
   /// Reset the instance so that it's prepared for another function.
   LLVM_ABI void resetFunction();
 
-  /// Return true if there is any lexical scope information available.
+  /// Return true if there is no lexical scope information available.
+  ///
+  /// \return True if no lexical scope information is available.
   bool empty() { return CurrentFnLexicalScope == nullptr; }
 
   /// Return lexical scope for the current function.
+  ///
+  /// \return Top-level lexical scope for the current function, or nullptr.
   LexicalScope *getCurrentFunctionScope() const {
     return CurrentFnLexicalScope;
   }
 
   /// Populate given set using machine basic blocks which have machine
   /// instructions that belong to lexical scope identified by DebugLoc.
+  ///
+  /// \param DL Debug location whose lexical scope selects basic blocks.
+  /// \param MBBs Set populated with dominating machine basic blocks.
   LLVM_ABI void
   getMachineBasicBlocks(const DILocation *DL,
                         SmallPtrSetImpl<const MachineBasicBlock *> &MBBs);
 
   /// Return true if DebugLoc's lexical scope dominates at least one machine
   /// instruction's lexical scope in a given machine basic block.
+  ///
+  /// \param DL Debug location whose lexical scope is the dominator.
+  /// \param MBB Machine basic block to test for a dominated instruction.
+  /// \return True if \p DL's scope dominates an instruction scope in \p MBB.
   LLVM_ABI bool dominates(const DILocation *DL, MachineBasicBlock *MBB);
 
   /// Find lexical scope, either regular or inlined, for the given DebugLoc.
   /// Return NULL if not found.
+  ///
+  /// \param DL Debug location identifying the lexical scope to find.
+  /// \return Matching lexical scope, or nullptr if not found.
   LLVM_ABI LexicalScope *findLexicalScope(const DILocation *DL);
 
   /// Return a reference to list of abstract scopes.
+  ///
+  /// \return List of abstract scopes constructed for the current function.
   ArrayRef<LexicalScope *> getAbstractScopesList() const {
     return AbstractScopesList;
   }
 
   /// Find an abstract scope or return null.
+  ///
+  /// \param N Local scope descriptor of the abstract scope to find.
+  /// \return Matching abstract lexical scope, or nullptr if not found.
   LexicalScope *findAbstractScope(const DILocalScope *N) {
     auto I = AbstractScopeMap.find(N);
     return I != AbstractScopeMap.end() ? &I->second : nullptr;
   }
 
   /// Find an inlined scope for the given scope/inlined-at.
+  ///
+  /// \param N Local scope descriptor of the inlined scope to find.
+  /// \param IA Inlined-at location paired with \p N.
+  /// \return Matching inlined lexical scope, or nullptr if not found.
   LexicalScope *findInlinedScope(const DILocalScope *N, const DILocation *IA) {
     auto I = InlinedLexicalScopeMap.find(std::make_pair(N, IA));
     return I != InlinedLexicalScopeMap.end() ? &I->second : nullptr;
   }
 
   /// Find regular lexical scope or return null.
+  ///
+  /// \param N Local scope descriptor of the regular scope to find.
+  /// \return Matching regular lexical scope, or nullptr if not found.
   LexicalScope *findLexicalScope(const DILocalScope *N) {
     auto I = LexicalScopeMap.find(N);
     return I != LexicalScopeMap.end() ? &I->second : nullptr;
   }
 
   /// Find or create an abstract lexical scope.
+  ///
+  /// \param Scope Local scope descriptor for the abstract scope.
+  /// \return Existing or newly created abstract lexical scope for \p Scope.
   LLVM_ABI LexicalScope *getOrCreateAbstractScope(const DILocalScope *Scope);
 
   /// Get function to which the given subprogram is attached, if exists.
+  ///
+  /// \param SP Subprogram whose owning function is looked up.
+  /// \return Function attached to \p SP, or nullptr if none exists.
   const Function *getFunction(const DISubprogram *SP) const {
     return FunctionMap.lookup(SP);
   }

@@ -37,10 +37,17 @@ namespace IDFCalculatorDetail {
 /// May be specialized if, for example, one wouldn't like to return nullpointer
 /// successors.
 template <class NodeTy, bool IsPostDom> struct ChildrenGetterTy {
+  /// Graph node reference type from GraphTraits.
   using NodeRef = typename GraphTraits<NodeTy *>::NodeRef;
+  /// Iterator type over the children of a node.
   using ChildIteratorType = typename GraphTraits<NodeTy *>::ChildIteratorType;
+  /// Range type covering the children of a node.
   using range = iterator_range<ChildIteratorType>;
 
+  /// Return the children of node \p N in IDF traversal order.
+  ///
+  /// \param N Node whose children are requested.
+  /// \return Range covering the children of \p N.
   range get(const NodeRef &N);
 };
 
@@ -57,31 +64,46 @@ template <class NodeTy, bool IsPostDom> struct ChildrenGetterTy {
 /// The template parameters should be of a CFG block type.
 template <class NodeTy, bool IsPostDom> class IDFCalculatorBase {
 public:
+  /// Node type oriented for dominance or post-dominance traversal.
   using OrderedNodeTy =
       std::conditional_t<IsPostDom, Inverse<NodeTy *>, NodeTy *>;
+  /// Helper that yields CFG children in the direction of the IDF walk.
   using ChildrenGetterTy =
       IDFCalculatorDetail::ChildrenGetterTy<NodeTy, IsPostDom>;
 
+  /// Construct an IDF calculator over dominator tree \p DT.
+  ///
+  /// \param DT Dominator tree used for the IDF computation.
   IDFCalculatorBase(DominatorTreeBase<NodeTy, IsPostDom> &DT) : DT(DT) {}
 
+  /// Construct an IDF calculator over \p DT with custom children getter \p C.
+  ///
+  /// \param DT Dominator tree used for the IDF computation.
+  /// \param C Children getter used instead of the default GraphTraits walk.
   IDFCalculatorBase(DominatorTreeBase<NodeTy, IsPostDom> &DT,
                     const ChildrenGetterTy &C)
       : DT(DT), ChildrenGetter(C) {}
 
-  /// Give the IDF calculator the set of blocks in which the value is
-  /// defined.  This is equivalent to the set of starting blocks it should be
-  /// calculating the IDF for (though later gets pruned based on liveness).
+  /// Set the blocks in which the value is defined.
+  ///
+  /// This is equivalent to the set of starting blocks it should be calculating
+  /// the IDF for (though later gets pruned based on liveness).
   ///
   /// Note: This set *must* live for the entire lifetime of the IDF calculator.
+  ///
+  /// \param Blocks Blocks that define the value (IDF seeds).
   void setDefiningBlocks(const SmallPtrSetImpl<NodeTy *> &Blocks) {
     DefBlocks = &Blocks;
   }
 
-  /// Give the IDF calculator the set of blocks in which the value is
-  /// live on entry to the block.   This is used to prune the IDF calculation to
-  /// not include blocks where any phi insertion would be dead.
+  /// Set the blocks in which the value is live on entry.
+  ///
+  /// This is used to prune the IDF calculation to not include blocks where any
+  /// phi insertion would be dead.
   ///
   /// Note: This set *must* live for the entire lifetime of the IDF calculator.
+  ///
+  /// \param Blocks Blocks where the value is live on entry.
   void setLiveInBlocks(const SmallPtrSetImpl<NodeTy *> &Blocks) {
     LiveInBlocks = &Blocks;
     useLiveIn = true;
@@ -94,12 +116,14 @@ public:
     useLiveIn = false;
   }
 
-  /// Calculate iterated dominance frontiers
+  /// Calculate iterated dominance frontiers.
   ///
   /// This uses the linear-time phi algorithm based on DJ-graphs mentioned in
   /// the file-level comment.  It performs DF->IDF pruning using the live-in
   /// set, to avoid computing the IDF for blocks where an inserted PHI node
   /// would be dead.
+  ///
+  /// \param IDFBlocks Output vector filled with IDF blocks.
   void calculate(SmallVectorImpl<NodeTy *> &IDFBlocks);
 
 private:

@@ -84,6 +84,7 @@ public:
   }
 
   /// Set every bit to one and return this bitset.
+  /// @return This bitset.
   constexpr Bitset &set() {
     constexpr const BitWord AllOnes = ~BitWord(0);
     for (BitWord &B : Bits)
@@ -94,6 +95,7 @@ public:
 
   /// Set bit \p I and return this bitset.
   /// @param I Bit index to set.
+  /// @return This bitset.
   constexpr Bitset &set(unsigned I) {
     Bits[I / BitwordBits] |= BitWord(1) << (I % BitwordBits);
     return *this;
@@ -101,6 +103,7 @@ public:
 
   /// Clear bit \p I and return this bitset.
   /// @param I Bit index to clear.
+  /// @return This bitset.
   constexpr Bitset &reset(unsigned I) {
     Bits[I / BitwordBits] &= ~(BitWord(1) << (I % BitwordBits));
     return *this;
@@ -108,6 +111,7 @@ public:
 
   /// Toggle bit \p I and return this bitset.
   /// @param I Bit index to flip.
+  /// @return This bitset.
   constexpr Bitset &flip(unsigned I) {
     Bits[I / BitwordBits] ^= BitWord(1) << (I % BitwordBits);
     return *this;
@@ -115,6 +119,7 @@ public:
 
   /// Return the value of bit \p I.
   /// @param I Bit index to read.
+  /// @return True if bit \p I is set.
   constexpr bool operator[](unsigned I) const {
     BitWord Mask = BitWord(1) << (I % BitwordBits);
     return (Bits[I / BitwordBits] & Mask) != 0;
@@ -122,12 +127,15 @@ public:
 
   /// Return true if bit \p I is set.
   /// @param I Bit index to test.
+  /// @return True if bit \p I is set.
   constexpr bool test(unsigned I) const { return (*this)[I]; }
 
   /// Return the fixed number of bits in this bitset.
+  /// @return The number of bits (\c NumBits).
   constexpr size_t size() const { return NumBits; }
 
   /// Return true if at least one bit is set.
+  /// @return True if at least one bit is set.
   constexpr bool any() const {
     for (BitWord B : Bits)
       if (B != 0)
@@ -136,9 +144,11 @@ public:
   }
 
   /// Return true if no bits are set.
+  /// @return True if no bits are set.
   constexpr bool none() const { return !any(); }
 
   /// Return true if every bit in the bitset is set.
+  /// @return True if every bit is set.
   constexpr bool all() const {
     constexpr const BitWord AllOnes = ~BitWord(0);
     for (unsigned I = 0; I < getLastWordIndex(); ++I)
@@ -148,6 +158,7 @@ public:
   }
 
   /// Return the number of bits that are set.
+  /// @return The number of set bits.
   constexpr size_t count() const {
     size_t Count = 0;
     for (BitWord Word : Bits)
@@ -157,6 +168,7 @@ public:
 
   /// XOR each word with \p RHS in place.
   /// @param RHS Bitset to XOR with.
+  /// @return This bitset.
   constexpr Bitset &operator^=(const Bitset &RHS) {
     for (unsigned I = 0, E = Bits.size(); I != E; ++I) {
       Bits[I] ^= RHS.Bits[I];
@@ -165,6 +177,7 @@ public:
   }
   /// Return the bitwise XOR of this bitset and \p RHS.
   /// @param RHS Bitset to XOR with.
+  /// @return A new bitset with the XOR result.
   constexpr Bitset operator^(const Bitset &RHS) const {
     Bitset Result = *this;
     Result ^= RHS;
@@ -173,6 +186,7 @@ public:
 
   /// AND each word with \p RHS in place.
   /// @param RHS Bitset to AND with.
+  /// @return This bitset.
   constexpr Bitset &operator&=(const Bitset &RHS) {
     for (unsigned I = 0, E = Bits.size(); I != E; ++I)
       Bits[I] &= RHS.Bits[I];
@@ -180,6 +194,7 @@ public:
   }
   /// Return the bitwise AND of this bitset and \p RHS.
   /// @param RHS Bitset to AND with.
+  /// @return A new bitset with the AND result.
   constexpr Bitset operator&(const Bitset &RHS) const {
     Bitset Result = *this;
     Result &= RHS;
@@ -188,6 +203,7 @@ public:
 
   /// OR each word with \p RHS in place.
   /// @param RHS Bitset to OR with.
+  /// @return This bitset.
   constexpr Bitset &operator|=(const Bitset &RHS) {
     for (unsigned I = 0, E = Bits.size(); I != E; ++I) {
       Bits[I] |= RHS.Bits[I];
@@ -196,6 +212,7 @@ public:
   }
   /// Return the bitwise OR of this bitset and \p RHS.
   /// @param RHS Bitset to OR with.
+  /// @return A new bitset with the OR result.
   constexpr Bitset operator|(const Bitset &RHS) const {
     Bitset Result = *this;
     Result |= RHS;
@@ -203,6 +220,7 @@ public:
   }
 
   /// Return a bitset with every bit inverted (unused high bits stay clear).
+  /// @return A bitset with every bit inverted.
   constexpr Bitset operator~() const {
     Bitset Result = *this;
     for (BitWord &B : Result.Bits)
@@ -213,6 +231,7 @@ public:
 
   /// Return true if every word matches \p RHS.
   /// @param RHS Bitset to compare with.
+  /// @return True if the bitsets are equal.
   constexpr bool operator==(const Bitset &RHS) const {
     for (unsigned I = 0; I < NumWords; ++I)
       if (Bits[I] != RHS.Bits[I])
@@ -222,10 +241,12 @@ public:
 
   /// Return true if any word differs from \p RHS.
   /// @param RHS Bitset to compare with.
+  /// @return True if the bitsets differ.
   constexpr bool operator!=(const Bitset &RHS) const { return !(*this == RHS); }
 
   /// Lexicographically compare bits against \p Other (false < true).
   /// @param Other Bitset to compare with.
+  /// @return True if this bitset is lexicographically less than \p Other.
   constexpr bool operator<(const Bitset &Other) const {
     for (unsigned I = 0, E = size(); I != E; ++I) {
       bool LHS = test(I), RHS = Other.test(I);
@@ -237,6 +258,7 @@ public:
 
   /// Shift bits left by \p N positions in place, filling with zeros.
   /// @param N Number of bit positions to shift.
+  /// @return This bitset.
   constexpr Bitset &operator<<=(unsigned N) {
     if (N == 0)
       return *this;
@@ -265,6 +287,7 @@ public:
 
   /// Return a copy of this bitset shifted left by \p N bits.
   /// @param N Number of bit positions to shift.
+  /// @return A copy shifted left by \p N bits.
   constexpr Bitset operator<<(unsigned N) const {
     Bitset Result(*this);
     Result <<= N;
@@ -273,6 +296,7 @@ public:
 
   /// Shift bits right by \p N positions in place, filling with zeros.
   /// @param N Number of bit positions to shift.
+  /// @return This bitset.
   constexpr Bitset &operator>>=(unsigned N) {
     if (N == 0)
       return *this;
@@ -299,6 +323,7 @@ public:
 
   /// Return a copy of this bitset shifted right by \p N bits.
   /// @param N Number of bit positions to shift.
+  /// @return A copy shifted right by \p N bits.
   constexpr Bitset operator>>(unsigned N) const {
     Bitset Result(*this);
     Result >>= N;
@@ -311,6 +336,8 @@ public:
   /// word (\p I == \c getNumWords64() - 1) may cover fewer than 64 stored bits
   /// when \c NumBits is not a multiple of 64; in that case the unused high bits
   /// are reported as 0.
+  /// @param I Zero-based index of the 64-bit word to read.
+  /// @return The I-th 64-bit word, with unused high bits zero.
   constexpr uint64_t getWord64(unsigned I) const {
     assert(I < getNumWords64() && "Word index out of range");
     if constexpr (BitwordBits == 64) {
@@ -323,6 +350,7 @@ public:
   }
 
   /// Return the index of the highest set bit, or -1 if no bits are set.
+  /// @return Index of the highest set bit, or -1 if none are set.
   constexpr int findLastSet() const {
     for (unsigned I = NumWords; I > 0;) {
       --I;
@@ -334,6 +362,7 @@ public:
   }
 
   /// Return the number of 64-bit words needed to hold all bits.
+  /// @return The number of 64-bit words needed.
   static constexpr unsigned getNumWords64() { return (NumBits + 63) / 64; }
 };
 

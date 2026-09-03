@@ -20,12 +20,15 @@
 namespace llvm {
 namespace mca {
 
+/// Base class for a simulated hardware unit used to construct an MCA backend.
 class LLVM_ABI HardwareUnit {
   HardwareUnit(const HardwareUnit &H) = delete;
   HardwareUnit &operator=(const HardwareUnit &H) = delete;
 
 public:
+  /// Default-construct a hardware unit with no additional state.
   HardwareUnit() = default;
+  /// Virtual destructor for polymorphic hardware units.
   virtual ~HardwareUnit();
 };
 

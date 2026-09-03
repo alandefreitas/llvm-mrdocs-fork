@@ -23,9 +23,17 @@ class LLVM_ABI GsymCreatorV2 : public GsymCreator {
   }
 
 public:
+  /// Get the size in bytes needed for encoding string offsets.
+  ///
+  /// \returns The size in bytes needed for encoding string offsets.
   uint8_t getStringOffsetSize() const override {
     return HeaderV2::getStringOffsetSize();
   }
+
+  /// Encode a GSYM V2 file into the file writer stream at the current position.
+  ///
+  /// \param O The stream to save the binary data to.
+  /// \returns An error object that indicates success or failure of the save.
   llvm::Error encode(FileWriter &O) const override;
 };
 

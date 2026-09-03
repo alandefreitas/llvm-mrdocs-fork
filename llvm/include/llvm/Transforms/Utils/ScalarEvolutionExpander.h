@@ -28,11 +28,18 @@
 #include "llvm/Support/InstructionCost.h"
 
 namespace llvm {
+/// Command-line option for the budget used to decide if a SCEV expansion is
+/// cheap.
 LLVM_ABI extern cl::opt<unsigned> SCEVCheapExpansionBudget;
 
 /// struct for holding enough information to help calculate the cost of the
 /// given SCEV when expanded into IR.
 struct SCEVOperand {
+  /// Construct a SCEVOperand describing one operand of an expanded instruction.
+  ///
+  /// \param Opc Parent LLVM instruction opcode.
+  /// \param Idx Operand index within the parent instruction.
+  /// \param S SCEV for this operand.
   explicit SCEVOperand(unsigned Opc, int Idx, const SCEV *S) :
     ParentOpcode(Opc), OperandIdx(Idx), S(S) { }
   /// LLVM instruction opcode that uses the operand.
@@ -43,16 +50,30 @@ struct SCEVOperand {
   const SCEV* S;
 };
 
+/// Captures poison-generating flags from an instruction so they can be restored.
 struct PoisonFlags {
+  /// No unsigned wrap flag.
   unsigned NUW : 1;
+  /// No signed wrap flag.
   unsigned NSW : 1;
+  /// Exact division or shift flag.
   unsigned Exact : 1;
+  /// Disjoint or flag.
   unsigned Disjoint : 1;
+  /// Non-negative flag.
   unsigned NNeg : 1;
+  /// Same-sign flag.
   unsigned SameSign : 1;
+  /// GEP no-wrap flags.
   GEPNoWrapFlags GEPNW;
 
+  /// Capture poison-generating flags from \p I.
+  ///
+  /// \param I Instruction whose flags are recorded.
   LLVM_ABI PoisonFlags(const Instruction *I);
+  /// Apply the recorded poison-generating flags to \p I.
+  ///
+  /// \param I Instruction that receives the recorded flags.
   LLVM_ABI void apply(Instruction *I);
 };
 
@@ -189,6 +210,10 @@ class SCEVExpander : public SCEVUseVisitor<SCEVExpander, Value *> {
 
 public:
   /// Construct a SCEVExpander in "canonical" mode.
+  ///
+  /// \param SE ScalarEvolution analysis used for expansions.
+  /// \param Name Name prefix applied to newly inserted instructions.
+  /// \param PreserveLCSSA Whether to create LCSSA phis for inserted values.
   explicit SCEVExpander(ScalarEvolution &SE, const char *Name,
                         bool PreserveLCSSA = true)
       : SE(SE), DL(SE.getDataLayout()), IVName(Name),
@@ -202,6 +227,7 @@ public:
 #endif
   }
 
+  /// Destroy the expander and assert that insert-point guards were balanced.
   ~SCEVExpander() {
     // Make sure the insert point guard stack is consistent.
     assert(InsertPointGuards.empty());
@@ -211,6 +237,8 @@ public:
   void setDebugType(const char *s) { DebugType = s; }
 #endif
 
+  /// Clear cached expansions and inserted-value tracking.
+  ///
   /// Erase the contents of the InsertedExpressions map so that users trying
   /// to expand the same expression into multiple BasicBlocks or different
   /// places within the same BasicBlock can do so.
@@ -225,10 +253,18 @@ public:
     InsertedIVs.clear();
   }
 
+  /// Return the ScalarEvolution instance used by this expander.
+  ///
+  /// \return The ScalarEvolution instance used by this expander.
   ScalarEvolution *getSE() { return &SE; }
+  /// Return the induction variables created during expansion.
+  ///
+  /// \return The induction variables created during expansion.
   const SmallVectorImpl<WeakVH> &getInsertedIVs() const { return InsertedIVs; }
 
   /// Return a vector containing all instructions inserted during expansion.
+  ///
+  /// \return A vector containing all instructions inserted during expansion.
   SmallVector<Instruction *, 32> getAllInsertedInstructions() const {
     SmallVector<Instruction *, 32> Result;
     for (const auto &VH : InsertedValues) {
@@ -255,6 +291,13 @@ public:
   /// \p At is a parameter which specifies point in code where user is going to
   /// expand these expressions. Sometimes this knowledge can lead to
   /// a less pessimistic cost estimation.
+  ///
+  /// \param Exprs SCEV expressions to cost.
+  /// \param L Loop context for the expansion cost estimate.
+  /// \param Budget Maximum allowed expansion cost in TCC_Basic units.
+  /// \param TTI Target transform info used for cost modeling.
+  /// \param At Instruction at which the expressions would be expanded.
+  /// \return True if any expression cannot be evaluated within \p Budget.
   bool isHighCostExpansion(ArrayRef<const SCEV *> Exprs, Loop *L,
                            unsigned Budget, const TargetTransformInfo *TTI,
                            const Instruction *At) {
@@ -279,22 +322,41 @@ public:
   }
 
   /// Return the induction variable increment's IV operand.
+  ///
+  /// \param IncV Increment instruction to inspect.
+  /// \param InsertPos Position used when considering scaled increments.
+  /// \param allowScale Whether a scaled GEP operand may be returned.
+  /// \return The IV operand of the increment, or nullptr if none.
   LLVM_ABI Instruction *
   getIVIncOperand(Instruction *IncV, Instruction *InsertPos, bool allowScale);
 
-  /// Utility for hoisting \p IncV (with all subexpressions requried for its
-  /// computation) before \p InsertPos. If \p RecomputePoisonFlags is set, drops
-  /// all poison-generating flags from instructions being hoisted and tries to
-  /// re-infer them in the new location. It should be used when we are going to
-  /// introduce a new use in the new position that didn't exist before, and may
-  /// trigger new UB in case of poison.
+  /// Hoist \p IncV and its required subexpressions before \p InsertPos.
+  ///
+  /// If \p RecomputePoisonFlags is set, drops all poison-generating flags from
+  /// instructions being hoisted and tries to re-infer them in the new location.
+  /// It should be used when we are going to introduce a new use in the new
+  /// position that didn't exist before, and may trigger new UB in case of
+  /// poison.
+  ///
+  /// \param IncV Induction-variable increment to hoist.
+  /// \param InsertPos Instruction before which \p IncV is hoisted.
+  /// \param RecomputePoisonFlags Whether to drop and re-infer poison flags.
+  /// \return True if the increment was successfully hoisted.
   LLVM_ABI bool hoistIVInc(Instruction *IncV, Instruction *InsertPos,
                            bool RecomputePoisonFlags = false);
 
-  /// Return true if both increments directly increment the corresponding IV PHI
-  /// nodes and have the same opcode. It is not safe to re-use the flags from
-  /// the original increment, if it is more complex and SCEV expansion may have
-  /// yielded a more simplified wider increment.
+  /// Return true if original and wide IV increments can share poison flags.
+  ///
+  /// Both increments must directly increment the corresponding IV PHI nodes and
+  /// have the same opcode. It is not safe to re-use the flags from the original
+  /// increment, if it is more complex and SCEV expansion may have yielded a
+  /// more simplified wider increment.
+  ///
+  /// \param OrigPhi Original induction-variable PHI.
+  /// \param WidePhi Widened induction-variable PHI.
+  /// \param OrigInc Original IV increment instruction.
+  /// \param WideInc Widened IV increment instruction.
+  /// \return True if the original and wide IV increments can share poison flags.
   LLVM_ABI static bool canReuseFlagsFromOriginalIVInc(PHINode *OrigPhi,
                                                       PHINode *WidePhi,
                                                       Instruction *OrigInc,
@@ -302,23 +364,41 @@ public:
 
   /// replace congruent phis with their most canonical representative. Return
   /// the number of phis eliminated.
+  ///
+  /// \param L Loop whose congruent IVs are replaced.
+  /// \param DT Dominator tree used to choose canonical representatives.
+  /// \param DeadInsts Collects instructions that become dead.
+  /// \param TTI Optional target transform info for profitability checks.
+  /// \return The number of phis eliminated.
   LLVM_ABI unsigned
   replaceCongruentIVs(Loop *L, const DominatorTree *DT,
                       SmallVectorImpl<WeakTrackingVH> &DeadInsts,
                       const TargetTransformInfo *TTI = nullptr);
 
-  /// Return true if the given expression is safe to expand in the sense that
-  /// all materialized values are safe to speculate anywhere their operands are
-  /// defined, and the expander is capable of expanding the expression.
+  /// Return true if \p S is safe to expand anywhere its operands are defined.
+  ///
+  /// All materialized values must be safe to speculate anywhere their operands
+  /// are defined, and the expander must be capable of expanding the expression.
+  ///
+  /// \param S SCEV expression to test.
+  /// \return True if \p S is safe to expand anywhere its operands are defined.
   LLVM_ABI bool isSafeToExpand(const SCEV *S) const;
 
-  /// Return true if the given expression is safe to expand in the sense that
-  /// all materialized values are defined and safe to speculate at the specified
-  /// location and their operands are defined at this location.
+  /// Return true if \p S is safe to expand at \p InsertionPoint.
+  ///
+  /// All materialized values must be defined and safe to speculate at the
+  /// specified location and their operands must be defined at this location.
+  ///
+  /// \param S SCEV expression to test.
+  /// \param InsertionPoint Location at which expansion would occur.
+  /// \return True if \p S is safe to expand at \p InsertionPoint.
   LLVM_ABI bool isSafeToExpandAt(const SCEV *S,
                                  const Instruction *InsertionPoint) const;
 
   /// Drop poison-generating flags from \p I, then try re-infer via SCEV.
+  ///
+  /// \param SE ScalarEvolution used to re-infer flags.
+  /// \param I Instruction whose poison annotations are refreshed.
   LLVM_ABI static void
   dropPoisonGeneratingAnnotationsAndReinfer(ScalarEvolution &SE,
                                             Instruction *I);
@@ -326,49 +406,99 @@ public:
   /// Find an existing cast among \p PtrOp's users that computes the same value
   /// as a `ptrtoaddr` of \p PtrOp to \p Ty and can be reused when expanding
   /// ptrtoaddr.
+  ///
+  /// \param PtrOp Pointer value whose users are searched for a reusable cast.
+  /// \param Ty Address-integer type of the desired ptrtoaddr result.
+  /// \param DL Data layout used to validate the cast.
+  /// \param Dominates Predicate that returns true if a candidate cast dominates
+  ///        the expansion point.
+  /// \return An existing cast that can be reused, or nullptr if none.
   LLVM_ABI static CastInst *
   findReusableCastForPtrToAddr(Value *PtrOp, Type *Ty, const DataLayout &DL,
                                function_ref<bool(const CastInst *)> Dominates);
 
-  /// Insert code to directly compute the specified SCEV expression into the
-  /// program.  The code is inserted into the specified block.
+  /// Insert code to compute \p SH at iterator \p I, casting to \p Ty if needed.
+  ///
+  /// The code is inserted into the specified block.
+  ///
+  /// \param SH SCEV expression to expand.
+  /// \param Ty Desired result type, or nullptr to keep the natural type.
+  /// \param I Insertion point within a basic block.
+  /// \return The expanded value, cast to \p Ty when requested.
   LLVM_ABI Value *expandCodeFor(SCEVUse SH, Type *Ty, BasicBlock::iterator I);
+  /// Insert code to compute \p SH before instruction \p I, casting to \p Ty if
+  /// needed.
+  ///
+  /// \param SH SCEV expression to expand.
+  /// \param Ty Desired result type, or nullptr to keep the natural type.
+  /// \param I Instruction before which the expansion is inserted.
+  /// \return The expanded value, cast to \p Ty when requested.
   Value *expandCodeFor(SCEVUse SH, Type *Ty, Instruction *I) {
     return expandCodeFor(SH, Ty, I->getIterator());
   }
 
-  /// Insert code to directly compute the specified SCEV expression into the
-  /// program.  The code is inserted into the SCEVExpander's current
-  /// insertion point. If a type is specified, the result will be expanded to
-  /// have that type, with a cast if necessary.
+  /// Expand \p SH at the current insertion point, casting to \p Ty if needed.
+  ///
+  /// The code is inserted into the SCEVExpander's current insertion point. If a
+  /// type is specified, the result will be expanded to have that type, with a
+  /// cast if necessary.
+  ///
+  /// \param SH SCEV expression to expand.
+  /// \param Ty Desired result type, or nullptr to keep the natural type.
+  /// \return The expanded value, cast to \p Ty when requested.
   LLVM_ABI Value *expandCodeFor(SCEVUse SH, Type *Ty = nullptr);
 
-  /// Generates a code sequence that evaluates this predicate.  The inserted
-  /// instructions will be at position \p Loc.  The result will be of type i1
-  /// and will have a value of 0 when the predicate is false and 1 otherwise.
+  /// Expand \p Pred to an i1 value inserted at \p Loc.
+  ///
+  /// The result will have a value of 0 when the predicate is false and 1
+  /// otherwise.
+  ///
+  /// \param Pred Predicate to evaluate.
+  /// \param Loc Instruction at which the predicate code is inserted.
+  /// \return An i1 value that is true when the predicate holds.
   LLVM_ABI Value *expandCodeForPredicate(const SCEVPredicate *Pred,
                                          Instruction *Loc);
 
   /// A specialized variant of expandCodeForPredicate, handling the case when
   /// we are expanding code for a SCEVComparePredicate.
+  ///
+  /// \param Pred Compare predicate to expand.
+  /// \param Loc Instruction at which the compare is inserted.
+  /// \return An i1 value that is true when the compare predicate holds.
   LLVM_ABI Value *expandComparePredicate(const SCEVComparePredicate *Pred,
                                          Instruction *Loc);
 
   /// Generates code that evaluates if the \p AR expression will overflow.
+  ///
+  /// \param AR Add-recurrence expression to test for overflow.
+  /// \param Loc Instruction at which the overflow check is inserted.
+  /// \param Signed Whether to check signed rather than unsigned overflow.
+  /// \return An i1 value that is true when \p AR would overflow.
   LLVM_ABI Value *generateOverflowCheck(const SCEVAddRecExpr *AR,
                                         Instruction *Loc, bool Signed);
 
   /// A specialized variant of expandCodeForPredicate, handling the case when
   /// we are expanding code for a SCEVWrapPredicate.
+  ///
+  /// \param P Wrap predicate to expand.
+  /// \param Loc Instruction at which the wrap check is inserted.
+  /// \return An i1 value that is true when the wrap predicate holds.
   LLVM_ABI Value *expandWrapPredicate(const SCEVWrapPredicate *P,
                                       Instruction *Loc);
 
   /// A specialized variant of expandCodeForPredicate, handling the case when
   /// we are expanding code for a SCEVUnionPredicate.
+  ///
+  /// \param Pred Union predicate to expand.
+  /// \param Loc Instruction at which the union predicate is inserted.
+  /// \return An i1 value that is true when the union predicate holds.
   LLVM_ABI Value *expandUnionPredicate(const SCEVUnionPredicate *Pred,
                                        Instruction *Loc);
 
   /// Set the current IV increment loop and position.
+  ///
+  /// \param L Loop whose IV increments use \p Pos.
+  /// \param Pos Instruction at which IV increments are inserted.
   void setIVIncInsertPos(const Loop *L, Instruction *Pos) {
     assert(!CanonicalMode &&
            "IV increment positions are not supported in CanonicalMode");
@@ -378,6 +508,8 @@ public:
 
   /// Enable post-inc expansion for addrecs referring to the given
   /// loops. Post-inc expansion is only supported in non-canonical mode.
+  ///
+  /// \param L Set of loops for which addrecs expand in post-inc form.
   void setPostInc(const PostIncLoopSet &L) {
     assert(!CanonicalMode &&
            "Post-inc expansion is not supported in CanonicalMode");
@@ -398,17 +530,24 @@ public:
   /// optimization passes.
   void disableCanonicalMode() { CanonicalMode = false; }
 
+  /// Enable strength-reduction mode for loop strength reduction.
   void enableLSRMode() { LSRMode = true; }
 
-  /// Set the current insertion point. This is useful if multiple calls to
-  /// expandCodeFor() are going to be made with the same insert point and the
-  /// insert point may be moved during one of the expansions (e.g. if the
-  /// insert point is not a block terminator).
+  /// Set the current insertion point to \p IP.
+  ///
+  /// This is useful if multiple calls to expandCodeFor() are going to be made
+  /// with the same insert point and the insert point may be moved during one of
+  /// the expansions (e.g. if the insert point is not a block terminator).
+  ///
+  /// \param IP Instruction that becomes the insertion point.
   void setInsertPoint(Instruction *IP) {
     assert(IP);
     Builder.SetInsertPoint(IP);
   }
 
+  /// Set the current insertion point to iterator \p IP.
+  ///
+  /// \param IP Iterator that becomes the insertion point.
   void setInsertPoint(BasicBlock::iterator IP) {
     Builder.SetInsertPoint(IP->getParent(), IP);
   }
@@ -418,22 +557,33 @@ public:
   void clearInsertPoint() { Builder.ClearInsertionPoint(); }
 
   /// Set location information used by debugging information.
+  ///
+  /// \param L Debug location applied to subsequently inserted instructions.
   void SetCurrentDebugLocation(DebugLoc L) {
     Builder.SetCurrentDebugLocation(std::move(L));
   }
 
   /// Get location information used by debugging information.
+  ///
+  /// \return The debug location applied to subsequently inserted instructions.
   DebugLoc getCurrentDebugLocation() const {
     return Builder.getCurrentDebugLocation();
   }
 
   /// Return true if the specified instruction was inserted by the code rewriter.
   ///
-  /// If so, the client should not modify the instruction. Note that this also includes instructions re-used during expansion.
+  /// If so, the client should not modify the instruction. Note that this also
+  /// includes instructions re-used during expansion.
+  ///
+  /// \param I Instruction to test for expander ownership.
+  /// \return True if \p I was inserted or reused by the expander.
   bool isInsertedInstruction(Instruction *I) const {
     return InsertedValues.count(I) || InsertedPostIncValues.count(I);
   }
 
+  /// Record \p PN as completing an IV chain so it can be reused.
+  ///
+  /// \param PN PHI node that completes an IV chain.
   void setChainedPhi(PHINode *PN) { ChainedPhis.insert(PN); }
 
   /// Determine whether there is an existing expansion of S that can be reused.
@@ -443,16 +593,27 @@ public:
   ///
   /// Note that this function does not perform an exhaustive search. I.e if it
   /// didn't find any value it does not mean that there is no such value.
+  ///
+  /// \param S SCEV expression to look up.
+  /// \param At Instruction near which a reusable expansion is sought.
+  /// \param L Loop hint guiding where to search for a suitable value.
+  /// \return True if a related existing expansion of \p S was found.
   LLVM_ABI bool hasRelatedExistingExpansion(const SCEV *S,
                                             const Instruction *At, Loop *L);
 
   /// Returns a suitable insert point after \p I, that dominates \p
   /// MustDominate. Skips instructions inserted by the expander.
+  ///
+  /// \param I Instruction after which insertion is considered.
+  /// \param MustDominate Instruction that the chosen insert point must dominate.
+  /// \return A suitable insert point after \p I that dominates \p MustDominate.
   LLVM_ABI BasicBlock::iterator
   findInsertPointAfter(Instruction *I, Instruction *MustDominate) const;
 
   /// Remove inserted instructions that are dead, e.g. due to InstSimplifyFolder
   /// simplifications. \p Root is assumed to be used and won't be removed.
+  ///
+  /// \param Root Value that is considered live and must not be removed.
   LLVM_ABI void eraseDeadInstructions(Value *Root);
 
 private:
@@ -592,14 +753,19 @@ class SCEVExpanderCleaner {
   bool ResultUsed;
 
 public:
+  /// Create a cleaner that removes unused expansions from \p Expander.
+  ///
+  /// \param Expander Expander whose inserted instructions may be cleaned up.
   SCEVExpanderCleaner(SCEVExpander &Expander)
       : Expander(Expander), ResultUsed(false) {}
 
+  /// Destroy the cleaner and remove unused expansions unless marked used.
   ~SCEVExpanderCleaner() { cleanup(); }
 
   /// Indicate that the result of the expansion is used.
   void markResultUsed() { ResultUsed = true; }
 
+  /// Remove unused instructions inserted during SCEV expansion.
   LLVM_ABI void cleanup();
 };
 } // namespace llvm

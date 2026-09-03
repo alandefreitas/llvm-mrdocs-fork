@@ -49,6 +49,8 @@ struct alignas(8) AnalysisSetKey {};
 /// Windows. Otherwise, the address of SetKey will not be stable.
 template <typename IRUnitT> class AllAnalysesOn {
 public:
+  /// Opaque key identifying this analysis set for \c PreservedAnalyses.
+  /// @return Opaque key identifying this analysis set.
   static AnalysisSetKey *ID() { return &SetKey; }
 
 private:
@@ -57,7 +59,9 @@ private:
 
 template <typename IRUnitT> AnalysisSetKey AllAnalysesOn<IRUnitT>::SetKey;
 
+/// Explicit instantiation of \c AllAnalysesOn for modules.
 extern template class LLVM_TEMPLATE_ABI AllAnalysesOn<Module>;
+/// Explicit instantiation of \c AllAnalysesOn for functions.
 extern template class LLVM_TEMPLATE_ABI AllAnalysesOn<Function>;
 
 /// Represents analyses that only rely on functions' control flow.
@@ -72,6 +76,8 @@ extern template class LLVM_TEMPLATE_ABI AllAnalysesOn<Function>;
 /// of those instructions does.
 class CFGAnalyses {
 public:
+  /// Opaque key identifying this analysis set for \c PreservedAnalyses.
+  /// @return Opaque key identifying this analysis set.
   static AnalysisSetKey *ID() { return &SetKey; }
 
 private:
@@ -112,9 +118,11 @@ private:
 class PreservedAnalyses {
 public:
   /// Convenience factory function for the empty preserved set.
+  /// @return An empty preserved set.
   static PreservedAnalyses none() { return PreservedAnalyses(); }
 
   /// Construct a special preserved set that preserves all passes.
+  /// @return A preserved set that preserves all analyses.
   static PreservedAnalyses all() {
     PreservedAnalyses PA;
     PA.PreservedIDs.insert(&AllAnalysesKey);
@@ -122,6 +130,7 @@ public:
   }
 
   /// Construct a preserved analyses object with a single preserved set.
+  /// @return A preserved set containing only the given analysis set.
   template <typename AnalysisSetT> static PreservedAnalyses allInSet() {
     PreservedAnalyses PA;
     PA.preserveSet<AnalysisSetT>();
@@ -129,6 +138,7 @@ public:
   }
 
   /// Mark an analysis as preserved.
+  /// @return Reference to this preserved set.
   template <typename AnalysisT> PreservedAnalyses &preserve() {
     preserve(AnalysisT::ID());
     return *this;
@@ -136,6 +146,9 @@ public:
 
   /// Given an analysis's ID, mark the analysis as preserved, adding it
   /// to the set.
+  ///
+  /// \param ID Opaque key identifying the analysis to preserve.
+  /// @return Reference to this preserved set.
   PreservedAnalyses &preserve(AnalysisKey *ID) {
     // Clear this ID from the explicit not-preserved set if present.
     NotPreservedAnalysisIDs.erase(ID);
@@ -148,12 +161,16 @@ public:
   }
 
   /// Mark an analysis set as preserved.
+  /// @return Reference to this preserved set.
   template <typename AnalysisSetT> PreservedAnalyses &preserveSet() {
     preserveSet(AnalysisSetT::ID());
     return *this;
   }
 
   /// Mark an analysis set as preserved using its ID.
+  ///
+  /// \param ID Opaque key identifying the analysis set to preserve.
+  /// @return Reference to this preserved set.
   PreservedAnalyses &preserveSet(AnalysisSetKey *ID) {
     // If we're not already in the saturated 'all' state, add this set.
     if (!areAllPreserved())
@@ -168,6 +185,7 @@ public:
   ///
   /// Note that you can only abandon a specific analysis, not a *set* of
   /// analyses.
+  /// @return Reference to this preserved set.
   template <typename AnalysisT> PreservedAnalyses &abandon() {
     abandon(AnalysisT::ID());
     return *this;
@@ -180,6 +198,9 @@ public:
   ///
   /// Note that you can only abandon a specific analysis, not a *set* of
   /// analyses.
+  ///
+  /// \param ID Opaque key identifying the analysis to abandon.
+  /// @return Reference to this preserved set.
   PreservedAnalyses &abandon(AnalysisKey *ID) {
     PreservedIDs.erase(ID);
     NotPreservedAnalysisIDs.insert(ID);
@@ -190,6 +211,8 @@ public:
   ///
   /// This is a mutating operation on this preserved set, removing all
   /// preserved passes which are not also preserved in the argument.
+  ///
+  /// \param Arg Preserved set to intersect with.
   void intersect(const PreservedAnalyses &Arg) {
     if (Arg.areAllPreserved())
       return;
@@ -211,6 +234,8 @@ public:
   ///
   /// This is a mutating operation on this preserved set, removing all
   /// preserved passes which are not also preserved in the argument.
+  ///
+  /// \param Arg Temporary preserved set to intersect with.
   void intersect(PreservedAnalyses &&Arg) {
     if (Arg.areAllPreserved())
       return;
@@ -247,19 +272,24 @@ public:
     /// Returns true if the checker's analysis was not abandoned and either
     ///  - the analysis is explicitly preserved or
     ///  - all analyses are preserved.
+    /// @return True if the analysis is preserved.
     bool preserved() {
       return !IsAbandoned && (PA.PreservedIDs.count(&AllAnalysesKey) ||
                               PA.PreservedIDs.count(ID));
     }
 
-    /// Return true if the checker's analysis was not abandoned, i.e. it was not
-    /// explicitly invalidated. Even if the analysis is not explicitly
-    /// preserved, if the analysis is known stateless, then it is preserved.
+    /// Return true if the checker's analysis was not abandoned.
+    ///
+    /// That is, it was not explicitly invalidated. Even if the analysis is not
+    /// explicitly preserved, if the analysis is known stateless, then it is
+    /// preserved.
+    /// @return True if the analysis was not abandoned.
     bool preservedWhenStateless() { return !IsAbandoned; }
 
     /// Returns true if the checker's analysis was not abandoned and either
     ///  - \p AnalysisSetT is explicitly preserved or
     ///  - all analyses are preserved.
+    /// @return True if the analysis set is preserved.
     template <typename AnalysisSetT> bool preservedSet() {
       AnalysisSetKey *SetID = AnalysisSetT::ID();
       return !IsAbandoned && (PA.PreservedIDs.count(&AllAnalysesKey) ||
@@ -272,6 +302,7 @@ public:
   ///
   /// You can use the returned object to query whether an analysis was
   /// preserved. See the example in the comment on `PreservedAnalysis`.
+  /// @return A checker for the specified analysis type.
   template <typename AnalysisT> PreservedAnalysisChecker getChecker() const {
     return PreservedAnalysisChecker(*this, AnalysisT::ID());
   }
@@ -281,6 +312,9 @@ public:
   ///
   /// You can use the returned object to query whether an analysis was
   /// preserved. See the example in the comment on `PreservedAnalysis`.
+  ///
+  /// \param ID Opaque key identifying the analysis to check.
+  /// @return A checker for the specified analysis ID.
   PreservedAnalysisChecker getChecker(AnalysisKey *ID) const {
     return PreservedAnalysisChecker(*this, ID);
   }
@@ -289,6 +323,7 @@ public:
   ///
   /// This is used primarily to optimize for the common case of a transformation
   /// which makes no changes to the IR.
+  /// @return True if all analyses are preserved and none are abandoned.
   bool areAllPreserved() const {
     return NotPreservedAnalysisIDs.empty() &&
            PreservedIDs.count(&AllAnalysesKey);
@@ -297,6 +332,7 @@ public:
   /// Directly test whether a set of analyses is preserved.
   ///
   /// This is only true when no analyses have been explicitly abandoned.
+  /// @return True if the analysis set is preserved.
   template <typename AnalysisSetT> bool allAnalysesInSetPreserved() const {
     return allAnalysesInSetPreserved(AnalysisSetT::ID());
   }
@@ -304,6 +340,9 @@ public:
   /// Directly test whether a set of analyses is preserved.
   ///
   /// This is only true when no analyses have been explicitly abandoned.
+  ///
+  /// \param SetID Opaque key identifying the analysis set to test.
+  /// @return True if the analysis set is preserved.
   bool allAnalysesInSetPreserved(AnalysisSetKey *SetID) const {
     return NotPreservedAnalysisIDs.empty() &&
            (PreservedIDs.count(&AllAnalysesKey) || PreservedIDs.count(SetID));

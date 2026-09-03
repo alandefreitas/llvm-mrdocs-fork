@@ -25,10 +25,12 @@ namespace llvm {
 class MachineBasicBlock;
 class MachineFunction;
 
-/// This class provides the basic blocks traversal order used by passes like
-/// ReachingDefAnalysis and ExecutionDomainFix.
-/// It identifies basic blocks that are part of loops and should to be visited
-/// twice and returns efficient traversal order for all the blocks.
+/// Computes an efficient basic-block traversal order for loop-aware passes.
+///
+/// Provides the basic block traversal order used by passes like
+/// ReachingDefAnalysis and ExecutionDomainFix. It identifies basic blocks
+/// that are part of loops and should be visited twice and returns an
+/// efficient traversal order for all the blocks.
 ///
 /// We want to visit every instruction in every basic block in order to update
 /// it's execution domain or collect clearance information. However, for the
@@ -84,6 +86,7 @@ private:
   MBBInfoMap MBBInfos;
 
 public:
+  /// A machine basic block together with its traversal-pass status.
   struct TraversedMBBInfo {
     /// The basic block.
     MachineBasicBlock *MBB = nullptr;
@@ -94,15 +97,28 @@ public:
     /// True if the block that is ready for its final round of processing.
     bool IsDone = true;
 
+    /// Construct traversal info for a basic block.
+    ///
+    /// \param BB The machine basic block, or nullptr.
+    /// \param Primary True if this is the primary (first) pass over the block.
+    /// \param Done True if the block is ready for its final round of
+    ///        processing.
     TraversedMBBInfo(MachineBasicBlock *BB = nullptr, bool Primary = true,
                      bool Done = true)
         : MBB(BB), PrimaryPass(Primary), IsDone(Done) {}
   };
+  /// Construct an empty loop traversal helper.
   LoopTraversal() = default;
 
-  /// Identifies basic blocks that are part of loops and should to be
-  ///  visited twice and returns efficient traversal order for all the blocks.
+  /// Ordered list of basic blocks with primary-pass and done flags.
   typedef SmallVector<TraversedMBBInfo, 4> TraversalOrder;
+  /// Compute an efficient traversal order of the basic blocks in \p MF.
+  ///
+  /// Identifies basic blocks that are part of loops and should be visited
+  /// twice, and returns a traversal order that revisits only those blocks.
+  ///
+  /// \param MF The machine function whose blocks are traversed.
+  /// \return Ordered list of blocks with primary-pass and done flags.
   LLVM_ABI TraversalOrder traverse(MachineFunction &MF);
 
 private:

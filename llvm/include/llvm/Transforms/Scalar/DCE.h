@@ -22,12 +22,24 @@ class Function;
 /// Basic Dead Code Elimination pass.
 class DCEPass : public OptionalPassInfoMixin<DCEPass> {
 public:
+  /// Run dead code elimination over the function.
+  /// @param F Function to eliminate dead code from.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+/// Pass that removes redundant debug instructions from a function.
+///
+/// Walks each basic block and deletes dbg.value instructions that are made
+/// obsolete by later debug descriptions of the same variable.
 class RedundantDbgInstEliminationPass
     : public OptionalPassInfoMixin<RedundantDbgInstEliminationPass> {
 public:
+  /// Run redundant debug-instruction elimination over the function.
+  /// @param F Function whose debug instructions may be pruned.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

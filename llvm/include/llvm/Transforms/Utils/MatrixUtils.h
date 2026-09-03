@@ -24,8 +24,9 @@ class Loop;
 class LoopInfo;
 class IRBuilderBase;
 
-/// A helper struct to create IR loop nests for tiling in IR of the following
-/// form:
+/// Helper to create tiled IR loop nests for matrix operations.
+///
+/// Generates nests of the form:
 ///   for ColumnLoop.Index = 0..NumColumns
 ///     for RowLoop.Index = 0..NumRows
 ///       for KLoop.Index = 0..NumInner
@@ -47,8 +48,9 @@ struct TileInfo {
   struct MatrixLoop {
     /// The index updated on every iteration.
     Value *Index = nullptr;
-    /// The header and latch of the loop.
+    /// Header basic block of the loop.
     BasicBlock *Header = nullptr;
+    /// Latch basic block of the loop.
     BasicBlock *Latch = nullptr;
   };
 
@@ -59,6 +61,12 @@ struct TileInfo {
   /// The loop iterating on k (inner dimension).
   MatrixLoop KLoop;
 
+  /// Construct tile info for a matrix of the given dimensions.
+  ///
+  /// \param NumRows Number of rows of the matrix.
+  /// \param NumColumns Number of columns of the matrix.
+  /// \param NumInner Inner dimension (columns of first / rows of second).
+  /// \param TileSize Number of rows/columns in a tile.
   TileInfo(unsigned NumRows, unsigned NumColumns, unsigned NumInner,
            unsigned TileSize)
       : NumRows(NumRows), NumColumns(NumColumns), NumInner(NumInner),
@@ -71,6 +79,13 @@ struct TileInfo {
   /// for ColumnLoop.Index = 0..NumColumns
   ///   for RowLoop.Index = 0..NumRows
   ///     for InnerLoop.Index = 0..NumInner
+  ///
+  /// \param Start Preheader block from which the column loop is entered.
+  /// \param End Exit block of the tiled loop nest.
+  /// \param B IR builder used to emit the loop instructions.
+  /// \param DTU Dominator tree updater for the inserted blocks.
+  /// \param LI Loop info to register the newly created loops.
+  /// \return The basic block for the inner loop body.
   LLVM_ABI BasicBlock *CreateTiledLoops(BasicBlock *Start, BasicBlock *End,
                                         IRBuilderBase &B, DomTreeUpdater &DTU,
                                         LoopInfo &LI);

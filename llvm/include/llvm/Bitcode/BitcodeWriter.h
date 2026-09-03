@@ -28,6 +28,7 @@ class BitstreamWriter;
 class Module;
 class raw_ostream;
 
+/// Writer that serializes LLVM IR modules and ThinLTO indexes to bitcode.
 class BitcodeWriter {
   std::unique_ptr<BitstreamWriter> Stream;
 
@@ -45,9 +46,15 @@ class BitcodeWriter {
 
 public:
   /// Create a BitcodeWriter that writes to Buffer.
+  ///
+  /// \param Buffer Destination that receives the encoded bitcode bytes.
   LLVM_ABI BitcodeWriter(SmallVectorImpl<char> &Buffer);
+  /// Create a BitcodeWriter that writes to \p FS.
+  ///
+  /// \param FS Stream that receives the encoded bitcode bytes.
   LLVM_ABI BitcodeWriter(raw_ostream &FS);
 
+  /// Destroy this bitcode writer.
   LLVM_ABI ~BitcodeWriter();
 
   /// Attempt to write a symbol table to the bitcode file. This must be called
@@ -65,43 +72,56 @@ public:
 
   /// Copy the string table for another module into this bitcode file. This
   /// should be called after copying the module itself into the bitcode file.
+  ///
+  /// \param Strtab Serialized string-table blob to copy into this file.
   LLVM_ABI void copyStrtab(StringRef Strtab);
 
   /// Write the specified module to the buffer specified at construction time.
   ///
-  /// If \c ShouldPreserveUseListOrder, encode the use-list order for each \a
-  /// Value in \c M.  These will be reconstructed exactly when \a M is
-  /// deserialized.
-  ///
-  /// If \c Index is supplied, the bitcode will contain the summary index
-  /// (currently for use in ThinLTO optimization).
-  ///
-  /// \p GenerateHash enables hashing the Module and including the hash in the
-  /// bitcode (currently for use in ThinLTO incremental build).
-  ///
-  /// If \p ModHash is non-null, when GenerateHash is true, the resulting
-  /// hash is written into ModHash. When GenerateHash is false, that value
-  /// is used as the hash instead of computing from the generated bitcode.
-  /// Can be used to produce the same module hash for a minimized bitcode
-  /// used just for the thin link as in the regular full bitcode that will
-  /// be used in the backend.
+  /// \param M The module to serialize.
+  /// \param ShouldPreserveUseListOrder If true, encode the use-list order for
+  ///        each \a Value in \p M so it is reconstructed exactly when \p M is
+  ///        deserialized.
+  /// \param Index Optional summary index included in the bitcode (currently
+  ///        for ThinLTO optimization).
+  /// \param GenerateHash If true, hash the module and include the hash in the
+  ///        bitcode (currently for ThinLTO incremental builds).
+  /// \param ModHash If non-null, when \p GenerateHash is true the resulting
+  ///        hash is written here; when \p GenerateHash is false, this value is
+  ///        used as the hash instead of computing one from the generated
+  ///        bitcode. Can be used to produce the same module hash for a
+  ///        minimized thin-link bitcode as for the full bitcode used in the
+  ///        backend.
   LLVM_ABI void writeModule(const Module &M,
                             bool ShouldPreserveUseListOrder = false,
                             const ModuleSummaryIndex *Index = nullptr,
                             bool GenerateHash = false,
                             ModuleHash *ModHash = nullptr);
 
-  /// Write the specified thin link bitcode file (i.e., the minimized bitcode
-  /// file) to the buffer specified at construction time. The thin link
-  /// bitcode file is used for thin link, and it only contains the necessary
-  /// information for thin link.
+  /// Write a minimized thin-link bitcode file to the construction-time buffer.
   ///
-  /// ModHash is for use in ThinLTO incremental build, generated while the
-  /// IR bitcode file writing.
+  /// The thin-link bitcode file is used for the ThinLTO thin link, and it
+  /// contains only the information needed for that step.
+  ///
+  /// \param M The module whose minimized bitcode is written.
+  /// \param Index Per-module summary index written into the thin-link file.
+  /// \param ModHash Module hash for ThinLTO incremental builds, generated
+  ///        while writing the IR bitcode file.
   LLVM_ABI void writeThinLinkBitcode(const Module &M,
                                      const ModuleSummaryIndex &Index,
                                      const ModuleHash &ModHash);
 
+  /// Write a module summary index into this bitcode file.
+  ///
+  /// Used when writing the combined index file for ThinLTO. When writing a
+  /// subset of the index for a distributed backend, provide
+  /// \p ModuleToSummariesForIndex.
+  ///
+  /// \param Index Combined or per-module summary index to write.
+  /// \param ModuleToSummariesForIndex Optional map from module name to the
+  ///        summaries to include for a distributed ThinLTO backend.
+  /// \param DecSummaries Optional set of summaries whose values should be
+  ///        imported as declarations (prototypes).
   LLVM_ABI void
   writeIndex(const ModuleSummaryIndex *Index,
              const ModuleToSummariesForIndexTy *ModuleToSummariesForIndex,
@@ -113,59 +133,77 @@ public:
 /// For streams where it matters, the given stream should be in "binary"
 /// mode.
 ///
-/// If \c ShouldPreserveUseListOrder, encode the use-list order for each \a
-/// Value in \c M.  These will be reconstructed exactly when \a M is
-/// deserialized.
-///
-/// If \c Index is supplied, the bitcode will contain the summary index
-/// (currently for use in ThinLTO optimization).
-///
-/// \p GenerateHash enables hashing the Module and including the hash in the
-/// bitcode (currently for use in ThinLTO incremental build).
-///
-/// If \p ModHash is non-null, when GenerateHash is true, the resulting
-/// hash is written into ModHash. When GenerateHash is false, that value
-/// is used as the hash instead of computing from the generated bitcode.
-/// Can be used to produce the same module hash for a minimized bitcode
-/// used just for the thin link as in the regular full bitcode that will
-/// be used in the backend.
+/// \param M The module to serialize.
+/// \param Out Stream that receives the encoded bitcode.
+/// \param ShouldPreserveUseListOrder If true, encode the use-list order for
+///        each \a Value in \p M so it is reconstructed exactly when \p M is
+///        deserialized.
+/// \param Index Optional summary index included in the bitcode (currently
+///        for ThinLTO optimization).
+/// \param GenerateHash If true, hash the module and include the hash in the
+///        bitcode (currently for ThinLTO incremental builds).
+/// \param ModHash If non-null, when \p GenerateHash is true the resulting
+///        hash is written here; when \p GenerateHash is false, this value is
+///        used as the hash instead of computing one from the generated
+///        bitcode. Can be used to produce the same module hash for a
+///        minimized thin-link bitcode as for the full bitcode used in the
+///        backend.
 LLVM_ABI void WriteBitcodeToFile(const Module &M, raw_ostream &Out,
                                  bool ShouldPreserveUseListOrder = false,
                                  const ModuleSummaryIndex *Index = nullptr,
                                  bool GenerateHash = false,
                                  ModuleHash *ModHash = nullptr);
 
-/// Write the specified thin link bitcode file (i.e., the minimized bitcode
-/// file) to the given raw output stream, where it will be written in a new
-/// bitcode block. The thin link bitcode file is used for thin link, and it
-/// only contains the necessary information for thin link.
+/// Write a minimized thin-link bitcode file to \p Out.
 ///
-/// ModHash is for use in ThinLTO incremental build, generated while the IR
-/// bitcode file writing.
+/// The output is written in a new bitcode block. The thin-link bitcode file
+/// is used for the ThinLTO thin link, and it contains only the information
+/// needed for that step.
+///
+/// \param M The module whose minimized bitcode is written.
+/// \param Out Stream that receives the encoded thin-link bitcode.
+/// \param Index Per-module summary index written into the thin-link file.
+/// \param ModHash Module hash for ThinLTO incremental builds, generated
+///        while writing the IR bitcode file.
 LLVM_ABI void writeThinLinkBitcodeToFile(const Module &M, raw_ostream &Out,
                                          const ModuleSummaryIndex &Index,
                                          const ModuleHash &ModHash);
 
-/// Write the specified module summary index to the given raw output stream,
-/// where it will be written in a new bitcode block. This is used when
-/// writing the combined index file for ThinLTO. When writing a subset of the
-/// index for a distributed backend, provide the \p ModuleToSummariesForIndex
-/// map. \p DecSummaries specifies the set of summaries for which the
-/// corresponding value should be imported as a declaration (prototype).
+/// Write a module summary index to \p Out as a new bitcode block.
+///
+/// Used when writing the combined index file for ThinLTO. When writing a
+/// subset of the index for a distributed backend, provide
+/// \p ModuleToSummariesForIndex.
+///
+/// \param Index Combined or per-module summary index to write.
+/// \param Out Stream that receives the encoded index bitcode.
+/// \param ModuleToSummariesForIndex Optional map from module name to the
+///        summaries to include for a distributed ThinLTO backend.
+/// \param DecSummaries Optional set of summaries whose values should be
+///        imported as declarations (prototypes).
 LLVM_ABI void writeIndexToFile(
     const ModuleSummaryIndex &Index, raw_ostream &Out,
     const ModuleToSummariesForIndexTy *ModuleToSummariesForIndex = nullptr,
     const GVSummaryPtrSet *DecSummaries = nullptr);
 
-/// If EmbedBitcode is set, save a copy of the llvm IR as data in the
-///  __LLVM,__bitcode section (.llvmbc on non-MacOS).
-/// If available, pass the serialized module via the Buf parameter. If not,
-/// pass an empty (default-initialized) MemoryBufferRef, and the serialization
-/// will be handled by this API. The same behavior happens if the provided Buf
-/// is not bitcode (i.e. if it's invalid data or even textual LLVM assembly).
-/// If EmbedCmdline is set, the command line is also exported in
-/// the corresponding section (__LLVM,_cmdline / .llvmcmd) - even if CmdArgs
-/// were empty.
+/// Embed bitcode and optional command-line data as sections in \p M.
+///
+/// If \p EmbedBitcode is set, save a copy of the LLVM IR as data in the
+/// __LLVM,__bitcode section (.llvmbc on non-MacOS). If available, pass the
+/// serialized module via \p Buf. If not, pass an empty (default-initialized)
+/// MemoryBufferRef, and the serialization will be handled by this API. The
+/// same behavior happens if the provided \p Buf is not bitcode (i.e. if it's
+/// invalid data or even textual LLVM assembly). If \p EmbedCmdline is set, the
+/// command line is also exported in the corresponding section
+/// (__LLVM,__cmdline / .llvmcmd) - even if \p CmdArgs were empty.
+///
+/// \param M Module that receives the embedded data globals.
+/// \param Buf Serialized bitcode to embed, or an empty buffer to serialize
+///        \p M.
+/// \param EmbedBitcode If true, embed bitcode in the module's bitcode section.
+/// \param EmbedCmdline If true, embed \p CmdArgs in the command-line section.
+/// \param CmdArgs Compiler command-line bytes to embed when \p EmbedCmdline
+///        is true.
 LLVM_ABI void embedBitcodeInModule(Module &M, MemoryBufferRef Buf,
                                    bool EmbedBitcode, bool EmbedCmdline,
                                    const std::vector<uint8_t> &CmdArgs);

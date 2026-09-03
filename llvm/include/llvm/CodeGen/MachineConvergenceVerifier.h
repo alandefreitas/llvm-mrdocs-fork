@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+/// Convergence verifier specialized for Machine IR.
 using MachineConvergenceVerifier =
     GenericConvergenceVerifier<MachineSSAContext>;
 

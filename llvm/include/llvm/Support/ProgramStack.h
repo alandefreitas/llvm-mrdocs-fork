@@ -29,11 +29,22 @@ LLVM_ABI unsigned getDefaultStackSize();
 ///
 /// \param StackSize requested stack size. A size of 0 uses the default stack
 ///                  size of the platform.
+/// \param Fn callable to run on the new stack.
 ///
 /// The preferred implementation is split stacks on platforms that have a good
 /// debugging experience for them. On other platforms a new thread is used.
 LLVM_ABI void runOnNewStack(unsigned StackSize, function_ref<void()> Fn);
 
+/// Runs Fn with the given arguments on a new stack of at least the given size.
+///
+/// \param StackSize requested stack size. A size of 0 uses the default stack
+///                  size of the platform.
+/// \param Fn callable to invoke on the new stack.
+/// \param Args arguments forwarded to \p Fn.
+/// \returns the value returned by \p Fn, if any.
+///
+/// The preferred implementation is split stacks on platforms that have a good
+/// debugging experience for them. On other platforms a new thread is used.
 template <typename R, typename... Ts>
 auto runOnNewStack(unsigned StackSize, function_ref<R(Ts...)> Fn,
                    Ts &&...Args) {

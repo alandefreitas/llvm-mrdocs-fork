@@ -21,26 +21,55 @@ class DebugChecksumsSubsectionRef;
 class DebugStringTableSubsection;
 class DebugStringTableSubsectionRef;
 
+/// Holds non-owning references to CodeView string-table and checksums
+/// subsections, discovering either from a fragment range when needed.
 class StringsAndChecksumsRef {
 public:
-  // If no subsections are known about initially, we find as much as we can.
+  /// Construct a reference with no known string table or checksums subsections.
+  ///
+  /// If no subsections are known about initially, we find as much as we can.
   LLVM_ABI StringsAndChecksumsRef();
 
-  // If only a string table subsection is given, we find a checksums subsection.
+  /// Construct a reference that already knows the string table subsection.
+  ///
+  /// If only a string table subsection is given, we find a checksums subsection.
+  ///
+  /// \param Strings Known string table subsection reference.
   LLVM_ABI explicit StringsAndChecksumsRef(
       const DebugStringTableSubsectionRef &Strings);
 
-  // If both subsections are given, we don't need to find anything.
+  /// Construct a reference that already knows both subsections.
+  ///
+  /// If both subsections are given, we don't need to find anything.
+  ///
+  /// \param Strings Known string table subsection reference.
+  /// \param Checksums Known file checksums subsection reference.
   LLVM_ABI StringsAndChecksumsRef(const DebugStringTableSubsectionRef &Strings,
                                   const DebugChecksumsSubsectionRef &Checksums);
 
+  /// Set the string table subsection reference to \p Strings.
+  ///
+  /// \param Strings String table subsection to associate with this object.
   LLVM_ABI void setStrings(const DebugStringTableSubsectionRef &Strings);
+  /// Set the file checksums subsection reference to \p CS.
+  ///
+  /// \param CS File checksums subsection to associate with this object.
   LLVM_ABI void setChecksums(const DebugChecksumsSubsectionRef &CS);
 
+  /// Clear both the string table and checksums subsection references.
   LLVM_ABI void reset();
+  /// Clear only the string table subsection reference.
   LLVM_ABI void resetStrings();
+  /// Clear only the file checksums subsection reference.
   LLVM_ABI void resetChecksums();
 
+  /// Discover string table and checksums subsections from \p FragmentRange.
+  ///
+  /// Walks the given fragment range and initializes the string table and/or
+  /// checksums references from matching subsection records that have not yet
+  /// been set. Stops early once both subsections are known.
+  ///
+  /// \param FragmentRange Range of debug subsection records to scan.
   template <typename T> void initialize(T &&FragmentRange) {
     for (const DebugSubsectionRecord &R : FragmentRange) {
       if (Strings && Checksums)
@@ -65,10 +94,22 @@ public:
     }
   }
 
+  /// Return the associated string table subsection reference.
+  ///
+  /// \returns The associated string table subsection reference.
   const DebugStringTableSubsectionRef &strings() const { return *Strings; }
+  /// Return the associated file checksums subsection reference.
+  ///
+  /// \returns The associated file checksums subsection reference.
   const DebugChecksumsSubsectionRef &checksums() const { return *Checksums; }
 
+  /// Return true if a string table subsection has been set.
+  ///
+  /// \returns True if a string table subsection has been set.
   bool hasStrings() const { return Strings != nullptr; }
+  /// Return true if a file checksums subsection has been set.
+  ///
+  /// \returns True if a file checksums subsection has been set.
   bool hasChecksums() const { return Checksums != nullptr; }
 
 private:
@@ -82,21 +123,43 @@ private:
   const DebugChecksumsSubsectionRef *Checksums = nullptr;
 };
 
+/// Owns shared string-table and checksums subsections used when building
+/// CodeView debug info.
 class StringsAndChecksums {
 public:
+  /// Shared ownership of a writable string table subsection.
   using StringsPtr = std::shared_ptr<DebugStringTableSubsection>;
+  /// Shared ownership of a writable file checksums subsection.
   using ChecksumsPtr = std::shared_ptr<DebugChecksumsSubsection>;
 
-  // If no subsections are known about initially, we find as much as we can.
+  /// Construct an empty holder with no string table or checksums subsections.
   StringsAndChecksums() = default;
 
+  /// Set the owned string table subsection to \p SP.
+  ///
+  /// \param SP Shared pointer to the string table subsection.
   void setStrings(const StringsPtr &SP) { Strings = SP; }
+  /// Set the owned file checksums subsection to \p CP.
+  ///
+  /// \param CP Shared pointer to the file checksums subsection.
   void setChecksums(const ChecksumsPtr &CP) { Checksums = CP; }
 
+  /// Return the shared pointer to the owned string table subsection.
+  ///
+  /// \returns The shared pointer to the owned string table subsection.
   const StringsPtr &strings() const { return Strings; }
+  /// Return the shared pointer to the owned file checksums subsection.
+  ///
+  /// \returns The shared pointer to the owned file checksums subsection.
   const ChecksumsPtr &checksums() const { return Checksums; }
 
+  /// Return true if a string table subsection has been set.
+  ///
+  /// \returns True if a string table subsection has been set.
   bool hasStrings() const { return Strings != nullptr; }
+  /// Return true if a file checksums subsection has been set.
+  ///
+  /// \returns True if a file checksums subsection has been set.
   bool hasChecksums() const { return Checksums != nullptr; }
 
 private:

@@ -59,14 +59,24 @@ public:
   LivePhysRegs() = default;
 
   /// Constructs and initializes an empty set.
+  ///
+  /// \param TRI Target register info used to size the register universe.
   LivePhysRegs(const TargetRegisterInfo &TRI) : TRI(&TRI) {
     LiveRegs.setUniverse(TRI.getNumRegs());
   }
 
-  LivePhysRegs(const LivePhysRegs&) = delete;
-  LivePhysRegs &operator=(const LivePhysRegs&) = delete;
+  /// LivePhysRegs is non-copyable.
+  ///
+  /// \param RHS Unused; copy construction is deleted.
+  LivePhysRegs(const LivePhysRegs &RHS) = delete;
+  /// LivePhysRegs is non-assignable.
+  ///
+  /// \param RHS Unused; copy assignment is deleted.
+  LivePhysRegs &operator=(const LivePhysRegs &RHS) = delete;
 
   /// (re-)initializes and clears the set.
+  ///
+  /// \param TRI Target register info used to size the register universe.
   void init(const TargetRegisterInfo &TRI) {
     this->TRI = &TRI;
     LiveRegs.clear();
@@ -77,9 +87,13 @@ public:
   void clear() { LiveRegs.clear(); }
 
   /// Returns true if the set is empty.
+  ///
+  /// \return True if the set contains no registers.
   bool empty() const { return LiveRegs.empty(); }
 
   /// Adds a physical register and all its sub-registers to the set.
+  ///
+  /// \param Reg Physical register to add.
   void addReg(MCRegister Reg) {
     assert(TRI && "LivePhysRegs is not initialized.");
     assert(Reg < TRI->getNumRegs() && "Expected a physical register.");
@@ -92,6 +106,8 @@ public:
 
   /// Removes a physical register, all its sub-registers, and all its
   /// super-registers from the set.
+  ///
+  /// \param Reg Physical register to remove.
   void removeReg(MCRegister Reg) {
     assert(TRI && "LivePhysRegs is not initialized.");
     assert(Reg < TRI->getNumRegs() && "Expected a physical register.");
@@ -100,70 +116,113 @@ public:
   }
 
   /// Removes physical registers clobbered by the regmask operand \p MO.
+  ///
+  /// \param MO Regmask operand describing clobbered registers.
+  /// \param Clobbers Optional list to append each clobbered register and the
+  ///        operand that identified it.
   LLVM_ABI void removeRegsInMask(
       const MachineOperand &MO,
       SmallVectorImpl<std::pair<MCPhysReg, const MachineOperand *>> *Clobbers =
           nullptr);
 
-  /// Returns true if register \p Reg is contained in the set. This also
-  /// works if only the super register of \p Reg has been defined, because
-  /// addReg() always adds all sub-registers to the set as well.
+  /// Returns true if register \p Reg is contained in the set.
+  ///
+  /// This also works if only the super register of \p Reg has been defined,
+  /// because addReg() always adds all sub-registers to the set as well.
   /// Note: Returns false if just some sub registers are live, use available()
   /// when searching a free register.
+  ///
+  /// \param Reg Physical register to test for membership.
+  /// \return True if \p Reg is in the set.
   bool contains(MCRegister Reg) const { return LiveRegs.count(Reg.id()); }
 
   /// Returns true if register \p Reg and no aliasing register is in the set.
+  ///
+  /// \param MRI Machine register info used for alias queries.
+  /// \param Reg Physical register to test for availability.
+  /// \return True if \p Reg and no aliasing register is in the set.
   LLVM_ABI bool available(const MachineRegisterInfo &MRI, MCRegister Reg) const;
 
   /// Remove defined registers and regmask kills from the set.
+  ///
+  /// \param MI Instruction whose defs and regmask kills are removed.
   LLVM_ABI void removeDefs(const MachineInstr &MI);
 
   /// Add uses to the set.
+  ///
+  /// \param MI Instruction whose uses are added.
   LLVM_ABI void addUses(const MachineInstr &MI);
 
   /// Simulates liveness when stepping backwards over an instruction(bundle).
+  ///
   /// Remove Defs, add uses. This is the recommended way of calculating
   /// liveness.
+  ///
+  /// \param MI Instruction (or bundle) to step over.
   LLVM_ABI void stepBackward(const MachineInstr &MI);
 
   /// Simulates liveness when stepping forward over an instruction(bundle).
+  ///
   /// Remove killed-uses, add defs. This is the not recommended way, because it
   /// depends on accurate kill flags. If possible use stepBackward() instead of
   /// this function. The clobbers set will be the list of registers either
   /// defined or clobbered by a regmask.  The operand will identify whether this
   /// is a regmask or register operand.
+  ///
+  /// \param MI Instruction (or bundle) to step over.
+  /// \param Clobbers Registers defined or clobbered by a regmask, paired with
+  ///        the operand that identified each one.
   LLVM_ABI void stepForward(
       const MachineInstr &MI,
       SmallVectorImpl<std::pair<MCPhysReg, const MachineOperand *>> &Clobbers);
 
   /// Adds all live-in registers of basic block \p MBB.
+  ///
   /// Live in registers are the registers in the blocks live-in list and the
   /// pristine registers.
+  ///
+  /// \param MBB Basic block whose live-in registers are added.
   LLVM_ABI void addLiveIns(const MachineBasicBlock &MBB);
 
   /// Adds all live-in registers of basic block \p MBB but skips pristine
   /// registers.
+  ///
+  /// \param MBB Basic block whose live-in registers are added.
   LLVM_ABI void addLiveInsNoPristines(const MachineBasicBlock &MBB);
 
   /// Adds all live-out registers of basic block \p MBB.
+  ///
   /// Live out registers are the union of the live-in registers of the successor
   /// blocks and pristine registers. Live out registers of the end block are the
   /// callee saved registers.
   /// If a register is not added by this method, it is guaranteed to not be
   /// live out from MBB, although a sub-register may be. This is true
   /// both before and after regalloc.
+  ///
+  /// \param MBB Basic block whose live-out registers are added.
   LLVM_ABI void addLiveOuts(const MachineBasicBlock &MBB);
 
   /// Adds all live-out registers of basic block \p MBB but skips pristine
   /// registers.
+  ///
+  /// \param MBB Basic block whose live-out registers are added.
   LLVM_ABI void addLiveOutsNoPristines(const MachineBasicBlock &MBB);
 
+  /// Const iterator over live physical registers in the set.
   using const_iterator = RegisterSet::const_iterator;
 
+  /// Return an iterator to the beginning of the live register set.
+  ///
+  /// \return Const iterator to the first live register.
   const_iterator begin() const { return LiveRegs.begin(); }
+  /// Return an iterator to the end of the live register set.
+  ///
+  /// \return Const iterator past the last live register.
   const_iterator end() const { return LiveRegs.end(); }
 
   /// Prints the currently live registers to \p OS.
+  ///
+  /// \param OS Output stream.
   LLVM_ABI void print(raw_ostream &OS) const;
 
   /// Dumps the currently live registers to the debug output.
@@ -186,6 +245,11 @@ private:
   void addPristines(const MachineFunction &MF);
 };
 
+/// Write the live physical registers in \p LR to \p OS.
+///
+/// \param OS Output stream.
+/// \param LR Live physical register set to print.
+/// \return Reference to \p OS.
 inline raw_ostream &operator<<(raw_ostream &OS, const LivePhysRegs& LR) {
   LR.print(OS);
   return OS;
@@ -194,21 +258,36 @@ inline raw_ostream &operator<<(raw_ostream &OS, const LivePhysRegs& LR) {
 /// Computes registers live-in to \p MBB assuming all of its successors
 /// live-in lists are up-to-date. Puts the result into the given LivePhysReg
 /// instance \p LiveRegs.
+///
+/// \param LiveRegs LivePhysRegs instance that receives the computed live-ins.
+/// \param MBB Basic block whose live-in registers are computed.
 LLVM_ABI void computeLiveIns(LivePhysRegs &LiveRegs,
                              const MachineBasicBlock &MBB);
 
 /// Recomputes dead and kill flags in \p MBB.
+///
+/// \param MBB Basic block whose dead and kill flags are recomputed.
 LLVM_ABI void recomputeLivenessFlags(MachineBasicBlock &MBB);
 
 /// Adds registers contained in \p LiveRegs to the block live-in list of \p MBB.
 /// Does not add reserved registers.
+///
+/// \param MBB Basic block whose live-in list is updated.
+/// \param LiveRegs Live physical registers to add as live-ins.
 LLVM_ABI void addLiveIns(MachineBasicBlock &MBB, const LivePhysRegs &LiveRegs);
 
 /// Convenience function combining computeLiveIns() and addLiveIns().
+///
+/// \param LiveRegs LivePhysRegs instance used to compute live-ins.
+/// \param MBB Basic block whose live-ins are computed and added.
 LLVM_ABI void computeAndAddLiveIns(LivePhysRegs &LiveRegs,
                                    MachineBasicBlock &MBB);
 
 /// Check if physical register \p Reg is used after \p MBI.
+///
+/// \param Reg Physical register to query.
+/// \param MBI Instruction after which subsequent uses are searched.
+/// \return True if \p Reg is used after \p MBI.
 LLVM_ABI bool isPhysRegUsedAfter(Register Reg, MachineBasicBlock::iterator MBI);
 
 /// Convenience function for recomputing live-in's for a MBB. Returns true if
@@ -228,6 +307,8 @@ static inline bool recomputeLiveIns(MachineBasicBlock &MBB) {
 
 /// Convenience function for recomputing live-in's for a set of MBBs until the
 /// computation converges.
+///
+/// \param MBBs Basic blocks whose live-ins are recomputed to a fixed point.
 inline void fullyRecomputeLiveIns(ArrayRef<MachineBasicBlock *> MBBs) {
   bool Change = false;
   do {

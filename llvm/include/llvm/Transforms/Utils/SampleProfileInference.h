@@ -24,28 +24,43 @@ struct FlowJump;
 
 /// A wrapper of a binary basic block.
 struct FlowBlock {
+  /// Index of this block in the enclosing flow function.
   uint64_t Index;
+  /// Sampled or assigned weight of this block.
   uint64_t Weight{0};
+  /// True if \p Weight was not provided by samples.
   bool HasUnknownWeight{true};
+  /// True if this block is considered unlikely to execute.
   bool IsUnlikely{false};
+  /// Inferred execution flow through this block.
   uint64_t Flow{0};
+  /// Outgoing jumps from this block.
   std::vector<FlowJump *> SuccJumps;
+  /// Incoming jumps to this block.
   std::vector<FlowJump *> PredJumps;
 
   /// Check if it is the entry block in the function.
+  /// \return True if the block has no predecessors.
   bool isEntry() const { return PredJumps.empty(); }
 
   /// Check if it is an exit block in the function.
+  /// \return True if the block has no successors.
   bool isExit() const { return SuccJumps.empty(); }
 };
 
 /// A wrapper of a jump between two basic blocks.
 struct FlowJump {
+  /// Index of the source block.
   uint64_t Source;
+  /// Index of the target block.
   uint64_t Target;
+  /// Sampled or assigned weight of this jump.
   uint64_t Weight{0};
+  /// True if \p Weight was not provided by samples.
   bool HasUnknownWeight{true};
+  /// True if this jump is considered unlikely to be taken.
   bool IsUnlikely{false};
+  /// Inferred execution flow along this jump.
   uint64_t Flow{0};
 };
 
@@ -59,9 +74,10 @@ struct FlowFunction {
   uint64_t Entry{0};
 };
 
-/// Various thresholds and options controlling the behavior of the profile
-/// inference algorithm. Default values are tuned for several large-scale
-/// applications, and can be modified via corresponding command-line flags.
+/// Thresholds and options for the profile inference algorithm.
+///
+/// Default values are tuned for several large-scale applications, and can be
+/// modified via corresponding command-line flags.
 struct ProfiParams {
   /// Evenly distribute flow when there are multiple equally likely options.
   bool EvenFlowDistribution{false};
@@ -112,31 +128,56 @@ struct ProfiParams {
   const int64_t CostUnlikely = ((int64_t)1) << 30;
 };
 
+/// Apply the profile inference algorithm to \p Func with custom \p Params.
+/// \param Params Inference cost and policy parameters.
+/// \param Func Flow function whose block and jump flows are inferred in place.
 LLVM_ABI void applyFlowInference(const ProfiParams &Params, FlowFunction &Func);
+
+/// Apply the profile inference algorithm to \p Func with default parameters.
+/// \param Func Flow function whose block and jump flows are inferred in place.
 LLVM_ABI void applyFlowInference(FlowFunction &Func);
 
 /// Sample profile inference pass.
 template <typename FT> class SampleProfileInference {
 public:
+  /// Graph node reference type for \p FT.
   using NodeRef = typename GraphTraits<FT *>::NodeRef;
+  /// Basic block type obtained by stripping the pointer from \p NodeRef.
   using BasicBlockT = std::remove_pointer_t<NodeRef>;
+  /// Function type provided as the class template argument.
   using FunctionT = FT;
+  /// Directed edge between two basic blocks.
   using Edge = std::pair<const BasicBlockT *, const BasicBlockT *>;
+  /// Map from basic blocks to their weights.
   using BlockWeightMap = DenseMap<const BasicBlockT *, uint64_t>;
+  /// Map from edges to their weights.
   using EdgeWeightMap = DenseMap<Edge, uint64_t>;
+  /// Map from each basic block to its successors in the CFG.
   using BlockEdgeMap =
       DenseMap<const BasicBlockT *, SmallVector<const BasicBlockT *, 8>>;
 
+  /// Construct inference state from block samples only.
+  /// \param F Function whose profile is being inferred.
+  /// \param Successors Successor lists for each basic block in \p F.
+  /// \param SampleBlockWeights Sampled weights for basic blocks.
   SampleProfileInference(FunctionT &F, BlockEdgeMap &Successors,
                          BlockWeightMap &SampleBlockWeights)
       : F(F), Successors(Successors), SampleBlockWeights(SampleBlockWeights) {}
+
+  /// Construct inference state from block and edge samples.
+  /// \param F Function whose profile is being inferred.
+  /// \param Successors Successor lists for each basic block in \p F.
+  /// \param SampleBlockWeights Sampled weights for basic blocks.
+  /// \param SampleEdgeWeights Sampled weights for edges.
   SampleProfileInference(FunctionT &F, BlockEdgeMap &Successors,
                          BlockWeightMap &SampleBlockWeights,
                          EdgeWeightMap &SampleEdgeWeights)
       : F(F), Successors(Successors), SampleBlockWeights(SampleBlockWeights),
         SampleEdgeWeights(SampleEdgeWeights) {}
 
-  /// Apply the profile inference algorithm for a given function
+  /// Apply the profile inference algorithm for a given function.
+  /// \param BlockWeights [out] Inferred block weights.
+  /// \param EdgeWeights [out] Inferred edge weights.
   void apply(BlockWeightMap &BlockWeights, EdgeWeightMap &EdgeWeights);
 
 private:

@@ -21,8 +21,16 @@ namespace llvm {
 
 class Function;
 
+/// Pass that promotes memory allocas to SSA registers via PromoteMemToReg.
+///
+/// This is a simple pass wrapper around the PromoteMemToReg function call
+/// exposed by the Utils library.
 class PromotePass : public OptionalPassInfoMixin<PromotePass> {
 public:
+  /// Run the mem2reg pass over the function.
+  /// @param F Function whose allocas should be promoted to SSA registers.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

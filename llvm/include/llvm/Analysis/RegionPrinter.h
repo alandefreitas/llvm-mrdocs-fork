@@ -23,14 +23,32 @@ class Function;
 class RegionInfo;
 class RegionNode;
 
+/// Create a legacy pass that views the regions of a function.
+/// @return A FunctionPass that displays the region graph in a viewer.
 LLVM_ABI FunctionPass *createRegionViewerPass();
+
+/// Create a legacy pass that views a label-only region graph.
+/// @return A FunctionPass that displays a label-only region graph in a viewer.
 LLVM_ABI FunctionPass *createRegionOnlyViewerPass();
+
+/// Create a legacy pass that prints the regions of a function as DOT.
+/// @return A FunctionPass that writes the region graph to a DOT file.
 LLVM_ABI FunctionPass *createRegionPrinterPass();
+
+/// Create a legacy pass that prints a label-only region graph as DOT.
+/// @return A FunctionPass that writes a label-only region graph to a DOT file.
 LLVM_ABI FunctionPass *createRegionOnlyPrinterPass();
 
+/// DOTGraphTraits specialization for rendering a region node.
 template <> struct DOTGraphTraits<RegionNode *> : public DefaultDOTGraphTraits {
+  /// Construct DOT traits for a region node, optionally in simple mode.
+  /// @param isSimple True to emit simple node labels without block bodies.
   DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
 
+  /// Return the DOT label for region node \p Node.
+  /// @param Node Region node whose label is requested.
+  /// @param Graph Root of the region graph (unused for labeling).
+  /// @return Label for \p Node derived from its region or basic block.
   LLVM_ABI std::string getNodeLabel(RegionNode *Node, RegionNode *Graph);
 };
 

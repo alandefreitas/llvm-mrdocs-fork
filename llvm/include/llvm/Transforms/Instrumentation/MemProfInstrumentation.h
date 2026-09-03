@@ -29,7 +29,12 @@ class Module;
 /// record data about the allocations.
 class MemProfilerPass : public RequiredPassInfoMixin<MemProfilerPass> {
 public:
+  /// Construct a MemProfiler function pass.
   LLVM_ABI explicit MemProfilerPass();
+  /// Run MemProfiler instrumentation over the function.
+  /// @param F Function to instrument.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
@@ -38,7 +43,12 @@ public:
 class ModuleMemProfilerPass
     : public RequiredPassInfoMixin<ModuleMemProfilerPass> {
 public:
+  /// Construct a MemProfiler module pass.
   LLVM_ABI explicit ModuleMemProfilerPass();
+  /// Run MemProfiler module instrumentation over the module.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

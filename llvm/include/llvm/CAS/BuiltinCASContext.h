@@ -13,8 +13,12 @@
 #include "llvm/Support/BLAKE3.h"
 #include "llvm/Support/Error.h"
 
+/// Top-level LLVM library namespace.
+namespace llvm {
+/// Content-addressable storage (CAS) APIs.
+namespace cas {
 /// Builtin CAS implementation details using BLAKE3.
-namespace llvm::cas::builtin {
+namespace builtin {
 
 /// Current hash type for the builtin CAS.
 ///
@@ -71,8 +75,12 @@ public:
   ///     "BLAKE3.16" => 16B hash from BLAKE3 (truncated)
   ///
   /// Enum can be sent into \a createInMemoryCAS() and \a createOnDiskCAS().
+  ///
+  /// \return The hash name used in table identifiers.
   static StringRef getHashName() { return "BLAKE3"; }
   /// Return the hash schema identifier for this builtin CAS.
+  ///
+  /// \return The hash schema identifier string for this context.
   StringRef getHashSchemaIdentifier() const final {
     static const std::string ID =
         ("llvm.cas.builtin.v2[" + getHashName() + "]").str();
@@ -80,17 +88,27 @@ public:
   }
 
   /// Return the process-wide default builtin CAS context.
+  ///
+  /// \return The process-wide default builtin CAS context.
   static const BuiltinCASContext &getDefaultContext();
 
   /// Construct a builtin CAS context.
   BuiltinCASContext() = default;
 
   /// Parse a printed digest into a hash value.
+  ///
+  /// \param PrintedDigest Textual digest to parse into a hash value.
+  /// \return The parsed hash value, or an error on failure.
   static Expected<HashType> parseID(StringRef PrintedDigest);
   /// Print a digest to \p OS.
+  ///
+  /// \param Digest Raw digest bytes to print.
+  /// \param OS Stream to print to.
   static void printID(ArrayRef<uint8_t> Digest, raw_ostream &OS);
 };
 
-} // namespace llvm::cas::builtin
+} // namespace builtin
+} // namespace cas
+} // namespace llvm
 
 #endif // LLVM_CAS_BUILTINCASCONTEXT_H

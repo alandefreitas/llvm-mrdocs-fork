@@ -37,7 +37,8 @@
 
 namespace llvm {
 
-/// This class is used to track the last run of a set of module/function passes.
+/// Tracks the last run of a set of module/function passes.
+///
 /// Invalidation are conservatively handled by the pass manager if a pass
 /// doesn't explicitly preserve the result.
 /// If we want to skip a pass, we should define a unique ID \p PassID to
@@ -46,9 +47,11 @@ namespace llvm {
 /// bool isCompatibleWith(const OptionT& LastOpt) const to check compatibility.
 class LastRunTrackingInfo {
 public:
+  /// Unique ID for a tracked pass, typically a pointer to a static member.
   using PassID = const void *;
+  /// Opaque pointer to the parameters of a tracked pass.
   using OptionPtr = const void *;
-  // CompatibilityCheckFn is a closure that stores the parameters of last run.
+  /// Closure that stores the parameters of the last run and checks compatibility.
   using CompatibilityCheckFn = std::function<bool(OptionPtr)>;
 
   /// Check if we should skip a pass.
@@ -61,6 +64,9 @@ public:
   bool shouldSkip(PassID ID, const OptionT &Opt) const {
     return shouldSkipImpl(ID, &Opt);
   }
+  /// Check if we should skip a pass with no parameters.
+  /// \param ID The unique ID of the pass.
+  /// \return True if we should skip the pass.
   bool shouldSkip(PassID ID) const { return shouldSkipImpl(ID, nullptr); }
 
   /// Update the tracking info.
@@ -76,6 +82,9 @@ public:
       return static_cast<const OptionT *>(Ptr)->isCompatibleWith(Opt);
     });
   }
+  /// Update the tracking info for a pass with no parameters.
+  /// \param ID The unique ID of the pass.
+  /// \param Changed Whether the pass makes changes.
   void update(PassID ID, bool Changed) {
     updateImpl(ID, Changed, CompatibilityCheckFn{});
   }
@@ -95,11 +104,20 @@ class LastRunTrackingAnalysis final
   LLVM_ABI static AnalysisKey Key;
 
 public:
+  /// Provide the result typedef for this analysis pass.
   using Result = LastRunTrackingInfo;
-  LastRunTrackingInfo run(Function &F, FunctionAnalysisManager &) {
+  /// Run the analysis over a function and produce an empty LastRunTrackingInfo.
+  /// \param F Function to analyze.
+  /// \param AM Function analysis manager (unused).
+  /// \return An empty LastRunTrackingInfo.
+  LastRunTrackingInfo run(Function &F, FunctionAnalysisManager &AM) {
     return LastRunTrackingInfo();
   }
-  LastRunTrackingInfo run(Module &M, ModuleAnalysisManager &) {
+  /// Run the analysis over a module and produce an empty LastRunTrackingInfo.
+  /// \param M Module to analyze.
+  /// \param AM Module analysis manager (unused).
+  /// \return An empty LastRunTrackingInfo.
+  LastRunTrackingInfo run(Module &M, ModuleAnalysisManager &AM) {
     return LastRunTrackingInfo();
   }
 };

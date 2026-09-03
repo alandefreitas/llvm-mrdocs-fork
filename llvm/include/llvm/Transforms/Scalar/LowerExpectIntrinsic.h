@@ -22,6 +22,7 @@ namespace llvm {
 
 class Function;
 
+/// A pass that lowers llvm.expect intrinsics into branch weight metadata.
 struct LowerExpectIntrinsicPass
     : OptionalPassInfoMixin<LowerExpectIntrinsicPass> {
   /// Run the pass over the function.
@@ -31,7 +32,10 @@ struct LowerExpectIntrinsicPass
   /// of the probabilities and frequencies of the CFG. After running this pass,
   /// no more expect intrinsics remain, allowing the rest of the optimizer to
   /// ignore them.
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// @param F Function whose expect intrinsics may be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }
 

@@ -39,21 +39,31 @@ struct RemarkSerializer {
   /// The table can be serialized to be consumed after the compilation.
   std::optional<StringTable> StrTab;
 
+  /// Construct a remark serializer for \p SerializerFormat writing to \p OS.
+  /// @param SerializerFormat The remark serialization format to use.
+  /// @param OS The stream to emit remarks to.
   RemarkSerializer(Format SerializerFormat, raw_ostream &OS)
       : SerializerFormat(SerializerFormat), OS(OS) {}
 
+  /// Destroy the remark serializer.
   virtual ~RemarkSerializer() = default;
 
-  /// Finalize remark emission (e.g. finish writing metadata, flush internal
-  /// buffers). It is safe to call this function multiple times, and it should
-  /// have the same behavior as destructing the RemarkSerializer.
-  /// After finalizing, the behavior of emit is unspecified.
+  /// Finalize remark emission.
+  ///
+  /// Finishes writing metadata and flushes internal buffers. It is safe to
+  /// call this function multiple times, and it should have the same behavior
+  /// as destructing the RemarkSerializer. After finalizing, the behavior of
+  /// emit is unspecified.
   virtual void finalize() {}
 
   /// Emit a remark to the stream.
+  /// @param Remark The remark to emit.
   virtual void emit(const Remark &Remark) = 0;
 
   /// Return the corresponding metadata serializer.
+  /// @param OS The stream to emit metadata to.
+  /// @param ExternalFilename Path to an external remarks file, if any.
+  /// @return A metadata serializer writing to \p OS.
   virtual std::unique_ptr<MetaSerializer>
   metaSerializer(raw_ostream &OS, StringRef ExternalFilename) = 0;
 };
@@ -63,18 +73,28 @@ struct MetaSerializer {
   /// The open raw_ostream that the metadata is emitted to.
   raw_ostream &OS;
 
+  /// Construct a metadata serializer that writes to \p OS.
+  /// @param OS The stream to emit metadata to.
   MetaSerializer(raw_ostream &OS) : OS(OS) {}
 
   /// This is just an interface.
   virtual ~MetaSerializer() = default;
+  /// Emit the metadata to the stream.
   virtual void emit() = 0;
 };
 
 /// Create a remark serializer.
+/// @param RemarksFormat The remark serialization format to use.
+/// @param OS The stream to emit remarks to.
+/// @return A remark serializer for \p RemarksFormat, or an error.
 LLVM_ABI Expected<std::unique_ptr<RemarkSerializer>>
 createRemarkSerializer(Format RemarksFormat, raw_ostream &OS);
 
 /// Create a remark serializer that uses a pre-filled string table.
+/// @param RemarksFormat The remark serialization format to use.
+/// @param OS The stream to emit remarks to.
+/// @param StrTab Pre-filled string table to use for emission.
+/// @return A remark serializer for \p RemarksFormat using \p StrTab, or an error.
 LLVM_ABI Expected<std::unique_ptr<RemarkSerializer>>
 createRemarkSerializer(Format RemarksFormat, raw_ostream &OS,
                        remarks::StringTable StrTab);

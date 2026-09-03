@@ -23,11 +23,19 @@ class IRBuilderBase;
 class User;
 class Value;
 
-/// Given a getelementptr instruction/constantexpr, emit the code necessary to
-/// compute the offset from the base pointer (without adding in the base
-/// pointer). Return the result as a signed integer of intptr size.
-/// When NoAssumptions is true, no assumptions about index computation not
-/// overflowing is made.
+/// Emit code to compute a GEP's offset from its base pointer.
+///
+/// Given a getelementptr instruction or constant expression, emits the code
+/// necessary to compute the offset from the base pointer (without adding in
+/// the base pointer). Returns the result as a signed integer of intptr size.
+/// When \p NoAssumptions is true, no assumptions about index computation not
+/// overflowing are made.
+/// \param Builder IR builder used to emit the offset computation.
+/// \param DL Data layout used for pointer and type sizes.
+/// \param GEP GetElementPtr instruction or constant expression to measure.
+/// \param NoAssumptions If true, do not assume index computations do not
+/// overflow.
+/// \return The offset as a signed integer of intptr size.
 LLVM_ABI Value *emitGEPOffset(IRBuilderBase *Builder, const DataLayout &DL,
                               User *GEP, bool NoAssumptions = false);
 

@@ -32,19 +32,31 @@ struct DWARFAttribute {
   /// The form and value for this attribute.
   DWARFFormValue Value;
 
+  /// True if this attribute has a non-zero offset and a set attribute code.
+  ///
+  /// \returns True if Offset is non-zero and Attr is set.
   bool isValid() const {
     return Offset != 0 && Attr != dwarf::Attribute(0);
   }
 
+  /// True if this attribute is valid (non-zero offset and attribute code).
+  ///
+  /// \returns True if this attribute is valid.
   explicit operator bool() const {
     return isValid();
   }
 
   /// Identify DWARF attributes that may contain a pointer to a location list.
+  ///
+  /// \param Attr the DWARF attribute to check.
+  /// \returns True if \p Attr may contain a pointer to a location list.
   LLVM_ABI static bool mayHaveLocationList(dwarf::Attribute Attr);
 
   /// Identifies DWARF attributes that may contain a reference to a
   /// DWARF expression.
+  ///
+  /// \param Attr the DWARF attribute to check.
+  /// \returns True if \p Attr may contain a reference to a DWARF expression.
   LLVM_ABI static bool mayHaveLocationExpr(dwarf::Attribute Attr);
 };
 

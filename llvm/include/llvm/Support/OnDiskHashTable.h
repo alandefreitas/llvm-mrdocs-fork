@@ -112,6 +112,9 @@ private:
 
 public:
   /// Insert an entry into the table.
+  ///
+  /// \param Key Key to insert.
+  /// \param Data Data associated with \p Key.
   void insert(typename Info::key_type_ref Key,
               typename Info::data_type_ref Data) {
     Info InfoObj;
@@ -121,6 +124,10 @@ public:
   /// Insert an entry into the table.
   ///
   /// Uses the provided Info instead of a stack allocated one.
+  ///
+  /// \param Key Key to insert.
+  /// \param Data Data associated with \p Key.
+  /// \param InfoObj Trait used to hash the key.
   void insert(typename Info::key_type_ref Key,
               typename Info::data_type_ref Data, Info &InfoObj) {
     ++NumEntries;
@@ -130,6 +137,10 @@ public:
   }
 
   /// Determine whether an entry has been inserted.
+  ///
+  /// \param Key Key to search for.
+  /// \param InfoObj Trait used to hash and compare keys.
+  /// \return True if an entry with \p Key is present.
   bool contains(typename Info::key_type_ref Key, Info &InfoObj) {
     unsigned Hash = InfoObj.ComputeHash(Key);
     for (Item *I = Buckets[Hash & (NumBuckets - 1)].Head; I; I = I->Next)
@@ -139,6 +150,9 @@ public:
   }
 
   /// Emit the table to Out, which must not be at offset 0.
+  ///
+  /// \param Out Stream to write the table into.
+  /// \return The offset of the emitted hash table within \p Out.
   offset_type Emit(raw_ostream &Out) {
     Info InfoObj;
     return Emit(Out, InfoObj);
@@ -147,6 +161,10 @@ public:
   /// Emit the table to Out, which must not be at offset 0.
   ///
   /// Uses the provided Info instead of a stack allocated one.
+  ///
+  /// \param Out Stream to write the table into.
+  /// \param InfoObj Trait used to emit keys and data.
+  /// \return The offset of the emitted hash table within \p Out.
   offset_type Emit(raw_ostream &Out, Info &InfoObj) {
     using namespace llvm::support;
     endian::Writer LE(Out, llvm::endianness::little);
@@ -221,6 +239,7 @@ public:
     return TableOff;
   }
 
+  /// Construct an empty hash table generator with an initial bucket array.
   OnDiskChainedHashTableGenerator() {
     NumEntries = 0;
     NumBuckets = 64;
@@ -229,6 +248,7 @@ public:
     Buckets = static_cast<Bucket *>(safe_calloc(NumBuckets, sizeof(Bucket)));
   }
 
+  /// Destroy the generator and free the bucket array.
   ~OnDiskChainedHashTableGenerator() { std::free(Buckets); }
 };
 
@@ -278,13 +298,26 @@ template <typename Info> class OnDiskChainedHashTable {
   Info InfoObj;
 
 public:
+  /// Trait type that reads keys and data from the table.
   using InfoType = Info;
+  /// Internal key type stored in the table.
   using internal_key_type = typename Info::internal_key_type;
+  /// External key type passed to find().
   using external_key_type = typename Info::external_key_type;
+  /// Data type associated with each key.
   using data_type = typename Info::data_type;
+  /// Type returned by the hash function.
   using hash_value_type = typename Info::hash_value_type;
+  /// Type used for offsets into the table.
   using offset_type = typename Info::offset_type;
 
+  /// Construct a hash table over the given buckets and base.
+  ///
+  /// \param NumBuckets Number of hash buckets.
+  /// \param NumEntries Number of key/data entries.
+  /// \param Buckets Pointer to the on-disk bucket array.
+  /// \param Base Base address from which offsets are measured.
+  /// \param InfoObj Trait object used to read keys and data.
   OnDiskChainedHashTable(offset_type NumBuckets, offset_type NumEntries,
                          const unsigned char *Buckets,
                          const unsigned char *Base,
@@ -298,6 +331,10 @@ public:
   /// Read the number of buckets and the number of entries from a hash table
   /// produced by OnDiskHashTableGenerator::Emit, and advance the Buckets
   /// pointer past them.
+  ///
+  /// \param Buckets Pointer to the start of the bucket header; advanced past
+  /// the bucket and entry counts.
+  /// \return A pair of (number of buckets, number of entries).
   static std::pair<offset_type, offset_type>
   readNumBucketsAndEntries(const unsigned char *&Buckets) {
     assert((reinterpret_cast<uintptr_t>(Buckets) & 0x3) == 0 &&
@@ -312,13 +349,29 @@ public:
     return {NumBuckets, NumEntries};
   }
 
+  /// Return the number of buckets in the hash table.
+  ///
+  /// \return The number of buckets.
   offset_type getNumBuckets() const { return NumBuckets; }
+  /// Return the number of entries in the hash table.
+  ///
+  /// \return The number of entries.
   offset_type getNumEntries() const { return NumEntries; }
+  /// Return the base address from which offsets are measured.
+  ///
+  /// \return The base address.
   const unsigned char *getBase() const { return Base; }
+  /// Return a pointer to the on-disk bucket array.
+  ///
+  /// \return Pointer to the bucket array.
   const unsigned char *getBuckets() const { return Buckets; }
 
+  /// Return true if the table has no entries.
+  ///
+  /// \return True if the table is empty.
   bool isEmpty() const { return NumEntries == 0; }
 
+  /// Iterator over a single matching hash-table entry.
   class iterator {
     internal_key_type Key;
     const unsigned char *const Data;
@@ -326,21 +379,49 @@ public:
     Info *InfoObj;
 
   public:
+    /// Default-construct an end iterator.
     iterator() : Key(), Data(nullptr), Len(0), InfoObj(nullptr) {}
+    /// Construct an iterator over the data at \p D with length \p L.
+    ///
+    /// \param K Internal key for the matched entry.
+    /// \param D Pointer to the on-disk data bytes.
+    /// \param L Length in bytes of the data.
+    /// \param InfoObj Trait used to read the data.
     iterator(const internal_key_type K, const unsigned char *D, offset_type L,
              Info *InfoObj)
         : Key(K), Data(D), Len(L), InfoObj(InfoObj) {}
 
+    /// Read and return the data for this entry.
+    ///
+    /// \return The data associated with this entry.
     data_type operator*() const { return InfoObj->ReadData(Key, Data, Len); }
 
+    /// Return a pointer to the on-disk data bytes.
+    ///
+    /// \return Pointer to the on-disk data.
     const unsigned char *getDataPtr() const { return Data; }
+    /// Return the length in bytes of the on-disk data.
+    ///
+    /// \return Length in bytes of the data.
     offset_type getDataLen() const { return Len; }
 
+    /// Return true if both iterators refer to the same data pointer.
+    ///
+    /// \param X Iterator to compare against.
+    /// \return True if both iterators refer to the same data.
     bool operator==(const iterator &X) const { return X.Data == Data; }
+    /// Return true if the iterators refer to different data pointers.
+    ///
+    /// \param X Iterator to compare against.
+    /// \return True if the iterators refer to different data.
     bool operator!=(const iterator &X) const { return X.Data != Data; }
   };
 
   /// Look up the stored data for a particular key.
+  ///
+  /// \param EKey External key to look up.
+  /// \param InfoPtr Optional trait override; uses the table's Info when null.
+  /// \return An iterator to the matching entry, or end() if not found.
   iterator find(const external_key_type &EKey, Info *InfoPtr = nullptr) {
     const internal_key_type &IKey = InfoObj.GetInternalKey(EKey);
     hash_value_type KeyHash = InfoObj.ComputeHash(IKey);
@@ -348,6 +429,11 @@ public:
   }
 
   /// Look up the stored data for a particular key with a known hash.
+  ///
+  /// \param IKey Internal key to look up.
+  /// \param KeyHash Precomputed hash of \p IKey.
+  /// \param InfoPtr Optional trait override; uses the table's Info when null.
+  /// \return An iterator to the matching entry, or end() if not found.
   iterator find_hashed(const internal_key_type &IKey, hash_value_type KeyHash,
                        Info *InfoPtr = nullptr) {
     using namespace llvm::support;
@@ -403,8 +489,14 @@ public:
     return iterator();
   }
 
+  /// Return a past-the-end iterator.
+  ///
+  /// \return A past-the-end iterator.
   iterator end() const { return iterator(); }
 
+  /// Return a reference to the info trait object.
+  ///
+  /// \return A reference to the info trait object.
   Info &getInfoObj() { return InfoObj; }
 
   /// Create the hash table.
@@ -416,6 +508,9 @@ public:
   /// \param Base is the point from which all offsets into the structure are
   /// based. This is offset 0 in the stream that was used when Emitting the
   /// table.
+  ///
+  /// \param InfoObj Trait object used to read keys and data from the table.
+  /// \return A newly allocated hash table; the caller takes ownership.
   static OnDiskChainedHashTable *Create(const unsigned char *Buckets,
                                         const unsigned char *const Base,
                                         const Info &InfoObj = Info()) {
@@ -435,11 +530,17 @@ class OnDiskIterableChainedHashTable : public OnDiskChainedHashTable<Info> {
   const unsigned char *Payload;
 
 public:
+  /// Base lookup table type.
   using base_type = OnDiskChainedHashTable<Info>;
+  /// Internal key type stored in the table.
   using internal_key_type = typename base_type::internal_key_type;
+  /// External key type passed to lookup.
   using external_key_type = typename base_type::external_key_type;
+  /// Data type associated with each key.
   using data_type = typename base_type::data_type;
+  /// Type returned by the hash function.
   using hash_value_type = typename base_type::hash_value_type;
+  /// Type used for offsets into the table.
   using offset_type = typename base_type::offset_type;
 
 private:
@@ -457,9 +558,19 @@ private:
     iterator_base()
         : Ptr(nullptr), NumItemsInBucketLeft(0), NumEntriesLeft(0) {}
 
+    /// Return true if both iterators have the same number of entries left.
+    ///
+    /// \param X First iterator to compare.
+    /// \param Y Second iterator to compare.
+    /// \return True if both iterators have the same number of entries left.
     friend bool operator==(const iterator_base &X, const iterator_base &Y) {
       return X.NumEntriesLeft == Y.NumEntriesLeft;
     }
+    /// Return true if the iterators have different numbers of entries left.
+    ///
+    /// \param X First iterator to compare.
+    /// \param Y Second iterator to compare.
+    /// \return True if the iterators have different numbers of entries left.
     friend bool operator!=(const iterator_base &X, const iterator_base &Y) {
       return X.NumEntriesLeft != Y.NumEntriesLeft;
     }
@@ -486,12 +597,22 @@ private:
 
     /// Get the start of the item as written by the trait (after the hash and
     /// immediately before the key and value length).
+    ///
+    /// \return Pointer to the start of the current item's key/data payload.
     const unsigned char *getItem() const {
       return Ptr + (NumItemsInBucketLeft ? 0 : 2) + sizeof(hash_value_type);
     }
   };
 
 public:
+  /// Construct an iterable hash table over the given buckets and payload.
+  ///
+  /// \param NumBuckets Number of hash buckets.
+  /// \param NumEntries Number of key/data entries.
+  /// \param Buckets Pointer to the on-disk bucket array.
+  /// \param Payload Pointer to the start of the table payload.
+  /// \param Base Base address from which offsets are measured.
+  /// \param InfoObj Trait object used to read keys and data.
   OnDiskIterableChainedHashTable(offset_type NumBuckets, offset_type NumEntries,
                                  const unsigned char *Buckets,
                                  const unsigned char *Payload,
@@ -505,23 +626,40 @@ public:
     Info *InfoObj;
 
   public:
+    /// Type of the external key returned by dereference.
     using value_type = external_key_type;
 
+    /// Construct a key iterator over \p NumEntries items starting at \p Ptr.
+    ///
+    /// \param Ptr Pointer to the first payload item.
+    /// \param NumEntries Number of entries remaining to visit.
+    /// \param InfoObj Trait used to read keys.
     key_iterator(const unsigned char *const Ptr, offset_type NumEntries,
                  Info *InfoObj)
         : iterator_base(Ptr, NumEntries), InfoObj(InfoObj) {}
+    /// Default-construct a past-the-end key iterator.
     key_iterator() : iterator_base(), InfoObj() {}
 
+    /// Advance to the next key.
+    ///
+    /// \return A reference to this iterator after advancing.
     key_iterator &operator++() {
       this->advance();
       return *this;
     }
-    key_iterator operator++(int) { // Postincrement
+    /// Advance to the next key, returning the previous position.
+    ///
+    /// \param Unused Unused postfix-discriminator parameter.
+    /// \return A copy of the iterator before advancing.
+    key_iterator operator++(int Unused) { // Postincrement
       key_iterator tmp = *this;
       ++*this;
       return tmp;
     }
 
+    /// Read and return the internal key at the current position.
+    ///
+    /// \return The internal key at the current position.
     internal_key_type getInternalKey() const {
       auto *LocalPtr = this->getItem();
 
@@ -532,16 +670,28 @@ public:
       return InfoObj->ReadKey(LocalPtr, L.first);
     }
 
+    /// Return the external key at the current position.
+    ///
+    /// \return The external key at the current position.
     value_type operator*() const {
       return InfoObj->GetExternalKey(getInternalKey());
     }
   };
 
+  /// Return an iterator to the first key in the table.
+  ///
+  /// \return An iterator to the first key.
   key_iterator key_begin() {
     return key_iterator(Payload, this->getNumEntries(), &this->getInfoObj());
   }
+  /// Return a past-the-end key iterator.
+  ///
+  /// \return A past-the-end key iterator.
   key_iterator key_end() { return key_iterator(); }
 
+  /// Return a range over all keys in the table.
+  ///
+  /// \return A range spanning all keys.
   iterator_range<key_iterator> keys() {
     return make_range(key_begin(), key_end());
   }
@@ -551,23 +701,40 @@ public:
     Info *InfoObj;
 
   public:
+    /// Type of the data value returned by dereference.
     using value_type = data_type;
 
+    /// Construct a data iterator over \p NumEntries items starting at \p Ptr.
+    ///
+    /// \param Ptr Pointer to the first payload item.
+    /// \param NumEntries Number of entries remaining to visit.
+    /// \param InfoObj Trait used to read keys and data.
     data_iterator(const unsigned char *const Ptr, offset_type NumEntries,
                   Info *InfoObj)
         : iterator_base(Ptr, NumEntries), InfoObj(InfoObj) {}
+    /// Default-construct a past-the-end data iterator.
     data_iterator() : iterator_base(), InfoObj() {}
 
+    /// Advance to the next data value.
+    ///
+    /// \return A reference to this iterator after advancing.
     data_iterator &operator++() { // Preincrement
       this->advance();
       return *this;
     }
-    data_iterator operator++(int) { // Postincrement
+    /// Advance to the next data value, returning the previous position.
+    ///
+    /// \param Unused Unused postfix-discriminator parameter.
+    /// \return A copy of the iterator before advancing.
+    data_iterator operator++(int Unused) { // Postincrement
       data_iterator tmp = *this;
       ++*this;
       return tmp;
     }
 
+    /// Read and return the data at the current position.
+    ///
+    /// \return The data value at the current position.
     value_type operator*() const {
       auto *LocalPtr = this->getItem();
 
@@ -580,11 +747,20 @@ public:
     }
   };
 
+  /// Return an iterator to the first data value in the table.
+  ///
+  /// \return An iterator to the first data value.
   data_iterator data_begin() {
     return data_iterator(Payload, this->getNumEntries(), &this->getInfoObj());
   }
+  /// Return a past-the-end data iterator.
+  ///
+  /// \return A past-the-end data iterator.
   data_iterator data_end() { return data_iterator(); }
 
+  /// Return a range over all data values in the table.
+  ///
+  /// \return A range spanning all data values.
   iterator_range<data_iterator> data() {
     return make_range(data_begin(), data_end());
   }
@@ -602,6 +778,9 @@ public:
   /// \param Base is the point from which all offsets into the structure are
   /// based. This is offset 0 in the stream that was used when Emitting the
   /// table.
+  ///
+  /// \param InfoObj Trait object used to read keys and data from the table.
+  /// \return A newly allocated iterable hash table; the caller takes ownership.
   static OnDiskIterableChainedHashTable *
   Create(const unsigned char *Buckets, const unsigned char *const Payload,
          const unsigned char *const Base, const Info &InfoObj = Info()) {

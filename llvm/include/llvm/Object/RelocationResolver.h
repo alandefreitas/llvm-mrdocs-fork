@@ -27,14 +27,26 @@ class RelocationRef;
 
 /// Predicate that returns true if relocation type is supported.
 using SupportsRelocation = bool (*)(uint64_t);
+/// Callback that resolves a relocation given type, offset, symbol, and addend.
 using RelocationResolver = uint64_t (*)(uint64_t Type, uint64_t Offset,
                                         uint64_t S, uint64_t LocData,
                                         int64_t Addend);
 
 /// Returns format-specific support and resolve callbacks for \p Obj's relocations.
+///
+/// \param Obj Object file whose relocation format and architecture select the
+/// callbacks.
+/// \return A pair of the support predicate and the resolve callback for \p Obj.
 LLVM_ABI std::pair<SupportsRelocation, RelocationResolver>
 getRelocationResolver(const ObjectFile &Obj);
 
+/// Apply \p Resolver to relocation \p R with symbol value \p S and local data.
+///
+/// \param Resolver Callback that computes the relocated value.
+/// \param R Relocation to resolve.
+/// \param S Symbol value used when applying the relocation.
+/// \param LocData Value already present at the relocation site.
+/// \return The relocated value computed by \p Resolver.
 LLVM_ABI uint64_t resolveRelocation(RelocationResolver Resolver,
                                     const RelocationRef &R, uint64_t S,
                                     uint64_t LocData);

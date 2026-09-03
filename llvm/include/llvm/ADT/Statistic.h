@@ -59,58 +59,89 @@ public:
 
   /// Current accumulated value.
   std::atomic<uint64_t> Value;
+  /// True once this statistic has been registered with the global list.
   std::atomic<bool> Initialized;
 
   /// Construct a statistic labeled by \p DebugType, \p Name, and \p Desc.
+  ///
+  /// \param DebugType Debug type / pass name this statistic belongs to.
+  /// \param Name Short identifier for the statistic.
+  /// \param Desc Human-readable description printed with -stats.
   constexpr TrackingStatistic(const char *DebugType, const char *Name,
                               const char *Desc)
       : DebugType(DebugType), Name(Name), Desc(Desc), Value(0),
         Initialized(false) {}
 
   /// Return the debug type / pass name string.
+  ///
+  /// \return The debug type / pass name string.
   const char *getDebugType() const { return DebugType; }
   /// Return the short statistic name.
+  ///
+  /// \return The short statistic name.
   const char *getName() const { return Name; }
   /// Return the human-readable description.
+  ///
+  /// \return The human-readable description.
   const char *getDesc() const { return Desc; }
 
   /// Load the current counter value.
+  ///
+  /// \return The current counter value.
   uint64_t getValue() const { return Value.load(std::memory_order_relaxed); }
 
   /// Convert to the current counter value.
+  ///
+  /// \return The current counter value.
   operator uint64_t() const { return getValue(); }
 
   /// Assign \p Val as the new counter value.
+  ///
+  /// \param Val New value to store in the counter.
+  /// \return Reference to this statistic.
   const TrackingStatistic &operator=(uint64_t Val) {
     Value.store(Val, std::memory_order_relaxed);
     return init();
   }
 
   /// Pre-increment the counter by one.
+  ///
+  /// \return Reference to this statistic.
   const TrackingStatistic &operator++() {
     Value.fetch_add(1, std::memory_order_relaxed);
     return init();
   }
 
   /// Post-increment the counter by one; return the previous value.
-  uint64_t operator++(int) {
+  ///
+  /// \param Unused Dummy parameter distinguishing postfix from prefix.
+  /// \return The previous counter value.
+  uint64_t operator++(int Unused) {
     init();
     return Value.fetch_add(1, std::memory_order_relaxed);
   }
 
   /// Pre-decrement the counter by one.
+  ///
+  /// \return Reference to this statistic.
   const TrackingStatistic &operator--() {
     Value.fetch_sub(1, std::memory_order_relaxed);
     return init();
   }
 
   /// Post-decrement the counter by one; return the previous value.
-  uint64_t operator--(int) {
+  ///
+  /// \param Unused Dummy parameter distinguishing postfix from prefix.
+  /// \return The previous counter value.
+  uint64_t operator--(int Unused) {
     init();
     return Value.fetch_sub(1, std::memory_order_relaxed);
   }
 
   /// Add \p V to the counter.
+  ///
+  /// \param V Amount to add.
+  /// \return Reference to this statistic.
   const TrackingStatistic &operator+=(uint64_t V) {
     if (V == 0)
       return *this;
@@ -119,6 +150,9 @@ public:
   }
 
   /// Subtract \p V from the counter.
+  ///
+  /// \param V Amount to subtract.
+  /// \return Reference to this statistic.
   const TrackingStatistic &operator-=(uint64_t V) {
     if (V == 0)
       return *this;
@@ -127,6 +161,8 @@ public:
   }
 
   /// Raise the counter to at least \p V (atomic max update).
+  ///
+  /// \param V Candidate maximum value.
   void updateMax(uint64_t V) {
     uint64_t PrevMax = Value.load(std::memory_order_relaxed);
     // Keep trying to update max until we succeed or another thread produces
@@ -139,6 +175,8 @@ public:
 
 protected:
   /// Ensure this statistic is registered before further updates.
+  ///
+  /// \return Reference to this statistic.
   TrackingStatistic &init() {
     if (!Initialized.load(std::memory_order_acquire))
       RegisterStatistic();
@@ -153,37 +191,66 @@ protected:
 class NoopStatistic {
 public:
   /// Construct a discarded statistic; arguments are ignored.
-  constexpr NoopStatistic(const char * /*DebugType*/, const char * /*Name*/,
-                          const char * /*Desc*/) {}
+  ///
+  /// \param DebugType Unused debug type / pass name.
+  /// \param Name Unused short identifier.
+  /// \param Desc Unused human-readable description.
+  constexpr NoopStatistic(const char *DebugType, const char *Name,
+                          const char *Desc) {}
 
   /// Always returns zero.
+  ///
+  /// \return Always zero.
   uint64_t getValue() const { return 0; }
 
   /// Convert to zero.
+  ///
+  /// \return Always zero.
   operator uint64_t() const { return 0; }
 
   /// Assignment is a no-op.
+  ///
+  /// \param Val Unused new counter value.
+  /// \return Reference to this statistic.
   const NoopStatistic &operator=(uint64_t Val) { return *this; }
 
   /// Pre-increment is a no-op.
+  ///
+  /// \return Reference to this statistic.
   const NoopStatistic &operator++() { return *this; }
 
   /// Post-increment returns zero.
-  uint64_t operator++(int) { return 0; }
+  ///
+  /// \param Unused Dummy parameter distinguishing postfix from prefix.
+  /// \return Always zero.
+  uint64_t operator++(int Unused) { return 0; }
 
   /// Pre-decrement is a no-op.
+  ///
+  /// \return Reference to this statistic.
   const NoopStatistic &operator--() { return *this; }
 
   /// Post-decrement returns zero.
-  uint64_t operator--(int) { return 0; }
+  ///
+  /// \param Unused Dummy parameter distinguishing postfix from prefix.
+  /// \return Always zero.
+  uint64_t operator--(int Unused) { return 0; }
 
   /// Addition is a no-op.
+  ///
+  /// \param V Unused amount to add.
+  /// \return Reference to this statistic.
   const NoopStatistic &operator+=(const uint64_t &V) { return *this; }
 
   /// Subtraction is a no-op.
+  ///
+  /// \param V Unused amount to subtract.
+  /// \return Reference to this statistic.
   const NoopStatistic &operator-=(const uint64_t &V) { return *this; }
 
   /// Max update is a no-op.
+  ///
+  /// \param V Unused candidate maximum value.
   void updateMax(uint64_t V) {}
 };
 
@@ -211,24 +278,34 @@ using Statistic = NoopStatistic;
   static llvm::TrackingStatistic VARNAME = {DEBUG_TYPE, #VARNAME, DESC}
 
 /// Enable the collection and printing of statistics.
+///
+/// \param DoPrintOnExit If true, print statistics when the process exits.
 LLVM_ABI void EnableStatistics(bool DoPrintOnExit = true);
 
 /// Check if statistics are enabled.
+///
+/// \return True if statistics collection is enabled.
 LLVM_ABI bool AreStatisticsEnabled();
 
 /// Return a stream to print our output on.
+///
+/// \return Unique pointer to the info output stream.
 LLVM_ABI std::unique_ptr<raw_ostream> CreateInfoOutputFile();
 
 /// Print statistics to the file returned by CreateInfoOutputFile().
 LLVM_ABI void PrintStatistics();
 
 /// Print statistics to the given output stream.
+///
+/// \param OS Stream that receives the human-readable statistics report.
 LLVM_ABI void PrintStatistics(raw_ostream &OS);
 
 /// Print statistics in JSON format. This does include all global timers (\see
 /// Timer, TimerGroup). Note that the timers are cleared after printing and will
 /// not be printed in human readable form or in a second call of
 /// PrintStatisticsJSON().
+///
+/// \param OS Stream that receives the JSON statistics report.
 LLVM_ABI void PrintStatisticsJSON(raw_ostream &OS);
 
 /// Get the statistics. This can be used to look up the value of
@@ -238,6 +315,8 @@ LLVM_ABI void PrintStatisticsJSON(raw_ostream &OS);
 /// during it's execution. It will return the value at the point that it is
 /// read. However, it will prevent new statistics from registering until it
 /// completes.
+///
+/// \return Vector of name/value pairs for all registered statistics.
 LLVM_ABI std::vector<std::pair<StringRef, uint64_t>> GetStatistics();
 
 /// Reset the statistics. This can be used to zero and de-register the

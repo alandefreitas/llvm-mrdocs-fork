@@ -28,11 +28,23 @@ class LLVMContext;
 class Type;
 class Value;
 
+/// Pass that demotes lossless floating-point operations to integers.
+///
+/// Walks from float-to-int roots (\c fptoui, \c fptosi, \c fcmp) back through
+/// mappable FP arithmetic to integer-to-float sources, then rewrites those
+/// graphs with equivalent integer operations when the conversion is exact.
 class Float2IntPass : public OptionalPassInfoMixin<Float2IntPass> {
 public:
+  /// Run float-to-int demotion over the function.
+  /// @param F Function whose floating-point operations may be demoted.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
-  // Glue for old PM.
+  /// Run float-to-int demotion using already-fetched analyses (legacy PM glue).
+  /// @param F Function whose floating-point operations may be demoted.
+  /// @param DT Dominator tree used to find conversion roots.
+  /// @return True if the function was modified.
   LLVM_ABI bool runImpl(Function &F, const DominatorTree &DT);
 
 private:

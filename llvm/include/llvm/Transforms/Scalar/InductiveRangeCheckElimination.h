@@ -18,8 +18,13 @@
 
 namespace llvm {
 
+/// Pass that eliminates inductive range checks from loops.
 class IRCEPass : public OptionalPassInfoMixin<IRCEPass> {
 public:
+  /// Run inductive range check elimination over the function.
+  /// @param F Function whose loops may have range checks eliminated.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

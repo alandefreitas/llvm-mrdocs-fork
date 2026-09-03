@@ -18,6 +18,8 @@
 #include <cstdint>
 
 namespace llvm {
+/// AMDGPU address space identifiers for OpenCL and the backend.
+///
 /// OpenCL uses address spaces to differentiate between
 /// various memory regions on the hardware. On the CPU
 /// all of the address spaces point to the same memory,
@@ -109,18 +111,29 @@ enum class FlatAddrSpace : unsigned {
 };
 
 /// True if \p AS is flat, global, constant, or an extended global address space.
+///
+/// \param AS The LLVM address space ID to test.
+/// \return True if \p AS is flat, global, constant, or an extended global
+/// address space.
 inline bool isFlatGlobalAddrSpace(unsigned AS) {
   return AS == AMDGPUAS::GLOBAL_ADDRESS || AS == AMDGPUAS::FLAT_ADDRESS ||
          AS == AMDGPUAS::CONSTANT_ADDRESS || AS > AMDGPUAS::MAX_AMDGPU_ADDRESS;
 }
 
 /// True if \p AS is an extended global address space.
+///
+/// \param AS The LLVM address space ID to test.
+/// \return True if \p AS is an extended global address space.
 inline bool isExtendedGlobalAddrSpace(unsigned AS) {
   return AS == AMDGPUAS::GLOBAL_ADDRESS || AS == AMDGPUAS::CONSTANT_ADDRESS ||
          AS == AMDGPUAS::CONSTANT_ADDRESS_32BIT ||
          AS > AMDGPUAS::MAX_AMDGPU_ADDRESS;
 }
 
+/// True if \p AS is an AMDGPU constant address space.
+///
+/// \param AS The LLVM address space ID to test.
+/// \return True if \p AS is a constant address space.
 inline bool isConstantAddressSpace(unsigned AS) {
   switch (AS) {
     using namespace AMDGPUAS;
@@ -148,6 +161,7 @@ inline bool isConstantAddressSpace(unsigned AS) {
   }
 }
 
+/// DWARF address-space encodings for AMDGPU.
 namespace DWARFAS {
 /// AMDGPU DWARF address space encodings.
 enum : unsigned {
@@ -175,7 +189,7 @@ static constexpr unsigned LLVMToDWARFAddrSpaceMapping[] = {
 };
 } // end namespace impl
 
-/// If @p LLVMAddressSpace has a corresponding DWARF encoding,
+/// If @p LLVMAddrSpace has a corresponding DWARF encoding,
 /// return it; otherwise return the sentinel value -1 to indicate
 /// no such mapping exists.
 ///
@@ -186,6 +200,9 @@ static constexpr unsigned LLVMToDWARFAddrSpaceMapping[] = {
 ///
 /// Note: This could return std::optional<int> but that would require
 /// an extra #include.
+///
+/// \param LLVMAddrSpace The LLVM address space ID to map.
+/// \return The corresponding DWARF address-space encoding, or -1 if none.
 constexpr int mapToDWARFAddrSpace(unsigned LLVMAddrSpace) {
   constexpr unsigned SizeOfLLVMToDWARFAddrSpaceMapping =
       sizeof(impl::LLVMToDWARFAddrSpaceMapping) /
@@ -196,6 +213,9 @@ constexpr int mapToDWARFAddrSpace(unsigned LLVMAddrSpace) {
 }
 
 /// Get the null pointer value for the given address space.
+///
+/// \param AS The LLVM address space ID.
+/// \return -1 for private, local, or region; otherwise 0.
 constexpr int64_t getNullPointerValue(unsigned AS) {
   switch (AS) {
     using namespace AMDGPUAS;

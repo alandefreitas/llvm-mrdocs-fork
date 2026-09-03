@@ -119,6 +119,7 @@ protected:
 
   public:
     /// Convert the proxied reference to its value.
+    /// @return The reference obtained by dereferencing the proxied iterator.
     operator ReferenceT() const { return *I; }
   };
 
@@ -137,11 +138,14 @@ protected:
 
   public:
     /// Return a pointer to the proxied reference.
+    /// @return Pointer to the proxied reference.
     PointerT operator->() const { return &R; }
   };
 
 public:
   /// Advance the iterator by \p n and return the result.
+  /// @param n Number of positions to move forward.
+  /// @return A copy of this iterator advanced by \p n.
   DerivedT operator+(DifferenceTypeT n) const {
     static_assert(std::is_base_of<iterator_facade_base, DerivedT>::value,
                   "Must pass the derived type to this template!");
@@ -153,6 +157,9 @@ public:
     return tmp;
   }
   /// Return an iterator \p n positions after \p i.
+  /// @param n Number of positions to move forward.
+  /// @param i Iterator to offset from.
+  /// @return A copy of \p i advanced by \p n.
   friend DerivedT operator+(DifferenceTypeT n, const DerivedT &i) {
     static_assert(
         IsRandomAccess,
@@ -160,6 +167,8 @@ public:
     return i + n;
   }
   /// Retreat the iterator by \p n and return the result.
+  /// @param n Number of positions to move backward.
+  /// @return A copy of this iterator retreated by \p n.
   DerivedT operator-(DifferenceTypeT n) const {
     static_assert(
         IsRandomAccess,
@@ -170,18 +179,22 @@ public:
   }
 
   /// Pre-increment the iterator.
+  /// @return Reference to this iterator after incrementing.
   DerivedT &operator++() {
     static_assert(std::is_base_of<iterator_facade_base, DerivedT>::value,
                   "Must pass the derived type to this template!");
     return static_cast<DerivedT *>(this)->operator+=(1);
   }
   /// Post-increment the iterator and return the previous value.
-  DerivedT operator++(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return A copy of the iterator before incrementing.
+  DerivedT operator++(int Unused) {
     DerivedT tmp = *static_cast<DerivedT *>(this);
     ++*static_cast<DerivedT *>(this);
     return tmp;
   }
   /// Pre-decrement the iterator.
+  /// @return Reference to this iterator after decrementing.
   DerivedT &operator--() {
     static_assert(
         IsBidirectional,
@@ -189,7 +202,9 @@ public:
     return static_cast<DerivedT *>(this)->operator-=(1);
   }
   /// Post-decrement the iterator and return the previous value.
-  DerivedT operator--(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return A copy of the iterator before decrementing.
+  DerivedT operator--(int Unused) {
     static_assert(
         IsBidirectional,
         "The decrement operator is only defined for bidirectional iterators.");
@@ -205,6 +220,8 @@ public:
 #endif
 
   /// Return true if this iterator is greater than \p RHS.
+  /// @param RHS Iterator to compare against.
+  /// @return True if this iterator is greater than \p RHS.
   bool operator>(const DerivedT &RHS) const {
     static_assert(
         IsRandomAccess,
@@ -213,6 +230,8 @@ public:
            !(static_cast<const DerivedT &>(*this) == RHS);
   }
   /// Return true if this iterator is less than or equal to \p RHS.
+  /// @param RHS Iterator to compare against.
+  /// @return True if this iterator is less than or equal to \p RHS.
   bool operator<=(const DerivedT &RHS) const {
     static_assert(
         IsRandomAccess,
@@ -220,6 +239,8 @@ public:
     return !(static_cast<const DerivedT &>(*this) > RHS);
   }
   /// Return true if this iterator is greater than or equal to \p RHS.
+  /// @param RHS Iterator to compare against.
+  /// @return True if this iterator is greater than or equal to \p RHS.
   bool operator>=(const DerivedT &RHS) const {
     static_assert(
         IsRandomAccess,
@@ -228,10 +249,13 @@ public:
   }
 
   /// Return a proxy pointer to the current element.
+  /// @return Proxy pointing to the current element.
   PointerProxy operator->() const {
     return static_cast<const DerivedT *>(this)->operator*();
   }
   /// Return a proxy to the element at offset \p n.
+  /// @param n Offset from the current position.
+  /// @return Proxy to the element at offset \p n.
   ReferenceProxy operator[](DifferenceTypeT n) const {
     static_assert(IsRandomAccess,
                   "Subscripting is only defined for random access iterators.");
@@ -272,12 +296,14 @@ protected:
   iterator_adaptor_base() = default;
 
   /// Construct an iterator adaptor wrapping \p u.
+  /// @param u Underlying iterator to wrap.
   explicit iterator_adaptor_base(WrappedIteratorT u) : I(std::move(u)) {
     static_assert(std::is_base_of<iterator_adaptor_base, DerivedT>::value,
                   "Must pass the derived type to this template!");
   }
 
   /// Return the wrapped underlying iterator.
+  /// @return Const reference to the wrapped iterator.
   const WrappedIteratorT &wrapped() const { return I; }
 
 public:
@@ -285,6 +311,8 @@ public:
   using difference_type = DifferenceTypeT;
 
   /// Advance the wrapped iterator by \p n.
+  /// @param n Number of positions to move forward.
+  /// @return Reference to this iterator after advancing.
   DerivedT &operator+=(difference_type n) {
     static_assert(
         BaseT::IsRandomAccess,
@@ -293,6 +321,8 @@ public:
     return *static_cast<DerivedT *>(this);
   }
   /// Retreat the wrapped iterator by \p n.
+  /// @param n Number of positions to move backward.
+  /// @return Reference to this iterator after retreating.
   DerivedT &operator-=(difference_type n) {
     static_assert(
         BaseT::IsRandomAccess,
@@ -300,10 +330,13 @@ public:
     I -= n;
     return *static_cast<DerivedT *>(this);
   }
+  /// Bring the offset-subtraction operator from the facade into scope.
   using BaseT::operator-;
+  /// Return the distance between this iterator and \p RHS.
+  /// @param RHS Iterator to subtract from this one.
+  /// @return The distance from \p RHS to this iterator.
   template <bool Enabled = BaseT::IsRandomAccess,
             typename = std::enable_if_t<Enabled>>
-  /// Return the distance between this iterator and \p RHS.
   difference_type operator-(const DerivedT &RHS) const {
     static_assert(
         BaseT::IsRandomAccess,
@@ -313,14 +346,18 @@ public:
 
   // We have to explicitly provide ++ and -- rather than letting the facade
   // forward to += because WrappedIteratorT might not support +=.
+  /// Bring the postfix increment operator into scope.
   using BaseT::operator++;
   /// Pre-increment the wrapped iterator.
+  /// @return Reference to this iterator after incrementing.
   DerivedT &operator++() {
     ++I;
     return *static_cast<DerivedT *>(this);
   }
+  /// Bring the postfix decrement operator into scope.
   using BaseT::operator--;
   /// Pre-decrement the wrapped iterator.
+  /// @return Reference to this iterator after decrementing.
   DerivedT &operator--() {
     static_assert(
         BaseT::IsBidirectional,
@@ -330,11 +367,17 @@ public:
   }
 
   /// Return true if \p LHS and \p RHS wrap equal iterators.
+  /// @param LHS Left-hand adapted iterator.
+  /// @param RHS Right-hand adapted iterator.
+  /// @return True if \p LHS and \p RHS wrap equal iterators.
   friend bool operator==(const iterator_adaptor_base &LHS,
                          const iterator_adaptor_base &RHS) {
     return LHS.I == RHS.I;
   }
   /// Compare two adapted iterators for order.
+  /// @param LHS Left-hand adapted iterator.
+  /// @param RHS Right-hand adapted iterator.
+  /// @return True if \p LHS is less than \p RHS.
   friend bool operator<(const iterator_adaptor_base &LHS,
                         const iterator_adaptor_base &RHS) {
     static_assert(
@@ -344,6 +387,7 @@ public:
   }
 
   /// Dereference the wrapped iterator.
+  /// @return Reference to the current element of the wrapped iterator.
   ReferenceT operator*() const { return *I; }
 };
 
@@ -367,15 +411,19 @@ struct pointee_iterator
   /// Default-construct a pointee iterator.
   pointee_iterator() = default;
   /// Construct a pointee iterator from \p u.
+  /// @param u Underlying iterator (or convertible value) to wrap.
   template <typename U>
   pointee_iterator(U &&u)
       : pointee_iterator::iterator_adaptor_base(std::forward<U &&>(u)) {}
 
   /// Return a reference to the pointee of the current element.
+  /// @return Reference to the pointee of the current element.
   T &operator*() const { return **this->I; }
 };
 
 /// Return a range that iterates over the pointees of \p Range.
+/// @param Range Range of pointers whose pointees are iterated.
+/// @return A range of pointee iterators over \p Range.
 template <typename RangeT, typename WrappedIteratorT =
                                decltype(std::begin(std::declval<RangeT>()))>
 iterator_range<pointee_iterator<WrappedIteratorT>>
@@ -385,6 +433,7 @@ make_pointee_range(RangeT &&Range) {
                     PointeeIteratorT(std::end(std::forward<RangeT>(Range))));
 }
 
+/// An iterator adaptor that yields pointers to the wrapped iterator's elements.
 template <typename WrappedIteratorT,
           typename T = decltype(&*std::declval<WrappedIteratorT>())>
 class pointer_iterator
@@ -399,16 +448,20 @@ public:
   pointer_iterator() = default;
 
   /// Construct a pointer iterator wrapping \p u.
+  /// @param u Underlying iterator to wrap.
   explicit pointer_iterator(WrappedIteratorT u)
       : pointer_iterator::iterator_adaptor_base(std::move(u)) {}
 
   /// Return a pointer to the current element.
+  /// @return Reference to a pointer to the current element.
   T &operator*() const { return Ptr = &*this->I; }
 };
 
+/// Return a range whose iterators expose addresses of elements in \p Range.
+/// @param Range Range whose elements' addresses are exposed.
+/// @return A range of pointer iterators over \p Range.
 template <typename RangeT, typename WrappedIteratorT =
                                decltype(std::begin(std::declval<RangeT>()))>
-/// Return a range whose iterators expose addresses of pointees in \p Range.
 iterator_range<pointer_iterator<WrappedIteratorT>>
 make_pointer_range(RangeT &&Range) {
   using PointerIteratorT = pointer_iterator<WrappedIteratorT>;

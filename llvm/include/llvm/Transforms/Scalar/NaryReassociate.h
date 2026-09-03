@@ -99,11 +99,28 @@ class TargetTransformInfo;
 class Type;
 class Value;
 
+/// Pass that reassociates n-ary expressions to reuse existing instructions.
+///
+/// This pass reassociates n-ary add (and related) expressions into forms that
+/// expose redundancy for CSE, using a dominator- and SCEV-based lookup of
+/// previously computed subexpressions.
 class NaryReassociatePass : public OptionalPassInfoMixin<NaryReassociatePass> {
 public:
+  /// Run n-ary reassociation over the function.
+  /// @param F Function whose n-ary expressions may be reassociated.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
-  // Glue for old PM.
+  /// Run n-ary reassociation using explicitly supplied analyses (legacy PM
+  /// glue).
+  /// @param F Function to optimize.
+  /// @param AC_ Assumption cache.
+  /// @param DT_ Dominator tree.
+  /// @param SE_ Scalar evolution analysis.
+  /// @param TLI_ Target library info.
+  /// @param TTI_ Target transform info.
+  /// @return True if the function was changed.
   LLVM_ABI bool runImpl(Function &F, AssumptionCache *AC_, DominatorTree *DT_,
                         ScalarEvolution *SE_, TargetLibraryInfo *TLI_,
                         TargetTransformInfo *TTI_);

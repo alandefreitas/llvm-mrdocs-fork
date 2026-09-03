@@ -24,8 +24,16 @@ namespace dwarf_linker {
 /// May be used asynchroniously for reading.
 class DWARFFile {
 public:
+  /// Callback type used to unload the object file from its owning module.
   using UnloadCallbackTy = std::function<void(StringRef FileName)>;
 
+  /// Constructs a DWARFFile for the given object file, DWARF context, and
+  /// address map.
+  ///
+  /// \param Name Object file name.
+  /// \param Dwarf Source DWARF information.
+  /// \param Addresses Address map with valid ranges and relocations.
+  /// \param UnloadFunc Optional callback to unload the object file.
   DWARFFile(StringRef Name, std::unique_ptr<DWARFContext> Dwarf,
             std::unique_ptr<AddressesMap> Addresses,
             UnloadCallbackTy UnloadFunc = nullptr)

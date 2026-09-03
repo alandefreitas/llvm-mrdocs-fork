@@ -23,10 +23,23 @@
 
 namespace llvm {
 
+/// Pass that attaches !callees metadata to indirect call sites.
+///
+/// For a given call site, the metadata, if present, indicates the set of
+/// functions the call site could possibly target at run-time. This metadata is
+/// added to indirect call sites when the set of possible targets can be
+/// determined by analysis and is known to be small. The analysis driving the
+/// transformation is similar to constant propagation and makes use of the
+/// generic sparse propagation solver.
 class CalledValuePropagationPass
     : public OptionalPassInfoMixin<CalledValuePropagationPass> {
 public:
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Run called-value propagation over the given module.
+  ///
+  /// \param M Module whose indirect call sites may receive !callees metadata.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 } // namespace llvm
 

@@ -23,6 +23,11 @@ namespace llvm::xray {
 
 /// Convenience function for loading the file header given a data extractor at a
 /// specified offset.
+///
+/// \param HeaderExtractor Data extractor that provides the binary XRay header.
+/// \param OffsetPtr Byte offset into the extractor; advanced past the header on
+///        success.
+/// \return The parsed XRay file header, or an error on failure.
 LLVM_ABI Expected<XRayFileHeader>
 readBinaryFormatHeader(DataExtractor &HeaderExtractor, uint64_t &OffsetPtr);
 

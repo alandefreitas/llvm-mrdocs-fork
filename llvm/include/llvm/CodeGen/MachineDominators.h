@@ -32,15 +32,20 @@ class MachineFunction;
 class Module;
 class raw_ostream;
 
+/// Explicit instantiation of DomTreeNodeBase for MachineBasicBlock.
 extern template class LLVM_TEMPLATE_ABI DomTreeNodeBase<MachineBasicBlock>;
 extern template class LLVM_TEMPLATE_ABI
     DominatorTreeBase<MachineBasicBlock, false>; // DomTree
 
 using MachineDomTreeNode = DomTreeNodeBase<MachineBasicBlock>;
 
+/// Helpers for building and updating MachineBasicBlock dominator trees.
 namespace DomTreeBuilder {
+/// Dominator tree over a MachineFunction CFG of MachineBasicBlocks.
 using MBBDomTree = DomTreeBase<MachineBasicBlock>;
+/// Batch of CFG updates applied to a MachineBasicBlock dominator tree.
 using MBBUpdates = ArrayRef<llvm::cfg::Update<MachineBasicBlock *>>;
+/// GraphDiff view of a MachineBasicBlock dominator tree CFG.
 using MBBDomTreeGraphDiff = GraphDiff<MachineBasicBlock *, false>;
 
 extern template LLVM_TEMPLATE_ABI void Calculate<MBBDomTree>(MBBDomTree &DT);
@@ -70,19 +75,33 @@ Verify<MBBDomTree>(const MBBDomTree &DT, MBBDomTree::VerificationLevel VL);
 class MachineDominatorTree : public DomTreeBase<MachineBasicBlock> {
 
 public:
+  /// Base dominator-tree type specialized for MachineBasicBlock.
   using Base = DomTreeBase<MachineBasicBlock>;
 
+  /// Construct an empty machine dominator tree.
   MachineDominatorTree() = default;
+  /// Construct a machine dominator tree for \p MF.
+  /// @param MF Machine function whose CFG is analyzed.
   explicit MachineDominatorTree(MachineFunction &MF) { recalculate(MF); }
 
   /// Handle invalidation explicitly.
-  LLVM_ABI bool invalidate(MachineFunction &, const PreservedAnalyses &PA,
-                           MachineFunctionAnalysisManager::Invalidator &);
+  /// @param MF Machine function whose analysis result may be invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if this result should be discarded.
+  LLVM_ABI bool invalidate(MachineFunction &MF, const PreservedAnalyses &PA,
+                           MachineFunctionAnalysisManager::Invalidator &Inv);
 
+  /// Bring base-class dominates overloads into this class.
   using Base::dominates;
 
-  // dominates - Return true if A dominates B. This performs the
-  // special checks necessary if A and B are in the same basic block.
+  /// Return true if instruction \p A dominates instruction \p B.
+  ///
+  /// Performs the special checks necessary when \p A and \p B are in the same
+  /// basic block.
+  /// @param A Instruction that may dominate.
+  /// @param B Instruction to test for dominance.
+  /// @return True if \p A dominates \p B.
   bool dominates(const MachineInstr *A, const MachineInstr *B) const {
     const MachineBasicBlock *BBA = A->getParent(), *BBB = B->getParent();
     if (BBA != BBB)
@@ -105,9 +124,14 @@ class MachineDominatorTreeAnalysis
   LLVM_ABI static AnalysisKey Key;
 
 public:
+  /// Provide the result typedef for this analysis pass.
   using Result = MachineDominatorTree;
 
-  LLVM_ABI Result run(MachineFunction &MF, MachineFunctionAnalysisManager &);
+  /// Run the analysis pass over a machine function and produce a dominator tree.
+  /// @param MF Machine function to analyze.
+  /// @param MFAM Machine function analysis manager (unused).
+  /// @return The MachineDominatorTree computed for \p MF.
+  LLVM_ABI Result run(MachineFunction &MF, MachineFunctionAnalysisManager &MFAM);
 };
 
 /// \brief Machine function pass which print \c MachineDominatorTree.
@@ -116,7 +140,13 @@ class MachineDominatorTreePrinterPass
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes to \p OS.
+  /// @param OS Output stream for the printed machine dominator tree.
   explicit MachineDominatorTreePrinterPass(raw_ostream &OS) : OS(OS) {}
+  /// Print the MachineDominatorTree for \p MF and return all analyses preserved.
+  /// @param MF Machine function whose MachineDominatorTree is printed.
+  /// @param MFAM Machine function analysis manager providing MachineDominatorTree.
+  /// @return A PreservedAnalyses set with all analyses preserved.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };
@@ -128,24 +158,40 @@ class LLVM_ABI MachineDominatorTreeWrapperPass : public MachineFunctionPass {
   std::optional<MachineDominatorTree> DT;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct the legacy MachineDominatorTree wrapper pass.
   MachineDominatorTreeWrapperPass();
 
+  /// Return the MachineDominatorTree computed by this pass.
+  /// @return The MachineDominatorTree owned by this pass.
   MachineDominatorTree &getDomTree() { return *DT; }
+  /// Return the MachineDominatorTree computed by this pass.
+  /// @return The MachineDominatorTree owned by this pass.
   const MachineDominatorTree &getDomTree() const { return *DT; }
 
+  /// Compute the MachineDominatorTree for \p MF.
+  /// @param MF Machine function to analyze.
+  /// @return False; this analysis does not modify \p MF.
   bool runOnMachineFunction(MachineFunction &MF) override;
 
+  /// Verify the MachineDominatorTree computed by this pass.
   void verifyAnalysis() const override;
 
+  /// Report analysis usage for this pass.
+  /// @param AU Analysis usage to populate; this pass preserves all analyses.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
+  /// Release the MachineDominatorTree owned by this pass.
   void releaseMemory() override;
 
+  /// Print the MachineDominatorTree computed by this pass.
+  /// @param OS Output stream.
+  /// @param M Optional module (unused).
   void print(raw_ostream &OS, const Module *M = nullptr) const override;
 };
 
@@ -154,32 +200,50 @@ public:
 /// iterable by generic graph iterators.
 ///
 
+/// GraphTraits helpers for walking machine dominator-tree nodes depth-first.
 template <class Node, class ChildIterator>
 struct MachineDomTreeGraphTraitsBase {
+  /// Graph node type for a machine dominator-tree node pointer.
   using NodeRef = Node *;
+  /// Iterator over immediate children in the machine dominator tree.
   using ChildIteratorType = ChildIterator;
 
+  /// Return \p N as the graph entry node.
+  /// @param N Machine dominator-tree node used as the entry.
+  /// @return \p N as the entry NodeRef.
   static NodeRef getEntryNode(NodeRef N) { return N; }
+  /// Return the begin iterator over children of \p N.
+  /// @param N Machine dominator-tree node whose children are walked.
+  /// @return Begin iterator over the immediate children of \p N.
   static ChildIteratorType child_begin(NodeRef N) { return N->begin(); }
+  /// Return the end iterator over children of \p N.
+  /// @param N Machine dominator-tree node whose children are walked.
+  /// @return End iterator over the immediate children of \p N.
   static ChildIteratorType child_end(NodeRef N) { return N->end(); }
 };
 
 template <class T> struct GraphTraits;
 
+/// GraphTraits specialization for mutable MachineDomTreeNode pointers.
 template <>
 struct GraphTraits<MachineDomTreeNode *>
     : public MachineDomTreeGraphTraitsBase<MachineDomTreeNode,
                                            MachineDomTreeNode::const_iterator> {
 };
 
+/// GraphTraits specialization for const MachineDomTreeNode pointers.
 template <>
 struct GraphTraits<const MachineDomTreeNode *>
     : public MachineDomTreeGraphTraitsBase<const MachineDomTreeNode,
                                            MachineDomTreeNode::const_iterator> {
 };
 
+/// GraphTraits specialization so MachineDominatorTree can be walked as a graph.
 template <> struct GraphTraits<MachineDominatorTree*>
   : public GraphTraits<MachineDomTreeNode *> {
+  /// Return the root node of machine dominator tree \p DT.
+  /// @param DT Machine dominator tree whose root is the entry.
+  /// @return The root MachineDomTreeNode of \p DT.
   static NodeRef getEntryNode(MachineDominatorTree *DT) {
     return DT->getRootNode();
   }

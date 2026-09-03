@@ -28,21 +28,34 @@
 
 namespace llvm {
 
+/// Work-list entry for iterative dominance frontier calculation.
 template <class BlockT>
 class DFCalculateWorkObject {
 public:
+  /// Dominator tree node type for \c BlockT.
   using DomTreeNodeT = DomTreeNodeBase<BlockT>;
 
+  /// Construct a work object for block \p B under parent \p P.
+  /// @param B Current basic block being processed.
+  /// @param P Parent basic block in the dominator tree, or null for the root.
+  /// @param N Dominator tree node for \p B.
+  /// @param PN Dominator tree node for \p P, or null for the root.
   DFCalculateWorkObject(BlockT *B, BlockT *P, const DomTreeNodeT *N,
                         const DomTreeNodeT *PN)
       : currentBB(B), parentBB(P), Node(N), parentNode(PN) {}
 
+  /// Current basic block being processed.
   BlockT *currentBB;
+  /// Parent basic block in the dominator tree, or null for the root.
   BlockT *parentBB;
+  /// Dominator tree node for \c currentBB.
   const DomTreeNodeT *Node;
+  /// Dominator tree node for \c parentBB, or null for the root.
   const DomTreeNodeT *parentNode;
 };
 
+/// Print the dominance frontiers in a human-readable form.
+/// @param OS Output stream to write to.
 template <class BlockT, bool IsPostDom>
 void DominanceFrontierBase<BlockT, IsPostDom>::print(raw_ostream &OS) const {
   for (const_iterator I = begin(), E = end(); I != E; ++I) {
@@ -67,12 +80,15 @@ void DominanceFrontierBase<BlockT, IsPostDom>::print(raw_ostream &OS) const {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+/// Dump the dominance frontier to dbgs().
 template <class BlockT, bool IsPostDom>
 void DominanceFrontierBase<BlockT, IsPostDom>::dump() const {
   print(dbgs());
 }
 #endif
 
+/// Compute dominance frontiers for all blocks in \p DT.
+/// @param DT Dominator tree to analyze.
 template <class BlockT, bool IsPostDom>
 void DominanceFrontierBase<BlockT, IsPostDom>::analyze(const DomTreeT &DT) {
   // NOTE: RootNode might be virtual for `IsPostDom == true`.

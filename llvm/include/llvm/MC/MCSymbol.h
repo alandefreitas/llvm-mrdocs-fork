@@ -32,25 +32,28 @@ class MCContext;
 class MCSection;
 class raw_ostream;
 
-/// MCSymbol - Instances of this class represent a symbol name in the MC file,
-/// and MCSymbols are created and uniqued by the MCContext class.  MCSymbols
+/// Represents a symbol name in the MC file.
+///
+/// MCSymbols are created and uniqued by the MCContext class. MCSymbols
 /// should only be constructed with valid names for the object file.
 ///
 /// If the symbol is defined/emitted into the current translation unit, the
-/// Section member is set to indicate what section it lives in.  Otherwise, if
+/// Section member is set to indicate what section it lives in. Otherwise, if
 /// it is a reference to an external entity, it has a null section.
 class MCSymbol {
 protected:
-  // A symbol can be regular, equated to an expression, or a common symbol.
+  /// Discriminator for how this symbol's value is represented.
   enum Kind : uint8_t {
-    Regular,
-    Equated,
-    Common,
+    Regular, ///< Defined relative to a fragment with an offset.
+    Equated, ///< Variable symbol equated to an expression.
+    Common,  ///< Common symbol with size and alignment.
   };
 
-  // Special sentinel value for the absolute pseudo fragment.
+  /// Sentinel fragment value used for absolute symbols.
   LLVM_ABI static MCFragment *AbsolutePseudoFragment;
 
+  /// Fragment or absolute sentinel that locates this symbol's value.
+  ///
   /// If a symbol has a Fragment, the section is implied, so we only need
   /// one pointer.
   /// The special AbsolutePseudoFragment value is for absolute symbols.
@@ -80,6 +83,7 @@ protected:
   /// True if this symbol can be redefined.
   unsigned IsRedefinable : 1;
 
+  /// True if this symbol has been registered with the context/object writer.
   mutable unsigned IsRegistered : 1;
 
   /// True if this symbol is visible outside this translation unit. Note: ELF
@@ -98,6 +102,12 @@ protected:
   /// Used to detect cyclic dependency like `a = a + 1` and `a = b; b = a`.
   unsigned IsResolving : 1;
 
+  /// Number of bits used to encode common-symbol alignment.
+  enum : unsigned {
+    /// Bits reserved for the log2(align)+1 common-alignment encoding.
+    NumCommonAlignmentBits = 5
+  };
+
   /// The alignment of the symbol if it is 'common'.
   ///
   /// Internally, this is stored as log2(align) + 1.
@@ -108,17 +118,21 @@ protected:
   /// 0b00011 -> 1ULL <<  2 = 4
   /// ...
   /// 0b11111 -> 1ULL << 30 = 1 GiB
-  enum : unsigned { NumCommonAlignmentBits = 5 };
   unsigned CommonAlignLog2 : NumCommonAlignmentBits;
 
-  /// The Flags field is used by object file implementations to store
-  /// additional per symbol information which is not easily classified.
-  enum : unsigned { NumFlagsBits = 16 };
+  /// Number of bits reserved for object-file-specific symbol flags.
+  enum : unsigned {
+    /// Width of the Flags bitfield in bits.
+    NumFlagsBits = 16
+  };
+
+  /// Object-file-specific per-symbol flags not easily classified elsewhere.
   mutable uint32_t Flags : NumFlagsBits;
 
   /// Index field, for use by the object file implementation.
   mutable uint32_t Index = 0;
 
+  /// Discriminated storage for offset, common size, or variable expression.
   union {
     /// The offset to apply to the fragment address to form this symbol's value.
     uint64_t Offset;
@@ -134,15 +148,22 @@ protected:
   friend class MCExpr;
   friend class MCContext;
 
-  /// The name for a symbol.
-  /// MCSymbol contains a uint64_t so is probably aligned to 8.  On a 32-bit
+  /// Storage preceding an \c MCSymbol for an optional name entry.
+  ///
+  /// MCSymbol contains a uint64_t so is probably aligned to 8. On a 32-bit
   /// system, the name is a pointer so isn't going to satisfy the 8 byte
-  /// alignment of uint64_t.  Account for that here.
+  /// alignment of uint64_t. Account for that here.
   using NameEntryStorageTy = union {
+    /// Pointer to the symbol's name table entry.
     const MCSymbolTableEntry *NameEntry;
+    /// Padding so the name entry meets \c MCSymbol alignment on 32-bit hosts.
     uint64_t AlignmentPadding;
   };
 
+  /// Construct a symbol, optionally named, possibly as a temporary.
+  ///
+  /// \param Name - Name table entry, or null for an unnamed symbol.
+  /// \param isTemporary - True if this is an assembler temporary label.
   MCSymbol(const MCSymbolTableEntry *Name, bool isTemporary)
       : kind(Kind::Regular), IsTemporary(isTemporary), IsRedefinable(false),
         IsRegistered(false), IsExternal(false), IsPrivateExtern(false),
@@ -154,11 +175,23 @@ protected:
       getNameEntryPtr() = Name;
   }
 
-  MCSymbol(const MCSymbol &) = default;
-  MCSymbol &operator=(const MCSymbol &) = delete;
+  /// Copy-construct a symbol.
+  ///
+  /// \param Other - Symbol to copy.
+  MCSymbol(const MCSymbol &Other) = default;
+  /// Deleted copy assignment.
+  ///
+  /// \param Other - Unused; copy assignment is deleted.
+  MCSymbol &operator=(const MCSymbol &Other) = delete;
 
   // Provide custom new/delete as we will only allocate space for a name
   // if we need one.
+  /// Allocate an \c MCSymbol, optionally reserving space for a name entry.
+  ///
+  /// \param s - Size of the \c MCSymbol object.
+  /// \param Name - Name table entry, or null if the symbol is unnamed.
+  /// \param Ctx - Context used to allocate the symbol.
+  /// \return Pointer to the allocated symbol storage.
   LLVM_ABI void *operator new(size_t s, const MCSymbolTableEntry *Name,
                               MCContext &Ctx);
 
@@ -185,6 +218,8 @@ private:
 
 public:
   /// getName - Get the symbol name.
+  ///
+  /// \return The symbol name, or an empty string if unnamed.
   StringRef getName() const {
     if (!HasName)
       return StringRef();
@@ -192,21 +227,37 @@ public:
     return getNameEntryPtr()->first();
   }
 
+  /// Return true if this symbol has been registered.
+  ///
+  /// \return True if this symbol has been registered.
   bool isRegistered() const { return IsRegistered; }
+  /// Set whether this symbol has been registered.
+  ///
+  /// \param Value - True if the symbol is registered.
   void setIsRegistered(bool Value) const { IsRegistered = Value; }
 
+  /// Mark this symbol as used in a relocation.
   void setUsedInReloc() const { IsUsedInReloc = true; }
+  /// Return true if a relocation has used this symbol.
+  ///
+  /// \return True if a relocation has used this symbol.
   bool isUsedInReloc() const { return IsUsedInReloc; }
 
   /// \name Accessors
   /// @{
 
   /// isTemporary - Check if this is an assembler temporary symbol.
+  ///
+  /// \return True if this is an assembler temporary symbol.
   bool isTemporary() const { return IsTemporary; }
 
   /// Check if this symbol is redefinable.
+  ///
+  /// \return True if this symbol is redefinable.
   bool isRedefinable() const { return IsRedefinable; }
   /// Mark this symbol as redefinable.
+  ///
+  /// \param Value - True if the symbol may be redefined.
   void setRedefinable(bool Value) { IsRedefinable = Value; }
   /// Prepare this symbol to be redefined.
   void redefineIfPossible() {
@@ -220,7 +271,13 @@ public:
     }
   }
 
+  /// Return whether this symbol is currently being resolved (cycle detection).
+  ///
+  /// \return True if this symbol is currently being resolved.
   bool isResolving() const { return IsResolving; }
+  /// Set whether this symbol is currently being resolved (cycle detection).
+  ///
+  /// \param V - True if resolution is in progress.
   void setIsResolving(bool V) { IsResolving = V; }
 
   /// @}
@@ -230,30 +287,42 @@ public:
   /// isDefined - Check if this symbol is defined (i.e., it has an address).
   ///
   /// Defined symbols are either absolute or in some section.
+  ///
+  /// \return True if this symbol is defined.
   bool isDefined() const { return !isUndefined(); }
 
   /// isInSection - Check if this symbol is defined in some section (i.e., it
   /// is defined but not absolute).
+  ///
+  /// \return True if this symbol is defined in some section.
   bool isInSection() const {
     auto *F = getFragment();
     return F && F != AbsolutePseudoFragment;
   }
 
   /// isUndefined - Check if this symbol undefined (i.e., implicitly defined).
+  ///
+  /// \return True if this symbol is undefined.
   bool isUndefined() const { return getFragment() == nullptr; }
 
   /// isAbsolute - Check if this is an absolute symbol.
+  ///
+  /// \return True if this is an absolute symbol.
   bool isAbsolute() const {
     return getFragment() == AbsolutePseudoFragment;
   }
 
   /// Get the section associated with a defined, non-absolute symbol.
+  ///
+  /// \return The section this symbol is defined in.
   MCSection &getSection() const {
     assert(isInSection() && "Invalid accessor!");
     return *getFragment()->getParent();
   }
 
   /// Mark the symbol as defined in the fragment \p F.
+  ///
+  /// \param F - Fragment that defines this symbol, or null if undefined.
   void setFragment(MCFragment *F) const {
     assert(!isVariable() && "Cannot set fragment of variable");
     Fragment = F;
@@ -264,33 +333,50 @@ public:
   /// @{
 
   /// isVariable - Check if this is a variable symbol.
+  ///
+  /// \return True if this is a variable symbol.
   bool isVariable() const { return kind == Equated; }
 
   /// Get the expression of the variable symbol.
+  ///
+  /// \return The expression that defines this variable symbol.
   const MCExpr *getVariableValue() const {
     assert(isVariable() && "Invalid accessor!");
     return Value;
   }
 
+  /// Set this symbol as a variable whose value is the given expression.
+  ///
+  /// \param Value - Expression that defines this variable symbol.
   LLVM_ABI void setVariableValue(const MCExpr *Value);
 
   /// @}
 
   /// Get the (implementation defined) index.
+  ///
+  /// \return The implementation-defined index.
   uint32_t getIndex() const {
     return Index;
   }
 
   /// Set the (implementation defined) index.
+  ///
+  /// \param Value - Implementation-defined index to store.
   void setIndex(uint32_t Value) const {
     Index = Value;
   }
 
+  /// Get the byte offset of this regular symbol within its fragment.
+  ///
+  /// \return The byte offset within the fragment.
   uint64_t getOffset() const {
     assert(kind == Kind::Regular &&
            "Cannot get offset for a common/variable symbol");
     return Offset;
   }
+  /// Set the byte offset of this regular symbol within its fragment.
+  ///
+  /// \param Value - Offset in bytes from the start of the fragment.
   void setOffset(uint64_t Value) {
     assert(kind == Kind::Regular &&
            "Cannot set offset for a common/variable symbol");
@@ -298,6 +384,8 @@ public:
   }
 
   /// Return the size of a 'common' symbol.
+  ///
+  /// \return The size of the common symbol.
   uint64_t getCommonSize() const {
     assert(isCommon() && "Not a 'common' symbol!");
     return CommonSize;
@@ -318,7 +406,9 @@ public:
     CommonAlignLog2 = Log2Align;
   }
 
-  ///  Return the alignment of a 'common' symbol.
+  /// Return the alignment of a 'common' symbol.
+  ///
+  /// \return The alignment of the common symbol.
   MaybeAlign getCommonAlignment() const {
     assert(isCommon() && "Not a 'common' symbol!");
     return decodeMaybeAlign(CommonAlignLog2);
@@ -340,8 +430,13 @@ public:
   }
 
   /// Is this a 'common' symbol.
+  ///
+  /// \return True if this is a 'common' symbol.
   bool isCommon() const { return kind == Kind::Common; }
 
+  /// Get the fragment this symbol is associated with, resolving aliases.
+  ///
+  /// \return The associated fragment, or null if undefined.
   MCFragment *getFragment() const {
     if (Fragment || !isVariable() || isWeakExternal())
       return Fragment;
@@ -351,11 +446,20 @@ public:
     return Fragment;
   }
 
-  // COFF-specific
+  /// Return true if this is a COFF weak-external symbol.
+  ///
+  /// \return True if this is a COFF weak-external symbol.
   bool isWeakExternal() const { return IsWeakExternal; }
 
-  /// print - Print the value to the stream \p OS.
+  /// Print the symbol name to the stream \p OS.
+  ///
+  /// \param OS - Stream to print to.
+  /// \param MAI - Optional assembler info for target-specific formatting.
   LLVM_ABI void print(raw_ostream &OS, const MCAsmInfo *MAI) const;
+  /// Print the symbol name to the stream \p OS using \p MAI.
+  ///
+  /// \param OS - Stream to print to.
+  /// \param MAI - Assembler info for target-specific formatting.
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const { print(OS, &MAI); }
 
   /// dump - Print the value to stderr.
@@ -363,26 +467,44 @@ public:
 
 protected:
   /// Get the (implementation defined) symbol flags.
+  ///
+  /// \return The implementation-defined symbol flags.
   uint32_t getFlags() const { return Flags; }
 
   /// Set the (implementation defined) symbol flags.
+  ///
+  /// \param Value - New flags value.
   void setFlags(uint32_t Value) const {
     assert(Value < (1U << NumFlagsBits) && "Out of range flags");
     Flags = Value;
   }
 
-  /// Modify the flags via a mask
+  /// Modify the flags via a mask.
+  ///
+  /// \param Value - Flag bits to set within \p Mask.
+  /// \param Mask - Bits of \c Flags to replace with \p Value.
   void modifyFlags(uint32_t Value, uint32_t Mask) const {
     assert(Value < (1U << NumFlagsBits) && "Out of range flags");
     Flags = (Flags & ~Mask) | Value;
   }
 };
 
+/// Print \p Sym to \p OS without target-specific assembler info.
+///
+/// \param OS - Stream to print to.
+/// \param Sym - Symbol to print.
+/// \return The output stream \p OS.
 inline raw_ostream &operator<<(raw_ostream &OS, const MCSymbol &Sym) {
   Sym.print(OS, nullptr);
   return OS;
 }
 
+/// Return true if the distance between \p Begin and \p End may change at link
+/// time.
+///
+/// \param Begin - Start symbol of the range.
+/// \param End - End symbol of the range.
+/// \return True if the range may change size at link time.
 LLVM_ABI bool isRangeRelaxable(const MCSymbol *Begin, const MCSymbol *End);
 
 } // end namespace llvm

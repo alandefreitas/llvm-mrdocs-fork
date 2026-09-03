@@ -17,10 +17,17 @@
 namespace llvm {
 namespace codeview {
 
+/// Pipelines multiple \c SymbolVisitorCallbacks sinks in sequence.
 class SymbolVisitorCallbackPipeline : public SymbolVisitorCallbacks {
 public:
+  /// Construct an empty symbol visitor callback pipeline.
   SymbolVisitorCallbackPipeline() = default;
 
+  /// Forward an unknown symbol to every callback in the pipeline.
+  ///
+  /// \param Record Unknown symbol record to visit.
+  ///
+  /// \returns The first Error from a callback, or success if all succeed.
   Error visitUnknownSymbol(CVSymbol &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitUnknownSymbol(Record))
@@ -29,6 +36,13 @@ public:
     return Error::success();
   }
 
+  /// Notify every callback that visitation of a symbol at \p Offset is
+  /// beginning.
+  ///
+  /// \param Record Symbol record about to be visited.
+  /// \param Offset Byte offset of \p Record within its symbol stream.
+  ///
+  /// \returns The first Error from a callback, or success if all succeed.
   Error visitSymbolBegin(CVSymbol &Record, uint32_t Offset) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitSymbolBegin(Record, Offset))
@@ -37,6 +51,11 @@ public:
     return Error::success();
   }
 
+  /// Notify every callback that visitation of a symbol is beginning.
+  ///
+  /// \param Record Symbol record about to be visited.
+  ///
+  /// \returns The first Error from a callback, or success if all succeed.
   Error visitSymbolBegin(CVSymbol &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitSymbolBegin(Record))
@@ -45,6 +64,11 @@ public:
     return Error::success();
   }
 
+  /// Notify every callback that visitation of a symbol has ended.
+  ///
+  /// \param Record Symbol record whose visitation has finished.
+  ///
+  /// \returns The first Error from a callback, or success if all succeed.
   Error visitSymbolEnd(CVSymbol &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitSymbolEnd(Record))
@@ -53,6 +77,9 @@ public:
     return Error::success();
   }
 
+  /// Append \p Callbacks to the end of this pipeline.
+  ///
+  /// \param Callbacks Callback sink to invoke for subsequent visits.
   void addCallbackToPipeline(SymbolVisitorCallbacks &Callbacks) {
     Pipeline.push_back(&Callbacks);
   }

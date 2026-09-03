@@ -49,6 +49,8 @@
 namespace llvm {
 namespace orc {
 
+/// A layer that breaks up modules and inserts callbacks so individual functions
+/// can be compiled on demand.
 class LLVM_ABI CompileOnDemandLayer : public IRLayer {
 public:
   /// Builder for IndirectStubsManagers.
@@ -56,14 +58,23 @@ public:
       std::function<std::unique_ptr<IndirectStubsManager>()>;
 
   /// Construct a CompileOnDemandLayer.
+  /// \param ES Execution session for this layer.
+  /// \param BaseLayer Layer to emit partitioned modules to.
+  /// \param LCTMgr Manager for lazy call-through trampolines.
+  /// \param BuildIndirectStubsManager Builder for per-dylib indirect stubs
+  ///        managers.
   CompileOnDemandLayer(ExecutionSession &ES, IRLayer &BaseLayer,
                        LazyCallThroughManager &LCTMgr,
                        IndirectStubsManagerBuilder BuildIndirectStubsManager);
-  /// Sets the ImplSymbolMap
+  /// Sets the ImplSymbolMap.
+  /// \param Imp Map used to track implementation symbols for lazy call-throughs,
+  ///        or nullptr to clear it.
   void setImplMap(ImplSymbolMap *Imp);
 
   /// Emits the given module. This should not be called by clients: it will be
   /// called by the JIT when a definition added via the add method is requested.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \param TSM Thread-safe module to partition and emit.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             ThreadSafeModule TSM) override;
 

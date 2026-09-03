@@ -17,14 +17,23 @@
 
 namespace llvm {
 
+/// Target-specific SPIR-V object-file writer hooks.
 class MCSPIRVObjectTargetWriter : public MCObjectTargetWriter {
 public:
+  /// Return the object file format handled by this writer.
+  ///
+  /// \returns The SPIR-V object format type.
   Triple::ObjectFormatType getFormat() const override { return Triple::SPIRV; }
+  /// Return true if \p W is a SPIR-V target object writer.
+  ///
+  /// \param W - Object target writer to test.
+  /// \returns True if \p W is a SPIR-V target object writer.
   static bool classof(const MCObjectTargetWriter *W) {
     return W->getFormat() == Triple::SPIRV;
   }
 };
 
+/// SPIR-V object writer that emits SPIR-V object files from an MCAssembler.
 class LLVM_ABI SPIRVObjectWriter final : public MCObjectWriter {
   support::endian::Writer W;
   std::unique_ptr<MCSPIRVObjectTargetWriter> TargetObjectWriter;
@@ -36,10 +45,19 @@ class LLVM_ABI SPIRVObjectWriter final : public MCObjectWriter {
   } VersionInfo;
 
 public:
+  /// Construct a SPIR-V object writer.
+  ///
+  /// \param MOTW - The target specific SPIR-V writer subclass.
+  /// \param OS - The stream to write to.
   SPIRVObjectWriter(std::unique_ptr<MCSPIRVObjectTargetWriter> MOTW,
                     raw_pwrite_stream &OS)
       : W(OS, llvm::endianness::little), TargetObjectWriter(std::move(MOTW)) {}
 
+  /// Set the SPIR-V module version and ID bound written in the header.
+  ///
+  /// \param Major - SPIR-V major version number.
+  /// \param Minor - SPIR-V minor version number.
+  /// \param Bound - Bound on the range of IDs used by the module.
   void setBuildVersion(unsigned Major, unsigned Minor, unsigned Bound);
 
 private:

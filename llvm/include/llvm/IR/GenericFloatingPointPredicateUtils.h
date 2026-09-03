@@ -23,6 +23,7 @@
 
 namespace llvm {
 
+/// Utilities that map floating-point compares to FP class tests over IR or MIR.
 template <typename ContextT> class GenericFloatingPointPredicateUtils {
   using ValueRefT = typename ContextT::ValueRefT;
   using FunctionT = typename ContextT::FunctionT;
@@ -49,6 +50,15 @@ private:
 public:
   /// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
   /// same result as an fcmp with the given operands.
+  ///
+  /// \param Pred FCmp predicate of the compare to convert.
+  /// \param F Function providing denormal mode for the operands.
+  /// \param LHS Left-hand operand of the compare.
+  /// \param RHS Right-hand operand of the compare.
+  /// \param LookThroughSrc Whether to look through sign-bit operations on \p
+  ///        LHS.
+  /// \returns { TestedValue, ClassMask } equivalent to the fcmp, or
+  ///          { Invalid, fcAllFlags } if the compare cannot be converted.
   static std::pair<ValueRefT, FPClassTest>
   fcmpToClassTest(FCmpInst::Predicate Pred, const FunctionT &F, ValueRefT LHS,
                   ValueRefT RHS, bool LookThroughSrc) {
@@ -59,6 +69,17 @@ public:
     return fcmpToClassTest(Pred, F, LHS, *ConstRHS, LookThroughSrc);
   }
 
+  /// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
+  /// same result as an fcmp with the given operands.
+  ///
+  /// \param Pred FCmp predicate of the compare to convert.
+  /// \param F Function providing denormal mode for the operands.
+  /// \param LHS Left-hand operand of the compare.
+  /// \param ConstRHS Constant right-hand operand of the compare.
+  /// \param LookThroughSrc Whether to look through sign-bit operations on \p
+  ///        LHS.
+  /// \returns { TestedValue, ClassMask } equivalent to the fcmp, or
+  ///          { Invalid, fcAllFlags } if the compare cannot be converted.
   static std::pair<ValueRefT, FPClassTest>
   fcmpToClassTest(FCmpInst::Predicate Pred, const FunctionT &F, ValueRefT LHS,
                   const APFloat &ConstRHS, bool LookThroughSrc) {
@@ -89,6 +110,12 @@ public:
   /// If \p LookThroughSrc is false, ignore the source value (i.e. the first
   /// pair element will always be LHS.
   ///
+  /// \param Pred FCmp predicate of the compare.
+  /// \param F Function providing denormal mode for the operands.
+  /// \param LHS Left-hand operand of the compare.
+  /// \param RHSClass Known floating-point class of the right-hand operand.
+  /// \param LookThroughSrc Whether to look through sign-bit operations on \p
+  ///        LHS.
   static std::tuple<ValueRefT, FPClassTest, FPClassTest>
   fcmpImpliesClass(CmpInst::Predicate Pred, const FunctionT &F, ValueRefT LHS,
                    FPClassTest RHSClass, bool LookThroughSrc) {
@@ -417,6 +444,29 @@ public:
     return {Invalid, fcAllFlags, fcAllFlags};
   }
 
+  /// Compute the floating-point classes implied for \p LHS by an fcmp against
+  /// a constant.
+  ///
+  /// \returns { TestedValue, ClassesIfTrue, ClassesIfFalse }
+  ///
+  /// If the compare returns an exact class test, ClassesIfTrue ==
+  /// ~ClassesIfFalse
+  ///
+  /// This is a less exact version of fcmpToClassTest (e.g. fcmpToClassTest will
+  /// only succeed for a test of x > 0 implies positive, but not x > 1).
+  ///
+  /// If \p LookThroughSrc is true, consider the input value when computing the
+  /// mask. This may look through sign bit operations.
+  ///
+  /// If \p LookThroughSrc is false, ignore the source value (i.e. the first
+  /// pair element will always be LHS.
+  ///
+  /// \param Pred FCmp predicate of the compare.
+  /// \param F Function providing denormal mode for the operands.
+  /// \param LHS Left-hand operand of the compare.
+  /// \param ConstRHS Constant right-hand operand of the compare.
+  /// \param LookThroughSrc Whether to look through sign-bit operations on \p
+  ///        LHS.
   static std::tuple<ValueRefT, FPClassTest, FPClassTest>
   fcmpImpliesClass(CmpInst::Predicate Pred, const FunctionT &F, ValueRefT LHS,
                    const APFloat &ConstRHS, bool LookThroughSrc) {
@@ -468,6 +518,29 @@ public:
     return fcmpImpliesClass(Pred, F, LHS, ConstRHS.classify(), LookThroughSrc);
   }
 
+  /// Compute the floating-point classes implied for \p LHS by an fcmp against
+  /// a value.
+  ///
+  /// \returns { TestedValue, ClassesIfTrue, ClassesIfFalse }
+  ///
+  /// If the compare returns an exact class test, ClassesIfTrue ==
+  /// ~ClassesIfFalse
+  ///
+  /// This is a less exact version of fcmpToClassTest (e.g. fcmpToClassTest will
+  /// only succeed for a test of x > 0 implies positive, but not x > 1).
+  ///
+  /// If \p LookThroughSrc is true, consider the input value when computing the
+  /// mask. This may look through sign bit operations.
+  ///
+  /// If \p LookThroughSrc is false, ignore the source value (i.e. the first
+  /// pair element will always be LHS.
+  ///
+  /// \param Pred FCmp predicate of the compare.
+  /// \param F Function providing denormal mode for the operands.
+  /// \param LHS Left-hand operand of the compare.
+  /// \param RHS Right-hand operand of the compare.
+  /// \param LookThroughSrc Whether to look through sign-bit operations on \p
+  ///        LHS.
   static std::tuple<ValueRefT, FPClassTest, FPClassTest>
   fcmpImpliesClass(CmpInst::Predicate Pred, const FunctionT &F, ValueRefT LHS,
                    ValueRefT RHS, bool LookThroughSrc) {

@@ -74,12 +74,19 @@ public:
   virtual ~RTTIRoot() = default;
 
   /// Returns the class ID for this type.
+  ///
+  /// \return The class ID for this type.
   static const void *classID() { return &ID; }
 
   /// Returns the class ID for the dynamic type of this RTTIRoot instance.
+  ///
+  /// \return The class ID for the dynamic type of this instance.
   virtual const void *dynamicClassID() const = 0;
 
   /// Returns true if this class's ID matches the given class ID.
+  ///
+  /// \param ClassID The class ID to compare against this type's ID.
+  /// \return True if this class's ID matches \p ClassID.
   virtual bool isA(const void *const ClassID) const {
     return ClassID == classID();
   }
@@ -128,25 +135,37 @@ private:
 template <typename ThisT, typename ParentT, typename... ParentTs>
 class RTTIExtends : public ParentT, public ParentTs... {
 public:
-  // Inherit constructors from the first Parent.
+  /// Inherit constructors from the first parent type.
   using ParentT::ParentT;
 
   /// Return the static class ID for ThisT.
+  ///
+  /// \return The static class ID for ThisT.
   static const void *classID() { return &ThisT::ID; }
 
   /// Return the dynamic class ID for this instance.
+  ///
+  /// \return The class ID for the dynamic type of this instance.
   const void *dynamicClassID() const override { return &ThisT::ID; }
 
   /// Check whether this instance is a subclass of QueryT.
+  ///
+  /// \return True if this instance is a subclass of QueryT.
   template <typename QueryT> bool isA() const { return isA(QueryT::classID()); }
 
   /// Return true if this object is an instance of \p ClassID or a parent.
+  ///
+  /// \param ClassID The class ID to test against this object and its parents.
+  /// \return True if this object is an instance of \p ClassID or a parent.
   bool isA(const void *const ClassID) const override {
     return ClassID == classID() || ParentT::isA(ClassID) ||
            (ParentTs::isA(ClassID) || ...);
   }
 
   /// Return true if \p R is an instance of ThisT (for Casting.h).
+  ///
+  /// \param R The object to test for membership in ThisT.
+  /// \return True if \p R is an instance of ThisT.
   template <typename T> static bool classof(const T *R) {
     return R->template isA<ThisT>();
   }

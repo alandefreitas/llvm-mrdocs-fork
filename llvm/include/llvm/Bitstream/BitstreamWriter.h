@@ -28,6 +28,7 @@
 
 namespace llvm {
 
+/// Low-level writer for emitting an arbitrary LLVM bitstream.
 class BitstreamWriter {
   /// Owned buffer, used to init Buffer if the provided stream doesn't happen to
   /// be a buffer itself.
@@ -143,16 +144,21 @@ class BitstreamWriter {
   }
 
 public:
-  /// Create a BitstreamWriter over a raw_ostream \p OutStream.
+  /// Create a BitstreamWriter that writes to \p OutStream.
+  ///
   /// If \p OutStream is a raw_svector_ostream, the BitstreamWriter will write
   /// directly to the latter's buffer. In all other cases, the BitstreamWriter
   /// will use an internal buffer and flush at the end of its lifetime.
   ///
-  /// In addition, if \p is a raw_fd_stream supporting seek, tell, and read
-  /// (besides write), the BitstreamWriter will also flush incrementally, when a
-  /// subblock is finished, and if the FlushThreshold is passed.
+  /// In addition, if \p OutStream is a raw_fd_stream supporting seek, tell, and
+  /// read (besides write), the BitstreamWriter will also flush incrementally,
+  /// when a subblock is finished, and if the FlushThreshold is passed.
   ///
   /// NOTE: \p FlushThreshold's unit is MB.
+  ///
+  /// \param OutStream Stream to write the bitstream to.
+  /// \param FlushThreshold Incremental flush threshold in megabytes when
+  /// writing to a seekable raw_fd_stream.
   BitstreamWriter(raw_ostream &OutStream, uint32_t FlushThreshold = 512)
       : Buffer(getInternalBufferFromStream(OutStream)),
         FS(!isa<raw_svector_ostream>(OutStream) ? &OutStream : nullptr),
@@ -160,15 +166,20 @@ public:
 
   /// Convenience constructor for users that start with a vector - avoids
   /// needing to wrap it in a raw_svector_ostream.
+  ///
+  /// \param Buff Vector buffer that receives the bitstream bytes.
   BitstreamWriter(SmallVectorImpl<char> &Buff)
       : Buffer(Buff), FS(nullptr), FlushThreshold(0) {}
 
+  /// Flush remaining bits and assert balanced block scope on destruction.
   ~BitstreamWriter() {
     FlushToWord();
     assert(BlockScope.empty() && CurAbbrevs.empty() && "Block imbalance");
     FlushToFile(/*OnClosing=*/true);
   }
 
+  /// Disable flushing and mark the current buffer position for later access.
+  ///
   /// For scenarios where the user wants to access a section of the stream to
   /// (for example) compute some checksum, disable flushing and remember the
   /// position in the internal buffer where that happened. Must be paired with a
@@ -178,11 +189,15 @@ public:
     BlockFlushingStartPos = Buffer.size();
   }
 
-  /// resumes flushing, but does not flush, and returns the section in the
+  /// Resume flushing and return the marked unflushed buffer section.
+  ///
+  /// Resumes flushing, but does not flush, and returns the section in the
   /// internal buffer starting from the position marked with
   /// markAndBlockFlushing. The return should be processed before any additional
   /// calls to this object, because those may cause a flush and invalidate the
   /// return.
+  ///
+  /// \return The unflushed buffer section starting at the marked position.
   StringRef getMarkedBufferAndResumeFlushing() {
     assert(BlockFlushingStartPos);
     size_t Start = *BlockFlushingStartPos;
@@ -191,9 +206,13 @@ public:
   }
 
   /// Retrieve the current position in the stream, in bits.
+  ///
+  /// \return The current bit offset in the stream.
   uint64_t GetCurrentBitNo() const { return GetBufferOffset() * 8 + CurBit; }
 
   /// Retrieve the number of bits currently used to encode an abbrev ID.
+  ///
+  /// \return The current abbrev ID bit width.
   unsigned GetAbbrevIDWidth() const { return CurCodeSize; }
 
   //===--------------------------------------------------------------------===//
@@ -202,6 +221,9 @@ public:
 
   /// Backpatch a byte in the output at the given bit offset with the specified
   /// value.
+  ///
+  /// \param BitNo Bit offset of the byte to overwrite.
+  /// \param NewByte Replacement byte value to write at \p BitNo.
   void BackpatchByte(uint64_t BitNo, uint8_t NewByte) {
     using namespace llvm::support;
     uint64_t ByteNo = BitNo / 8;
@@ -264,21 +286,38 @@ public:
     fdStream()->seek(CurPos);
   }
 
+  /// Backpatch a 16-bit little-endian half-word at bit offset \p BitNo with
+  /// \p Val.
+  ///
+  /// \param BitNo Bit offset of the half-word to overwrite.
+  /// \param Val Replacement 16-bit value to write at \p BitNo.
   void BackpatchHalfWord(uint64_t BitNo, uint16_t Val) {
     BackpatchByte(BitNo, (uint8_t)Val);
     BackpatchByte(BitNo + 8, (uint8_t)(Val >> 8));
   }
 
+  /// Backpatch a 32-bit little-endian word at bit offset \p BitNo with \p Val.
+  ///
+  /// \param BitNo Bit offset of the word to overwrite.
+  /// \param Val Replacement 32-bit value to write at \p BitNo.
   void BackpatchWord(uint64_t BitNo, unsigned Val) {
     BackpatchHalfWord(BitNo, (uint16_t)Val);
     BackpatchHalfWord(BitNo + 16, (uint16_t)(Val >> 16));
   }
 
+  /// Backpatch a 64-bit little-endian value at bit offset \p BitNo with \p Val.
+  ///
+  /// \param BitNo Bit offset of the 64-bit value to overwrite.
+  /// \param Val Replacement 64-bit value to write at \p BitNo.
   void BackpatchWord64(uint64_t BitNo, uint64_t Val) {
     BackpatchWord(BitNo, (uint32_t)Val);
     BackpatchWord(BitNo + 32, (uint32_t)(Val >> 32));
   }
 
+  /// Emit \p Val using \p NumBits into the bitstream.
+  ///
+  /// \param Val Value to emit; high bits above \p NumBits must be clear.
+  /// \param NumBits Number of low bits of \p Val to write (1..32).
   void Emit(uint32_t Val, unsigned NumBits) {
     assert(NumBits && NumBits <= 32 && "Invalid value size!");
     assert((Val & ~(~0U >> (32-NumBits))) == 0 && "High bits set!");
@@ -298,6 +337,7 @@ public:
     CurBit = (CurBit+NumBits) & 31;
   }
 
+  /// Pad with zeros so the next emit starts on a 32-bit word boundary.
   void FlushToWord() {
     if (CurBit) {
       WriteWord(CurValue);
@@ -306,6 +346,10 @@ public:
     }
   }
 
+  /// Emit \p Val using VBR encoding with \p NumBits-wide chunks.
+  ///
+  /// \param Val Value to emit with variable bit-rate encoding.
+  /// \param NumBits Width in bits of each VBR chunk.
   void EmitVBR(uint32_t Val, unsigned NumBits) {
     assert(NumBits <= 32 && "Too many bits to emit!");
     uint32_t Threshold = 1U << (NumBits-1);
@@ -320,6 +364,10 @@ public:
     Emit(Val, NumBits);
   }
 
+  /// Emit a 64-bit value using VBR encoding with \p NumBits-wide chunks.
+  ///
+  /// \param Val 64-bit value to emit with variable bit-rate encoding.
+  /// \param NumBits Width in bits of each VBR chunk.
   void EmitVBR64(uint64_t Val, unsigned NumBits) {
     assert(NumBits <= 32 && "Too many bits to emit!");
     if ((uint32_t)Val == Val)
@@ -338,7 +386,9 @@ public:
     Emit((uint32_t)Val, NumBits);
   }
 
-  /// EmitCode - Emit the specified code.
+  /// Emit the specified code using the current block's code width.
+  ///
+  /// \param Val Code value to emit with \c CurCodeSize bits.
   void EmitCode(unsigned Val) {
     Emit(Val, CurCodeSize);
   }
@@ -347,8 +397,11 @@ public:
   // Block Manipulation
   //===--------------------------------------------------------------------===//
 
-  /// getBlockInfo - If there is block info for the specified ID, return it,
-  /// otherwise return null.
+  /// If there is block info for the specified ID, return it, otherwise return
+  /// null.
+  ///
+  /// \param BlockID Block ID to look up in the BLOCKINFO records.
+  /// \return The BlockInfo for \p BlockID, or null if none exists.
   BlockInfo *getBlockInfo(unsigned BlockID) {
     // Common case, the most recent entry matches BlockID.
     if (!BlockInfoRecords.empty() && BlockInfoRecords.back().BlockID == BlockID)
@@ -360,6 +413,10 @@ public:
     return nullptr;
   }
 
+  /// Enter a subblock with the given block ID and abbreviation code width.
+  ///
+  /// \param BlockID Identifier of the subblock being entered.
+  /// \param CodeLen Bit width used for abbrev IDs inside the subblock.
   void EnterSubblock(unsigned BlockID, unsigned CodeLen) {
     // Block header:
     //    [ENTER_SUBBLOCK, blockid, newcodelen, <align4bytes>, blocklen]
@@ -387,6 +444,7 @@ public:
       append_range(CurAbbrevs, Info->Abbrevs);
   }
 
+  /// Exit the current subblock, writing its size and restoring outer state.
   void ExitBlock() {
     assert(!BlockScope.empty() && "Block scope imbalance!");
     const Block &B = BlockScope.back();
@@ -543,6 +601,10 @@ private:
 
 public:
   /// Emit a blob, including flushing before and tail-padding.
+  ///
+  /// \param Bytes Blob payload bytes to append after optional size encoding.
+  /// \param ShouldEmitSize When true, emit a VBR6 element count before the
+  /// blob.
   template <class UIntTy>
   void emitBlob(ArrayRef<UIntTy> Bytes, bool ShouldEmitSize = true) {
     // Emit a vbr6 to indicate the number of elements present.
@@ -560,13 +622,22 @@ public:
     while (GetBufferOffset() & 3)
       Buffer.push_back(0);
   }
+  /// Emit string bytes as a blob, optionally preceded by a VBR size.
+  ///
+  /// \param Bytes String bytes to emit as the blob payload.
+  /// \param ShouldEmitSize When true, emit a VBR6 element count before the
+  /// blob.
   void emitBlob(StringRef Bytes, bool ShouldEmitSize = true) {
     emitBlob(ArrayRef((const uint8_t *)Bytes.data(), Bytes.size()),
              ShouldEmitSize);
   }
 
-  /// EmitRecord - Emit the specified record to the stream, using an abbrev if
-  /// we have one to compress the output.
+  /// Emit the specified record to the stream, using an abbrev if we have one to
+  /// compress the output.
+  ///
+  /// \param Code Record code identifying the record kind.
+  /// \param Vals Record field values to emit after the code.
+  /// \param Abbrev Abbreviation ID to use, or 0 for an unabbreviated record.
   template <typename Container>
   void EmitRecord(unsigned Code, const Container &Vals, unsigned Abbrev = 0) {
     if (!Abbrev) {
@@ -584,24 +655,38 @@ public:
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), Code);
   }
 
-  /// EmitRecordWithAbbrev - Emit a record with the specified abbreviation.
+  /// Emit a record with the specified abbreviation.
+  ///
   /// Unlike EmitRecord, the code for the record should be included in Vals as
   /// the first entry.
+  ///
+  /// \param Abbrev Abbreviation ID to use for encoding.
+  /// \param Vals Record values including the record code as the first entry.
   template <typename Container>
   void EmitRecordWithAbbrev(unsigned Abbrev, const Container &Vals) {
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), std::nullopt);
   }
 
-  /// EmitRecordWithBlob - Emit the specified record to the stream, using an
-  /// abbrev that includes a blob at the end.  The blob data to emit is
-  /// specified by the pointer and length specified at the end.  In contrast to
-  /// EmitRecord, this routine expects that the first entry in Vals is the code
-  /// of the record.
+  /// Emit a record that ends with a blob operand.
+  ///
+  /// The blob data to emit is specified by the pointer and length specified at
+  /// the end. In contrast to EmitRecord, this routine expects that the first
+  /// entry in Vals is the code of the record.
+  ///
+  /// \param Abbrev Abbreviation ID that includes a trailing blob operand.
+  /// \param Vals Record values including the record code as the first entry.
+  /// \param Blob Blob payload appended after the abbreviated fields.
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           StringRef Blob) {
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Blob, std::nullopt);
   }
+  /// Emit a record with a trailing blob from \p BlobData/\p BlobLen.
+  ///
+  /// \param Abbrev Abbreviation ID that includes a trailing blob operand.
+  /// \param Vals Record values including the record code as the first entry.
+  /// \param BlobData Pointer to the blob payload bytes.
+  /// \param BlobLen Number of bytes in \p BlobData.
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           const char *BlobData, unsigned BlobLen) {
@@ -609,13 +694,22 @@ public:
                                     StringRef(BlobData, BlobLen), std::nullopt);
   }
 
-  /// EmitRecordWithArray - Just like EmitRecordWithBlob, works with records
-  /// that end with an array.
+  /// Emit a record that ends with an array operand, like EmitRecordWithBlob.
+  ///
+  /// \param Abbrev Abbreviation ID that includes a trailing array operand.
+  /// \param Vals Record values including the record code as the first entry.
+  /// \param Array Array payload appended after the abbreviated fields.
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            StringRef Array) {
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Array, std::nullopt);
   }
+  /// Emit a record ending with an array from \p ArrayData/\p ArrayLen.
+  ///
+  /// \param Abbrev Abbreviation ID that includes a trailing array operand.
+  /// \param Vals Record values including the record code as the first entry.
+  /// \param ArrayData Pointer to the array payload bytes.
+  /// \param ArrayLen Number of bytes in \p ArrayData.
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            const char *ArrayData, unsigned ArrayLen) {
@@ -646,7 +740,10 @@ private:
   }
 public:
 
-  /// Emits the abbreviation \p Abbv to the stream.
+  /// Emit the abbreviation \p Abbv to the stream.
+  ///
+  /// \param Abbv Abbreviation definition to encode and install in this block.
+  /// \return The abbreviation ID assigned to \p Abbv in the current block.
   unsigned EmitAbbrev(std::shared_ptr<BitCodeAbbrev> Abbv) {
     EncodeAbbrev(*Abbv);
     CurAbbrevs.push_back(std::move(Abbv));
@@ -687,8 +784,11 @@ private:
 
 public:
 
-  /// EmitBlockInfoAbbrev - Emit a DEFINE_ABBREV record for the specified
-  /// BlockID.
+  /// Emit a DEFINE_ABBREV record for the specified BlockID in BLOCKINFO.
+  ///
+  /// \param BlockID Block ID that should inherit this abbreviation.
+  /// \param Abbv Abbreviation definition to encode into the BLOCKINFO block.
+  /// \return The abbreviation ID assigned to \p Abbv for \p BlockID.
   unsigned EmitBlockInfoAbbrev(unsigned BlockID, std::shared_ptr<BitCodeAbbrev> Abbv) {
     SwitchToBlockID(BlockID);
     EncodeAbbrev(*Abbv);

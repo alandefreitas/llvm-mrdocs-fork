@@ -9,13 +9,15 @@
 #define LLVM_BINARYFORMAT_SWIFT_H
 
 namespace llvm {
+/// Swift binary-format constants and section kinds.
 namespace binaryformat {
 
+/// Kinds of Swift 5 reflection sections in object files.
 enum Swift5ReflectionSectionKind {
 #define HANDLE_SWIFT_SECTION(KIND, MACHO, ELF, COFF) KIND,
 #include "llvm/BinaryFormat/Swift.def"
 #undef HANDLE_SWIFT_SECTION
-  unknown,
+  unknown, ///< Unrecognized Swift reflection section kind.
   last = unknown ///< Sentinel equal to \c unknown.
 };
 } // end of namespace binaryformat

@@ -29,6 +29,7 @@ class raw_ostream;
 /// not exit this code fragment. If nothing matches, execution falls through.
 class StringMatcher {
 public:
+  /// Pair of a match string and the code to run when it matches.
   using StringPair = std::pair<std::string, std::string>;
 
 private:
@@ -37,10 +38,21 @@ private:
   raw_ostream &OS;
 
 public:
+  /// Construct a matcher that emits a switch tree for \p Matches.
+  ///
+  /// \param StrVariableName Name of the string variable tested in the emitted
+  ///        code.
+  /// \param Matches Pairs of strings to match and code to execute on success.
+  /// \param OS Stream that receives the generated C++.
   StringMatcher(StringRef StrVariableName, ArrayRef<StringPair> Matches,
                 raw_ostream &OS)
       : StrVariableName(StrVariableName), Matches(Matches), OS(OS) {}
 
+  /// Emit a switch tree that classifies the input string.
+  ///
+  /// \param Indent Base indent level for the emitted statements.
+  /// \param IgnoreDuplicates If true, allow duplicate match keys; otherwise
+  ///        abort when duplicates are found.
   LLVM_ABI void Emit(unsigned Indent = 0, bool IgnoreDuplicates = false) const;
 
 private:

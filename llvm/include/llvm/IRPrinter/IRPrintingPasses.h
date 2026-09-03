@@ -37,12 +37,23 @@ class PrintModulePass : public RequiredPassInfoMixin<PrintModulePass> {
   bool EmitSummaryIndex;
 
 public:
+  /// Construct a module IR printer that writes to dbgs().
   LLVM_ABI PrintModulePass();
+  /// Construct a module IR printer that writes to \p OS.
+  /// @param OS Output stream that receives the printed IR.
+  /// @param Banner Header text printed before the IR, or empty.
+  /// @param ShouldPreserveUseListOrder If true, emit uselistorder directives
+  ///        so use-lists can be recreated when reading the assembly.
+  /// @param EmitSummaryIndex If true, also print the module summary index.
   LLVM_ABI PrintModulePass(raw_ostream &OS, const std::string &Banner = "",
                            bool ShouldPreserveUseListOrder = false,
                            bool EmitSummaryIndex = false);
 
-  LLVM_ABI PreservedAnalyses run(Module &M, AnalysisManager<Module> &);
+  /// Print module \p M as LLVM IR assembly.
+  /// @param M Module whose IR is printed.
+  /// @param AM Module analysis manager; used when a summary index is requested.
+  /// @return Preserved analyses; this pass preserves all.
+  LLVM_ABI PreservedAnalyses run(Module &M, AnalysisManager<Module> &AM);
 };
 
 /// Pass (for the new pass manager) for printing a Function as
@@ -52,10 +63,18 @@ class PrintFunctionPass : public RequiredPassInfoMixin<PrintFunctionPass> {
   std::string Banner;
 
 public:
+  /// Construct a function IR printer that writes to dbgs().
   LLVM_ABI PrintFunctionPass();
+  /// Construct a function IR printer that writes to \p OS.
+  /// @param OS Output stream that receives the printed IR.
+  /// @param Banner Header text printed before each function, or empty.
   LLVM_ABI PrintFunctionPass(raw_ostream &OS, const std::string &Banner = "");
 
-  LLVM_ABI PreservedAnalyses run(Function &F, AnalysisManager<Function> &);
+  /// Print function \p F as LLVM IR assembly.
+  /// @param F Function whose IR is printed.
+  /// @param AM Function analysis manager (unused).
+  /// @return Preserved analyses; this pass preserves all.
+  LLVM_ABI PreservedAnalyses run(Function &F, AnalysisManager<Function> &AM);
 };
 
 } // namespace llvm

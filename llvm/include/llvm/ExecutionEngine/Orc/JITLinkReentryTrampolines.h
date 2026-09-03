@@ -35,22 +35,45 @@ class RedirectableSymbolManager;
 /// Produces trampolines on request using JITLink.
 class JITLinkReentryTrampolines {
 public:
+  /// Architecture-specific function that emits one reentry trampoline.
   using EmitTrampolineFn = unique_function<jitlink::Symbol &(
       jitlink::LinkGraph &G, jitlink::Section &Sec,
       jitlink::Symbol &ReentrySym)>;
+  /// Callback invoked with emitted trampoline addresses, or an error.
   using OnTrampolinesReadyFn = unique_function<void(
       Expected<std::vector<ExecutorSymbolDef>> EntryAddrs)>;
 
   /// Create trampolines using the default reentry trampoline function for
   /// the session triple.
+  /// \param ObjLinkingLayer Object linking layer used to emit trampoline
+  ///        graphs.
+  /// \return A new JITLinkReentryTrampolines instance, or an error if the
+  ///         session triple has no default reentry trampoline.
   LLVM_ABI static Expected<std::unique_ptr<JITLinkReentryTrampolines>>
   Create(ObjectLinkingLayer &ObjLinkingLayer);
 
+  /// Construct trampolines for the given object linking layer.
+  /// \param ObjLinkingLayer Object linking layer used to emit trampoline
+  ///        graphs.
+  /// \param EmitTrampoline Architecture-specific function that emits one
+  ///        trampoline.
   LLVM_ABI JITLinkReentryTrampolines(ObjectLinkingLayer &ObjLinkingLayer,
                                      EmitTrampolineFn EmitTrampoline);
-  JITLinkReentryTrampolines(JITLinkReentryTrampolines &&) = delete;
-  JITLinkReentryTrampolines &operator=(JITLinkReentryTrampolines &&) = delete;
+  /// Move construction is deleted.
+  ///
+  /// \param Other Unused; move construction is not supported.
+  JITLinkReentryTrampolines(JITLinkReentryTrampolines &&Other) = delete;
+  /// Move assignment is deleted.
+  ///
+  /// \param Other Unused; move assignment is not supported.
+  JITLinkReentryTrampolines &
+  operator=(JITLinkReentryTrampolines &&Other) = delete;
 
+  /// Emit the given number of reentry trampolines.
+  /// \param RT Resource tracker that owns the emitted trampolines.
+  /// \param NumTrampolines Number of trampolines to emit.
+  /// \param OnTrampolinesReady Callback invoked with the trampoline addresses,
+  ///        or an error if emission fails.
   LLVM_ABI void emit(ResourceTrackerSP RT, size_t NumTrampolines,
                      OnTrampolinesReadyFn OnTrampolinesReady);
 
@@ -63,6 +86,13 @@ private:
   std::atomic<size_t> ReentryGraphIdx{0};
 };
 
+/// Create a LazyReexportsManager that emits reentry trampolines via JITLink.
+/// \param ObjLinkingLayer Object linking layer used to emit trampoline graphs.
+/// \param RSMgr Redirectable symbol manager used for lazy reexports.
+/// \param PlatformJD JITDylib that holds platform/runtime symbols.
+/// \param L Optional listener notified about lazy reexport events.
+/// \return A LazyReexportsManager that emits reentry trampolines via JITLink,
+///         or an error on failure.
 LLVM_ABI Expected<std::unique_ptr<LazyReexportsManager>>
 createJITLinkLazyReexportsManager(ObjectLinkingLayer &ObjLinkingLayer,
                                   RedirectableSymbolManager &RSMgr,

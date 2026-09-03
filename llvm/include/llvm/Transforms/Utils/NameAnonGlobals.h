@@ -21,8 +21,13 @@ namespace llvm {
 /// Simple pass that provides a name to every anonymous globals.
 class NameAnonGlobalPass : public RequiredPassInfoMixin<NameAnonGlobalPass> {
 public:
+  /// Construct a NameAnonGlobal pass.
   NameAnonGlobalPass() = default;
 
+  /// Run the name-anon-globals pass over the module.
+  /// @param M Module whose anonymous globals are named.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

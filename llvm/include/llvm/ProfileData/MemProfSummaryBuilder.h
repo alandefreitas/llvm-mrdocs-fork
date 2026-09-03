@@ -20,6 +20,7 @@
 namespace llvm {
 namespace memprof {
 
+/// Builds aggregate MemProf summary statistics from allocation profile records.
 class MemProfSummaryBuilder {
 private:
   // The set of full context IDs that we've recorded so far. This is needed to
@@ -38,11 +39,20 @@ private:
   uint64_t NumHotContexts = 0;
 
 public:
+  /// Construct an empty MemProf summary builder.
   MemProfSummaryBuilder() = default;
+  /// Destroy the MemProf summary builder.
   ~MemProfSummaryBuilder() = default;
 
-  LLVM_ABI void addRecord(const IndexedMemProfRecord &);
-  LLVM_ABI void addRecord(const MemProfRecord &);
+  /// Incorporate allocation sites from an indexed MemProf record into the
+  /// summary.
+  /// @param Record Indexed MemProf record whose allocation sites are added.
+  LLVM_ABI void addRecord(const IndexedMemProfRecord &Record);
+  /// Incorporate allocation sites from a raw MemProf record into the summary.
+  /// @param Record MemProf record whose allocation sites are added.
+  LLVM_ABI void addRecord(const MemProfRecord &Record);
+  /// Compute and return the MemProf summary from recorded statistics.
+  /// @return Owned MemProf summary built from the recorded statistics.
   LLVM_ABI std::unique_ptr<MemProfSummary> getSummary();
 };
 

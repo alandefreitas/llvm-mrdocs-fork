@@ -15,15 +15,20 @@ namespace llvm {
 
 class TargetMachine;
 
+/// Options that control how the global-merge pass groups and merges globals.
 struct GlobalMergeOptions {
-  // FIXME: Infer the maximum possible offset depending on the actual users
-  // (these max offsets are different for the users inside Thumb or ARM
-  // functions), see the code that passes in the offset in the ARM backend
-  // for more information.
+  /// Maximum offset in bytes between locations of merged globals.
+  ///
+  /// FIXME: Infer the maximum possible offset depending on the actual users
+  /// (these max offsets are different for the users inside Thumb or ARM
+  /// functions), see the code that passes in the offset in the ARM backend
+  /// for more information.
   unsigned MaxOffset = 0;
-  // The minimum size in bytes of each global that should considered in merging.
+  /// Minimum size in bytes for a global to be considered for merging.
   unsigned MinSize = 0;
+  /// Whether globals should be grouped by their uses before merging.
   bool GroupByUse = true;
+  /// Whether globals that are only used alone should be ignored for merging.
   bool IgnoreSingleUse = true;
   /// Whether we should merge global variables that have external linkage.
   bool MergeExternal = true;
@@ -33,21 +38,31 @@ struct GlobalMergeOptions {
   /// looking at use.
   bool MergeConstAggressive = false;
   /// Whether we should try to optimize for size only.
+  ///
   /// Currently, this applies a dead simple heuristic: only consider globals
   /// used in minsize functions for merging.
   /// FIXME: This could learn about optsize, and be used in the cost model.
   bool SizeOnly = false;
 };
 
-// FIXME: This pass must run before AsmPrinterPass::doInitialization!
+/// New PM pass that merges globals to reduce address-materialization cost.
+///
+/// FIXME: This pass must run before AsmPrinterPass::doInitialization!
 class GlobalMergePass : public OptionalPassInfoMixin<GlobalMergePass> {
   const TargetMachine *TM;
   GlobalMergeOptions Options;
 
 public:
+  /// Construct a global-merge pass for target \p TM with the given \p Options.
+  /// \param TM Target machine used to guide merging decisions.
+  /// \param Options Configuration controlling which globals may be merged.
   GlobalMergePass(const TargetMachine *TM, GlobalMergeOptions Options)
       : TM(TM), Options(Options) {}
 
+  /// Merge eligible global variables in module \p M.
+  /// \param M Module whose globals are considered for merging.
+  /// \param MAM Module analysis manager providing required analyses.
+  /// \return The set of analyses preserved after merging globals.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 

@@ -74,6 +74,7 @@ class Graph {
 public:
   /// These objects are used to name edges and vertices in the graph.
   typedef VI VertexIdentifier;
+  /// Identifies an edge by its source and destination vertex identifiers.
   typedef std::pair<VI, VI> EdgeIdentifier;
 
   /// This type is the value_type of all iterators which range over vertices,
@@ -85,6 +86,7 @@ public:
   /// Determined by the Edges DenseMap.
   using EdgeValueType = detail::DenseMapPair<EdgeIdentifier, EdgeAttribute>;
 
+  /// Type used for sizes and counts in this graph.
   using size_type = std::size_t;
 
 private:
@@ -196,9 +198,13 @@ public:
   /// the number of elements in the range and whether the range is empty.
   template <bool isConst, bool isOut> class InOutEdgeView {
   public:
+    /// Mutable or const neighbor-edge iterator, depending on \p isConst.
     using iterator = NeighborEdgeIteratorT<isConst, isOut>;
+    /// Always-const neighbor-edge iterator.
     using const_iterator = NeighborEdgeIteratorT<true, isOut>;
+    /// Graph type, const when \p isConst is true.
     using GraphT = std::conditional_t<isConst, const Graph, Graph>;
+    /// Edge map type, const when \p isConst is true.
     using InternalEdgeMapT =
         std::conditional_t<isConst, const EdgeMapT, EdgeMapT>;
 
@@ -208,6 +214,8 @@ public:
     const NeighborLookupT &NL;
 
   public:
+    /// Returns an iterator to the first edge in the range.
+    /// @return An iterator to the first edge, or a default iterator if none.
     iterator begin() {
       auto It = NL.find(A);
       if (It == NL.end())
@@ -215,6 +223,8 @@ public:
       return iterator(It->second.begin(), &M, A);
     }
 
+    /// Returns a const iterator to the first edge in the range.
+    /// @return A const iterator to the first edge, or a default iterator if none.
     const_iterator cbegin() const {
       auto It = NL.find(A);
       if (It == NL.end())
@@ -222,14 +232,20 @@ public:
       return const_iterator(It->second.begin(), &M, A);
     }
 
+    /// Returns a const iterator to the first edge in the range.
+    /// @return A const iterator to the first edge, or a default iterator if none.
     const_iterator begin() const { return cbegin(); }
 
+    /// Returns an iterator past the last edge in the range.
+    /// @return An iterator past the last edge, or a default iterator if none.
     iterator end() {
       auto It = NL.find(A);
       if (It == NL.end())
         return iterator();
       return iterator(It->second.end(), &M, A);
     }
+    /// Returns a const iterator past the last edge in the range.
+    /// @return A const iterator past the last edge, or a default iterator if none.
     const_iterator cend() const {
       auto It = NL.find(A);
       if (It == NL.end())
@@ -237,8 +253,12 @@ public:
       return const_iterator(It->second.end(), &M, A);
     }
 
+    /// Returns a const iterator past the last edge in the range.
+    /// @return A const iterator past the last edge, or a default iterator if none.
     const_iterator end() const { return cend(); }
 
+    /// Returns the number of edges in the range.
+    /// @return The number of edges in the range, or 0 if the vertex has none.
     size_type size() const {
       auto I = NL.find(A);
       if (I == NL.end())
@@ -247,8 +267,13 @@ public:
         return I->second.size();
     }
 
+    /// Returns true if the range contains no edges.
+    /// @return True if the range contains no edges.
     bool empty() const { return NL.count(A) == 0; };
 
+    /// Constructs a view of the in- or out-edges of vertex \p A in graph \p G.
+    /// \param G Graph that owns the edges.
+    /// \param A Vertex whose incident edges are ranged over.
     InOutEdgeView(GraphT &G, VertexIdentifier A)
         : M(G.Edges), A(A), NL(isOut ? G.OutNeighbors : G.InNeighbors) {}
   };
@@ -271,23 +296,44 @@ public:
   /// the number of elements in the range and whether the range is empty.
   template <bool isConst> class VertexView {
   public:
+    /// Mutable or const vertex iterator, depending on \p isConst.
     using iterator =
         std::conditional_t<isConst, ConstVertexIterator, VertexIterator>;
+    /// Always-const vertex iterator.
     using const_iterator = ConstVertexIterator;
+    /// Graph type, const when \p isConst is true.
     using GraphT = std::conditional_t<isConst, const Graph, Graph>;
 
   private:
     GraphT &G;
 
   public:
+    /// Returns an iterator to the first vertex.
+    /// @return An iterator to the first vertex.
     iterator begin() { return G.Vertices.begin(); }
+    /// Returns an iterator past the last vertex.
+    /// @return An iterator past the last vertex.
     iterator end() { return G.Vertices.end(); }
+    /// Returns a const iterator to the first vertex.
+    /// @return A const iterator to the first vertex.
     const_iterator cbegin() const { return G.Vertices.cbegin(); }
+    /// Returns a const iterator past the last vertex.
+    /// @return A const iterator past the last vertex.
     const_iterator cend() const { return G.Vertices.cend(); }
+    /// Returns a const iterator to the first vertex.
+    /// @return A const iterator to the first vertex.
     const_iterator begin() const { return G.Vertices.begin(); }
+    /// Returns a const iterator past the last vertex.
+    /// @return A const iterator past the last vertex.
     const_iterator end() const { return G.Vertices.end(); }
+    /// Returns the number of vertices in the graph.
+    /// @return The number of vertices in the graph.
     size_type size() const { return G.Vertices.size(); }
+    /// Returns true if the graph has no vertices.
+    /// @return True if the graph has no vertices.
     bool empty() const { return G.Vertices.empty(); }
+    /// Constructs a view over the vertices of \p _G.
+    /// \param _G Graph whose vertices are ranged over.
     VertexView(GraphT &_G) : G(_G) {}
   };
 
@@ -308,28 +354,49 @@ public:
   /// the number of elements in the range and whether the range is empty.
   template <bool isConst> class EdgeView {
   public:
+    /// Mutable or const edge iterator, depending on \p isConst.
     using iterator =
         std::conditional_t<isConst, ConstEdgeIterator, EdgeIterator>;
+    /// Always-const edge iterator.
     using const_iterator = ConstEdgeIterator;
+    /// Graph type, const when \p isConst is true.
     using GraphT = std::conditional_t<isConst, const Graph, Graph>;
 
   private:
     GraphT &G;
 
   public:
+    /// Returns an iterator to the first edge.
+    /// @return An iterator to the first edge.
     iterator begin() { return G.Edges.begin(); }
+    /// Returns an iterator past the last edge.
+    /// @return An iterator past the last edge.
     iterator end() { return G.Edges.end(); }
+    /// Returns a const iterator to the first edge.
+    /// @return A const iterator to the first edge.
     const_iterator cbegin() const { return G.Edges.cbegin(); }
+    /// Returns a const iterator past the last edge.
+    /// @return A const iterator past the last edge.
     const_iterator cend() const { return G.Edges.cend(); }
+    /// Returns a const iterator to the first edge.
+    /// @return A const iterator to the first edge.
     const_iterator begin() const { return G.Edges.begin(); }
+    /// Returns a const iterator past the last edge.
+    /// @return A const iterator past the last edge.
     const_iterator end() const { return G.Edges.end(); }
+    /// Returns the number of edges in the graph.
+    /// @return The number of edges in the graph.
     size_type size() const { return G.Edges.size(); }
+    /// Returns true if the graph has no edges.
+    /// @return True if the graph has no edges.
     bool empty() const { return G.Edges.empty(); }
+    /// Constructs a view over all edges in \p _G.
+    /// \param _G Graph whose edges are ranged over.
     EdgeView(GraphT &_G) : G(_G) {}
   };
 
 public:
-  // TODO: implement constructor to enable Graph Initialisation.\
+  /* TODO: implement constructor to enable Graph Initialisation. */ \
   // Something like:
   //   Graph<int, int, int> G(
   //   {1, 2, 3, 4, 5},
@@ -345,43 +412,63 @@ public:
 
   /// Returns a view object allowing iteration over the vertices of the graph.
   /// also allows access to the size of the vertex set.
+  /// @return A mutable view over the vertices of the graph.
   VertexView<false> vertices() { return VertexView<false>(*this); }
 
+  /// Returns a const view over the vertices of the graph.
+  /// @return A const view over the vertices of the graph.
   VertexView<true> vertices() const { return VertexView<true>(*this); }
 
   /// Returns a view object allowing iteration over the edges of the graph.
   /// also allows access to the size of the edge set.
+  /// @return A mutable view over the edges of the graph.
   EdgeView<false> edges() { return EdgeView<false>(*this); }
 
+  /// Returns a const view over the edges of the graph.
+  /// @return A const view over the edges of the graph.
   EdgeView<true> edges() const { return EdgeView<true>(*this); }
 
   /// Returns a view object allowing iteration over the edges which start at
   /// a vertex I.
+  /// \param I Source vertex whose outgoing edges are ranged over.
+  /// @return A mutable view over the outgoing edges of \p I.
   InOutEdgeView<false, true> outEdges(const VertexIdentifier I) {
     return InOutEdgeView<false, true>(*this, I);
   }
 
+  /// Returns a const view over the edges which start at vertex \p I.
+  /// \param I Source vertex whose outgoing edges are ranged over.
+  /// @return A const view over the outgoing edges of \p I.
   InOutEdgeView<true, true> outEdges(const VertexIdentifier I) const {
     return InOutEdgeView<true, true>(*this, I);
   }
 
   /// Returns a view object allowing iteration over the edges which point to
   /// a vertex I.
+  /// \param I Destination vertex whose incoming edges are ranged over.
+  /// @return A mutable view over the incoming edges of \p I.
   InOutEdgeView<false, false> inEdges(const VertexIdentifier I) {
     return InOutEdgeView<false, false>(*this, I);
   }
 
+  /// Returns a const view over the edges which point to vertex \p I.
+  /// \param I Destination vertex whose incoming edges are ranged over.
+  /// @return A const view over the incoming edges of \p I.
   InOutEdgeView<true, false> inEdges(const VertexIdentifier I) const {
     return InOutEdgeView<true, false>(*this, I);
   }
 
   /// Looks up the vertex with identifier I, if it does not exist it default
   /// constructs it.
+  /// \param I Vertex identifier to look up or default-construct.
+  /// @return A reference to the vertex attribute.
   VertexAttribute &operator[](const VertexIdentifier &I) { return Vertices[I]; }
 
   /// Looks up the edge with identifier I, if it does not exist it default
   /// constructs it, if it's endpoints do not exist it also default constructs
   /// them.
+  /// \param I Edge identifier to look up or default-construct.
+  /// @return A reference to the edge attribute.
   EdgeAttribute &operator[](const EdgeIdentifier &I) {
     Vertices.try_emplace(I.first);
     Vertices.try_emplace(I.second);
@@ -391,6 +478,8 @@ public:
   }
 
   /// Looks up a vertex with Identifier I, or an error if it does not exist.
+  /// \param I Vertex identifier to look up.
+  /// @return The vertex attribute, or an error if \p I is absent.
   Expected<VertexAttribute &> at(const VertexIdentifier &I) {
     auto It = Vertices.find(I);
     if (It == Vertices.end())
@@ -400,6 +489,9 @@ public:
     return It->second;
   }
 
+  /// Looks up a vertex with Identifier I, or an error if it does not exist.
+  /// \param I Vertex identifier to look up.
+  /// @return The vertex attribute, or an error if \p I is absent.
   Expected<const VertexAttribute &> at(const VertexIdentifier &I) const {
     auto It = Vertices.find(I);
     if (It == Vertices.end())
@@ -410,6 +502,8 @@ public:
   }
 
   /// Looks up an edge with Identifier I, or an error if it does not exist.
+  /// \param I Edge identifier to look up.
+  /// @return The edge attribute, or an error if \p I is absent.
   Expected<EdgeAttribute &> at(const EdgeIdentifier &I) {
     auto It = Edges.find(I);
     if (It == Edges.end())
@@ -419,6 +513,9 @@ public:
     return It->second;
   }
 
+  /// Looks up an edge with Identifier I, or an error if it does not exist.
+  /// \param I Edge identifier to look up.
+  /// @return The edge attribute, or an error if \p I is absent.
   Expected<const EdgeAttribute &> at(const EdgeIdentifier &I) const {
     auto It = Edges.find(I);
     if (It == Edges.end())
@@ -430,29 +527,41 @@ public:
 
   /// Looks for a vertex with identifier I, returns 1 if one exists, and
   /// 0 otherwise
+  /// \param I Vertex identifier to search for.
+  /// @return 1 if the vertex exists, otherwise 0.
   size_type count(const VertexIdentifier &I) const {
     return Vertices.count(I);
   }
 
   /// Looks for an edge with Identifier I, returns 1 if one exists and 0
   /// otherwise
+  /// \param I Edge identifier to search for.
+  /// @return 1 if the edge exists, otherwise 0.
   size_type count(const EdgeIdentifier &I) const { return Edges.count(I); }
 
   /// Inserts a vertex into the graph with Identifier Val.first, and
   /// Attribute Val.second.
+  /// \param Val Vertex identifier and attribute pair to insert.
+  /// @return A pair of an iterator to the vertex and whether insertion occurred.
   std::pair<VertexIterator, bool>
   insert(const std::pair<VertexIdentifier, VertexAttribute> &Val) {
     return Vertices.insert(Val);
   }
 
+  /// Inserts a vertex into the graph, moving from \p Val.
+  /// \param Val Vertex identifier and attribute pair to insert.
+  /// @return A pair of an iterator to the vertex and whether insertion occurred.
   std::pair<VertexIterator, bool>
   insert(std::pair<VertexIdentifier, VertexAttribute> &&Val) {
     return Vertices.insert(std::move(Val));
   }
 
-  /// Inserts an edge into the graph with Identifier Val.first, and
-  /// Attribute Val.second. If the key is already in the map, it returns false
-  /// and doesn't update the value.
+  /// Inserts an edge into the graph if its identifier is not already present.
+  ///
+  /// Uses Identifier Val.first and Attribute Val.second. If the key is already
+  /// in the map, it returns false and doesn't update the value.
+  /// \param Val Edge identifier and attribute pair to insert.
+  /// @return A pair of an iterator to the edge and whether insertion occurred.
   std::pair<EdgeIterator, bool>
   insert(const std::pair<EdgeIdentifier, EdgeAttribute> &Val) {
     const auto &p = Edges.insert(Val);
@@ -467,9 +576,12 @@ public:
     return p;
   }
 
-  /// Inserts an edge into the graph with Identifier Val.first, and
-  /// Attribute Val.second. If the key is already in the map, it returns false
-  /// and doesn't update the value.
+  /// Inserts an edge into the graph if its identifier is not already present.
+  ///
+  /// Uses Identifier Val.first and Attribute Val.second. If the key is already
+  /// in the map, it returns false and doesn't update the value.
+  /// \param Val Edge identifier and attribute pair to insert.
+  /// @return A pair of an iterator to the edge and whether insertion occurred.
   std::pair<EdgeIterator, bool>
   insert(std::pair<EdgeIdentifier, EdgeAttribute> &&Val) {
     auto EI = Val.first;

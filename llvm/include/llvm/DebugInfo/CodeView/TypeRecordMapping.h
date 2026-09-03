@@ -24,18 +24,51 @@ class BinaryStreamWriter;
 namespace codeview {
 class TypeIndex;
 struct CVMemberRecord;
+
+/// Maps CodeView type and member records through a shared CodeViewRecordIO.
 class LLVM_ABI TypeRecordMapping : public TypeVisitorCallbacks {
 public:
+  /// Construct a mapping that deserializes type records from \p Reader.
+  ///
+  /// \param Reader Binary stream reader supplying record bytes.
   explicit TypeRecordMapping(BinaryStreamReader &Reader) : IO(Reader) {}
+  /// Construct a mapping that serializes type records into \p Writer.
+  ///
+  /// \param Writer Binary stream writer receiving record bytes.
   explicit TypeRecordMapping(BinaryStreamWriter &Writer) : IO(Writer) {}
+  /// Construct a mapping that streams type records via \p Streamer.
+  ///
+  /// \param Streamer Assembly streamer used to emit record bytes and comments.
   explicit TypeRecordMapping(CodeViewRecordStreamer &Streamer) : IO(Streamer) {}
 
+  /// Bring base-class visitTypeBegin overloads into scope.
   using TypeVisitorCallbacks::visitTypeBegin;
+  /// Begin mapping the type record \p Record.
+  ///
+  /// \param Record CodeView type whose fields are about to be mapped.
+  /// \returns Success, or an error if the record cannot be started.
   Error visitTypeBegin(CVType &Record) override;
+  /// Begin mapping the type record \p Record at type index \p Index.
+  ///
+  /// \param Record CodeView type whose fields are about to be mapped.
+  /// \param Index Type index of \p Record in the type stream.
+  /// \returns Success, or an error if the record cannot be started.
   Error visitTypeBegin(CVType &Record, TypeIndex Index) override;
+  /// Finish mapping the type record \p Record.
+  ///
+  /// \param Record CodeView type whose visit is ending.
+  /// \returns Success, or an error if the record cannot be ended.
   Error visitTypeEnd(CVType &Record) override;
 
+  /// Begin mapping the field-list member record \p Record.
+  ///
+  /// \param Record Member record whose fields are about to be mapped.
+  /// \returns Success, or an error if the member cannot be started.
   Error visitMemberBegin(CVMemberRecord &Record) override;
+  /// Finish mapping the field-list member record \p Record.
+  ///
+  /// \param Record Member record whose visit is ending.
+  /// \returns Success, or an error if the member cannot be ended.
   Error visitMemberEnd(CVMemberRecord &Record) override;
 
 #define TYPE_RECORD(EnumName, EnumVal, Name)                                   \

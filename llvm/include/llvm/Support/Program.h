@@ -27,40 +27,55 @@ namespace llvm {
 class BitVector;
 namespace sys {
 
-/// This is the OS-specific separator for PATH like environment variables:
-// a colon on Unix or a semicolon on Windows.
 #if defined(LLVM_ON_UNIX)
+/// OS-specific separator for PATH-like environment variables.
+///
+/// A colon on Unix or a semicolon on Windows.
 const char EnvPathSeparator = ':';
 #elif defined(_WIN32)
+/// OS-specific separator for PATH-like environment variables.
+///
+/// A colon on Unix or a semicolon on Windows.
 const char EnvPathSeparator = ';';
 #endif
 
 #if defined(_WIN32)
-typedef unsigned long procid_t; // Must match the type of DWORD on Windows.
-typedef void *process_t;        // Must match the type of HANDLE on Windows.
+/// Process identifier type (must match DWORD on Windows).
+typedef unsigned long procid_t;
+/// Platform-native process handle type (must match HANDLE on Windows).
+typedef void *process_t;
 #else
+/// Process identifier type.
 using procid_t = ::pid_t;
+/// Platform-native process handle type.
 using process_t = procid_t;
 #endif
 
 /// This struct encapsulates information about a process.
 struct ProcessInfo {
+  /// Sentinel value for an invalid process identifier.
   static constexpr procid_t InvalidPid = 0;
 
-  procid_t Pid;      /// The process identifier.
-  process_t Process; /// Platform-dependent process object.
+  /// The process identifier.
+  procid_t Pid;
+  /// Platform-dependent process object.
+  process_t Process;
 
   /// The return code, set after execution.
   int ReturnCode;
 
+  /// Construct a ProcessInfo with an invalid process identifier.
   LLVM_ABI ProcessInfo();
 };
 
 /// This struct encapsulates information about a process execution.
 struct ProcessStatistics {
+  /// Total elapsed wall-clock time for the process.
   std::chrono::microseconds TotalTime;
+  /// CPU time spent in user mode.
   std::chrono::microseconds UserTime;
-  uint64_t PeakMemory = 0; ///< Maximum resident set size in KiB.
+  /// Maximum resident set size in KiB.
+  uint64_t PeakMemory = 0;
 };
 
 /// Find the first executable file \p Name in \p Paths.
@@ -79,70 +94,116 @@ struct ProcessStatistics {
 LLVM_ABI ErrorOr<std::string> findProgramByName(StringRef Name,
                                                 ArrayRef<StringRef> Paths = {});
 
-// These functions change the specified standard stream (stdin or stdout) mode
-// based on the Flags. They return errc::success if the specified stream was
-// changed. Otherwise, a platform dependent error is returned.
+/// Change stdin to the mode described by \p Flags.
+///
+/// \param Flags Open flags selecting the desired stdin mode.
+///
+/// \returns errc::success if stdin was changed; otherwise a platform-dependent
+/// error.
 LLVM_ABI std::error_code ChangeStdinMode(fs::OpenFlags Flags);
+
+/// Change stdout to the mode described by \p Flags.
+///
+/// \param Flags Open flags selecting the desired stdout mode.
+///
+/// \returns errc::success if stdout was changed; otherwise a
+/// platform-dependent error.
 LLVM_ABI std::error_code ChangeStdoutMode(fs::OpenFlags Flags);
 
-// These functions change the specified standard stream (stdin or stdout) to
-// binary mode. They return errc::success if the specified stream
-// was changed. Otherwise a platform dependent error is returned.
+/// Change stdin to binary mode.
+///
+/// \returns errc::success if stdin was changed; otherwise a platform-dependent
+/// error.
 LLVM_ABI std::error_code ChangeStdinToBinary();
+
+/// Change stdout to binary mode.
+///
+/// \returns errc::success if stdout was changed; otherwise a
+/// platform-dependent error.
 LLVM_ABI std::error_code ChangeStdoutToBinary();
 
-/// This function executes the program using the arguments provided.  The
-/// invoked program will inherit the stdin, stdout, and stderr file
+/// Execute a program and wait for it to finish.
+///
+/// The invoked program will inherit the stdin, stdout, and stderr file
 /// descriptors, the environment and other configuration settings of the
-/// invoking program.
-/// This function waits for the program to finish, so should be avoided in
-/// library functions that aren't expected to block. Consider using
-/// ExecuteNoWait() instead.
+/// invoking program. This function waits for the program to finish, so should
+/// be avoided in library functions that aren't expected to block. Consider
+/// using ExecuteNoWait() instead.
+///
+/// \param Program Path of the program to be executed. It is presumed this is
+///   the result of the findProgramByName method.
+/// \param Args An array of strings that are passed to the program. The first
+///   element should be the name of the program. The array should **not** be
+///   terminated by an empty StringRef.
+/// \param Env An optional vector of strings to use for the program's
+///   environment. If not provided, the current program's environment will be
+///   used. If specified, the vector should **not** be terminated by an empty
+///   StringRef.
+/// \param Redirects An array of optional paths. Should have a size of zero or
+///   three. If the array is empty, no redirections are performed. Otherwise,
+///   the inferior process's stdin(0), stdout(1), and stderr(2) will be
+///   redirected to the corresponding paths, if the optional path is present
+///   (not \c std::nullopt). When an empty path is passed in, the corresponding
+///   file descriptor will be disconnected (ie, /dev/null'd) in a portable way.
+/// \param SecondsToWait If non-zero, this specifies the amount of time to wait
+///   for the child process to exit. If the time expires, the child is killed
+///   and this call returns. If zero, this function will wait until the child
+///   finishes or forever if it doesn't.
+/// \param MemoryLimit If non-zero, this specifies max. amount of memory can be
+///   allocated by process. If memory usage will be higher limit, the child is
+///   killed and this call returns. If zero - no memory limit.
+/// \param ErrMsg If non-zero, provides a pointer to a string instance in which
+///   error messages will be returned. If the string is non-empty upon return
+///   an error occurred while invoking the program.
+/// \param ExecutionFailed If non-null, set to true when process creation
+///   fails and to false otherwise.
+/// \param ProcStat If non-zero, provides a pointer to a structure in which
+///   process execution statistics will be stored.
+/// \param AffinityMask CPUs or processors the new program shall run on.
+///
 /// \returns an integer result code indicating the status of the program.
 /// A zero or positive value indicates the result code of the program.
 /// -1 indicates failure to execute
 /// -2 indicates a crash during execution or timeout
 LLVM_ABI int ExecuteAndWait(
-    StringRef Program, ///< Path of the program to be executed. It is
-    ///< presumed this is the result of the findProgramByName method.
-    ArrayRef<StringRef> Args, ///< An array of strings that are passed to the
-    ///< program.  The first element should be the name of the program.
-    ///< The array should **not** be terminated by an empty StringRef.
-    std::optional<ArrayRef<StringRef>> Env =
-        std::nullopt, ///< An optional vector of
-    ///< strings to use for the program's environment. If not provided, the
-    ///< current program's environment will be used.  If specified, the
-    ///< vector should **not** be terminated by an empty StringRef.
-    ArrayRef<std::optional<StringRef>> Redirects = {}, ///<
-    ///< An array of optional paths. Should have a size of zero or three.
-    ///< If the array is empty, no redirections are performed.
-    ///< Otherwise, the inferior process's stdin(0), stdout(1), and stderr(2)
-    ///< will be redirected to the corresponding paths, if the optional path
-    ///< is present (not \c std::nullopt).
-    ///< When an empty path is passed in, the corresponding file descriptor
-    ///< will be disconnected (ie, /dev/null'd) in a portable way.
-    unsigned SecondsToWait = 0, ///< If non-zero, this specifies the amount
-    ///< of time to wait for the child process to exit. If the time
-    ///< expires, the child is killed and this call returns. If zero,
-    ///< this function will wait until the child finishes or forever if
-    ///< it doesn't.
-    unsigned MemoryLimit = 0, ///< If non-zero, this specifies max. amount
-    ///< of memory can be allocated by process. If memory usage will be
-    ///< higher limit, the child is killed and this call returns. If zero
-    ///< - no memory limit.
-    std::string *ErrMsg = nullptr, ///< If non-zero, provides a pointer to a
-    ///< string instance in which error messages will be returned. If the
-    ///< string is non-empty upon return an error occurred while invoking the
-    ///< program.
-    bool *ExecutionFailed = nullptr,
-    std::optional<ProcessStatistics> *ProcStat = nullptr, ///< If non-zero,
-    /// provides a pointer to a structure in which process execution
-    /// statistics will be stored.
-    BitVector *AffinityMask = nullptr ///< CPUs or processors the new
-                                      /// program shall run on.
-);
+    StringRef Program, ArrayRef<StringRef> Args,
+    std::optional<ArrayRef<StringRef>> Env = std::nullopt,
+    ArrayRef<std::optional<StringRef>> Redirects = {},
+    unsigned SecondsToWait = 0, unsigned MemoryLimit = 0,
+    std::string *ErrMsg = nullptr, bool *ExecutionFailed = nullptr,
+    std::optional<ProcessStatistics> *ProcStat = nullptr,
+    BitVector *AffinityMask = nullptr);
 
 /// Similar to \ref ExecuteAndWait, but returns immediately.
+///
+/// \param Program Path of the program to be executed. It is presumed this is
+///   the result of the findProgramByName method.
+/// \param Args An array of strings that are passed to the program. The first
+///   element should be the name of the program. The array should **not** be
+///   terminated by an empty StringRef.
+/// \param Env An optional vector of strings to use for the program's
+///   environment. If not provided, the current program's environment will be
+///   used. If specified, the vector should **not** be terminated by an empty
+///   StringRef.
+/// \param Redirects An array of optional paths. Should have a size of zero or
+///   three. If the array is empty, no redirections are performed. Otherwise,
+///   the inferior process's stdin(0), stdout(1), and stderr(2) will be
+///   redirected to the corresponding paths, if the optional path is present
+///   (not \c std::nullopt). When an empty path is passed in, the corresponding
+///   file descriptor will be disconnected (ie, /dev/null'd) in a portable way.
+/// \param MemoryLimit If non-zero, this specifies max. amount of memory can be
+///   allocated by process. If memory usage will be higher limit, the child is
+///   killed and this call returns. If zero - no memory limit.
+/// \param ErrMsg If non-zero, provides a pointer to a string instance in which
+///   error messages will be returned. If the string is non-empty upon return
+///   an error occurred while invoking the program.
+/// \param ExecutionFailed If non-null, set to true when process creation
+///   fails and to false otherwise.
+/// \param AffinityMask CPUs or processors the new program shall run on.
+/// \param DetachProcess If true the executed program detaches from the
+///   controlling terminal. I/O streams such as llvm::outs, llvm::errs, and
+///   stdin will be closed until redirected to another output location.
+///
 /// \returns The \ref ProcessInfo of the newly launched process.
 /// \note On Microsoft Windows systems, users will need to either call
 /// \ref Wait until the process has finished executing or win32's CloseHandle
@@ -152,19 +213,28 @@ LLVM_ABI ProcessInfo ExecuteNoWait(
     std::optional<ArrayRef<StringRef>> Env,
     ArrayRef<std::optional<StringRef>> Redirects = {}, unsigned MemoryLimit = 0,
     std::string *ErrMsg = nullptr, bool *ExecutionFailed = nullptr,
-    BitVector *AffinityMask = nullptr,
-    /// If true the executed program detatches from the controlling
-    /// terminal. I/O streams such as llvm::outs, llvm::errs, and stdin will
-    /// be closed until redirected to another output location
-    bool DetachProcess = false);
+    BitVector *AffinityMask = nullptr, bool DetachProcess = false);
 
 /// Return true if the given arguments fit within system-specific
 /// argument length limits.
+///
+/// \param Program Path of the program that would be executed.
+/// \param Args Arguments that would be passed to the program.
+///
+/// \returns true if the program path and arguments fit within the system
+///   command-line length limits; false otherwise.
 LLVM_ABI bool commandLineFitsWithinSystemLimits(StringRef Program,
                                                 ArrayRef<StringRef> Args);
 
 /// Return true if the given arguments fit within system-specific
 /// argument length limits.
+///
+/// \param Program Path of the program that would be executed.
+/// \param Args Null-terminated C-string arguments that would be passed to the
+///   program.
+///
+/// \returns true if the program path and arguments fit within the system
+///   command-line length limits; false otherwise.
 LLVM_ABI bool commandLineFitsWithinSystemLimits(StringRef Program,
                                                 ArrayRef<const char *> Args);
 
@@ -197,42 +267,48 @@ enum WindowsEncodingMethod {
 /// our best shot to make gcc/ld understand international characters. This
 /// should be changed as soon as binutils fix this to support UTF16 on mingw.
 ///
+/// \param FileName Path of the file to write.
+/// \param Contents UTF-8 text to encode and write.
+/// \param Encoding Encoding to apply on Windows (ignored on UNIX).
+///
 /// \returns non-zero error_code if failed
 LLVM_ABI std::error_code
 writeFileWithEncoding(StringRef FileName, StringRef Contents,
                       WindowsEncodingMethod Encoding = WEM_UTF8);
 
 /// This function waits for the process specified by \p PI to finish.
+///
+/// \param PI The child process that should be waited on.
+/// \param SecondsToWait If std::nullopt, waits until child has terminated.
+///   If a value, this specifies the amount of time to wait for the child
+///   process. If the time expires, and \p Polling is false, the child is
+///   killed and this function returns. If the time expires and \p Polling is
+///   true, the child is resumed. If zero, this function will perform a
+///   non-blocking wait on the child process.
+/// \param ErrMsg If non-zero, provides a pointer to a string instance in which
+///   error messages will be returned. If the string is non-empty upon return
+///   an error occurred while invoking the program.
+/// \param ProcStat If non-zero, provides a pointer to a structure in which
+///   process execution statistics will be stored.
+/// \param Polling If true, do not kill the process on timeout.
+///
 /// \returns A \see ProcessInfo struct with Pid set to:
 /// \li The process id of the child process if the child process has changed
 /// state.
 /// \li 0 if the child process has not changed state.
 /// \note Users of this function should always check the ReturnCode member of
 /// the \see ProcessInfo returned from this function.
-LLVM_ABI ProcessInfo Wait(
-    const ProcessInfo &PI, ///< The child process that should be waited on.
-    std::optional<unsigned> SecondsToWait, ///< If std::nullopt, waits until
-    ///< child has terminated.
-    ///< If a value, this specifies the amount of time to wait for the child
-    ///< process. If the time expires, and \p Polling is false, the child is
-    ///< killed and this < function returns. If the time expires and \p
-    ///< Polling is true, the child is resumed.
-    ///<
-    ///< If zero, this function will perform a non-blocking
-    ///< wait on the child process.
-    std::string *ErrMsg = nullptr, ///< If non-zero, provides a pointer to a
-    ///< string instance in which error messages will be returned. If the
-    ///< string is non-empty upon return an error occurred while invoking the
-    ///< program.
-    std::optional<ProcessStatistics> *ProcStat =
-        nullptr, ///< If non-zero, provides
-    /// a pointer to a structure in which process execution statistics will
-    /// be stored.
-
-    bool Polling = false ///< If true, do not kill the process on timeout.
-);
+LLVM_ABI ProcessInfo Wait(const ProcessInfo &PI,
+                          std::optional<unsigned> SecondsToWait,
+                          std::string *ErrMsg = nullptr,
+                          std::optional<ProcessStatistics> *ProcStat = nullptr,
+                          bool Polling = false);
 
 /// Print a command argument, and optionally quote it.
+///
+/// \param OS Stream to write the argument to.
+/// \param Arg Argument text to print.
+/// \param Quote Whether to wrap the argument in quotes when needed.
 LLVM_ABI void printArg(llvm::raw_ostream &OS, StringRef Arg, bool Quote);
 
 #if defined(_WIN32)

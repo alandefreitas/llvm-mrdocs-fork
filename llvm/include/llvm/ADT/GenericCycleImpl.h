@@ -35,6 +35,10 @@
 
 namespace llvm {
 
+/// \brief Return all of the successor blocks of \p C: the blocks outside of
+/// \p C which are branched to from within it.
+/// @param C Cycle whose exit blocks are collected.
+/// @param TmpStorage Output vector filled with exit blocks.
 template <typename ContextT>
 void GenericCycleInfo<ContextT>::getExitBlocks(
     CycleRef C, SmallVectorImpl<BlockT *> &TmpStorage) const {
@@ -51,6 +55,9 @@ void GenericCycleInfo<ContextT>::getExitBlocks(
   TmpStorage.append(Cache.begin(), Cache.end());
 }
 
+/// \brief Return all blocks of \p C that have a successor outside of \p C.
+/// @param C Cycle whose exiting blocks are collected.
+/// @param TmpStorage Output vector filled with exiting blocks.
 template <typename ContextT>
 void GenericCycleInfo<ContextT>::getExitingBlocks(
     CycleRef C, SmallVectorImpl<BlockT *> &TmpStorage) const {
@@ -64,6 +71,13 @@ void GenericCycleInfo<ContextT>::getExitingBlocks(
   }
 }
 
+/// \brief Return the preheader block for cycle \p C, or null if none.
+///
+/// Pre-header is well-defined for reducible cycle in docs/LoopTerminology.md
+/// as: the only one entering block and its only edge is to the entry block.
+/// Return null for irreducible cycles.
+/// @param C Cycle whose preheader is requested.
+/// @return Preheader block for \p C, or null if none.
 template <typename ContextT>
 auto GenericCycleInfo<ContextT>::getCyclePreheader(CycleRef C) const
     -> BlockT * {
@@ -83,6 +97,10 @@ auto GenericCycleInfo<ContextT>::getCyclePreheader(CycleRef C) const
   return Predecessor;
 }
 
+/// \brief If \p C has exactly one entry with exactly one predecessor, return
+/// it, otherwise return nullptr.
+/// @param C Cycle whose unique predecessor is requested.
+/// @return Unique predecessor of \p C's entry, or null if none.
 template <typename ContextT>
 auto GenericCycleInfo<ContextT>::getCyclePredecessor(CycleRef C) const
     -> BlockT * {
@@ -104,6 +122,8 @@ auto GenericCycleInfo<ContextT>::getCyclePredecessor(CycleRef C) const
   return Out;
 }
 
+/// \brief Verify that \p C is actually a well-formed cycle in the CFG.
+/// @param C Cycle to verify against the CFG.
 template <typename ContextT>
 void GenericCycleInfo<ContextT>::verifyCycle(CycleRef C) const {
 #ifndef NDEBUG
@@ -178,6 +198,10 @@ void GenericCycleInfo<ContextT>::verifyCycle(CycleRef C) const {
 #endif
 }
 
+/// \brief Verify the parent-child relations of \p C.
+///
+/// Note that this does \em not check that \p C is really a cycle in the CFG.
+/// @param C Cycle whose nesting relations are verified.
 template <typename ContextT>
 void GenericCycleInfo<ContextT>::verifyCycleNest(CycleRef C) const {
 #ifndef NDEBUG
@@ -310,6 +334,13 @@ void GenericCycleInfo<ContextT>::addToBlockMap(BlockT *Block, CycleRef C) {
   BlockMap[Number] = C;
 }
 
+/// \brief Add \p Block to innermost cycle \p C and all of its parents.
+///
+/// Assumes that \p C is the innermost cycle containing \p Block.
+/// \p Block will be appended to \p C and all of its parent cycles, and added
+/// to BlockMap with \p C.
+/// @param Block Block to add to the cycle nest.
+/// @param C Innermost cycle that should contain \p Block.
 template <typename ContextT>
 void GenericCycleInfo<ContextT>::addBlockToCycle(BlockT *Block, CycleRef C) {
   CycleT &Cyc = deref(C);
@@ -409,6 +440,7 @@ void GenericCycleInfoCompute<ContextT>::flatten(ArrayRef<CycleBuild> Build,
 }
 
 /// \brief Main function of the cycle info computations.
+/// @param F Function whose CFG cycles will be analyzed.
 template <typename ContextT>
 void GenericCycleInfoCompute<ContextT>::run(FunctionT *F) {
   BlockT *EntryBlock = GraphTraits<FunctionT *>::getEntryNode(F);
@@ -668,6 +700,8 @@ void GenericCycleInfo<ContextT>::print(raw_ostream &Out) const {
 }
 
 /// \brief Print a single cycle: its depth, entries, and remaining blocks.
+/// @param C Cycle to print.
+/// @return Printable view of \p C for streaming.
 template <typename ContextT>
 Printable GenericCycleInfo<ContextT>::print(CycleRef C) const {
   return Printable([this, C](raw_ostream &Out) {

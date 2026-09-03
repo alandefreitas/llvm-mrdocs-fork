@@ -18,11 +18,20 @@
 
 namespace llvm::sandboxir {
 
+/// A Region pass that always reverts the transaction without checking its cost.
+///
+/// This is mainly used as a final pass in lit tests.
 class TransactionAlwaysRevert : public RegionPass {
 public:
+  /// Construct a TransactionAlwaysRevert pass.
+  /// \param AuxArg Unused; must be empty.
   TransactionAlwaysRevert(StringRef AuxArg) : RegionPass("tr-revert") {
     assert(AuxArg.empty() && "This pass ignores aux arg!");
   }
+  /// Revert the transaction for the given region.
+  /// \param Rgn The region to process.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the tracker had changes before the revert.
   bool runOnRegion(Region &Rgn, const Analyses &A) final {
     auto &Tracker = Rgn.getContext().getTracker();
     bool HasChanges = !Tracker.empty();

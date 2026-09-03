@@ -31,77 +31,137 @@ namespace orc {
 // --raw_ostream operators for ORC types--
 
 /// Render a SymbolNameSet.
+/// @param OS Output stream.
+/// @param Symbols Symbol names to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const SymbolNameSet &Symbols);
 
 /// Render a SymbolNameVector.
+/// @param OS Output stream.
+/// @param Symbols Symbol names to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolNameVector &Symbols);
 
 /// Render an array of SymbolStringPtrs.
+/// @param OS Output stream.
+/// @param Symbols Symbol string pointers to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  ArrayRef<SymbolStringPtr> Symbols);
 
 /// Render JITSymbolFlags.
+/// @param OS Output stream.
+/// @param Flags Symbol flags to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const JITSymbolFlags &Flags);
 
 /// Render a SymbolFlagsMap entry.
+/// @param OS Output stream.
+/// @param KV Symbol-name and flags pair to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolFlagsMap::value_type &KV);
 
 /// Render a SymbolMap entry.
+/// @param OS Output stream.
+/// @param KV Symbol-name and address pair to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolMap::value_type &KV);
 
 /// Render a SymbolFlagsMap.
+/// @param OS Output stream.
+/// @param SymbolFlags Map of symbol names to flags to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolFlagsMap &SymbolFlags);
 
 /// Render a SymbolMap.
+/// @param OS Output stream.
+/// @param Symbols Map of symbol names to addresses to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const SymbolMap &Symbols);
 
 /// Render a SymbolDependenceMap entry.
+/// @param OS Output stream.
+/// @param KV JITDylib and dependent-symbols pair to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolDependenceMap::value_type &KV);
 
 /// Render a SymbolDependendeMap.
+/// @param OS Output stream.
+/// @param Deps Map of JITDylibs to dependent symbols to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolDependenceMap &Deps);
 
 /// Render a MaterializationUnit.
+/// @param OS Output stream.
+/// @param MU Materialization unit to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const MaterializationUnit &MU);
 
 //// Render a JITDylibLookupFlags instance.
+/// @param OS Output stream.
+/// @param JDLookupFlags JITDylib lookup flags to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const JITDylibLookupFlags &JDLookupFlags);
 
 /// Render a SymbolLookupFlags instance.
+/// @param OS Output stream.
+/// @param LookupFlags Symbol lookup flags to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolLookupFlags &LookupFlags);
 
 /// Render a SymbolLookupSet entry.
+/// @param OS Output stream.
+/// @param KV Symbol-name and lookup-flags pair to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolLookupSet::value_type &KV);
 
 /// Render a SymbolLookupSet.
+/// @param OS Output stream.
+/// @param LookupSet Set of symbols and lookup flags to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolLookupSet &LookupSet);
 
 /// Render a JITDylibSearchOrder.
+/// @param OS Output stream.
+/// @param SearchOrder Ordered list of JITDylibs and lookup flags to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const JITDylibSearchOrder &SearchOrder);
 
 /// Render a SymbolAliasMap.
+/// @param OS Output stream.
+/// @param Aliases Map of alias names to alias entries to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const SymbolAliasMap &Aliases);
 
 /// Render a SymbolState.
+/// @param OS Output stream.
+/// @param S Symbol state to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const SymbolState &S);
 
 /// Render a LookupKind.
+/// @param OS Output stream.
+/// @param K Lookup kind to render.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const LookupKind &K);
 
 /// Dump a SymbolStringPool. Useful for debugging dangling-pointer crashes.
+/// @param OS Output stream.
+/// @param SSP Symbol string pool to dump.
+/// @return Reference to the output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const SymbolStringPool &SSP);
 
 /// A function object that can be used as an ObjectTransformLayer transform
@@ -125,6 +185,8 @@ public:
                        std::string IdentifierOverride = "");
 
   /// Dumps the given buffer to disk.
+  /// @param Obj Object file buffer to dump; returned unchanged on success.
+  /// @return The original buffer on success, or an error if dumping fails.
   LLVM_ABI Expected<std::unique_ptr<MemoryBuffer>>
   operator()(std::unique_ptr<MemoryBuffer> Obj);
 

@@ -27,14 +27,18 @@ namespace classic {
 class CompileUnit;
 struct DeclMapInfo;
 
-/// Small helper that resolves and caches file paths. This helps reduce the
-/// number of calls to realpath which is expensive. We assume the input are
-/// files, and cache the realpath of their parent. This way we can quickly
-/// resolve different files under the same path.
+/// Small helper that resolves and caches file paths.
+///
+/// This helps reduce the number of calls to realpath which is expensive. We
+/// assume the input are files, and cache the realpath of their parent. This way
+/// we can quickly resolve different files under the same path.
 class CachedPathResolver {
 public:
   /// Resolve a path by calling realpath and cache its result. The returned
   /// StringRef is interned in the given \p StringPool.
+  /// \param Path File path to resolve.
+  /// \param StringPool Pool used to intern the resolved path string.
+  /// \returns The resolved path interned in \p StringPool.
   StringRef resolve(const std::string &Path,
                     NonRelocatableStringpool &StringPool) {
     StringRef FileName = sys::path::filename(Path);
@@ -79,10 +83,23 @@ private:
 /// qualified name of the context.
 class DeclContext {
 public:
+  /// DenseSet of DeclContext pointers keyed by DeclMapInfo.
   using Map = DenseSet<DeclContext *, DeclMapInfo>;
 
+  /// Construct a root DeclContext that is its own parent.
   DeclContext() : DefinedInClangModule(0), Parent(*this) {}
 
+  /// Construct a DeclContext with the given uniquing attributes.
+  /// \param Hash Hash of the fully qualified name.
+  /// \param Line Source line of the declaration.
+  /// \param ByteSize Byte size of the type, if applicable.
+  /// \param Tag DWARF tag of the DIE that defines this context.
+  /// \param Name Display name of the DeclContext.
+  /// \param NameForUniquing Name used when computing the qualified hash.
+  /// \param File Source file path of the declaration.
+  /// \param Parent Parent DeclContext in the tree.
+  /// \param LastSeenDIE Most recently seen DIE for this context, if any.
+  /// \param CUId Compile unit ID of \p LastSeenDIE.
   DeclContext(unsigned Hash, uint32_t Line, uint32_t ByteSize, uint16_t Tag,
               StringRef Name, StringRef NameForUniquing, StringRef File,
               const DeclContext &Parent, DWARFDie LastSeenDIE = DWARFDie(),
@@ -92,21 +109,44 @@ public:
         File(File), Parent(Parent), LastSeenDIE(LastSeenDIE),
         LastSeenCompileUnitID(CUId) {}
 
+  /// Return the hash of this DeclContext's fully qualified name.
+  /// \returns The hash of the fully qualified name.
   uint32_t getQualifiedNameHash() const { return QualifiedNameHash; }
 
+  /// Record \p Die from compile unit \p U as the last DIE seen for this
+  /// context.
+  /// \param U Compile unit that owns \p Die.
+  /// \param Die DIE most recently associated with this DeclContext.
+  /// \returns true if \p Die was recorded; false if another DIE from the same
+  /// compile unit already owns this context (ambiguous).
   LLVM_ABI bool setLastSeenDIE(CompileUnit &U, const DWARFDie &Die);
 
+  /// Mark that a canonical DIE has been chosen for this DeclContext.
   void setHasCanonicalDIE() { HasCanonicalDIE = true; }
 
+  /// Return whether a canonical DIE has been chosen for this DeclContext.
+  /// \returns True if a canonical DIE has been chosen.
   bool hasCanonicalDIE() const { return HasCanonicalDIE; }
 
+  /// Return the offset of the canonical DIE in the linked output.
+  /// \returns The offset of the canonical DIE.
   uint32_t getCanonicalDIEOffset() const { return CanonicalDIEOffset; }
+  /// Set the offset of the canonical DIE in the linked output.
+  /// \param Offset Offset of the canonical DIE.
   void setCanonicalDIEOffset(uint32_t Offset) { CanonicalDIEOffset = Offset; }
+  /// Return the canonical display name of this DeclContext.
+  /// \returns The canonical display name.
   llvm::StringRef getCanonicalName() const { return Name; }
 
+  /// Return whether this DeclContext is defined in a Clang module.
+  /// \returns True if this DeclContext is defined in a Clang module.
   bool isDefinedInClangModule() const { return DefinedInClangModule; }
+  /// Set whether this DeclContext is defined in a Clang module.
+  /// \param Val True if the DeclContext is defined in a Clang module.
   void setDefinedInClangModule(bool Val) { DefinedInClangModule = Val; }
 
+  /// Return the DWARF tag of the DIE that defines this DeclContext.
+  /// \returns The DWARF tag of the defining DIE.
   uint16_t getTag() const { return Tag; }
 
 private:
@@ -134,6 +174,10 @@ class DeclContextTree {
 public:
   /// Get the child of \a Context described by \a DIE in \a Unit. The
   /// required strings will be interned in \a StringPool.
+  /// \param Context Parent DeclContext to look under.
+  /// \param DIE DIE that describes the child DeclContext.
+  /// \param Unit Compile unit containing \p DIE.
+  /// \param InClangModule Whether the DIE is in a Clang module scope.
   /// \returns The child DeclContext along with one bit that is set if
   /// this context is invalid.
   ///
@@ -147,6 +191,8 @@ public:
   getChildDeclContext(DeclContext &Context, const DWARFDie &DIE,
                       CompileUnit &Unit, bool InClangModule);
 
+  /// Return the root DeclContext of the tree.
+  /// \returns The root DeclContext.
   DeclContext &getRoot() { return Root; }
 
 private:
@@ -171,10 +217,17 @@ private:
 
 /// Info type for the DenseMap storing the DeclContext pointers.
 struct DeclMapInfo : private DenseMapInfo<DeclContext *> {
+  /// Return the hash of \p Ctxt's fully qualified name.
+  /// \param Ctxt DeclContext whose hash is requested.
+  /// \returns The hash of \p Ctxt's fully qualified name.
   static unsigned getHashValue(const DeclContext *Ctxt) {
     return Ctxt->QualifiedNameHash;
   }
 
+  /// Compare two DeclContexts for DenseMap equality by uniquing fields.
+  /// \param LHS Left-hand DeclContext.
+  /// \param RHS Right-hand DeclContext.
+  /// \returns True if \p LHS and \p RHS are equal by uniquing fields.
   static bool isEqual(const DeclContext *LHS, const DeclContext *RHS) {
     return LHS->QualifiedNameHash == RHS->QualifiedNameHash &&
            LHS->Line == RHS->Line && LHS->ByteSize == RHS->ByteSize &&

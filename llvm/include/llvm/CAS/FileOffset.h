@@ -24,14 +24,20 @@ namespace llvm::cas {
 class FileOffset {
 public:
   /// Return the byte offset from the beginning of the file.
+  ///
+  /// \return Byte offset from the beginning of the file.
   uint64_t get() const { return Offset; }
 
   /// Return true if the offset is non-zero.
+  ///
+  /// \return True if the offset is non-zero.
   explicit operator bool() const { return Offset; }
 
   /// Construct a zero file offset.
   FileOffset() = default;
   /// Construct a file offset of \p Offset bytes from the start of the file.
+  ///
+  /// \param Offset Byte offset from the beginning of the file.
   explicit FileOffset(uint64_t Offset) : Offset(Offset) {}
 
 private:

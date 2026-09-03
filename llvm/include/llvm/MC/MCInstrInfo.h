@@ -26,6 +26,7 @@ class MCSubtargetInfo;
 /// Interface to description of machine instruction set.
 class MCInstrInfo {
 public:
+  /// Function pointer type for complex instruction deprecation checks.
   using ComplexDeprecationPredicate = bool (*)(MCInst &,
                                                const MCSubtargetInfo &,
                                                std::string &);
@@ -44,13 +45,23 @@ private:
   unsigned NumOpcodes;              // Number of entries in the desc array
 
 protected:
-  // Pointer to 2d array [NumHwModes][NumRegClassByHwModes]
+  /// Flattened [NumHwModes][NumRegClassByHwModes] register-class lookup tables.
   const int16_t *RegClassByHwModeTables;
+  /// Number of register-class entries per hardware mode in the lookup tables.
   int16_t NumRegClassByHwModes;
 
 public:
   /// Initialize MCInstrInfo, called by TableGen auto-generated routines.
   /// *DO NOT USE*.
+  ///
+  /// \param D - Array of instruction descriptors.
+  /// \param NI - Array of indices into the instruction name string pool.
+  /// \param ND - Instruction name string pool data.
+  /// \param DF - Per-opcode deprecated feature IDs, or -1 if none.
+  /// \param CDI - Optional complex deprecation predicate.
+  /// \param NO - Number of opcodes / descriptors.
+  /// \param RCHWTables - Optional HwMode register-class lookup tables.
+  /// \param NumRegClassByHwMode - Register-class entries per HwMode.
   void InitMCInstrInfo(const MCInstrDesc *D, const unsigned *NI, const char *ND,
                        const uint8_t *DF, ComplexDeprecationPredicate CDI,
                        unsigned NO, const int16_t *RCHWTables = nullptr,
@@ -65,17 +76,29 @@ public:
     NumRegClassByHwModes = NumRegClassByHwMode;
   }
 
+  /// Return the number of instruction opcodes described by this info.
+  ///
+  /// \return Number of instruction opcodes in this info.
   unsigned getNumOpcodes() const { return NumOpcodes; }
 
+  /// Return the register-class lookup row for the given hardware mode.
+  ///
+  /// \param ModeId - Hardware mode whose register-class table to return.
+  /// \return Pointer to the register-class lookup row for \p ModeId.
   const int16_t *getRegClassByHwModeTable(unsigned ModeId) const {
     assert(RegClassByHwModeTables && NumRegClassByHwModes != 0 &&
            "MCInstrInfo not properly initialized");
     return &RegClassByHwModeTables[ModeId * NumRegClassByHwModes];
   }
 
-  /// Return the ID of the register class to use for \p OpInfo, for the active
-  /// HwMode \p HwModeId. In general TargetInstrInfo's version which is already
-  /// specialized to the subtarget should be used.
+  /// Return the register class ID for \p OpInfo under \p HwModeId.
+  ///
+  /// In general TargetInstrInfo's version which is already specialized to the
+  /// subtarget should be used.
+  ///
+  /// \param OpInfo - Operand info whose register class should be resolved.
+  /// \param HwModeId - Active hardware mode used for HwMode-dependent classes.
+  /// \return Register class ID for the operand under the given hardware mode.
   int16_t getOpRegClassID(const MCOperandInfo &OpInfo,
                           unsigned HwModeId) const {
     int16_t RegClass = OpInfo.RegClass;
@@ -86,6 +109,9 @@ public:
 
   /// Return the machine instruction descriptor that corresponds to the
   /// specified instruction opcode.
+  ///
+  /// \param Opcode - Instruction opcode whose descriptor to return.
+  /// \return Descriptor for the given instruction opcode.
   const MCInstrDesc &get(unsigned Opcode) const {
     assert(Opcode < NumOpcodes && "Invalid opcode!");
     // The table is indexed backwards from the last entry.
@@ -93,6 +119,9 @@ public:
   }
 
   /// Returns the name for the instructions with the given opcode.
+  ///
+  /// \param Opcode - Instruction opcode whose name to return.
+  /// \return Name of the instruction with the given opcode.
   StringRef getName(unsigned Opcode) const {
     assert(Opcode < NumOpcodes && "Invalid opcode!");
     return StringRef(&InstrNameData[InstrNameIndices[Opcode]]);
@@ -100,6 +129,11 @@ public:
 
   /// Returns true if a certain instruction is deprecated and if so
   /// returns the reason in \p Info.
+  ///
+  /// \param MI - Instruction to check for deprecation.
+  /// \param STI - Subtarget info used to evaluate deprecation.
+  /// \param Info - Filled with the deprecation reason when returning true.
+  /// \return True if the instruction is deprecated.
   LLVM_ABI bool getDeprecatedInfo(MCInst &MI, const MCSubtargetInfo &STI,
                                   std::string &Info) const;
 };

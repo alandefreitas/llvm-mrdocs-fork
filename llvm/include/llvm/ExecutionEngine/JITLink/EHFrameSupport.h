@@ -25,10 +25,12 @@ namespace jitlink {
 /// Inspect an eh-frame CFI record.
 class EHFrameCFIBlockInspector {
 public:
-  /// Identify CFI record type and edges based on number and order of edges
-  /// in the given block only. This assumes that the block contains one CFI
-  /// record that has already been split out and fixed by the
-  /// DWARFRecordSplitter and EHFrameEdgeFixer passes.
+  /// Identify CFI record type and edges from the number and order of edges
+  /// in a block.
+  ///
+  /// This assumes that the block contains one CFI record that has already
+  /// been split out and fixed by the DWARFRecordSplitter and EHFrameEdgeFixer
+  /// passes.
   ///
   /// Zero or one outgoing edges: Record is CIE. If present, edge points to
   /// personality.
@@ -37,17 +39,22 @@ public:
   /// second to PC-begin, third (if present) to LSDA.
   ///
   /// It is illegal to call this function on a block with four or more edges.
+  /// \param B Block containing a single fixed CFI record to inspect.
+  /// \return An inspector describing the CFI record type and edges in \p B.
   LLVM_ABI static EHFrameCFIBlockInspector FromEdgeScan(Block &B);
 
   /// Returns true if this frame is an FDE, false for a CIE.
+  /// \return True if this frame is an FDE, false for a CIE.
   bool isFDE() const { return CIEEdge != nullptr; }
 
   /// Returns true if this frame is a CIE, false for an FDE.
+  /// \return True if this frame is a CIE, false for an FDE.
   bool isCIE() const { return CIEEdge == nullptr; }
 
   /// If this is a CIE record, returns the Edge pointing at the personality
   /// function, if any.
   /// It is illegal to call this method on FDE records.
+  /// \return Pointer to the personality edge, or null if this CIE has none.
   Edge *getPersonalityEdge() const {
     assert(isCIE() && "CFI record is not a CIE");
     return PersonalityEdge;
@@ -58,15 +65,18 @@ public:
   ///
   /// The result is not valid if any modification has been made to the block
   /// after parsing.
+  /// \return Pointer to the CIE edge for an FDE, or null for a CIE.
   Edge *getCIEEdge() const { return CIEEdge; }
 
   /// If this is an FDE record, returns the Edge pointing at the PC-begin
   /// symbol.
   /// If this a CIE record, returns null.
+  /// \return Pointer to the PC-begin edge for an FDE, or null for a CIE.
   Edge *getPCBeginEdge() const { return PCBeginEdge; }
 
   /// If this is an FDE record, returns the Edge pointing at the LSDA, if any.
   /// It is illegal to call this method on CIE records.
+  /// \return Pointer to the LSDA edge, or null if this FDE has no LSDA.
   Edge *getLSDAEdge() const {
     assert(isFDE() && "CFI record is not an FDE");
     return LSDAEdge;
@@ -79,13 +89,17 @@ private:
   Edge *CIEEdge = nullptr;
   Edge *PCBeginEdge = nullptr;
   union {
+    /// Edge to the personality function when this record is a CIE.
     Edge *PersonalityEdge;
+    /// Edge to the LSDA when this record is an FDE, if any.
     Edge *LSDAEdge;
   };
 };
 
 /// Returns a pointer to the DWARF eh-frame section if the graph contains a
 /// non-empty one, otherwise returns null.
+/// \param G Link graph to search for an eh-frame section.
+/// \return Pointer to the eh-frame section, or null if none is present.
 LLVM_ABI Section *getEHFrameSection(LinkGraph &G);
 
 } // end namespace jitlink

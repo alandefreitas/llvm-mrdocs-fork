@@ -29,7 +29,8 @@ class raw_sha1_ostream : public raw_ostream {
   }
 
 public:
-  /// Return the current SHA1 hash for the content of the stream
+  /// Return the current SHA1 hash for the content of the stream.
+  /// @return The current 160-bit SHA1 digest of the streamed content.
   std::array<uint8_t, 20> sha1() {
     flush();
     return State.result();
@@ -38,6 +39,9 @@ public:
   /// Reset the internal state to start over from scratch.
   void resetHash() { State.init(); }
 
+  /// Return the current position within the stream, not counting the bytes
+  /// currently in the buffer.
+  /// @return Always zero; this stream does not track an output position.
   uint64_t current_pos() const override { return 0; }
 };
 

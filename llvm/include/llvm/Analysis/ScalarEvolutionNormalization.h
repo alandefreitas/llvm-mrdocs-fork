@@ -46,26 +46,41 @@ class ScalarEvolution;
 class SCEV;
 class SCEVAddRecExpr;
 
+/// Set of loops for which a SCEV is in post-increment mode.
 typedef SmallPtrSet<const Loop *, 2> PostIncLoopSet;
 
+/// Predicate selecting add-recurrence SCEVs to normalize for post-increment use.
 typedef function_ref<bool(const SCEVAddRecExpr *)> NormalizePredTy;
 
-/// Normalize \p S to be post-increment for all loops present in \p
-/// Loops. Returns nullptr if the result is not invertible and \p
-/// CheckInvertible is true.
+/// Normalize \p S to be post-increment for all loops present in \p Loops.
+/// @param S SCEV expression to normalize.
+/// @param Loops Loops for which \p S should be treated as post-increment.
+/// @param SE Scalar evolution used to rebuild expressions.
+/// @param CheckInvertible When true, return nullptr if the result is not
+/// invertible.
+/// @return The normalized SCEV, or nullptr if \p CheckInvertible is true and
+/// the result is not invertible.
 LLVM_ABI const SCEV *normalizeForPostIncUse(const SCEV *S,
                                             const PostIncLoopSet &Loops,
                                             ScalarEvolution &SE,
                                             bool CheckInvertible = true);
 
-/// Normalize \p S for all add recurrence sub-expressions for which \p
-/// Pred returns true.
+/// Normalize \p S for all add recurrence sub-expressions for which \p Pred
+/// returns true.
+/// @param S SCEV expression to normalize.
+/// @param Pred Predicate selecting which add-recurrence sub-expressions to
+/// normalize.
+/// @param SE Scalar evolution used to rebuild expressions.
+/// @return The normalized SCEV.
 LLVM_ABI const SCEV *normalizeForPostIncUseIf(const SCEV *S,
                                               NormalizePredTy Pred,
                                               ScalarEvolution &SE);
 
-/// Denormalize \p S to be post-increment for all loops present in \p
-/// Loops.
+/// Denormalize \p S to be post-increment for all loops present in \p Loops.
+/// @param S SCEV expression to denormalize.
+/// @param Loops Loops for which \p S should be treated as post-increment.
+/// @param SE Scalar evolution used to rebuild expressions.
+/// @return The denormalized SCEV.
 LLVM_ABI const SCEV *denormalizeForPostIncUse(const SCEV *S,
                                               const PostIncLoopSet &Loops,
                                               ScalarEvolution &SE);

@@ -30,19 +30,28 @@
 
 namespace llvm::orc::sps {
 
+/// SPS proxy for EPCGenericDylibManager::OpenProxy: opens a dylib in the
+/// executor.
 using DylibMgrOpenProxySpec =
     ProxySpec<EPCGenericDylibManager::OpenProxy, rt::sps_ci::DylibMgrOpen>;
+
+/// SPS proxy for EPCGenericDylibManager::ResolveProxy: resolves symbols in an
+/// opened dylib in the executor.
 using DylibMgrResolveProxySpec = ProxySpec<EPCGenericDylibManager::ResolveProxy,
                                            rt::sps_ci::DylibMgrResolve>;
 
 /// Create an EPCGenericDylibManager for the ORC runtime's NativeDylibManager
 /// interface, resolving its symbols in the given JITDylib.
+/// \param JD JITDylib in which to resolve the NativeDylibManager symbols.
+/// \return An EPCGenericDylibManager, or an error if symbol resolution fails.
 LLVM_ABI Expected<std::unique_ptr<EPCGenericDylibManager>>
 createEPCGenericDylibManager(JITDylib &JD);
 
 /// Create an EPCGenericDylibManager for the ORC runtime's NativeDylibManager
 /// interface, resolving its symbols in the given ExecutionSession's bootstrap
 /// JITDylib.
+/// \param ES Execution session whose bootstrap JITDylib provides the symbols.
+/// \return An EPCGenericDylibManager, or an error if symbol resolution fails.
 LLVM_ABI Expected<std::unique_ptr<EPCGenericDylibManager>>
 createEPCGenericDylibManager(ExecutionSession &ES);
 

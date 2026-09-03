@@ -24,23 +24,36 @@ namespace objcopy {
 class MultiFormatConfig;
 
 /// Returns the format name of \p B if it is an ObjectFile, or "" otherwise.
+/// \param B Binary whose object format name is requested.
+/// \returns Format name of \p B, or an empty string if \p B is not an ObjectFile.
 LLVM_ABI StringRef getObjectFormatName(const object::Binary &B);
 
 /// Prints information about the input and output files involved in a copy
 /// operation to stdout.
+/// \param InPath Path of the input file.
+/// \param InFormatName Format name of the input file.
+/// \param OutPath Path of the output file.
+/// \param OutFormatName Format name of the output file.
 LLVM_ABI void printCopyMessage(StringRef InPath, StringRef InFormatName,
                                StringRef OutPath, StringRef OutFormatName);
 
 /// Applies the transformations described by \p Config to
 /// each member in archive \p Ar.
 /// Writes a result in a file specified by \p Config.OutputFilename.
+/// \param Config Multi-format configuration describing the transformations.
+/// \param Ar Archive whose members are transformed.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnArchive(const MultiFormatConfig &Config,
                                        const object::Archive &Ar);
 
 /// Applies the transformations described by \p Config to \p In and writes
-/// the result into \p Out. This function does the dispatch based on the
-/// format of the input binary (COFF, ELF, MachO or wasm).
+/// the result into \p Out.
+///
+/// This function does the dispatch based on the format of the input binary
+/// (COFF, ELF, MachO or wasm).
+/// \param Config Multi-format configuration describing the transformations.
+/// \param In Input binary to transform.
+/// \param Out Output stream that receives the transformed binary.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const MultiFormatConfig &Config,
                                       object::Binary &In, raw_ostream &Out);

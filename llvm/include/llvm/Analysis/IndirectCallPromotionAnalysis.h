@@ -19,8 +19,9 @@ namespace llvm {
 
 class Instruction;
 
-// Class for identifying profitable indirect call promotion candidates when
-// the indirect-call value profile metadata is available.
+/// Identifies profitable indirect call promotion candidates.
+///
+/// Uses indirect-call value profile metadata when it is available.
 class ICallPromotionAnalysis {
 private:
   // Allocate space to read the profile annotation.
@@ -44,6 +45,7 @@ private:
   operator=(const ICallPromotionAnalysis &other) = delete;
 
 public:
+  /// Construct an analysis for identifying indirect call promotion candidates.
   ICallPromotionAnalysis() = default;
 
   /// Returns reference to array of InstrProfValueData for the given
@@ -57,6 +59,12 @@ public:
   ///
   /// The returned array space is owned by this class, and overwritten on
   /// subsequent calls.
+  /// @param I Indirect call instruction with value-profile metadata.
+  /// @param TotalCount Set to the total profile count of the indirect call.
+  /// @param NumCandidates Set to the number of profitable promotion candidates.
+  /// @param MaxNumValueData Optional override for the maximum number of value
+  ///        data entries to consider (0 uses the -icp-max-prom default).
+  /// @return Reference to the InstrProfValueData array for \p I.
   LLVM_ABI MutableArrayRef<InstrProfValueData>
   getPromotionCandidatesForInstruction(const Instruction *I,
                                        uint64_t &TotalCount,

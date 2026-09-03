@@ -49,27 +49,30 @@ class ImutAVLTreeInOrderIterator;
 /// Internal helpers for optional tree canonicalization (digest cache and
 /// collision chains). Not part of the public interface.
 namespace ImutAVLDetail {
-/// The intrusive doubly-linked chain of same-digest trees in the factory's
-/// canonicalization cache. Held as an (empty) base so that, when
-/// canonicalization is disabled, the empty base optimization removes it
-/// entirely. Kept separate from the cached digest below so that the two
-/// pointers pack without the tail padding that grouping a trailing 32-bit field
-/// with them would introduce.
+/// Intrusive doubly-linked chain of same-digest trees in the cache.
+///
+/// Held as an (empty) base so that, when canonicalization is disabled, the
+/// empty base optimization removes it entirely. Kept separate from the cached
+/// digest below so that the two pointers pack without the tail padding that
+/// grouping a trailing 32-bit field with them would introduce.
 template <typename Tree, bool Canonicalize> struct CanonicalLinks {
   /// Previous tree in the digest collision chain of the canonicalization cache.
   Tree *Prev = nullptr;
   /// Next tree in the digest collision chain of the canonicalization cache.
   Tree *Next = nullptr;
 };
+/// Empty base when canonicalization is disabled (no collision-chain links).
 template <typename Tree> struct CanonicalLinks<Tree, false> {};
 
-/// The cached structural digest, used only for canonicalization. Stored as an
-/// LLVM_NO_UNIQUE_ADDRESS member so it occupies no space when disabled and
-/// packs alongside the adjacent 32-bit fields when enabled.
+/// Cached structural digest used only for tree canonicalization.
+///
+/// Stored as an LLVM_NO_UNIQUE_ADDRESS member so it occupies no space when
+/// disabled and packs alongside the adjacent 32-bit fields when enabled.
 template <bool Canonicalize> struct CanonicalDigest {
   /// Structural digest of the tree rooted at this node, for cache lookup.
   uint32_t Digest = 0;
 };
+/// Empty member when canonicalization is disabled (no cached digest).
 template <> struct CanonicalDigest<false> {};
 
 /// The factory-side canonicalization cache: digest -> tree chain.
@@ -78,6 +81,7 @@ template <typename Tree, bool Canonicalize> struct CanonicalCache {
   /// Maps a structural digest to the head of a chain of equivalent trees.
   DenseMap<unsigned, Tree *> Cache;
 };
+/// Empty cache when canonicalization is disabled.
 template <typename Tree> struct CanonicalCache<Tree, false> {};
 } // namespace ImutAVLDetail
 
@@ -116,20 +120,26 @@ public:
 
   /// Return a pointer to the left subtree.  This value
   ///  is NULL if there is no left subtree.
+  /// @return Pointer to the left subtree, or null if none.
   ImutAVLTree *getLeft() const { return left; }
 
   /// Return a pointer to the right subtree.  This value is
   ///  NULL if there is no right subtree.
+  /// @return Pointer to the right subtree, or null if none.
   ImutAVLTree *getRight() const { return right; }
 
   /// Returns the height of the tree. A tree with no subtrees has a height of 1.
+  /// @return Height of this node (at least 1).
   unsigned getHeight() const { return height; }
 
   /// Returns the data value associated with the tree node.
+  /// @return Const reference to the element stored at this node.
   const value_type& getValue() const { return value; }
 
   /// Finds the subtree associated with the specified key value. This method
   /// returns NULL if no matching subtree is found.
+  /// @param K Key to search for.
+  /// @return Matching subtree node, or null if not found.
   ImutAVLTree* find(key_type_ref K) {
     ImutAVLTree *T = this;
     while (T) {
@@ -145,6 +155,7 @@ public:
   }
 
   /// Find the subtree associated with the highest ranged key value.
+  /// @return Node holding the maximum key in this tree.
   ImutAVLTree* getMaxElement() {
     ImutAVLTree *T = this;
     ImutAVLTree *Right = T->getRight();
@@ -152,8 +163,8 @@ public:
     return T;
   }
 
-  /// Returns the number of nodes in the tree, which includes both leaves and
-  // non-leaf nodes.
+  /// Returns the number of nodes in the tree, including leaves and non-leaves.
+  /// @return Total number of nodes in this subtree.
   unsigned size() const {
     unsigned n = 1;
     if (const ImutAVLTree* L = getLeft())
@@ -163,17 +174,21 @@ public:
     return n;
   }
 
-  /// Returns an iterator that iterates over the nodes of the tree in an inorder
-  /// traversal. The returned iterator thus refers to the tree node with the
-  /// minimum data element.
+  /// Returns an iterator to the minimum node in in-order traversal.
+  ///
+  /// The returned iterator iterates over the nodes of the tree in an inorder
+  /// traversal and thus refers to the tree node with the minimum data element.
+  /// @return In-order iterator at the minimum node.
   iterator begin() const { return iterator(this); }
 
   /// Returns an iterator for the tree that denotes the end of an inorder
   /// traversal.
+  /// @return Past-the-end in-order iterator.
   iterator end() const { return iterator(); }
 
   /// Return true if this node's key and data equal those of \p V.
   /// @param V Element to compare against this node.
+  /// @return True if key and data both match \p V.
   bool isElementEqual(value_type_ref V) const {
     // Compare the keys.
     if (!ImutInfo::isEqual(ImutInfo::KeyOfValue(getValue()),
@@ -189,6 +204,8 @@ public:
   }
 
   /// Returns true if this node's element equals the element stored in \p RHS.
+  /// @param RHS Other tree node whose element is compared.
+  /// @return True if this node's element equals \p RHS's element.
   bool isElementEqual(const ImutAVLTree* RHS) const {
     return isElementEqual(RHS->getValue());
   }
@@ -196,6 +213,8 @@ public:
   /// Compares two trees for structural equality and returns true if they are
   /// equal. The worst case performance of this operation is linear in the sizes
   /// of the trees.
+  /// @param RHS Other tree to compare against.
+  /// @return True if the trees are structurally equal.
   bool isEqual(const ImutAVLTree& RHS) const {
     if (&RHS == this)
       return true;
@@ -222,18 +241,24 @@ public:
 
   /// Compares two trees for structural inequality.  Performance is the same as
   /// isEqual.
+  /// @param RHS Other tree to compare against.
+  /// @return True if the trees are not structurally equal.
   bool isNotEqual(const ImutAVLTree& RHS) const { return !isEqual(RHS); }
 
   /// Returns true if this tree contains a subtree (node) that has an data
   /// element that matches the specified key. Complexity is logarithmic in the
   /// size of the tree.
+  /// @param K Key to search for.
+  /// @return True if a node with key \p K is present.
   bool contains(key_type_ref K) { return (bool) find(K); }
 
-  /// A utility method that checks that the balancing and ordering invariants of
-  /// the tree are satisfied. It is a recursive method that returns the height
-  /// of the tree, which is then consumed by the enclosing validateTree call.
-  /// External callers should ignore the return value.  An invalid tree will
-  /// cause an assertion to fire in a debug build.
+  /// Checks that the tree's balancing and ordering invariants hold.
+  ///
+  /// It is a recursive method that returns the height of the tree, which is
+  /// then consumed by the enclosing validateTree call. External callers should
+  /// ignore the return value. An invalid tree will cause an assertion to fire
+  /// in a debug build.
+  /// @return Height of this subtree (for recursive callers).
   unsigned validateTree() const {
     unsigned HL = getLeft() ? getLeft()->validateTree() : 0;
     unsigned HR = getRight() ? getRight()->validateTree() : 0;
@@ -411,11 +436,16 @@ public:
   }
 };
 
+/// Intrusive reference-count policy for \c ImutAVLTree nodes.
 template <typename ImutInfo, bool Canonicalize>
 struct IntrusiveRefCntPtrInfo<ImutAVLTree<ImutInfo, Canonicalize>> {
+  /// Increments the reference count of \p Tree.
+  /// @param Tree Tree node to retain.
   static void retain(ImutAVLTree<ImutInfo, Canonicalize> *Tree) {
     Tree->retain();
   }
+  /// Decrements the reference count of \p Tree (destroying it at zero).
+  /// @param Tree Tree node to release.
   static void release(ImutAVLTree<ImutInfo, Canonicalize> *Tree) {
     Tree->release();
   }
@@ -464,6 +494,7 @@ public:
 
   /// Creates a factory that allocates nodes from \p Alloc, which must outlive
   /// the factory and is not destroyed when the factory is destroyed.
+  /// @param Alloc Allocator used for tree nodes.
   ImutAVLFactory(BumpPtrAllocator& Alloc)
     : Allocator(reinterpret_cast<uintptr_t>(&Alloc) | 0x1) {}
 
@@ -486,16 +517,23 @@ public:
     return T;
   }
 
-  /// Merges \p A and \p B in a single traversal, sharing every subtree that the
-  /// two operands do not overlap. \p Combine(AElem, BElem) produces the element
-  /// stored for a key present in both; \p KeepUnmatched governs keys unique to
-  /// one side (see merge_internal). For merging |B| entries into |A|
-  /// (|B| <= |A|) this costs O(|B| * log(|A|/|B| + 1)) and copies each spine
-  /// node at most once, versus O(|B| * log|A|) repeated \ref add descents.
-  /// \p A and \p B must be immutable. This does not short-circuit equal or
-  /// empty operands (merge_internal handles them correctly but not specially);
-  /// callers that want those fast paths, or size-driven operand ordering,
-  /// should apply them first (see ImmutableSet::Factory::unionSets).
+  /// Merges \p A and \p B in a single traversal, sharing non-overlapping subtrees.
+  ///
+  /// \p Combine(AElem, BElem) produces the element stored for a key present in
+  /// both; \p KeepUnmatched governs keys unique to one side (see
+  /// merge_internal). For merging |B| entries into |A| (|B| <= |A|) this costs
+  /// O(|B| * log(|A|/|B| + 1)) and copies each spine node at most once, versus
+  /// O(|B| * log|A|) repeated \ref add descents. \p A and \p B must be
+  /// immutable. This does not short-circuit equal or empty operands
+  /// (merge_internal handles them correctly but not specially); callers that
+  /// want those fast paths, or size-driven operand ordering, should apply them
+  /// first (see ImmutableSet::Factory::unionSets).
+  /// @param A First operand tree.
+  /// @param B Second operand tree.
+  /// @param Combine Combiner for elements that share a key.
+  /// @param KeepUnmatched If true, share unmatched elements/subtrees as-is.
+  /// @param SkipShared If true, return pointer-identical subtrees unchanged.
+  /// @return Root of the merged tree.
   template <typename CombineFn>
   TreeTy *mergeTrees(TreeTy *A, TreeTy *B, CombineFn Combine,
                      bool KeepUnmatched, bool SkipShared = false) {
@@ -506,6 +544,9 @@ public:
 
   /// Returns the set union of \p A and \p B (keeping \p A's element on matching
   /// keys). Shorthand for the fully sharing \ref mergeTrees.
+  /// @param A First operand tree.
+  /// @param B Second operand tree.
+  /// @return Root of the union tree.
   TreeTy *unionTrees(TreeTy *A, TreeTy *B) {
     // With KeepUnmatched=true, unmatched elements are shared as-is and Combine
     // is invoked only for keys present in both, where it keeps A's element.
@@ -534,6 +575,7 @@ public:
   }
 
   /// Returns the canonical empty-tree representation (null).
+  /// @return Null pointer representing the empty tree.
   TreeTy* getEmptyTree() const { return nullptr; }
 
 protected:
@@ -545,23 +587,36 @@ protected:
   //===--------------------------------------------------===//
 
   /// Returns true if \p T is the empty tree (null).
+  /// @param T Tree node to test.
+  /// @return True if \p T is null.
   bool            isEmpty(TreeTy* T) const { return !T; }
   /// Return the height of \p T, or 0 if \p T is null.
   /// @param T Tree node to query.
+  /// @return Height of \p T, or 0 if null.
   unsigned        getHeight(TreeTy* T) const { return T ? T->getHeight() : 0; }
   /// Returns the left subtree of \p T, or nullptr if \p T is empty.
+  /// @param T Non-null tree node.
+  /// @return Left child of \p T.
   TreeTy*         getLeft(TreeTy* T) const { return T->getLeft(); }
   /// Returns the right subtree of \p T, or nullptr if \p T is empty.
+  /// @param T Non-null tree node.
+  /// @return Right child of \p T.
   TreeTy*         getRight(TreeTy* T) const { return T->getRight(); }
   /// Return the element stored at tree node \p T.
   /// @param T Non-null tree node.
+  /// @return Element stored at \p T.
   value_type_ref  getValue(TreeTy* T) const { return T->value; }
 
   /// Clears the low bits of \p I so the digest is never a DenseMap tombstone
   /// or empty key.
+  /// @param I Raw digest used as a cache index.
+  /// @return Masked digest safe for use as a DenseMap key.
   static unsigned maskCacheIndex(unsigned I) { return (I & ~0x02); }
 
   /// Returns one plus the greater subtree height of \p L and \p R.
+  /// @param L Left subtree (may be null).
+  /// @param R Right subtree (may be null).
+  /// @return Height of a node with children \p L and \p R.
   unsigned incrementHeight(TreeTy* L, TreeTy* R) const {
     unsigned hl = getHeight(L);
     unsigned hr = getHeight(R);
@@ -582,6 +637,9 @@ protected:
   ///
   /// The new node is marked mutable and tracked in \c createdNodes until the
   /// operation completes and \ref recoverNodes runs.
+  /// @param L Left subtree (may be null).
+  /// @param V Element stored at the new node.
+  /// @param R Right subtree (may be null).
   /// @return A new root node linking \p L, \p V, and \p R.
   TreeTy* createNode(TreeTy* L, value_type_ref V, TreeTy* R) {
     BumpPtrAllocator& A = getAllocator();
@@ -603,6 +661,7 @@ protected:
   /// @param newLeft New left subtree.
   /// @param oldTree Node whose value is reused.
   /// @param newRight New right subtree.
+  /// @return A new root node linking \p newLeft, \p oldTree's value, and \p newRight.
   TreeTy* createNode(TreeTy* newLeft, TreeTy* oldTree, TreeTy* newRight) {
     return createNode(newLeft, getValue(oldTree), newRight);
   }
@@ -628,6 +687,10 @@ protected:
   }
 
   /// Used by add_internal and remove_internal to balance a newly created tree.
+  /// @param L Left subtree (may be null).
+  /// @param V Element stored at the root.
+  /// @param R Right subtree (may be null).
+  /// @return Root of the balanced tree.
   TreeTy* balanceTree(TreeTy* L, value_type_ref V, TreeTy* R) {
     unsigned hl = getHeight(L);
     unsigned hr = getHeight(R);
@@ -669,11 +732,16 @@ protected:
     return createNode(L,V,R);
   }
 
-  /// Combines \p L and \p R with the value \p V (every key in \p L less than
-  /// \p V, every key in \p R greater) into one balanced tree. Unlike
-  /// balanceTree this tolerates an arbitrary height difference between \p L and
-  /// \p R: it descends the taller side's spine and rebalances on the way back
-  /// up, exactly as an insertion would.
+  /// Combines \p L, value \p V, and \p R into one balanced tree.
+  ///
+  /// Every key in \p L is less than \p V and every key in \p R is greater.
+  /// Unlike balanceTree this tolerates an arbitrary height difference between
+  /// \p L and \p R: it descends the taller side's spine and rebalances on the
+  /// way back up, exactly as an insertion would.
+  /// @param L Left subtree (keys less than \p V).
+  /// @param V Pivot element placed between \p L and \p R.
+  /// @param R Right subtree (keys greater than \p V).
+  /// @return Root of the joined balanced tree.
   TreeTy *joinTrees(TreeTy *L, value_type_ref V, TreeTy *R) {
     if (getHeight(L) > getHeight(R) + 2)
       return balanceTree(getLeft(L), getValue(L), joinTrees(getRight(L), V, R));
@@ -682,9 +750,16 @@ protected:
     return createNode(L, V, R);
   }
 
-  /// Splits \p T into \p L (all keys less than \p K) and \p R (all keys greater
-  /// than \p K). If \p K is present in \p T, \p Match is set to point at its
-  /// element (which is dropped from \p L and \p R); otherwise \p Match is null.
+  /// Splits \p T around key \p K into lesser and greater trees.
+  ///
+  /// \p L receives all keys less than \p K and \p R all keys greater than
+  /// \p K. If \p K is present in \p T, \p Match is set to point at its element
+  /// (which is dropped from \p L and \p R); otherwise \p Match is null.
+  /// @param T Tree to split (may be null).
+  /// @param K Split key.
+  /// @param L Set to the tree of keys less than \p K.
+  /// @param Match Set to the matched element, or null if absent.
+  /// @param R Set to the tree of keys greater than \p K.
   void splitLookup(TreeTy *T, key_type_ref K, TreeTy *&L,
                    const value_type *&Match, TreeTy *&R) {
     if (isEmpty(T)) {
@@ -711,9 +786,14 @@ protected:
     }
   }
 
-  /// Rebuilds \p T with the same shape but each element replaced by
-  /// \p Combine applied to it. \p FromB selects which side of \p Combine the
-  /// element is passed on (it is the sole non-null argument).
+  /// Rebuilds \p T with each element replaced by \p Combine.
+  ///
+  /// The tree shape is preserved. \p FromB selects which side of \p Combine
+  /// the element is passed on (it is the sole non-null argument).
+  /// @param T Tree to transform (may be null).
+  /// @param Combine Combiner applied to each element.
+  /// @param FromB If true, pass each element as Combine's second argument.
+  /// @return Root of the transformed tree.
   template <typename CombineFn>
   TreeTy *transformTree(TreeTy *T, CombineFn &Combine, bool FromB) {
     if (isEmpty(T))
@@ -725,15 +805,23 @@ protected:
                       R);
   }
 
-  /// Merges \p A and \p B by recursing over \p A's structure and splitting \p B
-  /// at each of \p A's keys. For a key in both, the stored element is
-  /// Combine(AElem, BElem). \p KeepUnmatched controls keys unique to one side:
-  /// when true, such elements (and whole non-overlapping subtrees) are taken
-  /// unchanged and shared, and \p Combine is invoked only on keys present in
-  /// both (valid when \p Combine is an identity for a missing side, e.g. a set
-  /// union or a lattice join with an identity element); when false every key is
-  /// passed through \p Combine with the absent side null (needed for a join
-  /// that transforms unmatched keys, e.g. liveness downgrading Must to Maybe).
+  /// Merges \p A and \p B by splitting \p B at each of \p A's keys.
+  ///
+  /// For a key in both, the stored element is Combine(AElem, BElem).
+  /// \p KeepUnmatched controls keys unique to one side: when true, such
+  /// elements (and whole non-overlapping subtrees) are taken unchanged and
+  /// shared, and \p Combine is invoked only on keys present in both (valid
+  /// when \p Combine is an identity for a missing side, e.g. a set union or a
+  /// lattice join with an identity element); when false every key is passed
+  /// through \p Combine with the absent side null (needed for a join that
+  /// transforms unmatched keys, e.g. liveness downgrading Must to Maybe).
+  /// @param A First operand tree.
+  /// @param B Second operand tree.
+  /// @param Combine Combiner for elements that share a key (and unmatched
+  ///        keys when \p KeepUnmatched is false).
+  /// @param KeepUnmatched If true, share unmatched elements/subtrees as-is.
+  /// @param SkipShared If true, return pointer-identical subtrees unchanged.
+  /// @return Root of the merged tree (before recoverNodes).
   template <typename CombineFn>
   TreeTy *merge_internal(TreeTy *A, TreeTy *B, CombineFn &Combine,
                          bool KeepUnmatched, bool SkipShared) {
@@ -778,9 +866,12 @@ protected:
     return joinTrees(NewL, NewElem, NewR);
   }
 
-  /// add_internal - Creates a new tree that includes the specified
-  ///  data and the data from the original tree.  If the original tree
-  ///  already contained the data item, the original tree is returned.
+  /// Creates a new tree that includes \p V and the data from \p T.
+  ///
+  /// If \p T already contained the data item, the original tree is returned.
+  /// @param V Element to insert.
+  /// @param T Original tree root (may be null).
+  /// @return Root of the tree that includes \p V.
   TreeTy *add_internal(value_type_ref V, TreeTy *T) {
     if (isEmpty(T))
       return createNode(T, V, T);
@@ -812,10 +903,12 @@ protected:
                : balanceTree(NewL, getValue(T), NewR);
   }
 
-  /// remove_internal - Creates a new tree that includes all the data
-  ///  from the original tree except the specified data.  If the
-  ///  specified data did not exist in the original tree, the original
-  ///  tree is returned.
+  /// Creates a new tree with all data from \p T except key \p K.
+  ///
+  /// If \p K did not exist in \p T, the original tree is returned.
+  /// @param K Key of the element to remove.
+  /// @param T Original tree root (may be null).
+  /// @return Root of the tree without key \p K.
   TreeTy *remove_internal(key_type_ref K, TreeTy *T) {
     if (isEmpty(T))
       return T;
@@ -846,6 +939,8 @@ protected:
   ///
   /// Used when deleting a node that has two children. Either operand may be
   /// empty, in which case the other is returned unchanged.
+  /// @param L Left subtree (keys less than the deleted node).
+  /// @param R Right subtree (keys greater than the deleted node).
   /// @return The root of the merged tree.
   TreeTy* combineTrees(TreeTy* L, TreeTy* R) {
     if (isEmpty(L))
@@ -859,6 +954,9 @@ protected:
 
   /// Removes and returns the minimum node of \p T, storing it in \p Noderemoved
   /// and returning the remaining tree.
+  /// @param T Non-empty tree whose minimum is removed.
+  /// @param Noderemoved Set to the removed minimum node.
+  /// @return Root of the tree after removing the minimum.
   TreeTy* removeMinBinding(TreeTy* T, TreeTy*& Noderemoved) {
     assert(!isEmpty(T));
     if (isEmpty(getLeft(T))) {
@@ -872,6 +970,8 @@ protected:
 public:
   /// Returns a canonical representative for \p TNew, reusing an existing tree
   /// with the same structure and contents when one is found in the cache.
+  /// @param TNew Tree to canonicalize (may be null).
+  /// @return Canonical tree equal to \p TNew, or null if \p TNew is null.
   TreeTy *getCanonicalTree(TreeTy *TNew) {
     static_assert(Canonicalize,
                   "getCanonicalTree requires a canonicalizing factory");
@@ -993,6 +1093,8 @@ public:
 
   /// Returns true if this iterator and \p x refer to the same node, or if both
   /// are end(). Comparing iterators from different trees is not meaningful.
+  /// @param x Other iterator to compare against.
+  /// @return True if both iterators refer to the same position.
   bool operator==(const ImutAVLTreeInOrderIterator &x) const {
     if (Path.empty() || x.Path.empty())
       return Path.empty() == x.Path.empty();
@@ -1000,16 +1102,21 @@ public:
   }
   /// Returns true if this iterator and \p x refer to different nodes (or one
   /// is end() and the other is not).
+  /// @param x Other iterator to compare against.
+  /// @return True if the iterators refer to different positions.
   bool operator!=(const ImutAVLTreeInOrderIterator &x) const {
     return !(*this == x);
   }
 
   /// Returns a reference to the current tree node.
+  /// @return Reference to the current tree node.
   TreeTy &operator*() const { return *Path.back(); }
   /// Returns a pointer to the current tree node.
+  /// @return Pointer to the current tree node.
   TreeTy *operator->() const { return Path.back(); }
 
   /// Advances to the in-order successor of the current node.
+  /// @return Reference to this iterator after advancing.
   ImutAVLTreeInOrderIterator &operator++() {
     assert(!Path.empty() && "Incrementing the end iterator");
     if (TreeTy *R = Path.back()->getRight())
@@ -1023,6 +1130,7 @@ public:
   }
 
   /// Move to the in-order predecessor of the current node.
+  /// @return Reference to this iterator after moving.
   ImutAVLTreeInOrderIterator &operator--() {
     assert(!Path.empty() && "Decrementing the end iterator");
     if (TreeTy *L = Path.back()->getLeft())
@@ -1034,9 +1142,10 @@ public:
     return *this;
   }
 
-  /// Move to the in-order successor of the entire subtree rooted at the current
-  /// node, i.e. skip the current node together with its right subtree. This is
-  /// exactly the ascent half of operator++.
+  /// Skips the current node and its right subtree.
+  ///
+  /// Moves to the in-order successor of the entire subtree rooted at the
+  /// current node. This is exactly the ascent half of operator++.
   void skipSubTree() {
     assert(!Path.empty() && "Skipping past the end iterator");
     ascendFromRightChild();
@@ -1055,10 +1164,12 @@ struct ImutAVLValueIterator
   /// Construct an end (default) value iterator.
   ImutAVLValueIterator() = default;
   /// Constructs an iterator over the in-order traversal of \p Tree.
+  /// @param Tree Root of the tree to iterate, or null for end.
   explicit ImutAVLValueIterator(typename T::TreeTy *Tree)
       : ImutAVLValueIterator::iterator_adaptor_base(Tree) {}
 
   /// Returns the element stored at the current tree node.
+  /// @return Const reference to the current element's value.
   typename ImutAVLValueIterator::reference operator*() const {
     return this->I->getValue();
   }
@@ -1068,9 +1179,11 @@ struct ImutAVLValueIterator
 // Trait classes for Profile information.
 //===----------------------------------------------------------------------===//
 
-/// Generic profile template.  The default behavior is to invoke the
-/// profile method of an object.  Specializations for primitive integers
-/// and generic handling of pointers is done below.
+/// Profile traits that hash values into a \c FoldingSetNodeID.
+///
+/// The default behavior is to invoke the profile method of an object.
+/// Specializations for primitive integers and generic handling of pointers
+/// follow below.
 template <typename T>
 struct ImutProfileInfo {
   /// The type of a value when profiling elements for folding-set hashing.
@@ -1079,6 +1192,8 @@ struct ImutProfileInfo {
   using value_type_ref = const T&;
 
   /// Adds profile data for \p X to \p ID using \p T's FoldingSetTrait.
+  /// @param ID Folding-set ID to populate.
+  /// @param X Value to profile.
   static void Profile(FoldingSetNodeID &ID, value_type_ref X) {
     FoldingSetTrait<T>::Profile(X,ID);
   }
@@ -1093,26 +1208,38 @@ struct ImutProfileInteger {
   using value_type_ref = const T&;
 
   /// Adds the integer \p X to \p ID for folding-set hashing.
+  /// @param ID Folding-set ID to populate.
+  /// @param X Integer value to profile.
   static void Profile(FoldingSetNodeID &ID, value_type_ref X) {
     ID.AddInteger(X);
   }
 };
 
-#define PROFILE_INTEGER_INFO(X)\
-template<> struct ImutProfileInfo<X> : ImutProfileInteger<X> {};
-
-PROFILE_INTEGER_INFO(char)
-PROFILE_INTEGER_INFO(unsigned char)
-PROFILE_INTEGER_INFO(short)
-PROFILE_INTEGER_INFO(unsigned short)
-PROFILE_INTEGER_INFO(unsigned)
-PROFILE_INTEGER_INFO(signed)
-PROFILE_INTEGER_INFO(long)
-PROFILE_INTEGER_INFO(unsigned long)
-PROFILE_INTEGER_INFO(long long)
-PROFILE_INTEGER_INFO(unsigned long long)
-
-#undef PROFILE_INTEGER_INFO
+/// Profile traits for \c char values.
+template <> struct ImutProfileInfo<char> : ImutProfileInteger<char> {};
+/// Profile traits for \c unsigned char values.
+template <>
+struct ImutProfileInfo<unsigned char> : ImutProfileInteger<unsigned char> {};
+/// Profile traits for \c short values.
+template <> struct ImutProfileInfo<short> : ImutProfileInteger<short> {};
+/// Profile traits for \c unsigned short values.
+template <>
+struct ImutProfileInfo<unsigned short> : ImutProfileInteger<unsigned short> {};
+/// Profile traits for \c unsigned values.
+template <> struct ImutProfileInfo<unsigned> : ImutProfileInteger<unsigned> {};
+/// Profile traits for \c signed values.
+template <> struct ImutProfileInfo<signed> : ImutProfileInteger<signed> {};
+/// Profile traits for \c long values.
+template <> struct ImutProfileInfo<long> : ImutProfileInteger<long> {};
+/// Profile traits for \c unsigned long values.
+template <>
+struct ImutProfileInfo<unsigned long> : ImutProfileInteger<unsigned long> {};
+/// Profile traits for \c long long values.
+template <>
+struct ImutProfileInfo<long long> : ImutProfileInteger<long long> {};
+/// Profile traits for \c unsigned long long values.
+template <> struct ImutProfileInfo<unsigned long long>
+    : ImutProfileInteger<unsigned long long> {};
 
 /// Profile traits for booleans.
 template <>
@@ -1123,6 +1250,8 @@ struct ImutProfileInfo<bool> {
   using value_type_ref = const bool&;
 
   /// Adds the boolean \p X to \p ID for folding-set hashing.
+  /// @param ID Folding-set ID to populate.
+  /// @param X Boolean value to profile.
   static void Profile(FoldingSetNodeID &ID, value_type_ref X) {
     ID.AddBoolean(X);
   }
@@ -1138,6 +1267,8 @@ struct ImutProfileInfo<T*> {
   using value_type_ref = value_type;
 
   /// Adds the pointer \p X to \p ID for folding-set hashing.
+  /// @param ID Folding-set ID to populate.
+  /// @param X Pointer value to profile.
   static void Profile(FoldingSetNodeID &ID, value_type_ref X) {
     ID.AddPointer(X);
   }
@@ -1150,9 +1281,9 @@ struct ImutProfileInfo<T*> {
 //  for element profiling.
 //===----------------------------------------------------------------------===//
 
-/// Generic definition of comparison operations for elements of immutable
-/// containers that defaults to using std::equal_to<> and std::less<> to perform
-/// comparison of elements.
+/// Comparison and key/data accessors for elements of immutable containers.
+///
+/// Defaults to using std::equal_to<> and std::less<> to compare elements.
 template <typename T> struct ImutContainerInfo : ImutProfileInfo<T> {
   /// The stored element type.
   using value_type = typename ImutProfileInfo<T>::value_type;
@@ -1168,42 +1299,83 @@ template <typename T> struct ImutContainerInfo : ImutProfileInfo<T> {
   using data_type_ref = bool;
 
   /// Returns the lookup key for stored value \p D.
+  /// @param D Stored element whose key is returned.
+  /// @return The element itself used as the key.
   static key_type_ref KeyOfValue(value_type_ref D) { return D; }
   /// Returns the associated data for a set element (always \c true).
-  static data_type_ref DataOfValue(value_type_ref) { return true; }
+  /// @param Unused Stored element (ignored for sets).
+  /// @return Always \c true for set elements.
+  static data_type_ref DataOfValue(value_type_ref Unused) { return true; }
 
   /// Returns true if keys \p LHS and \p RHS compare equal.
+  /// @param LHS First key.
+  /// @param RHS Second key.
+  /// @return True if \p LHS and \p RHS compare equal.
   static bool isEqual(key_type_ref LHS, key_type_ref RHS) {
     return std::equal_to<key_type>()(LHS,RHS);
   }
 
   /// Returns true if \p LHS is ordered before \p RHS in the tree.
+  /// @param LHS First key.
+  /// @param RHS Second key.
+  /// @return True if \p LHS is less than \p RHS.
   static bool isLess(key_type_ref LHS, key_type_ref RHS) {
     return std::less<key_type>()(LHS,RHS);
   }
 
   /// Returns true if associated data values compare equal (always true for sets).
-  static bool isDataEqual(data_type_ref, data_type_ref) { return true; }
+  /// @param Unused1 First data value (ignored for sets).
+  /// @param Unused2 Second data value (ignored for sets).
+  /// @return Always true for set elements.
+  static bool isDataEqual(data_type_ref Unused1, data_type_ref Unused2) {
+    return true;
+  }
 };
 
 /// Specialization for pointer values to treat pointers as references to unique
 /// objects. Pointers are thus compared by their addresses.
 template <typename T> struct ImutContainerInfo<T *> : ImutProfileInfo<T *> {
+  /// The stored pointer element type.
   using value_type = typename ImutProfileInfo<T*>::value_type;
+  /// A reference to a stored pointer element.
   using value_type_ref = typename ImutProfileInfo<T*>::value_type_ref;
+  /// The key type (the pointer address for sets of pointers).
   using key_type = value_type;
+  /// A reference to an element's key (the pointer address).
   using key_type_ref = value_type_ref;
+  /// The associated data type (unused for sets; always \c bool).
   using data_type = bool;
+  /// A reference to associated data (unused for sets).
   using data_type_ref = bool;
 
+  /// Returns the lookup key for stored pointer \p D (the pointer itself).
+  /// @param D Stored pointer whose key is returned.
+  /// @return The pointer address used as the key.
   static key_type_ref KeyOfValue(value_type_ref D) { return D; }
-  static data_type_ref DataOfValue(value_type_ref) { return true; }
+  /// Returns the associated data for a set element (always \c true).
+  /// @param Unused Stored pointer (ignored for sets).
+  /// @return Always \c true for set elements.
+  static data_type_ref DataOfValue(value_type_ref Unused) { return true; }
 
+  /// Returns true if pointers \p LHS and \p RHS are the same address.
+  /// @param LHS First pointer key.
+  /// @param RHS Second pointer key.
+  /// @return True if \p LHS and \p RHS are the same address.
   static bool isEqual(key_type_ref LHS, key_type_ref RHS) { return LHS == RHS; }
 
+  /// Returns true if pointer \p LHS is ordered before \p RHS by address.
+  /// @param LHS First pointer key.
+  /// @param RHS Second pointer key.
+  /// @return True if \p LHS's address is less than \p RHS's.
   static bool isLess(key_type_ref LHS, key_type_ref RHS) { return LHS < RHS; }
 
-  static bool isDataEqual(data_type_ref, data_type_ref) { return true; }
+  /// Returns true if associated data values compare equal (always true for sets).
+  /// @param Unused1 First data value (ignored for sets).
+  /// @param Unused2 Second data value (ignored for sets).
+  /// @return Always true for set elements.
+  static bool isDataEqual(data_type_ref Unused1, data_type_ref Unused2) {
+    return true;
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -1231,10 +1403,10 @@ private:
   IntrusiveRefCntPtr<TreeTy> Root;
 
 public:
-  /// Constructs a set from a pointer to a tree root.  In general one
-  /// should use a Factory object to create sets instead of directly
-  /// invoking the constructor, but there are cases where make this
-  /// constructor public is useful.
+  /// Construct from tree root \p R.
+  ///
+  /// Prefer Factory methods except when a public constructor is useful.
+  /// @param R Tree root pointer, or null for empty.
   explicit ImmutableSet(TreeTy *R) : Root(R) {}
 
   /// Factory for creating and updating immutable sets.
@@ -1250,25 +1422,32 @@ public:
     Factory() = default;
 
     /// Creates a factory that allocates from \p Alloc.
+    /// @param Alloc Allocator that must outlive this factory.
     Factory(BumpPtrAllocator &Alloc) : F(Alloc) {}
 
     /// Factories are not copyable; each owns node allocation state.
+    /// @param RHS Unused; copy construction is not supported.
     Factory(const Factory& RHS) = delete;
     /// Factories are not assignable.
+    /// @param RHS Unused; copy assignment is not supported.
     void operator=(const Factory& RHS) = delete;
 
     /// Returns an immutable set that contains no elements.
+    /// @return Empty immutable set from this factory.
     ImmutableSet getEmptySet() {
       return ImmutableSet(F.getEmptyTree());
     }
 
-    /// Creates a new immutable set that contains all of the values
-    /// of the original set with the addition of the specified value.  If
-    /// the original set already included the value, then the original set is
-    /// returned and no memory is allocated.  The time and space complexity
-    /// of this operation is logarithmic in the size of the original set.
-    /// The memory allocated to represent the set is released when the
-    /// factory object that created the set is destroyed.
+    /// Returns a new set with all elements of \p Old plus \p V.
+    ///
+    /// If \p Old already included \p V, then \p Old is returned and no memory
+    /// is allocated. The time and space complexity of this operation is
+    /// logarithmic in the size of the original set. The memory allocated to
+    /// represent the set is released when the factory object that created the
+    /// set is destroyed.
+    /// @param Old Original set.
+    /// @param V Element to insert.
+    /// @return Set containing all elements of \p Old plus \p V.
     [[nodiscard]] ImmutableSet add(ImmutableSet Old, value_type_ref V) {
       TreeTy *NewT = F.add(Old.Root.get(), V);
       if constexpr (Canonicalize)
@@ -1277,10 +1456,15 @@ public:
         return ImmutableSet(NewT);
     }
 
-    /// Returns the union of \p A and \p B, computed in a single traversal that
-    /// shares subtrees of both operands wherever possible (see
-    /// ImutAVLFactory::unionTrees). This is more efficient than repeatedly
-    /// adding \p B's elements to \p A when \p B is large.
+    /// Returns the union of sets \p A and \p B.
+    ///
+    /// Computed in a single traversal that shares subtrees of both operands
+    /// wherever possible (see ImutAVLFactory::unionTrees). This is more
+    /// efficient than repeatedly adding \p B's elements to \p A when \p B is
+    /// large.
+    /// @param A First operand set.
+    /// @param B Second operand set.
+    /// @return Set containing every element of \p A or \p B.
     [[nodiscard]] ImmutableSet unionSets(ImmutableSet A, ImmutableSet B) {
       if (A.Root.get() == B.Root.get() || B.isEmpty())
         return A;
@@ -1301,13 +1485,16 @@ public:
       }
     }
 
-    /// Creates a new immutable set that contains all of the values
-    /// of the original set with the exception of the specified value.  If
-    /// the original set did not contain the value, the original set is
-    /// returned and no memory is allocated.  The time and space complexity
-    /// of this operation is logarithmic in the size of the original set.
-    /// The memory allocated to represent the set is released when the
-    /// factory object that created the set is destroyed.
+    /// Returns a new set with all elements of \p Old except \p V.
+    ///
+    /// If \p Old did not contain \p V, then \p Old is returned and no memory
+    /// is allocated. The time and space complexity of this operation is
+    /// logarithmic in the size of the original set. The memory allocated to
+    /// represent the set is released when the factory object that created the
+    /// set is destroyed.
+    /// @param Old Original set.
+    /// @param V Element to remove.
+    /// @return Set containing all elements of \p Old except \p V.
     [[nodiscard]] ImmutableSet remove(ImmutableSet Old, value_type_ref V) {
       TreeTy *NewT = F.remove(Old.Root.get(), V);
       if constexpr (Canonicalize)
@@ -1317,9 +1504,11 @@ public:
     }
 
     /// Returns the bump-pointer allocator used for tree nodes.
+    /// @return Reference to the factory's bump-pointer allocator.
     BumpPtrAllocator& getAllocator() { return F.getAllocator(); }
 
     /// Returns the underlying tree factory (for advanced clients).
+    /// @return Pointer to the underlying ImutAVLFactory.
     typename TreeTy::Factory *getTreeFactory() const {
       return const_cast<typename TreeTy::Factory *>(&F);
     }
@@ -1328,14 +1517,20 @@ public:
   friend class Factory;
 
   /// Returns true if the set contains the specified value.
+  /// @param V Element to look up.
+  /// @return True if \p V is present in the set.
   bool contains(value_type_ref V) const {
     return Root ? Root->contains(V) : false;
   }
 
-  /// Compares two sets for equality. For a canonicalizing factory, sets with
-  /// equal contents share the same tree, so this is an O(1) pointer comparison
-  /// (like ImmutableList); only sets created by the same factory may be
-  /// compared. Otherwise it is a structural comparison.
+  /// Returns true if this set and \p RHS have equal contents.
+  ///
+  /// For a canonicalizing factory, sets with equal contents share the same
+  /// tree, so this is an O(1) pointer comparison (like ImmutableList); only
+  /// sets created by the same factory may be compared. Otherwise it is a
+  /// structural comparison.
+  /// @param RHS Other set to compare against.
+  /// @return True if the sets have equal contents.
   bool operator==(const ImmutableSet &RHS) const {
     if constexpr (Canonicalize)
       return Root == RHS.Root;
@@ -1346,6 +1541,8 @@ public:
 
   /// Compares two sets for inequality. For a canonicalizing factory this is an
   /// O(1) pointer comparison; otherwise it is a structural comparison.
+  /// @param RHS Other set to compare against.
+  /// @return True if the sets do not have equal contents.
   bool operator!=(const ImmutableSet &RHS) const {
     if constexpr (Canonicalize)
       return Root != RHS.Root;
@@ -1364,13 +1561,16 @@ public:
   }
 
   /// Returns the tree root without changing its reference count.
+  /// @return Root node pointer, or null if the set is empty.
   TreeTy *getRootWithoutRetain() const { return Root.get(); }
 
   /// Return true if the set contains no elements.
+  /// @return True if the set is empty.
   bool isEmpty() const { return !Root; }
 
   /// Return true if the set contains exactly one element.
   /// This method runs in constant time.
+  /// @return True if the set has exactly one element.
   bool isSingleton() const { return getHeight() == 1; }
 
   //===--------------------------------------------------===//
@@ -1381,8 +1581,10 @@ public:
   using iterator = ImutAVLValueIterator<ImmutableSet>;
 
   /// Returns an iterator to the first element in in-order traversal.
+  /// @return Iterator to the first element, or end if empty.
   iterator begin() const { return iterator(Root.get()); }
   /// Returns the past-the-end iterator for in-order traversal.
+  /// @return Past-the-end iterator.
   iterator end() const { return iterator(); }
 
   //===--------------------------------------------------===//
@@ -1390,14 +1592,18 @@ public:
   //===--------------------------------------------------===//
 
   /// Returns the height of the AVL tree (0 if empty).
+  /// @return Height of the underlying tree, or 0 if empty.
   unsigned getHeight() const { return Root ? Root->getHeight() : 0; }
 
   /// Profiles \p S for folding-set hashing (hashes the root pointer).
+  /// @param ID Folding-set ID to populate.
+  /// @param S Set whose root pointer is hashed.
   static void Profile(FoldingSetNodeID &ID, const ImmutableSet &S) {
     ID.AddPointer(S.Root.get());
   }
 
   /// Profiles this set for folding-set hashing.
+  /// @param ID Folding-set ID to populate.
   void Profile(FoldingSetNodeID &ID) const { return Profile(ID, *this); }
 
   //===--------------------------------------------------===//
@@ -1431,35 +1637,44 @@ private:
   FactoryTy *Factory;
 
 public:
-  /// Constructs a set from a pointer to a tree root.  In general one
-  /// should use a Factory object to create sets instead of directly
-  /// invoking the constructor, but there are cases where make this
-  /// constructor public is useful.
+  /// Construct from tree root \p R and factory \p F.
+  ///
+  /// Prefer Factory methods except when a public constructor is useful.
+  /// @param R Tree root pointer, or null for empty.
+  /// @param F Factory that owns node allocation for this set.
   ImmutableSetRef(TreeTy *R, FactoryTy *F) : Root(R), Factory(F) {}
 
   /// Returns an empty set reference backed by factory \p F.
   /// @param F Factory that will allocate nodes for updates.
+  /// @return Empty set reference using \p F.
   static ImmutableSetRef getEmptySet(FactoryTy *F) {
     return ImmutableSetRef(0, F);
   }
 
   /// Returns a new set containing all elements of this set plus \p V.
+  /// @param V Element to insert.
+  /// @return Set reference with \p V inserted.
   ImmutableSetRef add(value_type_ref V) {
     return ImmutableSetRef(Factory->add(Root.get(), V), Factory);
   }
 
   /// Returns a new set containing all elements of this set except \p V.
+  /// @param V Element to remove.
+  /// @return Set reference with \p V removed.
   ImmutableSetRef remove(value_type_ref V) {
     return ImmutableSetRef(Factory->remove(Root.get(), V), Factory);
   }
 
   /// Returns true if the set contains the specified value.
+  /// @param V Element to look up.
+  /// @return True if \p V is present in the set.
   bool contains(value_type_ref V) const {
     return Root ? Root->contains(V) : false;
   }
 
   /// Converts this mutable view to an \ref ImmutableSet, canonicalizing the
   /// root when \p Canonicalize is true.
+  /// @return An ImmutableSet sharing this view's root.
   ImmutableSet<ValT, ValInfo, Canonicalize> asImmutableSet() const {
     using SetTy = ImmutableSet<ValT, ValInfo, Canonicalize>;
     if constexpr (Canonicalize)
@@ -1469,24 +1684,31 @@ public:
   }
 
   /// Returns the tree root without changing its reference count.
+  /// @return Root node pointer, or null if the set is empty.
   TreeTy *getRootWithoutRetain() const { return Root.get(); }
 
   /// Compares two sets for structural equality (contents, not pointer identity).
+  /// @param RHS Other set reference to compare against.
+  /// @return True if the sets have equal contents.
   bool operator==(const ImmutableSetRef &RHS) const {
     return Root && RHS.Root ? Root->isEqual(*RHS.Root.get()) : Root == RHS.Root;
   }
 
   /// Compares two sets for structural inequality.
+  /// @param RHS Other set reference to compare against.
+  /// @return True if the sets do not have equal contents.
   bool operator!=(const ImmutableSetRef &RHS) const {
     return Root && RHS.Root ? Root->isNotEqual(*RHS.Root.get())
                             : Root != RHS.Root;
   }
 
   /// Return true if the set contains no elements.
+  /// @return True if the set is empty.
   bool isEmpty() const { return !Root; }
 
   /// Return true if the set contains exactly one element.
   /// This method runs in constant time.
+  /// @return True if the set has exactly one element.
   bool isSingleton() const { return getHeight() == 1; }
 
   //===--------------------------------------------------===//
@@ -1497,8 +1719,10 @@ public:
   using iterator = ImutAVLValueIterator<ImmutableSetRef>;
 
   /// Returns an iterator to the first element in in-order traversal.
+  /// @return Iterator to the first element, or end if empty.
   iterator begin() const { return iterator(Root.get()); }
   /// Returns the end iterator for in-order traversal.
+  /// @return Past-the-end iterator.
   iterator end() const { return iterator(); }
 
   //===--------------------------------------------------===//
@@ -1506,14 +1730,18 @@ public:
   //===--------------------------------------------------===//
 
   /// Returns the height of the AVL tree (0 if empty).
+  /// @return Height of the underlying tree, or 0 if empty.
   unsigned getHeight() const { return Root ? Root->getHeight() : 0; }
 
   /// Profiles \p S for folding-set hashing (hashes the root pointer).
+  /// @param ID Folding-set ID to populate.
+  /// @param S Set reference whose root pointer is hashed.
   static void Profile(FoldingSetNodeID &ID, const ImmutableSetRef &S) {
     ID.AddPointer(S.Root.get());
   }
 
   /// Profiles this set for folding-set hashing.
+  /// @param ID Folding-set ID to populate.
   void Profile(FoldingSetNodeID &ID) const { return Profile(ID, *this); }
 
   //===--------------------------------------------------===//

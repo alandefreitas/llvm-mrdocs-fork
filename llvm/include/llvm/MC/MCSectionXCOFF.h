@@ -19,16 +19,17 @@
 
 namespace llvm {
 
-// This class represents an XCOFF `Control Section`, more commonly referred to
-// as a csect. A csect represents the smallest possible unit of data/code which
-// will be relocated as a single block. A csect can either be:
-// 1) Initialized: The Type will be XTY_SD, and the symbols inside the csect
-//    will have a label definition representing their offset within the csect.
-// 2) Uninitialized: The Type will be XTY_CM, it will contain a single symbol,
-//    and may not contain label definitions.
-// 3) An external reference providing a symbol table entry for a symbol
-//    contained in another XCOFF object file. External reference csects are not
-//    implemented yet.
+/// Represents an XCOFF control section (csect) or DWARF section.
+///
+/// A csect is the smallest unit of data/code relocated as a single block. A
+/// csect can either be:
+/// 1) Initialized: The Type will be XTY_SD, and the symbols inside the csect
+///    will have a label definition representing their offset within the csect.
+/// 2) Uninitialized: The Type will be XTY_CM, it will contain a single symbol,
+///    and may not contain label definitions.
+/// 3) An external reference providing a symbol table entry for a symbol
+///    contained in another XCOFF object file. External reference csects are not
+///    implemented yet.
 class MCSectionXCOFF final : public MCSection {
   friend class MCContext;
   friend class MCAsmInfoXCOFF;
@@ -94,35 +95,62 @@ class MCSectionXCOFF final : public MCSection {
   void printCsectDirective(raw_ostream &OS) const;
 
 public:
+  /// Destroy this XCOFF section.
   LLVM_ABI ~MCSectionXCOFF();
 
+  /// Return the XCOFF storage mapping class for this csect.
+  /// @return The XCOFF storage mapping class for this csect.
   XCOFF::StorageMappingClass getMappingClass() const {
     assert(isCsect() && "Only csect section has mapping class property!");
     return CsectProp->MappingClass;
   }
+  /// Return the XCOFF storage class of the qualifying name symbol.
+  /// @return The XCOFF storage class of the qualifying name symbol.
   XCOFF::StorageClass getStorageClass() const {
     return QualName->getStorageClass();
   }
+  /// Return the XCOFF visibility type of the qualifying name symbol.
+  /// @return The XCOFF visibility type of the qualifying name symbol.
   XCOFF::VisibilityType getVisibilityType() const {
     return QualName->getVisibilityType();
   }
+  /// Return the XCOFF symbol type for this csect.
+  /// @return The XCOFF symbol type for this csect.
   XCOFF::SymbolType getCSectType() const {
     assert(isCsect() && "Only csect section has symbol type property!");
     return CsectProp->Type;
   }
+  /// Return the qualifying name symbol for this section.
+  /// @return The qualifying name symbol for this section.
   MCSymbolXCOFF *getQualNameSymbol() const { return QualName; }
 
+  /// Return the name used for this section in the symbol table.
+  /// @return The name used for this section in the symbol table.
   StringRef getSymbolTableName() const { return SymbolTableName; }
+  /// Set the name used for this section in the symbol table.
+  /// @param STN New symbol table name.
   void setSymbolTableName(StringRef STN) { SymbolTableName = STN; }
+  /// Return true if this section may contain multiple symbols.
+  /// @return True if this section may contain multiple symbols.
   bool isMultiSymbolsAllowed() const { return MultiSymbolsAllowed; }
+  /// Return true if this section is a csect.
+  /// @return True if this section is a csect.
   bool isCsect() const { return CsectProp.has_value(); }
+  /// Return true if this section is a DWARF section.
+  /// @return True if this section is a DWARF section.
   bool isDwarfSect() const { return DwarfSubtypeFlags.has_value(); }
+  /// Return the DWARF section subtype flags, if this is a DWARF section.
+  /// @return The DWARF section subtype flags, if this is a DWARF section.
   std::optional<XCOFF::DwarfSectionSubtypeFlags> getDwarfSubtypeFlags() const {
     return DwarfSubtypeFlags;
   }
+  /// Return the csect properties, if this section is a csect.
+  /// @return The csect properties, if this section is a csect.
   std::optional<XCOFF::CsectProperties> getCsectProp() const {
     return CsectProp;
   }
+  /// Return the SectionKind for this section.
+  /// @return The SectionKind for this section.
   SectionKind getKind() const { return Kind; }
 };
 

@@ -17,7 +17,10 @@
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/Support/Compiler.h"
 
-namespace llvm::jitlink::hexagon {
+namespace llvm {
+namespace jitlink {
+/// JITLink utilities for Hexagon relocatable objects.
+namespace hexagon {
 
 /// Represents Hexagon fixup kinds.
 enum EdgeKind_hexagon : Edge::Kind {
@@ -127,14 +130,21 @@ enum EdgeKind_hexagon : Edge::Kind {
 };
 
 /// Returns a string name for the given Hexagon edge kind.
+/// \param K Edge kind to name.
+/// \return Name of the given Hexagon edge kind.
 LLVM_ABI const char *getEdgeKindName(Edge::Kind K);
 
 /// Hexagon pointer size.
 constexpr uint32_t PointerSize = 4;
 
-/// Spread data bits into instruction word according to mask.
+/// Spread data bits into an instruction word by a bit mask.
+///
 /// For each set bit in mask (scanning low to high), the corresponding
 /// bit position in the result gets the next data bit.
+/// \param Mask Bit mask selecting which instruction bits receive data.
+/// \param Data Source bits to spread into the positions set in \p Mask.
+/// \return Instruction word with \p Data bits spread into positions set by
+///         \p Mask.
 constexpr uint32_t applyMask(uint32_t Mask, uint32_t Data) {
   uint32_t Result = 0;
   size_t Off = 0;
@@ -151,7 +161,9 @@ constexpr uint32_t applyMask(uint32_t Mask, uint32_t Data) {
 
 /// Instruction mask entry for R_HEX_6_X / R_HEX_16_X lookup.
 struct InstructionMask {
+  /// Opcode bits matched against the instruction.
   uint32_t CmpMask;
+  /// Relocation bit mask for the matched instruction class.
   uint32_t RelocMask;
 };
 
@@ -171,10 +183,17 @@ inline constexpr InstructionMask R6Masks[] = {
     {0xd7000000, 0x006020e0}, {0xd8000000, 0x006020e0},
     {0xdb000000, 0x006020e0}, {0xdf000000, 0x006020e0}};
 
+/// Bits in a Hexagon instruction word that mark the end of a packet.
 inline constexpr uint32_t InstParsePacketEnd = 0x0000c000;
 
+/// Return true if \p Insn is a duplex instruction.
+/// \param Insn Instruction word to test.
+/// \return True if \p Insn is a duplex instruction.
 inline bool isDuplex(uint32_t Insn) { return (InstParsePacketEnd & Insn) == 0; }
 
+/// Find the relocation bit mask for an R_HEX_6_X instruction.
+/// \param Insn Instruction word to classify.
+/// \return Relocation bit mask for \p Insn, or an error if unrecognized.
 inline Expected<uint32_t> findMaskR6(uint32_t Insn) {
   if (isDuplex(Insn))
     return 0x03f00000;
@@ -186,6 +205,9 @@ inline Expected<uint32_t> findMaskR6(uint32_t Insn) {
                                   utohexstr(Insn));
 }
 
+/// Find the relocation bit mask for an R_HEX_8_X instruction.
+/// \param Insn Instruction word to classify.
+/// \return Relocation bit mask for \p Insn, or an error if unrecognized.
 inline Expected<uint32_t> findMaskR8(uint32_t Insn) {
   if (isDuplex(Insn))
     return 0x03f00000;
@@ -196,6 +218,9 @@ inline Expected<uint32_t> findMaskR8(uint32_t Insn) {
   return 0x00001fe0;
 }
 
+/// Find the relocation bit mask for an R_HEX_11_X instruction.
+/// \param Insn Instruction word to classify.
+/// \return Relocation bit mask for \p Insn, or an error if unrecognized.
 inline Expected<uint32_t> findMaskR11(uint32_t Insn) {
   if (isDuplex(Insn))
     return 0x03f00000;
@@ -204,6 +229,9 @@ inline Expected<uint32_t> findMaskR11(uint32_t Insn) {
   return 0x06003fe0;
 }
 
+/// Find the relocation bit mask for an R_HEX_16_X instruction.
+/// \param Insn Instruction word to classify.
+/// \return Relocation bit mask for \p Insn, or an error if unrecognized.
 inline Expected<uint32_t> findMaskR16(uint32_t Insn) {
   if (isDuplex(Insn))
     return 0x03f00000;
@@ -233,6 +261,10 @@ inline Expected<uint32_t> findMaskR16(uint32_t Insn) {
 }
 
 /// Apply fixup expression for edge to block content.
+/// \param G Link graph owning the block.
+/// \param B Block whose content receives the fixup.
+/// \param E Edge describing the fixup to apply.
+/// \return Success, or an error if the fixup cannot be applied.
 inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
   using namespace llvm::support;
 
@@ -386,6 +418,8 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
   return Error::success();
 }
 
-} // namespace llvm::jitlink::hexagon
+} // namespace hexagon
+} // namespace jitlink
+} // namespace llvm
 
 #endif // LLVM_EXECUTIONENGINE_JITLINK_HEXAGON_H

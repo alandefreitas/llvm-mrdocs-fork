@@ -16,8 +16,13 @@ namespace llvm {
 
 class Function;
 
+/// Pass that counts how many times each function is visited.
 struct CountVisitsPass : OptionalPassInfoMixin<CountVisitsPass> {
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// Run the count-visits pass over the function.
+  /// @param F Function whose visit count should be updated.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
 private:
   StringMap<uint32_t> Counts;

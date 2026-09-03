@@ -41,31 +41,47 @@ struct StringTable {
   /// Total size of the string table when serialized.
   size_t SerializedSize = 0;
 
+  /// Construct an empty string table.
   StringTable() = default;
 
-  /// Disable copy.
-  StringTable(const StringTable &) = delete;
-  StringTable &operator=(const StringTable &) = delete;
-  /// Should be movable.
-  StringTable(StringTable &&) = default;
-  StringTable &operator=(StringTable &&) = default;
+  /// Copy construction is deleted; string tables are not copyable.
+  /// @param Other Unused; this constructor is deleted.
+  StringTable(const StringTable &Other) = delete;
+  /// Copy assignment is deleted; string tables are not copyable.
+  /// @param Other Unused; this assignment is deleted.
+  StringTable &operator=(const StringTable &Other) = delete;
+  /// Move-construct a string table, taking ownership of the strings.
+  /// @param Other String table to move from.
+  StringTable(StringTable &&Other) = default;
+  /// Move-assign from another string table, taking ownership of the strings.
+  /// @param Other String table to move from.
+  /// @return Reference to this string table.
+  StringTable &operator=(StringTable &&Other) = default;
 
   /// Construct a string table from a ParsedStringTable.
+  /// @param Other Parsed string table whose entries are copied into this table.
   LLVM_ABI StringTable(const ParsedStringTable &Other);
 
   /// Add a string to the table. It returns an unique ID of the string.
+  /// @param Str String to insert or look up in the table.
+  /// @return Pair of the string's unique ID and a reference to the stored string.
   LLVM_ABI std::pair<unsigned, StringRef> add(StringRef Str);
   /// Modify \p R to use strings from this string table. If the string table
   /// does not contain the strings, it adds them.
+  /// @param R Remark whose strings are replaced with entries from this table.
   LLVM_ABI void internalize(Remark &R);
-  /// Serialize the string table to a stream. It is serialized as a little
-  /// endian uint64 (the size of the table in bytes) followed by a sequence of
-  /// NULL-terminated strings, where the N-th string is the string with the ID N
-  /// in the StrTab map.
+  /// Serialize the string table to a stream.
+  ///
+  /// It is serialized as a little endian uint64 (the size of the table in
+  /// bytes) followed by a sequence of NULL-terminated strings, where the N-th
+  /// string is the string with the ID N in the StrTab map.
+  /// @param OS Output stream that receives the serialized table.
   LLVM_ABI void serialize(raw_ostream &OS) const;
-  /// Serialize the string table to a vector. This allows users to do the actual
-  /// writing to file/memory/other.
-  /// The string with the ID == N should be the N-th element in the vector.
+  /// Serialize the string table to a vector of string references.
+  ///
+  /// This allows users to do the actual writing to file/memory/other. The
+  /// string with the ID == N should be the N-th element in the vector.
+  /// @return Vector of string references ordered by ID.
   LLVM_ABI std::vector<StringRef> serialize() const;
 };
 

@@ -35,6 +35,8 @@ public:
   explicit StringMapEntryBase(size_t keyLength) : keyLength(keyLength) {}
 
   /// Return the length of the key string stored after this entry.
+  ///
+  /// @return Number of characters in the key.
   size_t getKeyLength() const { return keyLength; }
 
 protected:
@@ -44,6 +46,7 @@ protected:
   /// \param EntryAlign Alignment of the entry object.
   /// \param Key Key string copied after the entry.
   /// \param Allocator Allocator that provides the storage.
+  /// @return Pointer to the allocated entry storage.
   template <typename AllocatorTy>
   static void *allocateWithKey(size_t EntrySize, size_t EntryAlign,
                                StringRef Key, AllocatorTy &Allocator);
@@ -95,11 +98,17 @@ public:
       : StringMapEntryBase(keyLength),
         second(std::forward<InitTy>(initVals)...) {}
   /// Copy construction is deleted; entries are owned by the map.
+  ///
+  /// \param e Unused; copy construction is not supported.
   StringMapEntryStorage(StringMapEntryStorage &e) = delete;
 
   /// Return a const reference to the mapped value.
+  ///
+  /// @return Const reference to \c second.
   const ValueTy &getValue() const { return second; }
   /// Return a mutable reference to the mapped value.
+  ///
+  /// @return Mutable reference to \c second.
   ValueTy &getValue() { return second; }
 
   /// Replace the mapped value with \p V.
@@ -108,13 +117,25 @@ public:
   void setValue(const ValueTy &V) { second = V; }
 };
 
+/// StringMapEntryStorage specialization for StringSet entries with no value.
 template <>
 class StringMapEntryStorage<EmptyStringSetTag> : public StringMapEntryBase {
 public:
-  explicit StringMapEntryStorage(size_t keyLength, EmptyStringSetTag = {})
+  /// Construct storage for a key of length \p keyLength with no mapped value.
+  ///
+  /// \param keyLength Number of characters in the trailing key string.
+  /// \param tag Unused optional tag distinguishing this specialization.
+  explicit StringMapEntryStorage(size_t keyLength,
+                                 EmptyStringSetTag tag = {})
       : StringMapEntryBase(keyLength) {}
+  /// Copy construction is deleted; entries are owned by the set.
+  ///
+  /// \param entry Unused; copy construction is not supported.
   StringMapEntryStorage(StringMapEntryStorage &entry) = delete;
 
+  /// Return an empty tag standing in for the absent mapped value.
+  ///
+  /// @return Default-constructed \c EmptyStringSetTag.
   EmptyStringSetTag getValue() const { return {}; }
 };
 
@@ -124,12 +145,15 @@ public:
 template <typename ValueTy>
 class StringMapEntry final : public StringMapEntryStorage<ValueTy> {
 public:
+  /// Inherit constructors from the storage base class.
   using StringMapEntryStorage<ValueTy>::StringMapEntryStorage;
 
   /// Type of the mapped value stored in this entry.
   using ValueType = ValueTy;
 
   /// Return the key string as a StringRef.
+  ///
+  /// @return StringRef over the key bytes stored after this entry.
   StringRef getKey() const {
     return StringRef(getKeyData(), this->getKeyLength());
   }
@@ -137,15 +161,24 @@ public:
   /// getKeyData - Return the start of the string data that is the key for this
   /// value. The string data is always stored immediately after the
   /// StringMapEntry object.
+  ///
+  /// @return Pointer to the first character of the key.
   const char *getKeyData() const {
     return reinterpret_cast<const char *>(this + 1);
   }
 
   /// Alias for getKey(), enabling structured-binding-like access as \c first.
+  ///
+  /// @return StringRef over the key bytes stored after this entry.
   StringRef first() const { return getKey(); }
 
   /// Create a StringMapEntry for the specified key construct the value using
   /// \p InitiVals.
+  ///
+  /// \param key Key string stored after the entry.
+  /// \param allocator Allocator that provides the storage.
+  /// \param initVals Arguments forwarded to construct the mapped value.
+  /// @return Pointer to the newly allocated and constructed entry.
   template <typename AllocatorTy, typename... InitTy>
   static StringMapEntry *create(StringRef key, AllocatorTy &allocator,
                                 InitTy &&...initVals) {
@@ -156,6 +189,9 @@ public:
 
   /// GetStringMapEntryFromKeyData - Given key data that is known to be embedded
   /// into a StringMapEntry, return the StringMapEntry itself.
+  ///
+  /// \param keyData Pointer to the key bytes stored after a StringMapEntry.
+  /// @return Reference to the StringMapEntry that precedes \p keyData.
   static StringMapEntry &GetStringMapEntryFromKeyData(const char *keyData) {
     char *ptr = const_cast<char *>(keyData) - sizeof(StringMapEntry<ValueTy>);
     return *reinterpret_cast<StringMapEntry *>(ptr);
@@ -163,6 +199,8 @@ public:
 
   /// Destroy - Destroy this StringMapEntry, releasing memory back to the
   /// specified allocator.
+  ///
+  /// \param allocator Allocator that originally provided this entry's storage.
   template <typename AllocatorTy> void Destroy(AllocatorTy &allocator) {
     // Free memory referenced by the item.
     size_t AllocSize = sizeof(StringMapEntry) + this->getKeyLength() + 1;
@@ -178,6 +216,7 @@ public:
 ///
 /// \tparam Index 0 for the key, 1 for the value.
 /// \param E Entry to project.
+/// @return The key (\c Index 0) or mapped value (\c Index 1) of \p E.
 template <std::size_t Index, typename ValueTy>
 decltype(auto) get(StringMapEntry<ValueTy> &E) {
   static_assert(Index < 2);
@@ -191,6 +230,7 @@ decltype(auto) get(StringMapEntry<ValueTy> &E) {
 ///
 /// \tparam Index 0 for the key, 1 for the value.
 /// \param E Entry to project.
+/// @return The key (\c Index 0) or mapped value (\c Index 1) of \p E.
 template <std::size_t Index, typename ValueTy>
 decltype(auto) get(const StringMapEntry<ValueTy> &E) {
   static_assert(Index < 2);

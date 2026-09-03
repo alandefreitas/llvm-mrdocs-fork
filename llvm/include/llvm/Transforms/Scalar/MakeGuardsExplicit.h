@@ -37,8 +37,18 @@
 
 namespace llvm {
 
+/// Pass that lowers @llvm.experimental.guard to widenable explicit branches.
+///
+/// Unlike LowerGuardIntrinsic, the resulting form remains widenable: each
+/// guard becomes a branch on the original condition anded with
+/// @llvm.experimental.widenable.condition, with the false edge going to a
+/// deoptimize block.
 struct MakeGuardsExplicitPass
     : public OptionalPassInfoMixin<MakeGuardsExplicitPass> {
+  /// Run make-guards-explicit lowering over the function.
+  /// @param F Function whose guard intrinsics may be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

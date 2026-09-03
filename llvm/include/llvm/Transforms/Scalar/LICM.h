@@ -42,19 +42,32 @@ class LPMUpdater;
 class Loop;
 class LoopNest;
 
+/// Caps MemorySSA clobbering-call queries in LICM for compile-time.
 extern LLVM_ABI cl::opt<unsigned> SetLicmMssaOptCap;
+/// Caps loop memory accesses before LICM disables MemorySSA promotion.
 extern LLVM_ABI cl::opt<unsigned> SetLicmMssaNoAccForPromotionCap;
 
+/// Options controlling MemorySSA caps and speculation in LICM.
 struct LICMOptions {
+  /// Maximum MemorySSA clobbering-call queries before LICM backs off.
   unsigned MssaOptCap;
+  /// Maximum memory accesses before scalar promotion is considered too costly.
   unsigned MssaNoAccForPromotionCap;
+  /// Whether to hoist values that may not always execute.
   bool AllowSpeculation;
 
+  /// Construct LICM options from the global command-line defaults.
   LICMOptions()
       : MssaOptCap(SetLicmMssaOptCap),
         MssaNoAccForPromotionCap(SetLicmMssaNoAccForPromotionCap),
         AllowSpeculation(true) {}
 
+  /// Construct LICM options with explicit MemorySSA caps and speculation.
+  /// @param MssaOptCap Max clobbering-call queries before giving up.
+  /// @param MssaNoAccForPromotionCap Max memory accesses before promotion is
+  /// considered too expensive.
+  /// @param AllowSpeculation Whether to hoist values that may not always
+  /// execute.
   LICMOptions(unsigned MssaOptCap, unsigned MssaNoAccForPromotionCap,
               bool AllowSpeculation)
       : MssaOptCap(MssaOptCap),
@@ -67,16 +80,33 @@ class LICMPass : public OptionalPassInfoMixin<LICMPass> {
   LICMOptions Opts;
 
 public:
+  /// Construct a LICM pass with explicit MemorySSA caps and speculation.
+  /// @param MssaOptCap Max clobbering-call queries before giving up.
+  /// @param MssaNoAccForPromotionCap Max memory accesses before promotion is
+  /// considered too expensive.
+  /// @param AllowSpeculation Whether to hoist values that may not always
+  /// execute.
   LICMPass(unsigned MssaOptCap, unsigned MssaNoAccForPromotionCap,
            bool AllowSpeculation)
       : LICMPass(LICMOptions(MssaOptCap, MssaNoAccForPromotionCap,
                              AllowSpeculation)) {}
+  /// Construct a LICM pass with the given options.
+  /// @param Opts Configuration controlling MemorySSA caps and speculation.
   LICMPass(LICMOptions Opts) : Opts(Opts) {}
 
+  /// Run loop invariant code motion over the loop.
+  /// @param L Loop to transform.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);
 
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
@@ -87,16 +117,34 @@ class LNICMPass : public OptionalPassInfoMixin<LNICMPass> {
   LICMOptions Opts;
 
 public:
+  /// Construct a loop-nest LICM pass with explicit MemorySSA caps and
+  /// speculation.
+  /// @param MssaOptCap Max clobbering-call queries before giving up.
+  /// @param MssaNoAccForPromotionCap Max memory accesses before promotion is
+  /// considered too expensive.
+  /// @param AllowSpeculation Whether to hoist values that may not always
+  /// execute.
   LNICMPass(unsigned MssaOptCap, unsigned MssaNoAccForPromotionCap,
             bool AllowSpeculation)
       : LNICMPass(LICMOptions(MssaOptCap, MssaNoAccForPromotionCap,
                               AllowSpeculation)) {}
+  /// Construct a loop-nest LICM pass with the given options.
+  /// @param Opts Configuration controlling MemorySSA caps and speculation.
   LNICMPass(LICMOptions Opts) : Opts(Opts) {}
 
+  /// Run loop-nest invariant code motion over the loop nest.
+  /// @param L Loop nest to transform.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(LoopNest &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);
 
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);

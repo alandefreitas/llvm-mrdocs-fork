@@ -44,29 +44,38 @@ public:
       : Data(Data), NumEntries(NumEntries) {}
 
   /// Iterator to the first element, or null if empty.
+  /// @return Iterator to the first element, or null if empty.
   [[nodiscard]] iterator begin() const { return Data; }
   /// Iterator one past the last element.
+  /// @return Iterator one past the last element.
   [[nodiscard]] iterator end() const { return Data + NumEntries; }
   /// Pointer to the underlying buffer, or null if empty.
+  /// @return Pointer to the underlying buffer, or null if empty.
   [[nodiscard]] const T *data() const { return Data; }
   /// Return true if the span has no elements.
+  /// @return True if the span has no elements.
   [[nodiscard]] bool empty() const { return !Data || NumEntries == 0; }
   /// Return the number of elements in the span.
+  /// @return The number of elements in the span.
   [[nodiscard]] size_t size() const { return NumEntries; }
   /// Access the element at Eytzinger index \p Idx.
   ///
   /// \param Idx Zero-based index into the breadth-first layout.
+  /// @return Const reference to the element at \p Idx.
   [[nodiscard]] const T &operator[](size_t Idx) const {
     assert(Idx < NumEntries && "Index out of bounds");
     return Data[Idx];
   }
 
-  /// Search this Eytzinger table for Target. Returns the 0-based array index if
-  /// found.
+  /// Search this Eytzinger table for \p Target. Returns the 0-based array index
+  /// if found.
   ///
   /// KeyT enables heterogeneous lookups, allowing callers to search tables of
   /// endian-specific wrappers (e.g., support::ulittle64_t) using native integer
   /// keys without explicit conversions at the call site.
+  ///
+  /// \param Target Key to look up; may be a heterogeneous key type.
+  /// @return The 0-based array index if found, otherwise \c std::nullopt.
   template <typename KeyT = T>
   [[nodiscard]] std::optional<size_t> findIndex(const KeyT &Target) const {
     size_t I = 0;
@@ -78,7 +87,10 @@ public:
     return std::nullopt;
   }
 
-  /// Check if this Eytzinger table contains Target.
+  /// Check if this Eytzinger table contains \p Target.
+  ///
+  /// \param Target Key to look up; may be a heterogeneous key type.
+  /// @return True if \p Target is present in the table.
   template <typename KeyT = T>
   [[nodiscard]] bool contains(const KeyT &Target) const {
     return findIndex(Target).has_value();
@@ -86,6 +98,7 @@ public:
 
   /// Verify whether the buffer satisfies strictly ascending binary search tree
   /// order in Eytzinger layout. Runs iteratively in O(N) time and O(1) space.
+  /// @return True if the buffer is a valid strictly ascending Eytzinger BST.
   [[nodiscard]] bool isSorted() const {
     if (empty())
       return true;
@@ -154,6 +167,9 @@ public:
   /// Keys are sorted, deduplicated, and reordered into breadth-first layout.
   /// \c KeyT may differ from \c T (for example building
   /// \c EytzingerTable<ulittle64_t> from \c uint64_t keys).
+  ///
+  /// \param Keys Input values to sort, deduplicate, and store in Eytzinger order.
+  /// @return An owning Eytzinger table containing the unique sorted keys.
   template <typename KeyT = T>
   static EytzingerTable<T> create(std::vector<KeyT> Keys) {
     llvm::sort(Keys);
@@ -173,6 +189,7 @@ public:
   }
 
   /// Return a non-owning view of this table's storage.
+  /// @return A non-owning view of this table's storage.
   [[nodiscard]] EytzingerTableSpan<T> asSpan() const {
     return EytzingerTableSpan<T>(Storage.data(), Storage.size());
   }
@@ -180,6 +197,7 @@ public:
   /// Search for \p Target and return its Eytzinger index if present.
   ///
   /// \param Target Key to look up; may be a heterogeneous key type.
+  /// @return The 0-based Eytzinger index if found, otherwise \c std::nullopt.
   template <typename KeyT = T>
   [[nodiscard]] std::optional<size_t> findIndex(const KeyT &Target) const {
     return asSpan().findIndex(Target);
@@ -188,32 +206,42 @@ public:
   /// Return true if \p Target is present in this table.
   ///
   /// \param Target Key to look up; may be a heterogeneous key type.
+  /// @return True if \p Target is present in this table.
   template <typename KeyT = T>
   [[nodiscard]] bool contains(const KeyT &Target) const {
     return asSpan().contains(Target);
   }
 
   /// Return true if storage is a valid strictly ascending Eytzinger BST.
+  /// @return True if storage is a valid strictly ascending Eytzinger BST.
   [[nodiscard]] bool isSorted() const { return asSpan().isSorted(); }
 
   /// Iterator to the first element.
+  /// @return Iterator to the first element.
   [[nodiscard]] iterator begin() { return Storage.begin(); }
   /// Const iterator to the first element.
+  /// @return Const iterator to the first element.
   [[nodiscard]] const_iterator begin() const { return Storage.begin(); }
   /// Iterator one past the last element.
+  /// @return Iterator one past the last element.
   [[nodiscard]] iterator end() { return Storage.end(); }
   /// Const iterator one past the last element.
+  /// @return Const iterator one past the last element.
   [[nodiscard]] const_iterator end() const { return Storage.end(); }
 
   /// Pointer to the first owned element, or null if empty.
+  /// @return Pointer to the first owned element, or null if empty.
   [[nodiscard]] const T *data() const { return Storage.data(); }
   /// Return the number of stored elements.
+  /// @return The number of stored elements.
   [[nodiscard]] size_t size() const { return Storage.size(); }
   /// Return true if the table contains no elements.
+  /// @return True if the table contains no elements.
   [[nodiscard]] bool empty() const { return Storage.empty(); }
   /// Access the element at Eytzinger index \p Idx.
   ///
   /// \param Idx Zero-based index into the breadth-first layout.
+  /// @return Const reference to the element at \p Idx.
   [[nodiscard]] const T &operator[](size_t Idx) const {
     assert(Idx < Storage.size() && "Index out of bounds");
     return Storage[Idx];

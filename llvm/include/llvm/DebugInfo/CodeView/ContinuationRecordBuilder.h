@@ -22,8 +22,14 @@
 namespace llvm {
 namespace codeview {
 class TypeIndex;
-enum class ContinuationRecordKind { FieldList, MethodOverloadList };
 
+/// Kind of large CodeView record that may need LF_INDEX continuation segments.
+enum class ContinuationRecordKind {
+  FieldList,          ///< Class/struct/union field list (LF_FIELDLIST).
+  MethodOverloadList, ///< Overloaded method list (LF_METHODLIST).
+};
+
+/// Serializes field or method lists that may span multiple continuation records.
 class ContinuationRecordBuilder {
   SmallVector<uint32_t, 4> SegmentOffsets;
   std::optional<ContinuationRecordKind> Kind;
@@ -39,16 +45,31 @@ class ContinuationRecordBuilder {
                              std::optional<TypeIndex> RefersTo);
 
 public:
+  /// Construct an empty continuation record builder.
   LLVM_ABI ContinuationRecordBuilder();
+  /// Destroy the continuation record builder.
   LLVM_ABI ~ContinuationRecordBuilder();
 
+  /// Begin serializing a new field or method-overload list of \p RecordKind.
+  ///
+  /// \param RecordKind Whether to emit an LF_FIELDLIST or LF_METHODLIST.
   LLVM_ABI void begin(ContinuationRecordKind RecordKind);
 
-  // This template is explicitly instantiated in the implementation file for all
-  // supported types.  The method itself is ugly, so inlining it into the header
-  // file clutters an otherwise straightforward interface.
+  /// Serialize member \p Record into the current list, splitting if needed.
+  ///
+  /// This template is explicitly instantiated in the implementation file for
+  /// all supported types. The method itself is ugly, so inlining it into the
+  /// header file clutters an otherwise straightforward interface.
+  ///
+  /// \param Record Member type record to append to the current segment.
   template <typename RecordType> void writeMemberType(RecordType &Record);
 
+  /// Finish the list and return its continuation segments for type index \p Index.
+  ///
+  /// \param Index Type index that will be assigned to the first segment; later
+  ///        segments use consecutive indices.
+  /// \returns Serialized CVType segments in reverse index order (last fragment
+  ///          first), ready to insert into a type table.
   LLVM_ABI std::vector<CVType> end(TypeIndex Index);
 };
 } // namespace codeview

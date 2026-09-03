@@ -21,12 +21,22 @@ namespace llvm {
 class Function;
 class TargetMachine;
 
+/// New PM pass that prepares IR for instruction selection.
+///
+/// Transforms the code to expose more pattern matching during instruction
+/// selection.
 class CodeGenPreparePass : public OptionalPassInfoMixin<CodeGenPreparePass> {
 private:
   const TargetMachine *TM;
 
 public:
+  /// Construct a pass using target information from \p TM.
+  /// \param TM Target machine used to guide CodeGen preparation.
   CodeGenPreparePass(const TargetMachine &TM) : TM(&TM) {}
+  /// Prepare \p F for instruction selection on the configured target.
+  /// \param F Function whose IR is prepared for CodeGen.
+  /// \param AM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

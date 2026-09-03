@@ -68,6 +68,14 @@ std::error_code copyFileTagAttributes(const std::string &Source,
 
 #endif /* __MVS__*/
 
+/** Disable automatic ASCII/EBCDIC conversion for a file descriptor.
+ *
+ * On non-z/OS platforms this is a no-op that returns success.
+ *
+ * @param FD The file descriptor.
+ * @returns A default-constructed error_code on success, otherwise the
+ *          platform error from disabling conversion.
+ */
 inline std::error_code disableAutoConversion(int FD) {
 #ifdef __MVS__
   if (::disablezOSAutoConversion(FD) == -1)
@@ -76,6 +84,14 @@ inline std::error_code disableAutoConversion(int FD) {
   return std::error_code();
 }
 
+/** Enable automatic ASCII/EBCDIC conversion for a file descriptor.
+ *
+ * On non-z/OS platforms this is a no-op that returns success.
+ *
+ * @param FD The file descriptor.
+ * @returns A default-constructed error_code on success, otherwise the
+ *          platform error from enabling conversion.
+ */
 inline std::error_code enableAutoConversion(int FD) {
 #ifdef __MVS__
   if (::enablezOSAutoConversion(FD) == -1)
@@ -84,6 +100,15 @@ inline std::error_code enableAutoConversion(int FD) {
   return std::error_code();
 }
 
+/** Enable automatic conversion for a file descriptor with a specific CCSID.
+ *
+ * On non-z/OS platforms this is a no-op that returns success.
+ *
+ * @param FD The file descriptor.
+ * @param ccsid The coded character set identifier for the file content.
+ * @returns A default-constructed error_code on success, otherwise the
+ *          platform error from enabling conversion.
+ */
 inline std::error_code enableAutoConversion(int FD, int ccsid) {
 #ifdef __MVS__
   if (::enablezOSAutoConversionCcsid(FD, ccsid) == -1)
@@ -92,6 +117,16 @@ inline std::error_code enableAutoConversion(int FD, int ccsid) {
   return std::error_code();
 }
 
+/** Restore the previously saved auto-conversion mode for a standard handle.
+ *
+ * Applies to stdin, stdout, or stderr after \c enableAutoConversion has
+ * recorded their prior conversion state. On non-z/OS platforms this is a
+ * no-op that returns success.
+ *
+ * @param FD The standard file descriptor to restore.
+ * @returns A default-constructed error_code on success, otherwise the
+ *          platform error from restoring conversion.
+ */
 inline std::error_code restoreStdHandleAutoConversion(int FD) {
 #ifdef __MVS__
   if (::restorezOSStdHandleAutoConversion(FD) == -1)
@@ -100,6 +135,16 @@ inline std::error_code restoreStdHandleAutoConversion(int FD) {
   return std::error_code();
 }
 
+/** Set the tag information for a file descriptor.
+ *
+ * On non-z/OS platforms this is a no-op that returns success.
+ *
+ * @param FD The file descriptor.
+ * @param CCSID The coded character set identifier to assign.
+ * @param IsText True if the file should be tagged as text.
+ * @returns A default-constructed error_code on success, otherwise a
+ *          platform error_code.
+ */
 inline std::error_code setFileTag(int FD, int CCSID, bool IsText) {
 #ifdef __MVS__
   return setzOSFileTag(FD, CCSID, IsText);
@@ -107,6 +152,16 @@ inline std::error_code setFileTag(int FD, int CCSID, bool IsText) {
   return std::error_code();
 }
 
+/** Query whether a file needs conversion to the UTF-8 codepage.
+ *
+ * On non-z/OS platforms this always reports that conversion is not needed.
+ *
+ * @param FileName The path used when \a FD is not available.
+ * @param FD An optional open file descriptor; when not -1 it is preferred
+ *           over \a FileName for reading the file tag.
+ * @returns True if conversion is needed, false if not, or an error if the
+ *          tag cannot be queried.
+ */
 inline ErrorOr<bool> needConversion(const Twine &FileName, const int FD = -1) {
 #ifdef __MVS__
   return needzOSConversion(FileName, FD);

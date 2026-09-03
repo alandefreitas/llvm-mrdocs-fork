@@ -70,39 +70,49 @@ public:
   explicit const_set_bits_iterator_impl(const BitVectorT &Parent)
       : const_set_bits_iterator_impl(Parent, Parent.find_first()) {}
   /// Copy-construct an iterator at the same set-bit position.
-  const_set_bits_iterator_impl(const const_set_bits_iterator_impl &) = default;
+  /// @param Other Iterator to copy.
+  const_set_bits_iterator_impl(const const_set_bits_iterator_impl &Other) =
+      default;
 
   /// Advance to the next set bit and return the prior iterator position.
-  const_set_bits_iterator_impl operator++(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before advancing.
+  const_set_bits_iterator_impl operator++(int Unused) {
     auto Prev = *this;
     advance();
     return Prev;
   }
 
   /// Move to the next set bit and return this iterator.
+  /// @return Reference to this iterator after advancing.
   const_set_bits_iterator_impl &operator++() {
     advance();
     return *this;
   }
 
   /// Retreat to the previous set bit and return the prior iterator position.
-  const_set_bits_iterator_impl operator--(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before retreating.
+  const_set_bits_iterator_impl operator--(int Unused) {
     auto Prev = *this;
     retreat();
     return Prev;
   }
 
   /// Move to the previous set bit and return this iterator.
+  /// @return Reference to this iterator after retreating.
   const_set_bits_iterator_impl &operator--() {
     retreat();
     return *this;
   }
 
   /// Return the index of the current set bit.
+  /// @return Index of the current set bit in the parent bit vector.
   unsigned operator*() const { return Current; }
 
   /// Return true if both iterators point at the same set-bit index.
   /// @param Other Iterator from the same bit vector.
+  /// @return True if both iterators have the same Current index.
   bool operator==(const const_set_bits_iterator_impl &Other) const {
     assert(&Parent == &Other.Parent &&
            "Comparing iterators from different BitVectors");
@@ -111,6 +121,7 @@ public:
 
   /// Return true if the iterators point at different set-bit indices.
   /// @param Other Iterator from the same bit vector.
+  /// @return True if the iterators differ in Current index.
   bool operator!=(const const_set_bits_iterator_impl &Other) const {
     assert(&Parent == &Other.Parent &&
            "Comparing iterators from different BitVectors");
@@ -118,6 +129,7 @@ public:
   }
 };
 
+/// Dynamically sized bit vector with efficient bit-level operations.
 class BitVector {
   using BitWord = uintptr_t;
 
@@ -153,10 +165,12 @@ public:
     /// Default construction is deleted; a bit reference must bind to a vector.
     reference() = delete;
     /// Copy-construct a proxy referring to the same bit.
-    reference(const reference&) = default;
+    /// @param Other Bit reference to copy.
+    reference(const reference &Other) = default;
 
     /// Copy the bit value from another reference into this bit.
     /// @param t Source bit reference.
+    /// @return Reference to this bit proxy.
     reference &operator=(reference t) {
       *this = bool(t);
       return *this;
@@ -164,6 +178,7 @@ public:
 
     /// Set this bit to \p t.
     /// @param t New bit value.
+    /// @return Reference to this bit proxy.
     reference& operator=(bool t) {
       if (t)
         *WordRef |= BitWord(1) << BitPos;
@@ -173,6 +188,7 @@ public:
     }
 
     /// Return the bit value as a bool.
+    /// @return True if the referenced bit is set.
     operator bool() const {
       return ((*WordRef) & (BitWord(1) << BitPos)) != 0;
     }
@@ -184,14 +200,17 @@ public:
   using set_iterator = const_set_bits_iterator;
 
   /// Iterator to the first set bit, or end if none are set.
+  /// @return Iterator positioned at the first set bit, or end if none.
   const_set_bits_iterator set_bits_begin() const {
     return const_set_bits_iterator(*this);
   }
   /// Past-the-end iterator for the set-bits range.
+  /// @return Past-the-end iterator for set-bit iteration.
   const_set_bits_iterator set_bits_end() const {
     return const_set_bits_iterator(*this, -1);
   }
   /// Range over the indices of all bits that are set.
+  /// @return Iterator range covering indices of all set bits.
   iterator_range<const_set_bits_iterator> set_bits() const {
     return make_range(set_bits_begin(), set_bits_end());
   }
@@ -201,6 +220,8 @@ public:
 
   /// BitVector ctor - Creates a bitvector of specified number of bits. All
   /// bits are initialized to the specified value.
+  /// @param s Number of bits in the new vector.
+  /// @param t Initial value for every bit.
   explicit BitVector(unsigned s, bool t = false)
       : Bits(NumBitWords(s), 0 - (BitWord)t), Size(s) {
     if (t)
@@ -208,12 +229,15 @@ public:
   }
 
   /// Returns whether there are no bits in this bitvector.
+  /// @return True if the bit vector has size zero.
   bool empty() const { return Size == 0; }
 
   /// Returns the number of bits in this bitvector.
+  /// @return Number of bits in this bit vector.
   size_type size() const { return Size; }
 
   /// Returns the number of bits which are set.
+  /// @return Count of bits that are set to one.
   size_type count() const {
     unsigned NumBits = 0;
     for (auto Bit : Bits)
@@ -222,11 +246,13 @@ public:
   }
 
   /// Returns true if any bit is set.
+  /// @return True if at least one bit is set.
   bool any() const {
     return any_of(Bits, [](BitWord Bit) { return Bit != 0; });
   }
 
   /// Returns true if all bits are set.
+  /// @return True if every bit in the vector is set.
   bool all() const {
     for (unsigned i = 0; i < Size / BITWORD_SIZE; ++i)
       if (Bits[i] != ~BitWord(0))
@@ -240,12 +266,17 @@ public:
   }
 
   /// Returns true if none of the bits are set.
+  /// @return True if no bits are set.
   bool none() const {
     return !any();
   }
 
   /// Returns the index of the first set/unset bit, depending on \p Set, in
   /// the range [Begin, End). Returns -1 if all bits in the range are unset/set.
+  /// @param Begin Inclusive start of the search range.
+  /// @param End Exclusive end of the search range.
+  /// @param Set If true, find the first set bit; otherwise the first unset bit.
+  /// @return Index of the first matching bit in [Begin, End), or -1 if none.
   int find_first_in(unsigned Begin, unsigned End, bool Set = true) const {
     assert(Begin <= End && End <= Size);
     if (Begin == End)
@@ -281,6 +312,9 @@ public:
 
   /// Returns the index of the last set bit in the range [Begin, End).
   /// Returns -1 if all bits in the range are unset.
+  /// @param Begin Inclusive start of the search range.
+  /// @param End Exclusive end of the search range.
+  /// @return Index of the last set bit in [Begin, End), or -1 if none.
   int find_last_in(unsigned Begin, unsigned End) const {
     assert(Begin <= End && End <= Size);
     if (Begin == End)
@@ -312,12 +346,18 @@ public:
 
   /// Returns the index of the first unset bit in the range [Begin, End).
   /// Returns -1 if all bits in the range are set.
+  /// @param Begin Inclusive start of the search range.
+  /// @param End Exclusive end of the search range.
+  /// @return Index of the first unset bit in [Begin, End), or -1 if none.
   int find_first_unset_in(unsigned Begin, unsigned End) const {
     return find_first_in(Begin, End, /* Set = */ false);
   }
 
   /// Returns the index of the last unset bit in the range [Begin, End).
   /// Returns -1 if all bits in the range are set.
+  /// @param Begin Inclusive start of the search range.
+  /// @param End Exclusive end of the search range.
+  /// @return Index of the last unset bit in [Begin, End), or -1 if none.
   int find_last_unset_in(unsigned Begin, unsigned End) const {
     assert(Begin <= End && End <= Size);
     if (Begin == End)
@@ -350,33 +390,45 @@ public:
   }
 
   /// Returns the index of the first set bit, -1 if none of the bits are set.
+  /// @return Index of the first set bit, or -1 if none are set.
   int find_first() const { return find_first_in(0, Size); }
 
   /// Returns the index of the last set bit, -1 if none of the bits are set.
+  /// @return Index of the last set bit, or -1 if none are set.
   int find_last() const { return find_last_in(0, Size); }
 
   /// Returns the index of the next set bit following the "Prev" bit.
   /// Returns -1 if the next set bit is not found.
+  /// @param Prev Bit index after which to search for the next set bit.
+  /// @return Index of the next set bit after \p Prev, or -1 if none.
   int find_next(unsigned Prev) const { return find_first_in(Prev + 1, Size); }
 
   /// Returns the index of the first set bit that precedes the bit at
   /// \p PriorTo. Returns -1 if all previous bits are unset.
+  /// @param PriorTo Bit index before which to search for a set bit.
+  /// @return Index of the nearest set bit before \p PriorTo, or -1 if none.
   int find_prev(unsigned PriorTo) const { return find_last_in(0, PriorTo); }
 
   /// Returns the index of the first unset bit, -1 if all of the bits are set.
+  /// @return Index of the first unset bit, or -1 if all bits are set.
   int find_first_unset() const { return find_first_unset_in(0, Size); }
 
   /// Returns the index of the next unset bit following the \p Prev bit.
   /// Returns -1 if all remaining bits are set.
+  /// @param Prev Bit index after which to search for the next unset bit.
+  /// @return Index of the next unset bit after \p Prev, or -1 if none.
   int find_next_unset(unsigned Prev) const {
     return find_first_unset_in(Prev + 1, Size);
   }
 
   /// Returns the index of the last unset bit, -1 if all of the bits are set.
+  /// @return Index of the last unset bit, or -1 if all bits are set.
   int find_last_unset() const { return find_last_unset_in(0, Size); }
 
   /// Returns the index of the first unset bit that precedes the bit at
   /// \p PriorTo. Returns -1 if all previous bits are set.
+  /// @param PriorTo Bit index before which to search for an unset bit.
+  /// @return Index of the nearest unset bit before \p PriorTo, or -1 if none.
   int find_prev_unset(unsigned PriorTo) const {
     return find_last_unset_in(0, PriorTo);
   }
@@ -388,6 +440,8 @@ public:
   }
 
   /// Grow or shrink the bitvector.
+  /// @param N New size in bits.
+  /// @param t Value used to initialize newly added bits when growing.
   void resize(unsigned N, bool t = false) {
     set_unused_bits(t);
     Size = N;
@@ -396,9 +450,11 @@ public:
   }
 
   /// Reserve space for atleast \p N bits in the bitvector.
+  /// @param N Minimum number of bits to reserve capacity for.
   void reserve(unsigned N) { Bits.reserve(NumBitWords(N)); }
 
   /// Set all bits in the bitvector.
+  /// @return Reference to this bit vector.
   BitVector &set() {
     init_words(true);
     clear_unused_bits();
@@ -407,6 +463,7 @@ public:
 
   /// Set bit \p Idx in the bitvector.
   /// @param Idx Bit index to set.
+  /// @return Reference to this bit vector.
   BitVector &set(unsigned Idx) {
     assert(Idx < Size && "access in bound");
     Bits[Idx / BITWORD_SIZE] |= BitWord(1) << (Idx % BITWORD_SIZE);
@@ -414,6 +471,9 @@ public:
   }
 
   /// Efficiently set a range of bits in [I, E)
+  /// @param I Inclusive start of the range to set.
+  /// @param E Exclusive end of the range to set.
+  /// @return Reference to this bit vector.
   BitVector &set(unsigned I, unsigned E) {
     assert(I <= E && "Attempted to set backwards range!");
     assert(E <= size() && "Attempted to set out-of-bounds range!");
@@ -443,18 +503,24 @@ public:
   }
 
   /// Reset all bits in the bitvector.
+  /// @return Reference to this bit vector.
   BitVector &reset() {
     init_words(false);
     return *this;
   }
 
   /// Reset bit \p Idx in the bitvector.
+  /// @param Idx Bit index to clear.
+  /// @return Reference to this bit vector.
   BitVector &reset(unsigned Idx) {
     Bits[Idx / BITWORD_SIZE] &= ~(BitWord(1) << (Idx % BITWORD_SIZE));
     return *this;
   }
 
   /// Efficiently reset a range of bits in [I, E)
+  /// @param I Inclusive start of the range to clear.
+  /// @param E Exclusive end of the range to clear.
+  /// @return Reference to this bit vector.
   BitVector &reset(unsigned I, unsigned E) {
     assert(I <= E && "Attempted to reset backwards range!");
     assert(E <= size() && "Attempted to reset out-of-bounds range!");
@@ -484,6 +550,7 @@ public:
   }
 
   /// Flip all bits in the bitvector.
+  /// @return Reference to this bit vector.
   BitVector &flip() {
     for (auto &Bit : Bits)
       Bit = ~Bit;
@@ -492,6 +559,8 @@ public:
   }
 
   /// Flip bit \p Idx in the bitvector.
+  /// @param Idx Bit index to toggle.
+  /// @return Reference to this bit vector.
   BitVector &flip(unsigned Idx) {
     Bits[Idx / BITWORD_SIZE] ^= BitWord(1) << (Idx % BITWORD_SIZE);
     return *this;
@@ -499,6 +568,7 @@ public:
 
   /// Return a mutable proxy for bit \p Idx.
   /// @param Idx Bit index.
+  /// @return Mutable reference proxy for the bit at \p Idx.
   reference operator[](unsigned Idx) {
     assert (Idx < Size && "Out-of-bounds Bit access.");
     return reference(*this, Idx);
@@ -506,6 +576,7 @@ public:
 
   /// Return the value of bit \p Idx.
   /// @param Idx Bit index.
+  /// @return True if bit \p Idx is set.
   bool operator[](unsigned Idx) const {
     assert (Idx < Size && "Out-of-bounds Bit access.");
     BitWord Mask = BitWord(1) << (Idx % BITWORD_SIZE);
@@ -513,17 +584,23 @@ public:
   }
 
   /// Return the last element in the bitvector.
+  /// @return Value of the last bit in the vector.
   bool back() const {
     assert(!empty() && "Getting last element of empty vector.");
     return (*this)[size() - 1];
   }
 
   /// Returns true if bit \p Idx is set.
+  /// @param Idx Bit index to test.
+  /// @return True if bit \p Idx is set.
   bool test(unsigned Idx) const {
     return (*this)[Idx];
   }
 
   /// Returns true if all bits in the range [Begin, End) are set.
+  /// @param Begin Inclusive start of the range.
+  /// @param End Exclusive end of the range.
+  /// @return True if every bit in [Begin, End) is set.
   bool test_all(unsigned Begin, unsigned End) const {
     for (unsigned i = Begin; i < End; ++i) {
       if (!test(i))
@@ -533,6 +610,9 @@ public:
   }
 
   /// Returns true if any of the bits in the range [Begin, End) are set.
+  /// @param Begin Inclusive start of the range.
+  /// @param End Exclusive end of the range.
+  /// @return True if at least one bit in [Begin, End) is set.
   bool test_any(unsigned Begin, unsigned End) const {
     for (unsigned i = Begin; i < End; ++i) {
       if (test(i))
@@ -566,6 +646,8 @@ public:
   }
 
   /// Test if any common bits are set.
+  /// @param RHS Bit vector to compare against for overlapping set bits.
+  /// @return True if this and \p RHS share at least one set bit.
   bool anyCommon(const BitVector &RHS) const {
     unsigned ThisWords = Bits.size();
     unsigned RHSWords = RHS.Bits.size();
@@ -576,6 +658,8 @@ public:
   }
 
   /// Return true if this and \p RHS have the same size and bit pattern.
+  /// @param RHS Bit vector to compare against.
+  /// @return True if both vectors have equal size and identical bits.
   bool operator==(const BitVector &RHS) const {
     if (size() != RHS.size())
       return false;
@@ -585,9 +669,12 @@ public:
 
   /// Return true if this and \p RHS differ in size or bit pattern.
   /// @param RHS Bit vector to compare against.
+  /// @return True if the vectors differ in size or bit pattern.
   bool operator!=(const BitVector &RHS) const { return !(*this == RHS); }
 
   /// Intersection of this bitvector with \p RHS.
+  /// @param RHS Bit vector to AND with this one.
+  /// @return Reference to this bit vector after the AND.
   BitVector &operator&=(const BitVector &RHS) {
     unsigned ThisWords = Bits.size();
     unsigned RHSWords = RHS.Bits.size();
@@ -605,6 +692,8 @@ public:
   }
 
   /// Reset bits that are set in RHS. Same as *this &= ~RHS.
+  /// @param RHS Bit vector whose set bits are cleared in this vector.
+  /// @return Reference to this bit vector after clearing those bits.
   BitVector &reset(const BitVector &RHS) {
     unsigned ThisWords = Bits.size();
     unsigned RHSWords = RHS.Bits.size();
@@ -615,6 +704,8 @@ public:
 
   /// Check if (This - RHS) is non-zero.
   /// This is the same as reset(RHS) and any().
+  /// @param RHS Bit vector subtracted from this one before testing for any set bits.
+  /// @return True if any bit is set in this vector but not in \p RHS.
   bool test(const BitVector &RHS) const {
     unsigned ThisWords = Bits.size();
     unsigned RHSWords = RHS.Bits.size();
@@ -631,6 +722,8 @@ public:
   }
 
   /// Check if This is a subset of RHS.
+  /// @param RHS Bit vector that should contain every set bit of this vector.
+  /// @return True if every set bit of this vector is also set in \p RHS.
   bool subsetOf(const BitVector &RHS) const { return !test(RHS); }
 
   /// Apply word-wise functor \p f to \p Arg and \p Args, storing the result
@@ -652,6 +745,8 @@ public:
   }
 
   /// Union of this bitvector with \p RHS.
+  /// @param RHS Bit vector to OR into this one.
+  /// @return Reference to this bit vector after the OR.
   BitVector &operator|=(const BitVector &RHS) {
     if (size() < RHS.size())
       resize(RHS.size());
@@ -661,6 +756,8 @@ public:
   }
 
   /// Disjoint union of this bitvector with \p RHS.
+  /// @param RHS Bit vector to XOR into this one.
+  /// @return Reference to this bit vector after the XOR.
   BitVector &operator^=(const BitVector &RHS) {
     if (size() < RHS.size())
       resize(RHS.size());
@@ -671,6 +768,7 @@ public:
 
   /// Shift all bits right by \p N positions, filling vacated bits with zeros.
   /// @param N Number of bit positions to shift (must be <= size()).
+  /// @return Reference to this bit vector after the shift.
   BitVector &operator>>=(unsigned N) {
     assert(N <= Size);
     if (LLVM_UNLIKELY(empty() || N == 0))
@@ -722,6 +820,7 @@ public:
 
   /// Shift bits left by \p N positions; vacated low bits become zero.
   /// @param N Number of bit positions to shift; must be <= size().
+  /// @return Reference to this bit vector after the shift.
   BitVector &operator<<=(unsigned N) {
     assert(N <= Size);
     if (LLVM_UNLIKELY(empty() || N == 0))
@@ -780,6 +879,7 @@ public:
   }
 
   /// Return an ArrayRef to the underlying \c BitWord storage.
+  /// @return ArrayRef covering the allocated BitWord storage.
   ArrayRef<BitWord> getData() const { return {Bits.data(), Bits.size()}; }
 
   //===--------------------------------------------------------------------===//
@@ -796,24 +896,32 @@ public:
 
   /// Add '1' bits from Mask to this vector. Don't resize.
   /// This computes "*this |= Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void setBitsInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     applyMask<true, false>(Mask, MaskWords);
   }
 
   /// Clear any bits in this vector that are set in Mask.
   /// Don't resize. This computes "*this &= ~Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void clearBitsInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     applyMask<false, false>(Mask, MaskWords);
   }
 
   /// Add a bit to this vector for every '0' bit in Mask.
   /// Don't resize.  This computes "*this |= ~Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void setBitsNotInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     applyMask<true, true>(Mask, MaskWords);
   }
 
   /// Clear a bit in this vector for every '0' bit in Mask.
   /// Don't resize.  This computes "*this &= Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void clearBitsNotInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     applyMask<false, true>(Mask, MaskWords);
   }
@@ -913,21 +1021,33 @@ private:
 
 public:
   /// Return the size (in bytes) of the bit vector.
+  /// @return Number of bytes of allocated BitWord storage.
   size_type getMemorySize() const { return Bits.size() * sizeof(BitWord); }
   /// Return the number of bits that fit in the allocated storage.
+  /// @return Bit capacity of the allocated storage.
   size_type getBitCapacity() const { return Bits.size() * BITWORD_SIZE; }
 };
 
 /// Return the number of bytes of storage allocated by \p X.
+/// @param X Bit vector whose allocated storage size is queried.
+/// @return Number of bytes of storage allocated by \p X.
 inline BitVector::size_type capacity_in_bytes(const BitVector &X) {
   return X.getMemorySize();
 }
 
+/// Provide DenseMapInfo for BitVector, hashing size and word storage.
 template <> struct DenseMapInfo<BitVector> {
+  /// Compute a hash code for bit vector \p V.
+  /// @param V Bit vector to hash.
+  /// @return Hash code derived from \p V's size and word storage.
   static unsigned getHashValue(const BitVector &V) {
     return DenseMapInfo<std::pair<BitVector::size_type, ArrayRef<uintptr_t>>>::
         getHashValue(std::make_pair(V.size(), V.getData()));
   }
+  /// Return true if \p LHS and \p RHS have equal size and bit pattern.
+  /// @param LHS First bit vector.
+  /// @param RHS Second bit vector.
+  /// @return True if \p LHS and \p RHS compare equal.
   static bool isEqual(const BitVector &LHS, const BitVector &RHS) {
     return LHS == RHS;
   }

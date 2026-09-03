@@ -16,6 +16,7 @@
 #include "llvm/Support/CommandLine.h"
 
 namespace llvm {
+/// Command-line option enabling the improved MIR flow-sensitive discriminator encoding.
 extern LLVM_ABI cl::opt<bool> ImprovedFSDiscriminator;
 } // namespace llvm
 

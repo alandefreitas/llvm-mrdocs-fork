@@ -45,24 +45,35 @@ class ScalarEvolution;
 class TargetLibraryInfo;
 class TargetTransformInfo;
 
+/// Analyses provided to loop passes by the function-to-loop adaptor.
+///
 /// The adaptor from a function pass to a loop pass computes these analyses and
 /// makes them available to the loop passes "for free". Each loop pass is
 /// expected to update these analyses if necessary to ensure they're
 /// valid after it runs.
 struct LoopStandardAnalysisResults {
+  /// Alias-analysis results for the function.
   AAResults &AA;
+  /// Assumption cache for the function.
   AssumptionCache &AC;
+  /// Dominator tree for the function.
   DominatorTree &DT;
+  /// Loop info for the function.
   LoopInfo &LI;
+  /// Scalar evolution analysis for the function.
   ScalarEvolution &SE;
+  /// Target library info for recognizing builtins.
   TargetLibraryInfo &TLI;
+  /// Target transform info for cost modeling.
   TargetTransformInfo &TTI;
+  /// Optional MemorySSA for the function, or null if unused.
   MemorySSA *MSSA;
 };
 
 /// Extern template declaration for the analysis set for this IR unit.
 extern template class LLVM_TEMPLATE_ABI AllAnalysesOn<Loop>;
 
+/// Explicit instantiation of the loop analysis manager.
 extern template class LLVM_TEMPLATE_ABI
     AnalysisManager<Loop, LoopStandardAnalysisResults &>;
 /// The loop analysis manager.
@@ -85,8 +96,13 @@ typedef InnerAnalysisManagerProxy<LoopAnalysisManager, Function>
 /// cached in the \c LoopAnalysisManager.
 template <> class LoopAnalysisManagerFunctionProxy::Result {
 public:
+  /// Construct a result that owns invalidation for \p InnerAM and \p LI.
+  /// @param InnerAM Loop analysis manager whose cache this result owns.
+  /// @param LI LoopInfo used to enumerate loops when invalidating.
   explicit Result(LoopAnalysisManager &InnerAM, LoopInfo &LI)
       : InnerAM(&InnerAM), LI(&LI) {}
+  /// Move-construct a result, taking ownership from \p Arg.
+  /// @param Arg Result to move from; its manager pointer is cleared.
   Result(Result &&Arg)
       : InnerAM(std::move(Arg.InnerAM)), LI(Arg.LI), MSSAUsed(Arg.MSSAUsed) {
     // We have to null out the analysis manager in the moved-from state
@@ -94,6 +110,9 @@ public:
     // analysis state.
     Arg.InnerAM = nullptr;
   }
+  /// Move-assign proxy ownership of the inner analysis manager from \p RHS.
+  /// @param RHS Result to move from; its manager pointer is cleared.
+  /// @return A reference to this result.
   Result &operator=(Result &&RHS) {
     InnerAM = RHS.InnerAM;
     LI = RHS.LI;
@@ -104,6 +123,7 @@ public:
     RHS.InnerAM = nullptr;
     return *this;
   }
+  /// Destroy this result and clear the inner analysis manager if still owned.
   ~Result() {
     // InnerAM is cleared in a moved from state where there is nothing to do.
     if (!InnerAM)
@@ -118,6 +138,7 @@ public:
   void markMSSAUsed() { MSSAUsed = true; }
 
   /// Accessor for the analysis manager.
+  /// @return The loop analysis manager owned by this result.
   LoopAnalysisManager &getManager() { return *InnerAM; }
 
   /// Handler for invalidation of the proxy for a particular function.
@@ -129,6 +150,10 @@ public:
   /// If the necessary loop infrastructure is not preserved, this will forcibly
   /// clear all of the cached analysis results that are keyed on the \c
   /// LoopInfo for this function.
+  /// @param F Function being invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if the proxy result itself should be invalidated.
   LLVM_ABI bool invalidate(Function &F, const PreservedAnalyses &PA,
                            FunctionAnalysisManager::Invalidator &Inv);
 
@@ -140,6 +165,9 @@ private:
 
 /// Provide a specialized run method for the \c LoopAnalysisManagerFunctionProxy
 /// so it can pass the \c LoopInfo to the result.
+/// @param IR Function whose LoopInfo is attached to the proxy result.
+/// @param AM Function analysis manager providing LoopInfo.
+/// @return A result that owns invalidation for the loop analysis manager.
 template <>
 LLVM_ABI LoopAnalysisManagerFunctionProxy::Result
 LoopAnalysisManagerFunctionProxy::run(Function &F, FunctionAnalysisManager &AM);
@@ -148,6 +176,7 @@ LoopAnalysisManagerFunctionProxy::run(Function &F, FunctionAnalysisManager &AM);
 // template.
 extern template class InnerAnalysisManagerProxy<LoopAnalysisManager, Function>;
 
+/// Explicit instantiation of the function-to-loop outer analysis proxy.
 extern template class LLVM_TEMPLATE_ABI OuterAnalysisManagerProxy<
     FunctionAnalysisManager, Loop, LoopStandardAnalysisResults &>;
 /// A proxy from a \c FunctionAnalysisManager to a \c Loop.
@@ -156,6 +185,7 @@ typedef OuterAnalysisManagerProxy<FunctionAnalysisManager, Loop,
     FunctionAnalysisManagerLoopProxy;
 
 /// Returns the minimum set of Analyses that all loop passes must preserve.
+/// @return The minimum set of analyses that all loop passes must preserve.
 LLVM_ABI PreservedAnalyses getLoopPassPreservedAnalyses();
 }
 

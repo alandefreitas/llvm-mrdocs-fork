@@ -20,10 +20,28 @@ namespace gsym {
 /// String tables in GSYM files are required to start with an empty
 /// string at offset zero. Strings must be UTF8 NULL terminated strings.
 struct StringTable {
+  /// Contiguous UTF-8 string-table bytes, null-terminated at each entry.
   StringRef Data;
+
+  /// Construct an empty StringTable.
   StringTable() = default;
+
+  /// Construct a StringTable that views the given string-table bytes.
+  ///
+  /// \param D Contiguous UTF-8 string-table data starting with an empty
+  ///          string at offset zero.
   StringTable(StringRef D) : Data(D) {}
+
+  /// Look up the null-terminated string at the given byte offset.
+  ///
+  /// \param Offset Byte offset into the string table.
+  /// \returns The string at \p Offset, or an empty StringRef if out of range.
   StringRef operator[](size_t Offset) const { return getString(Offset); }
+
+  /// Look up the null-terminated string at the given byte offset.
+  ///
+  /// \param Offset Byte offset into the string table.
+  /// \returns The string at \p Offset, or an empty StringRef if out of range.
   StringRef getString(gsym_strp_t Offset) const {
     if (Offset < Data.size()) {
       auto End = Data.find('\0', Offset);
@@ -31,9 +49,16 @@ struct StringTable {
     }
     return StringRef();
   }
+
+  /// Clear the string table so it no longer references any data.
   void clear() { Data = StringRef(); }
 };
 
+/// Dump all strings in a StringTable to a stream with formatted offsets.
+///
+/// \param OS The stream to write the dump to.
+/// \param S The string table to dump.
+/// \param StringOffsetSize Size in bytes used to format each string offset.
 inline void dump(raw_ostream &OS, const StringTable &S,
                  uint8_t StringOffsetSize) {
   OS << "String table:\n";

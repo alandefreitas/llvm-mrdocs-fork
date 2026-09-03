@@ -23,6 +23,8 @@ namespace llvm {
 class MachinePostDominatorTree;
 class MachineDomTreeUpdater;
 
+/// Explicit instantiation of GenericDomTreeUpdater for MachineDominatorTree
+/// and MachinePostDominatorTree.
 extern template class LLVM_TEMPLATE_ABI GenericDomTreeUpdater<
     MachineDomTreeUpdater, MachineDominatorTree, MachinePostDominatorTree>;
 
@@ -38,6 +40,10 @@ extern template LLVM_TEMPLATE_ABI void GenericDomTreeUpdater<
     MachineDomTreeUpdater, MachineDominatorTree,
     MachinePostDominatorTree>::applyUpdatesImpl</*IsForward=*/false>();
 
+/// Updates MachineDominatorTree and MachinePostDominatorTree.
+///
+/// Provides a uniform way to submit CFG updates and delete machine basic
+/// blocks under either Eager or Lazy update strategies.
 class MachineDomTreeUpdater
     : public GenericDomTreeUpdater<MachineDomTreeUpdater, MachineDominatorTree,
                                    MachinePostDominatorTree> {
@@ -45,24 +51,31 @@ class MachineDomTreeUpdater
                                MachinePostDominatorTree>;
 
 public:
+  /// Base class type specialized for MachineDominatorTree and
+  /// MachinePostDominatorTree.
   using Base =
       GenericDomTreeUpdater<MachineDomTreeUpdater, MachineDominatorTree,
                             MachinePostDominatorTree>;
+  /// Inherit constructors from the GenericDomTreeUpdater base.
   using Base::Base;
 
+  /// Flush pending updates and destroy this updater.
   ~MachineDomTreeUpdater() { flush(); }
 
   ///@{
   /// \name Mutation APIs
   ///
 
-  /// Delete DelBB. DelBB will be removed from its Parent and
-  /// erased from available trees if it exists and finally get deleted.
-  /// Under Eager UpdateStrategy, DelBB will be processed immediately.
-  /// Under Lazy UpdateStrategy, DelBB will be queued until a flush event and
-  /// all available trees are up-to-date. Assert if any instruction of DelBB is
-  /// modified while awaiting deletion. When both DT and PDT are nullptrs, DelBB
-  /// will be queued until flush() is called.
+  /// Delete machine basic block \p DelBB from its function and any available
+  /// trees.
+  ///
+  /// DelBB will be removed from its Parent and erased from available trees if
+  /// it exists and finally get deleted. Under Eager UpdateStrategy, DelBB will
+  /// be processed immediately. Under Lazy UpdateStrategy, DelBB will be queued
+  /// until a flush event and all available trees are up-to-date. Assert if any
+  /// instruction of DelBB is modified while awaiting deletion. When both DT and
+  /// PDT are nullptrs, DelBB will be queued until flush() is called.
+  /// \param DelBB Machine basic block to remove and delete.
   LLVM_ABI void deleteBB(MachineBasicBlock *DelBB);
 
   ///@}

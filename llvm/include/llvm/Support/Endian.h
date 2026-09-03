@@ -47,6 +47,9 @@ struct PickAlignment {
 namespace endian {
 
 /// Swap the bytes of value to match the given endianness.
+/// \param value Value whose bytes may be swapped.
+/// \param endian Target endianness; if not native, bytes are swapped.
+/// \returns \p value with bytes swapped if \p endian is not native.
 template <typename value_type>
 [[nodiscard]] inline value_type byte_swap(value_type value, endianness endian) {
   if (endian != llvm::endianness::native)
@@ -55,6 +58,9 @@ template <typename value_type>
 }
 
 /// Read a value of a particular endianness from memory.
+/// \param memory Pointer to the bytes to read.
+/// \param endian Endianness of the stored value.
+/// \returns The value of type \c value_type read from \p memory.
 template <typename value_type, std::size_t alignment = unaligned>
 [[nodiscard]] inline value_type read(const void *memory, endianness endian) {
   value_type ret;
@@ -68,6 +74,9 @@ template <typename value_type, std::size_t alignment = unaligned>
 
 /// Read a value of a particular endianness from a buffer, and increment the
 /// buffer past that value.
+/// \param memory Buffer pointer advanced past the value after reading.
+/// \param endian Endianness of the stored value.
+/// \returns The value of type \c value_type read from \p memory.
 template <typename value_type, std::size_t alignment = unaligned,
           typename CharT>
 [[nodiscard]] inline value_type readNext(const CharT *&memory,
@@ -78,6 +87,8 @@ template <typename value_type, std::size_t alignment = unaligned,
 }
 
 /// Read the next \c value_type with fixed endianness \p endian and advance \p memory.
+/// \param memory Buffer pointer advanced past the value after reading.
+/// \returns The next value of type \c value_type read from \p memory.
 template <typename value_type, endianness endian,
           std::size_t alignment = unaligned, typename CharT>
 [[nodiscard]] inline value_type readNext(const CharT *&memory) {
@@ -85,6 +96,9 @@ template <typename value_type, endianness endian,
 }
 
 /// Write a value to memory with a particular endianness.
+/// \param memory Destination for the encoded bytes.
+/// \param value Value to write.
+/// \param endian Endianness used when encoding \p value.
 template <typename value_type, std::size_t alignment = unaligned>
 inline void write(void *memory, value_type value, endianness endian) {
   value = byte_swap<value_type>(value, endian);
@@ -95,6 +109,9 @@ inline void write(void *memory, value_type value, endianness endian) {
 
 /// Write a value of a particular endianness, and increment the buffer past that
 /// value.
+/// \param memory Buffer pointer advanced past the value after writing.
+/// \param value Value to write.
+/// \param endian Endianness used when encoding \p value.
 template <typename value_type, std::size_t alignment = unaligned,
           typename CharT>
 inline void writeNext(CharT *&memory, value_type value, endianness endian) {
@@ -103,6 +120,8 @@ inline void writeNext(CharT *&memory, value_type value, endianness endian) {
 }
 
 /// Write \p value with fixed endianness \p endian and advance \p memory past it.
+/// \param memory Buffer pointer advanced past the value after writing.
+/// \param value Value to write.
 template <typename value_type, endianness endian,
           std::size_t alignment = unaligned, typename CharT>
 inline void writeNext(CharT *&memory, value_type value) {
@@ -115,6 +134,9 @@ using make_unsigned_t = std::make_unsigned_t<value_type>;
 
 /// Read a value of a particular endianness from memory, for a location
 /// that starts at the given bit offset within the first byte.
+/// \param memory Pointer to the bytes to read.
+/// \param startBit Bit offset within the first byte (must be less than 8).
+/// \returns The value of type \c value_type read at the given bit alignment.
 template <typename value_type, endianness endian, std::size_t alignment>
 [[nodiscard]] inline value_type readAtBitAlignment(const void *memory,
                                                    uint64_t startBit) {
@@ -150,6 +172,9 @@ template <typename value_type, endianness endian, std::size_t alignment>
 
 /// Write a value to memory with a particular endianness, for a location
 /// that starts at the given bit offset within the first byte.
+/// \param memory Destination for the encoded bits.
+/// \param value Value to write.
+/// \param startBit Bit offset within the first byte (must be less than 8).
 template <typename value_type, endianness endian, std::size_t alignment>
 inline void writeAtBitAlignment(void *memory, value_type value,
                                 uint64_t startBit) {
@@ -427,113 +452,171 @@ using aligned_big_t =
 namespace endian {
 
 /// Read an unaligned \c T from \p P with fixed endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The value of type \c T read from \p P with endianness \p E.
 template <typename T, endianness E> [[nodiscard]] inline T read(const void *P) {
   return *(const detail::packed_endian_specific_integral<T, E, unaligned> *)P;
 }
 
 /// Read an unaligned uint16_t from \p P with endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \param E Endianness of the stored value.
+/// \returns The uint16_t value read from \p P with endianness \p E.
 [[nodiscard]] inline uint16_t read16(const void *P, endianness E) {
   return read<uint16_t>(P, E);
 }
 /// Read an unaligned uint32_t from \p P with endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \param E Endianness of the stored value.
+/// \returns The uint32_t value read from \p P with endianness \p E.
 [[nodiscard]] inline uint32_t read32(const void *P, endianness E) {
   return read<uint32_t>(P, E);
 }
 /// Read an unaligned uint64_t from \p P with endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \param E Endianness of the stored value.
+/// \returns The uint64_t value read from \p P with endianness \p E.
 [[nodiscard]] inline uint64_t read64(const void *P, endianness E) {
   return read<uint64_t>(P, E);
 }
 
 /// Read an unaligned uint16_t from \p P with fixed endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The uint16_t value read from \p P with endianness \p E.
 template <endianness E> [[nodiscard]] inline uint16_t read16(const void *P) {
   return read<uint16_t, E>(P);
 }
 /// Read an unaligned uint32_t from \p P with fixed endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The uint32_t value read from \p P with endianness \p E.
 template <endianness E> [[nodiscard]] inline uint32_t read32(const void *P) {
   return read<uint32_t, E>(P);
 }
 /// Read an unaligned uint64_t from \p P with fixed endianness \p E.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The uint64_t value read from \p P with endianness \p E.
 template <endianness E> [[nodiscard]] inline uint64_t read64(const void *P) {
   return read<uint64_t, E>(P);
 }
 
 /// Read an unaligned little-endian uint16_t from \p P.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The little-endian uint16_t value read from \p P.
 [[nodiscard]] inline uint16_t read16le(const void *P) {
   return read16<llvm::endianness::little>(P);
 }
 /// Read an unaligned little-endian uint32_t from \p P.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The little-endian uint32_t value read from \p P.
 [[nodiscard]] inline uint32_t read32le(const void *P) {
   return read32<llvm::endianness::little>(P);
 }
 /// Read an unaligned little-endian uint64_t from \p P.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The little-endian uint64_t value read from \p P.
 [[nodiscard]] inline uint64_t read64le(const void *P) {
   return read64<llvm::endianness::little>(P);
 }
 /// Read an unaligned big-endian uint16_t from \p P.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The big-endian uint16_t value read from \p P.
 [[nodiscard]] inline uint16_t read16be(const void *P) {
   return read16<llvm::endianness::big>(P);
 }
 /// Read an unaligned big-endian uint32_t from \p P.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The big-endian uint32_t value read from \p P.
 [[nodiscard]] inline uint32_t read32be(const void *P) {
   return read32<llvm::endianness::big>(P);
 }
 /// Read an unaligned big-endian uint64_t from \p P.
+/// \param P Pointer to the unaligned bytes to read.
+/// \returns The big-endian uint64_t value read from \p P.
 [[nodiscard]] inline uint64_t read64be(const void *P) {
   return read64<llvm::endianness::big>(P);
 }
 
 /// Write \p V as unaligned \c T to \p P with fixed endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 template <typename T, endianness E> inline void write(void *P, T V) {
   *(detail::packed_endian_specific_integral<T, E, unaligned> *)P = V;
 }
 
 /// Write uint16_t \p V to \p P with endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
+/// \param E Endianness used when encoding \p V.
 inline void write16(void *P, uint16_t V, endianness E) {
   write<uint16_t>(P, V, E);
 }
 /// Write uint32_t \p V to \p P with endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
+/// \param E Endianness used when encoding \p V.
 inline void write32(void *P, uint32_t V, endianness E) {
   write<uint32_t>(P, V, E);
 }
 /// Write uint64_t \p V to \p P with endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
+/// \param E Endianness used when encoding \p V.
 inline void write64(void *P, uint64_t V, endianness E) {
   write<uint64_t>(P, V, E);
 }
 
 /// Write uint16_t \p V to \p P with fixed endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 template <endianness E> inline void write16(void *P, uint16_t V) {
   write<uint16_t, E>(P, V);
 }
 /// Write uint32_t \p V to \p P with fixed endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 template <endianness E> inline void write32(void *P, uint32_t V) {
   write<uint32_t, E>(P, V);
 }
 /// Write uint64_t \p V to \p P with fixed endianness \p E.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 template <endianness E> inline void write64(void *P, uint64_t V) {
   write<uint64_t, E>(P, V);
 }
 
 /// Write little-endian uint16_t \p V to \p P.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 inline void write16le(void *P, uint16_t V) {
   write16<llvm::endianness::little>(P, V);
 }
 /// Write little-endian uint32_t \p V to \p P.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 inline void write32le(void *P, uint32_t V) {
   write32<llvm::endianness::little>(P, V);
 }
 /// Write little-endian uint64_t \p V to \p P.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 inline void write64le(void *P, uint64_t V) {
   write64<llvm::endianness::little>(P, V);
 }
 /// Write big-endian uint16_t \p V to \p P.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 inline void write16be(void *P, uint16_t V) {
   write16<llvm::endianness::big>(P, V);
 }
 /// Write big-endian uint32_t \p V to \p P.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 inline void write32be(void *P, uint32_t V) {
   write32<llvm::endianness::big>(P, V);
 }
 /// Write big-endian uint64_t \p V to \p P.
+/// \param P Destination for the unaligned bytes.
+/// \param V Value to write.
 inline void write64be(void *P, uint64_t V) {
   write64<llvm::endianness::big>(P, V);
 }

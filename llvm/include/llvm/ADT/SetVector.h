@@ -89,84 +89,105 @@ public:
   /// Construct an empty SetVector
   SetVector() = default;
 
-  /// Initialize a SetVector with a range of elements
+  /// Initialize a SetVector with a range of elements.
+  /// @param Start Iterator to the first element to insert.
+  /// @param End Iterator past the last element to insert.
   template<typename It>
   SetVector(It Start, It End) {
     insert(Start, End);
   }
 
   /// Construct a SetVector from the elements of range \p R.
+  /// @param Tag Discriminator selecting the range constructor.
   /// @param R Range whose elements are inserted in order.
   template <typename Range>
-  SetVector(llvm::from_range_t, Range &&R)
+  SetVector(llvm::from_range_t Tag, Range &&R)
       : SetVector(adl_begin(R), adl_end(R)) {}
 
   /// Return the underlying vector as an ArrayRef preserving insertion order.
+  /// \returns An ArrayRef of the elements in insertion order.
   [[nodiscard]] ArrayRef<value_type> getArrayRef() const { return vector_; }
 
   /// Clear the SetVector and return the underlying vector.
+  /// \returns The former underlying vector, moved out of this SetVector.
   [[nodiscard]] Vector takeVector() {
     set_.clear();
     return std::move(vector_);
   }
 
   /// Determine if the SetVector is empty or not.
+  /// \returns True if the SetVector contains no elements.
   [[nodiscard]] bool empty() const { return vector_.empty(); }
 
   /// Determine the number of elements in the SetVector.
+  /// \returns The number of elements stored in the SetVector.
   [[nodiscard]] size_type size() const { return vector_.size(); }
 
   /// Reserve space in the SetVector if supported by the underlying containers.
+  /// @param Size Number of elements to reserve capacity for.
   void reserve(size_type Size) {
     vector_.reserve(Size);
     set_.reserve(Size);
   }
 
   /// Get an iterator to the beginning of the SetVector.
+  /// \returns Iterator to the first element in insertion order.
   [[nodiscard]] iterator begin() { return vector_.begin(); }
 
   /// Get a const_iterator to the beginning of the SetVector.
+  /// \returns Const iterator to the first element in insertion order.
   [[nodiscard]] const_iterator begin() const { return vector_.begin(); }
 
   /// Get an iterator to the end of the SetVector.
+  /// \returns Iterator past the last element.
   [[nodiscard]] iterator end() { return vector_.end(); }
 
   /// Get a const_iterator to the end of the SetVector.
+  /// \returns Const iterator past the last element.
   [[nodiscard]] const_iterator end() const { return vector_.end(); }
 
   /// Get an reverse_iterator to the end of the SetVector.
+  /// \returns Reverse iterator to the last element.
   [[nodiscard]] reverse_iterator rbegin() { return vector_.rbegin(); }
 
   /// Get a const_reverse_iterator to the end of the SetVector.
+  /// \returns Const reverse iterator to the last element.
   [[nodiscard]] const_reverse_iterator rbegin() const {
     return vector_.rbegin();
   }
 
   /// Get a reverse_iterator to the beginning of the SetVector.
+  /// \returns Reverse iterator past the first element.
   [[nodiscard]] reverse_iterator rend() { return vector_.rend(); }
 
   /// Get a const_reverse_iterator to the beginning of the SetVector.
+  /// \returns Const reverse iterator past the first element.
   [[nodiscard]] const_reverse_iterator rend() const { return vector_.rend(); }
 
   /// Return the first element of the SetVector.
+  /// \returns Const reference to the first element in insertion order.
   [[nodiscard]] const value_type &front() const {
     assert(!empty() && "Cannot call front() on empty SetVector!");
     return vector_.front();
   }
 
   /// Return the last element of the SetVector.
+  /// \returns Const reference to the last element in insertion order.
   [[nodiscard]] const value_type &back() const {
     assert(!empty() && "Cannot call back() on empty SetVector!");
     return vector_.back();
   }
 
   /// Index into the SetVector.
+  /// @param n Zero-based index of the element to access.
+  /// \returns Const reference to the element at index \p n.
   const_reference operator[](size_type n) const {
     assert(n < vector_.size() && "SetVector access out of range!");
     return vector_[n];
   }
 
   /// Insert a new element into the SetVector.
+  /// @param X Element to insert.
   /// \returns true if the element was inserted into the SetVector.
   bool insert(const value_type &X) {
     if constexpr (canBeSmall())
@@ -187,6 +208,8 @@ public:
   }
 
   /// Insert a range of elements into the SetVector.
+  /// @param Start Iterator to the first element to insert.
+  /// @param End Iterator past the last element to insert.
   template<typename It>
   void insert(It Start, It End) {
     for (; Start != End; ++Start)
@@ -200,6 +223,8 @@ public:
   }
 
   /// Remove an item from the set vector.
+  /// @param X Element to remove.
+  /// \returns True if the element was present and removed; false otherwise.
   bool remove(const value_type& X) {
     if constexpr (canBeSmall())
       if (isSmall()) {
@@ -221,6 +246,7 @@ public:
   }
 
   /// Erase a single element from the set vector.
+  /// @param I Iterator to the element to erase.
   /// \returns an iterator pointing to the next element that followed the
   /// element erased. This is the end of the SetVector if the last element is
   /// erased.
@@ -247,6 +273,7 @@ public:
   /// However, SetVector doesn't expose non-const iterators, making any
   /// algorithm like remove_if impossible to use.
   ///
+  /// @param P Predicate that returns true for elements to remove.
   /// \returns true if any element is removed.
   template <typename UnaryPredicate>
   bool remove_if(UnaryPredicate P) {
@@ -271,6 +298,8 @@ public:
   }
 
   /// Check if the SetVector contains the given key.
+  /// @param key Key to look up.
+  /// \returns True if \p key is present in the SetVector.
   [[nodiscard]] bool contains(const_arg_type key) const {
     if constexpr (canBeSmall())
       if (isSmall())
@@ -280,6 +309,7 @@ public:
   }
 
   /// Count the number of elements of a given key in the SetVector.
+  /// @param key Key to look up.
   /// \returns 0 if the element is not in the SetVector, 1 if it is.
   [[nodiscard]] size_type count(const_arg_type key) const {
     return contains(key) ? 1 : 0;
@@ -299,6 +329,7 @@ public:
   }
 
   /// Remove and return the last element.
+  /// \returns The former last element, removed from the SetVector.
   [[nodiscard]] value_type pop_back_val() {
     value_type Ret = back();
     pop_back();
@@ -307,19 +338,25 @@ public:
 
   /// Return true if both SetVectors contain the same elements in order.
   /// @param that Other SetVector to compare with.
+  /// \returns True if both SetVectors have the same elements in the same order.
   [[nodiscard]] bool operator==(const SetVector &that) const {
     return vector_ == that.vector_;
   }
 
   /// Return true if the SetVectors differ in content or order.
   /// @param that Other SetVector to compare with.
+  /// \returns True if the SetVectors differ in content or insertion order.
   [[nodiscard]] bool operator!=(const SetVector &that) const {
     return vector_ != that.vector_;
   }
 
-  /// Compute This := This u S, return whether 'This' changed.
+  /// Compute the set union of this SetVector with \p S.
+  ///
+  /// Sets This := This ∪ S and returns whether This changed.
   /// TODO: We should be able to use set_union from SetOperations.h, but
   ///       SetVector interface is inconsistent with DenseSet.
+  /// @param S The other set whose elements are inserted into this SetVector.
+  /// \returns True if This changed as a result of the union.
   template <class STy>
   bool set_union(const STy &S) {
     bool Changed = false;
@@ -331,9 +368,11 @@ public:
     return Changed;
   }
 
-  /// Compute This := This - B
+  /// Compute This := This - S.
+  ///
   /// TODO: We should be able to use set_subtract from SetOperations.h, but
   ///       SetVector interface is inconsistent with DenseSet.
+  /// @param S The other set whose elements are removed from this SetVector.
   template <class STy>
   void set_subtract(const STy &S) {
     for (const auto &Elem : S)
@@ -367,6 +406,7 @@ private:
 template <typename T, unsigned N>
 class SmallSetVector : public SetVector<T, SmallVector<T, N>, DenseSet<T>, N> {
 public:
+  /// Inherit constructors from SetVector.
   using SetVector<T, SmallVector<T, N>, DenseSet<T>, N>::SetVector;
 };
 

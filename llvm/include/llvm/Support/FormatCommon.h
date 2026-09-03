@@ -14,20 +14,39 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
-enum class AlignStyle { Left, Center, Right };
+/// Horizontal alignment of formatted text within a field.
+enum class AlignStyle {
+  Left,   ///< Align to the left of the field.
+  Center, ///< Center within the field.
+  Right,  ///< Align to the right of the field.
+};
 
 /// Helper class to format to a \p Width wide field, with alignment \p Where
 /// within that field.
 struct FmtAlign {
+  /// Functor that formats the underlying value into a stream.
   support::detail::FormatFunctorRef Adapter;
+  /// Alignment of the formatted value within the field.
   AlignStyle Where;
+  /// Width of the field in characters; 0 means no padding.
   unsigned Width;
+  /// Character used to pad unused space in the field.
   char Fill;
 
+  /// Construct an aligned formatter wrapping \p Adapter.
+  ///
+  /// \param Adapter Functor that formats the underlying value.
+  /// \param Where Alignment within the field.
+  /// \param Width Field width in characters; 0 means no padding.
+  /// \param Fill Pad character for unused space in the field.
   FmtAlign(support::detail::FormatFunctorRef Adapter, AlignStyle Where,
            unsigned Width, char Fill = ' ')
       : Adapter(Adapter), Where(Where), Width(Width), Fill(Fill) {}
 
+  /// Format the value into \p S, padded to \c Width with alignment \c Where.
+  ///
+  /// \param S Stream that receives the aligned output.
+  /// \param Options Format options forwarded to the underlying adapter.
   void format(raw_ostream &S, StringRef Options) {
     // If we don't need to align, we can format straight into the underlying
     // stream.  Otherwise we have to go through an intermediate stream first

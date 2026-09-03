@@ -33,6 +33,7 @@
 namespace llvm {
 
 namespace {
+/// Function type that returns an analysis of type \c T for a Function.
 template <typename T> using GetterTy = std::function<T *(const Function &F)>;
 }
 
@@ -43,7 +44,8 @@ class LoopInfo;
 class PostDominatorTree;
 class raw_ostream;
 
-/// Captures loop safety information.
+/// Captures information about whether loop blocks may throw or exit abnormally.
+///
 /// It keep information for loop blocks may throw exception or otherwise
 /// exit abnormally on any iteration of the loop which might actually execute
 /// at runtime.  The primary way to consume this information is via
@@ -67,48 +69,72 @@ class LoopSafetyInfo {
 
 protected:
   /// Computes block colors.
+  /// \param CurLoop Loop whose block colors are computed.
   LLVM_ABI void computeBlockColors(const Loop *CurLoop);
 
 public:
   /// Returns block colors map that is used to update funclet operand bundles.
+  /// \returns The map from basic blocks to their funclet colors.
   LLVM_ABI const DenseMap<BasicBlock *, ColorVector> &getBlockColors() const;
 
   /// Copy colors of block \p Old into the block \p New.
+  /// \param New Block that receives the copied colors.
+  /// \param Old Block whose colors are copied.
   LLVM_ABI void copyColors(BasicBlock *New, BasicBlock *Old);
 
   /// Returns true iff the block \p BB potentially may throw exception. It can
   /// be false-positive in cases when we want to avoid complex analysis.
+  /// \param BB Block to check for potentially throwing instructions.
+  /// \returns True if \p BB may throw; may be a false positive.
   virtual bool blockMayThrow(const BasicBlock *BB) const = 0;
 
   /// Returns true iff any block of the loop for which this info is contains an
   /// instruction that may throw or otherwise exit abnormally.
+  /// \returns True if any block in the loop may throw or exit abnormally.
   virtual bool anyBlockMayThrow() const = 0;
 
   /// Return true if we must reach the block \p BB under assumption that the
   /// loop \p CurLoop is entered.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \param BB Block that must be reached on all paths through the loop.
+  /// \param DT Dominator tree for the function containing \p CurLoop.
+  /// \returns True if every path through \p CurLoop reaches \p BB.
   LLVM_ABI bool allLoopPathsLeadToBlock(const Loop *CurLoop,
                                         const BasicBlock *BB,
                                         const DominatorTree *DT) const;
 
+  /// Implementation helper for \c allLoopPathsLeadToBlock.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \param BB Block that must be reached on all paths through the loop.
+  /// \param DT Dominator tree for the function containing \p CurLoop.
+  /// \returns True if every path through \p CurLoop reaches \p BB.
   LLVM_ABI bool allLoopPathsLeadToBlockImpl(const Loop *CurLoop,
                                             const BasicBlock *BB,
                                             const DominatorTree *DT) const;
 
-  /// Computes safety information for a loop checks loop body & header for
-  /// the possibility of may throw exception, it takes LoopSafetyInfo and loop
-  /// as argument. Updates safety information in LoopSafetyInfo argument.
+  /// Compute safety information for the given loop.
+  ///
+  /// Checks the loop body and header for the possibility of a may-throw
+  /// exception. Updates safety information in this LoopSafetyInfo.
   /// Note: This is defined to clear and reinitialize an already initialized
   /// LoopSafetyInfo.  Some callers rely on this fact.
+  /// \param CurLoop Loop for which safety information is computed.
   virtual void computeLoopSafetyInfo(const Loop *CurLoop) = 0;
 
   /// Returns true if the instruction in a loop is guaranteed to execute at
   /// least once (under the assumption that the loop is entered).
+  /// \param Inst Instruction to check.
+  /// \param DT Dominator tree for the function containing \p CurLoop.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \returns True if \p Inst is guaranteed to execute at least once.
   virtual bool isGuaranteedToExecute(const Instruction &Inst,
                                      const DominatorTree *DT,
                                      const Loop *CurLoop) const = 0;
 
+  /// Construct an empty loop safety info.
   LoopSafetyInfo() = default;
 
+  /// Destroy the loop safety info.
   virtual ~LoopSafetyInfo() = default;
 };
 
@@ -122,17 +148,33 @@ class LLVM_ABI SimpleLoopSafetyInfo : public LoopSafetyInfo {
   bool HeaderMayThrow = false; // Same as previous, but specific to loop header
 
 public:
+  /// Returns true iff the block \p BB potentially may throw exception.
+  /// \param BB Block to check for potentially throwing instructions.
+  /// \returns True if \p BB may throw; may be a false positive.
   bool blockMayThrow(const BasicBlock *BB) const override;
 
+  /// Returns true iff any block of the loop contains an instruction that may
+  /// throw or otherwise exit abnormally.
+  /// \returns True if any block in the loop may throw or exit abnormally.
   bool anyBlockMayThrow() const override;
 
+  /// Compute safety information for the given loop.
+  /// \param CurLoop Loop for which safety information is computed.
   void computeLoopSafetyInfo(const Loop *CurLoop) override;
 
+  /// Returns true if \p Inst is guaranteed to execute at least once in the
+  /// loop.
+  /// \param Inst Instruction to check.
+  /// \param DT Dominator tree for the function containing \p CurLoop.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \returns True if \p Inst is guaranteed to execute at least once.
   bool isGuaranteedToExecute(const Instruction &Inst,
                              const DominatorTree *DT,
                              const Loop *CurLoop) const override;
 };
 
+/// Precise LoopSafetyInfo based on ImplicitControlFlowTracking.
+///
 /// This implementation of LoopSafetyInfo use ImplicitControlFlowTracking to
 /// give precise answers on "may throw" queries. This implementation uses cache
 /// that should be invalidated by calling the methods insertInstructionTo and
@@ -147,45 +189,76 @@ class LLVM_ABI ICFLoopSafetyInfo : public LoopSafetyInfo {
   mutable MemoryWriteTracking MW;
 
 public:
+  /// Returns true iff the block \p BB potentially may throw exception.
+  /// \param BB Block to check for potentially throwing instructions.
+  /// \returns True if \p BB may throw; may be a false positive.
   bool blockMayThrow(const BasicBlock *BB) const override;
 
+  /// Returns true iff any block of the loop contains an instruction that may
+  /// throw or otherwise exit abnormally.
+  /// \returns True if any block in the loop may throw or exit abnormally.
   bool anyBlockMayThrow() const override;
 
+  /// Compute safety information for the given loop.
+  /// \param CurLoop Loop for which safety information is computed.
   void computeLoopSafetyInfo(const Loop *CurLoop) override;
 
+  /// Returns true if \p Inst is guaranteed to execute at least once in the
+  /// loop.
+  /// \param Inst Instruction to check.
+  /// \param DT Dominator tree for the function containing \p CurLoop.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \returns True if \p Inst is guaranteed to execute at least once.
   bool isGuaranteedToExecute(const Instruction &Inst,
                              const DominatorTree *DT,
                              const Loop *CurLoop) const override;
 
   /// Returns true if we could not execute a memory-modifying instruction before
   /// we enter \p BB under assumption that \p CurLoop is entered.
+  /// \param BB Block entered after any prior memory writes are considered.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \returns True if no memory write can execute before entering \p BB.
   bool doesNotWriteMemoryBefore(const BasicBlock *BB, const Loop *CurLoop)
       const;
 
   /// Returns true if we could not execute a memory-modifying instruction before
   /// we execute \p I under assumption that \p CurLoop is entered.
+  /// \param I Instruction before which memory writes are considered.
+  /// \param CurLoop Loop assumed to be entered.
+  /// \returns True if no memory write can execute before \p I.
   bool doesNotWriteMemoryBefore(const Instruction &I, const Loop *CurLoop)
       const;
 
+  /// Update caches for an instruction about to be inserted into a block.
+  ///
   /// Inform the safety info that we are planning to insert a new instruction
   /// \p Inst into the basic block \p BB. It will make all cache updates to keep
   /// it correct after this insertion.
+  /// \param Inst Instruction that will be inserted.
+  /// \param BB Basic block that will contain \p Inst.
   void insertInstructionTo(const Instruction *Inst, const BasicBlock *BB);
 
   /// Inform safety info that we are planning to remove the instruction \p Inst
   /// from its block. It will make all cache updates to keep it correct after
   /// this removal.
+  /// \param Inst Instruction that will be removed.
   void removeInstruction(const Instruction *Inst);
 };
 
+/// Return true if \p F may contain irreducible control flow.
+/// \param F Function to inspect.
+/// \param LI Loop info for \p F, or nullptr if unavailable.
+/// \returns True if \p F may contain irreducible control flow.
 LLVM_ABI bool mayContainIrreducibleControl(const Function &F,
                                            const LoopInfo *LI);
 
 struct MustBeExecutedContextExplorer;
 
-/// Enum that allows us to spell out the direction.
+/// Direction in which a must-be-executed context is explored.
 enum class ExplorationDirection {
+  /// Explore toward predecessors / earlier instructions.
   BACKWARD = 0,
+  /// Explore toward successors / later instructions.
   FORWARD = 1,
 };
 
@@ -280,23 +353,33 @@ enum class ExplorationDirection {
 /// MustBeExecutedContextExplorer). Also note that we, depending on the options,
 /// the visit set can contain instructions from other functions.
 struct MustBeExecutedIterator {
-  /// Type declarations that make his class an input iterator.
-  ///{
+  /// Value type exposed by this input iterator.
   typedef const Instruction *value_type;
+  /// Type for distances between iterators.
   typedef std::ptrdiff_t difference_type;
+  /// Pointer type for the iterated instruction.
   typedef const Instruction **pointer;
+  /// Reference type for the iterated instruction.
   typedef const Instruction *&reference;
+  /// Iterator category tag identifying this as an input iterator.
   typedef std::input_iterator_tag iterator_category;
-  ///}
 
+  /// Explorer type that creates and drives this iterator.
   using ExplorerTy = MustBeExecutedContextExplorer;
 
+  /// Copy-construct a must-be-executed iterator.
+  /// \param Other Iterator to copy.
   MustBeExecutedIterator(const MustBeExecutedIterator &Other) = default;
 
+  /// Move-construct a must-be-executed iterator.
+  /// \param Other Iterator to move from.
   MustBeExecutedIterator(MustBeExecutedIterator &&Other)
       : Visited(std::move(Other.Visited)), Explorer(Other.Explorer),
         CurInst(Other.CurInst), Head(Other.Head), Tail(Other.Tail) {}
 
+  /// Move-assign a must-be-executed iterator.
+  /// \param Other Iterator to move from.
+  /// \returns A reference to this iterator.
   MustBeExecutedIterator &operator=(MustBeExecutedIterator &&Other) {
     if (this != &Other) {
       std::swap(Visited, Other.Visited);
@@ -307,38 +390,51 @@ struct MustBeExecutedIterator {
     return *this;
   }
 
+  /// Destroy the must-be-executed iterator.
   ~MustBeExecutedIterator() = default;
 
-  /// Pre- and post-increment operators.
-  ///{
+  /// Advance to the next instruction in the must-be-executed context.
+  /// \returns A reference to this iterator.
   MustBeExecutedIterator &operator++() {
     CurInst = advance();
     return *this;
   }
 
-  MustBeExecutedIterator operator++(int) {
+  /// Advance to the next instruction, returning the prior iterator value.
+  /// \param Unused Dummy parameter distinguishing post-increment.
+  /// \returns A copy of the iterator before advancement.
+  MustBeExecutedIterator operator++(int Unused) {
     MustBeExecutedIterator tmp(*this);
     operator++();
     return tmp;
   }
-  ///}
 
-  /// Equality and inequality operators. Note that we ignore the history here.
-  ///{
+  /// Return true if both iterators point to the same position.
+  ///
+  /// The visit history is ignored for equality.
+  /// \param Other Iterator to compare against.
+  /// \returns True if both iterators expose the same position.
   bool operator==(const MustBeExecutedIterator &Other) const {
     return CurInst == Other.CurInst && Head == Other.Head && Tail == Other.Tail;
   }
 
+  /// Return true if the iterators point to different positions.
+  /// \param Other Iterator to compare against.
+  /// \returns True if the iterators expose different positions.
   bool operator!=(const MustBeExecutedIterator &Other) const {
     return !(*this == Other);
   }
-  ///}
 
   /// Return the underlying instruction.
+  /// \returns A reference to the current instruction pointer.
   const Instruction *&operator*() { return CurInst; }
+  /// Return the instruction currently exposed by this iterator.
+  /// \returns The current instruction, or nullptr at the end.
   const Instruction *getCurrentInst() const { return CurInst; }
 
   /// Return true if \p I was encountered by this iterator already.
+  /// \param I Instruction to look up in the visit set.
+  /// \returns True if \p I was already visited in either direction.
   bool count(const Instruction *I) const {
     return Visited.count({I, ExplorationDirection::FORWARD}) ||
            Visited.count({I, ExplorationDirection::BACKWARD});
@@ -383,6 +479,8 @@ private:
   friend struct MustBeExecutedContextExplorer;
 };
 
+/// Interface to explore must-be-executed contexts around program points.
+///
 /// A "must be executed context" for a given program point PP is the set of
 /// instructions, potentially before and after PP, that are executed always when
 /// PP is reached. The MustBeExecutedContextExplorer an interface to explore
@@ -395,6 +493,9 @@ private:
 /// If that changes, we should consider caching more intermediate results.
 struct MustBeExecutedContextExplorer {
 
+  /// Construct an explorer with the given exploration options and analysis
+  /// getters.
+  ///
   /// In the description of the parameters we use PP to denote a program point
   /// for which the must be executed context is explored, or put differently,
   /// for which the MustBeExecutedIterator is created.
@@ -408,6 +509,9 @@ struct MustBeExecutedContextExplorer {
   /// \param ExploreCFGBackward   Flag to indicate if instructions located
   ///                             before PP in the CFG, e.g., dominating PP,
   ///                             should be explored.
+  /// \param LIGetter             Getter for LoopInfo of a function.
+  /// \param DTGetter             Getter for DominatorTree of a function.
+  /// \param PDTGetter            Getter for PostDominatorTree of a function.
   MustBeExecutedContextExplorer(
       bool ExploreInterBlock, bool ExploreCFGForward, bool ExploreCFGBackward,
       GetterTy<const LoopInfo> LIGetter =
@@ -424,9 +528,12 @@ struct MustBeExecutedContextExplorer {
   /// Iterator-based interface. \see MustBeExecutedIterator.
   ///{
   using iterator = MustBeExecutedIterator;
+  /// Const iterator over a must-be-executed context.
   using const_iterator = const MustBeExecutedIterator;
 
   /// Return an iterator to explore the context around \p PP.
+  /// \param PP Program point whose must-be-executed context is explored.
+  /// \returns A mutable iterator positioned at the start of the context.
   iterator &begin(const Instruction *PP) {
     auto &It = InstructionIteratorMap[PP];
     if (!It)
@@ -435,25 +542,38 @@ struct MustBeExecutedContextExplorer {
   }
 
   /// Return an iterator to explore the cached context around \p PP.
+  /// \param PP Program point whose cached must-be-executed context is explored.
+  /// \returns A const iterator positioned at the start of the cached context.
   const_iterator &begin(const Instruction *PP) const {
     return *InstructionIteratorMap.find(PP)->second;
   }
 
-  /// Return an universal end iterator.
-  ///{
+  /// Return the universal end iterator for must-be-executed exploration.
+  /// \returns The shared end iterator used by all explorations.
   iterator &end() { return EndIterator; }
-  iterator &end(const Instruction *) { return EndIterator; }
+  /// Return the universal end iterator (the program point is ignored).
+  /// \param PP Unused program point for interface symmetry with \c begin.
+  /// \returns The shared end iterator used by all explorations.
+  iterator &end(const Instruction *PP) { return EndIterator; }
 
+  /// Return the universal const end iterator for must-be-executed exploration.
+  /// \returns The shared const end iterator used by all explorations.
   const_iterator &end() const { return EndIterator; }
-  const_iterator &end(const Instruction *) const { return EndIterator; }
-  ///}
+  /// Return the universal const end iterator (the program point is ignored).
+  /// \param PP Unused program point for interface symmetry with \c begin.
+  /// \returns The shared const end iterator used by all explorations.
+  const_iterator &end(const Instruction *PP) const { return EndIterator; }
 
   /// Return an iterator range to explore the context around \p PP.
+  /// \param PP Program point whose must-be-executed context is explored.
+  /// \returns An iterator range over the must-be-executed context of \p PP.
   llvm::iterator_range<iterator> range(const Instruction *PP) {
     return llvm::make_range(begin(PP), end(PP));
   }
 
   /// Return an iterator range to explore the cached context around \p PP.
+  /// \param PP Program point whose cached must-be-executed context is explored.
+  /// \returns A const iterator range over the must-be-executed context of \p PP.
   llvm::iterator_range<const_iterator> range(const Instruction *PP) const {
     return llvm::make_range(begin(PP), end(PP));
   }
@@ -463,6 +583,9 @@ struct MustBeExecutedContextExplorer {
   ///
   /// This method will evaluate \p Pred and return
   /// true if \p Pred holds in every instruction.
+  /// \param PP Program point whose must-be-executed context is checked.
+  /// \param Pred Predicate evaluated for each instruction in the context.
+  /// \returns True if \p Pred holds for every instruction in the context.
   bool checkForAllContext(const Instruction *PP,
                           function_ref<bool(const Instruction *)> Pred) {
     for (auto EIt = begin(PP), EEnd = end(PP); EIt != EEnd; ++EIt)
@@ -476,6 +599,8 @@ struct MustBeExecutedContextExplorer {
   /// The context is expanded until \p I was found or no more expansion is
   /// possible.
   ///
+  /// \param I Instruction to search for.
+  /// \param PP Program point defining the context to search.
   /// \returns True, iff \p I was found.
   bool findInContextOf(const Instruction *I, const Instruction *PP) {
     auto EIt = begin(PP), EEnd = end(PP);
@@ -487,6 +612,9 @@ struct MustBeExecutedContextExplorer {
   /// The context is expanded until \p I was found or no more expansion is
   /// possible.
   ///
+  /// \param I Instruction to search for.
+  /// \param EIt Begin iterator for the context (expanded during the search).
+  /// \param EEnd End iterator for the context.
   /// \returns True, iff \p I was found.
   bool findInContextOf(const Instruction *I, iterator &EIt, iterator &EEnd) {
     bool Found = EIt.count(I);
@@ -501,6 +629,7 @@ struct MustBeExecutedContextExplorer {
   ///                        executed context.
   /// \param PP              The program point for which the next instruction
   ///                        that is guaranteed to execute is determined.
+  /// \returns The next must-execute instruction, or nullptr if none.
   LLVM_ABI const Instruction *
   getMustBeExecutedNextInstruction(MustBeExecutedIterator &It,
                                    const Instruction *PP);
@@ -510,23 +639,27 @@ struct MustBeExecutedContextExplorer {
   ///                        executed context.
   /// \param PP              The program point for which the previous instr.
   ///                        that is guaranteed to execute is determined.
+  /// \returns The previous must-execute instruction, or nullptr if none.
   LLVM_ABI const Instruction *
   getMustBeExecutedPrevInstruction(MustBeExecutedIterator &It,
                                    const Instruction *PP);
 
   /// Find the next join point from \p InitBB in forward direction.
+  /// \param InitBB Basic block from which the forward search starts.
+  /// \returns The join basic block, or nullptr if none was found.
   LLVM_ABI const BasicBlock *findForwardJoinPoint(const BasicBlock *InitBB);
 
   /// Find the next join point from \p InitBB in backward direction.
+  /// \param InitBB Basic block from which the backward search starts.
+  /// \returns The join basic block, or nullptr if none was found.
   LLVM_ABI const BasicBlock *findBackwardJoinPoint(const BasicBlock *InitBB);
 
-  /// Parameter that limit the performed exploration. See the constructor for
-  /// their meaning.
-  ///{
+  /// True if exploration may leave the parent block of the program point.
   const bool ExploreInterBlock;
+  /// True if instructions after the program point in the CFG are explored.
   const bool ExploreCFGForward;
+  /// True if instructions before the program point in the CFG are explored.
   const bool ExploreCFGBackward;
-  ///}
 
 private:
   /// Getters for common CFG analyses: LoopInfo, DominatorTree, and
@@ -551,21 +684,35 @@ private:
   MustBeExecutedIterator EndIterator;
 };
 
+/// Printer pass for the must-execute analysis.
 class MustExecutePrinterPass
     : public RequiredPassInfoMixin<MustExecutePrinterPass> {
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes to \p OS.
+  /// \param OS Output stream for the printed analysis.
   MustExecutePrinterPass(raw_ostream &OS) : OS(OS) {}
+  /// Print must-execute information for \p F.
+  /// \param F Function whose must-execute results are printed.
+  /// \param AM Function analysis manager providing supporting analyses.
+  /// \returns Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+/// Printer pass for must-be-executed contexts.
 class MustBeExecutedContextPrinterPass
     : public RequiredPassInfoMixin<MustBeExecutedContextPrinterPass> {
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes to \p OS.
+  /// \param OS Output stream for the printed contexts.
   MustBeExecutedContextPrinterPass(raw_ostream &OS) : OS(OS) {}
+  /// Print must-be-executed contexts for module \p M.
+  /// \param M Module whose must-be-executed contexts are printed.
+  /// \param AM Module analysis manager providing supporting analyses.
+  /// \returns Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

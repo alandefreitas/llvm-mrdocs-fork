@@ -49,6 +49,12 @@ struct DisableLIRP {
 class LoopIdiomRecognizePass
     : public OptionalPassInfoMixin<LoopIdiomRecognizePass> {
 public:
+  /// Run loop idiom recognition over the loop.
+  /// @param L Loop whose idioms may be recognized and rewritten.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

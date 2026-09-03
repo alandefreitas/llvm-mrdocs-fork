@@ -15,8 +15,17 @@
 
 namespace llvm {
 
+/// Constants for WebAssembly exception handling.
 namespace WebAssembly {
-enum Tag { CPP_EXCEPTION = 0, C_LONGJMP = 1 };
+
+/// WebAssembly exception tags passed to catch instructions.
+enum Tag {
+  /// Tag for C++ exceptions (\c __cpp_exception).
+  CPP_EXCEPTION = 0,
+  /// Tag for C \c longjmp exceptions (\c __c_longjmp).
+  C_LONGJMP = 1
+};
+
 } // namespace WebAssembly
 
 } // namespace llvm

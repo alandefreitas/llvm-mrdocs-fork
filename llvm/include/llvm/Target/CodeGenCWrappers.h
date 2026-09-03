@@ -22,6 +22,15 @@
 
 namespace llvm {
 
+/// Convert an LLVM C API code model to its C++ equivalent.
+///
+/// Default and JIT-default models yield \c std::nullopt. When \p Model is
+/// \c LLVMCodeModelJITDefault, \p JIT is set to \c true; otherwise it is set
+/// to \c false.
+///
+/// \param Model The C API \c LLVMCodeModel value to unwrap.
+/// \param JIT Set to \c true when \p Model requests the JIT default model.
+/// \return The matching \c CodeModel::Model, or \c std::nullopt for defaults.
 inline std::optional<CodeModel::Model> unwrap(LLVMCodeModel Model, bool &JIT) {
   JIT = false;
   switch (Model) {
@@ -44,6 +53,10 @@ inline std::optional<CodeModel::Model> unwrap(LLVMCodeModel Model, bool &JIT) {
   return CodeModel::Small;
 }
 
+/// Convert a C++ code model to its LLVM C API equivalent.
+///
+/// \param Model The C++ \c CodeModel::Model value to wrap.
+/// \return The corresponding \c LLVMCodeModel enumerator.
 inline LLVMCodeModel wrap(CodeModel::Model Model) {
   switch (Model) {
   case CodeModel::Tiny:

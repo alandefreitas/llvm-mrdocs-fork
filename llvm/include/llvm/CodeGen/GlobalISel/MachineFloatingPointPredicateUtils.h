@@ -14,6 +14,7 @@
 
 namespace llvm {
 
+/// Floating-point predicate utilities specialized for Machine IR.
 using MachineFloatingPointPredicateUtils =
     GenericFloatingPointPredicateUtils<MachineSSAContext>;
 
@@ -47,6 +48,12 @@ std::optional<APFloat> MachineFloatingPointPredicateUtils::matchConstantFloat(
 /// If \p LookThroughSrc is false, ignore the source value (i.e. the first
 /// pair element will always be LHS.
 ///
+/// \param Pred Floating-point compare predicate.
+/// \param MF Machine function providing context for the compare.
+/// \param LHS Left-hand side register of the compare.
+/// \param RHS Right-hand side register of the compare.
+/// \param LookThroughSrc Whether to look through source value operations such
+///        as sign-bit manipulations when computing the class mask.
 inline std::tuple<Register, FPClassTest, FPClassTest>
 fcmpImpliesClass(CmpInst::Predicate Pred, const MachineFunction &MF,
                  Register LHS, Register RHS, bool LookThroughSrc = true) {

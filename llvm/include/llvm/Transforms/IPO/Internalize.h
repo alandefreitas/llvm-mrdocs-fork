@@ -62,18 +62,37 @@ class InternalizePass : public OptionalPassInfoMixin<InternalizePass> {
                    DenseMap<const Comdat *, ComdatInfo> &ComdatMap);
 
 public:
+  /// Construct an internalize pass with the default preserve policy.
   LLVM_ABI InternalizePass();
+
+  /// Construct an internalize pass with a client-supplied preserve callback.
+  ///
+  /// \param MustPreserveGV Callback that returns true for globals that must
+  /// keep their linkage.
   InternalizePass(std::function<bool(const GlobalValue &)> MustPreserveGV)
       : MustPreserveGV(std::move(MustPreserveGV)) {}
 
   /// Run the internalizer on \p TheModule, returns true if any changes was
   /// made.
+  ///
+  /// \param TheModule Module whose functions and variables are internalized.
+  /// \return True if any changes were made.
   LLVM_ABI bool internalizeModule(Module &TheModule);
 
+  /// Run the internalize pass over the given module.
+  ///
+  /// \param M Module whose functions and variables are internalized.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 /// Helper function to internalize functions and variables in a Module.
+///
+/// \param TheModule Module whose functions and variables are internalized.
+/// \param MustPreserveGV Callback that returns true for globals that must keep
+/// their linkage.
+/// \return True if any changes were made.
 inline bool
 internalizeModule(Module &TheModule,
                   std::function<bool(const GlobalValue &)> MustPreserveGV) {

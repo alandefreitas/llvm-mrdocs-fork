@@ -13,9 +13,17 @@
 
 namespace llvm {
 
+/// New PM pass that expands reduction intrinsics for the target.
+///
+/// Implements IR expansion for reduction intrinsics, allowing targets to keep
+/// the intrinsics until just before codegen.
 class ExpandReductionsPass
     : public RequiredPassInfoMixin<ExpandReductionsPass> {
 public:
+  /// Expand reduction intrinsics in \p F.
+  /// \param F Function whose reduction intrinsics are expanded.
+  /// \param AM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // end namespace llvm

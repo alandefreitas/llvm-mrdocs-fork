@@ -20,11 +20,22 @@ namespace llvm {
 class Module;
 class TargetMachine;
 
+/// Pass that lowers selected intrinsics before instruction selection.
+///
+/// Implements IR lowering for the \c llvm.load.relative and \c llvm.objc.*
+/// intrinsics.
 struct PreISelIntrinsicLoweringPass
     : RequiredPassInfoMixin<PreISelIntrinsicLoweringPass> {
+  /// Target machine used when deciding how to lower intrinsics.
   const TargetMachine *TM;
 
+  /// Construct a pre-ISel intrinsic lowering pass for target machine \p TM.
+  /// \param TM Target machine used when lowering intrinsics.
   PreISelIntrinsicLoweringPass(const TargetMachine *TM) : TM(TM) {}
+  /// Run pre-ISel intrinsic lowering on module \p M.
+  /// \param M Module whose intrinsics are lowered.
+  /// \param AM Module analysis manager providing required analyses.
+  /// \return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

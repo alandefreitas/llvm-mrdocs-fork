@@ -19,6 +19,7 @@ namespace llvm {
 
 class ScopedPrinter;
 
+/// Parser for ARM ELF build attributes.
 class LLVM_ABI ARMAttributeParser : public ELFCompactAttrParser {
   struct DisplayHandler {
     ARMBuildAttrs::AttrType attribute;
@@ -74,9 +75,13 @@ class LLVM_ABI ARMAttributeParser : public ELFCompactAttrParser {
   Error also_compatible_with(ARMBuildAttrs::AttrType tag);
 
 public:
+  /// Construct a parser that prints attribute details to \p sw.
+  ///
+  /// \param sw Printer used for attribute comments, or null to suppress output.
   ARMAttributeParser(ScopedPrinter *sw)
       : ELFCompactAttrParser(sw, ARMBuildAttrs::getARMAttributeTags(),
                              "aeabi") {}
+  /// Construct a parser that does not print attribute details.
   ARMAttributeParser()
       : ELFCompactAttrParser(ARMBuildAttrs::getARMAttributeTags(), "aeabi") {}
 };

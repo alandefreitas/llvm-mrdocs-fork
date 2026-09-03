@@ -28,13 +28,24 @@ class Module;
 
 /// A set of parameters to control various transforms performed by IPSCCP pass.
 ///
-/// Each of the boolean parameters can be set to: true - enabling the transformation. false - disabling the transformation. Intended use is to create a default object, modify parameters with additional setters and then pass it to IPSCCP.
+/// Each of the boolean parameters can be set to: true - enabling the
+/// transformation. false - disabling the transformation. Intended use is to
+/// create a default object, modify parameters with additional setters and then
+/// pass it to IPSCCP.
 struct IPSCCPOptions {
+  /// Whether function specialization is allowed during IPSCCP.
   bool AllowFuncSpec;
 
+  /// Construct IPSCCP options with the given function-specialization flag.
+  ///
+  /// \param AllowFuncSpec Whether function specialization is enabled.
   IPSCCPOptions(bool AllowFuncSpec = true) : AllowFuncSpec(AllowFuncSpec) {}
 
   /// Enables or disables Specialization of Functions.
+  ///
+  /// \param FuncSpec True to enable function specialization, false to disable
+  /// it.
+  /// \return A reference to these options for chaining.
   IPSCCPOptions &setFuncSpec(bool FuncSpec) {
     AllowFuncSpec = FuncSpec;
     return *this;
@@ -46,12 +57,25 @@ class IPSCCPPass : public OptionalPassInfoMixin<IPSCCPPass> {
   IPSCCPOptions Options;
 
 public:
+  /// Construct an IPSCCP pass with default options.
   IPSCCPPass() = default;
 
+  /// Construct an IPSCCP pass with the given options.
+  ///
+  /// \param Options Options controlling IPSCCP transforms such as function
+  /// specialization.
   IPSCCPPass(IPSCCPOptions Options) : Options(Options) {}
 
+  /// Run interprocedural sparse conditional constant propagation over \p M.
+  ///
+  /// \param M Module to optimize.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
+  /// Return whether function specialization is enabled for this pass.
+  ///
+  /// \return True if function specialization is enabled.
   bool isFuncSpecEnabled() const { return Options.AllowFuncSpec; }
 };
 

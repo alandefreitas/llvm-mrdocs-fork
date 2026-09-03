@@ -20,6 +20,11 @@
 namespace llvm {
 
 /// Filter a range to a SmallVector with the element types deduced.
+///
+/// \param C Range whose elements are filtered.
+/// \param Pred Predicate that selects which elements are copied.
+/// \return A SmallVector containing the elements of \p C for which \p Pred
+/// is true.
 template <unsigned Size, class ContainerTy, class PredicateFn>
 auto filter_to_vector(ContainerTy &&C, PredicateFn &&Pred) {
   return to_vector<Size>(make_filter_range(std::forward<ContainerTy>(C),
@@ -27,6 +32,11 @@ auto filter_to_vector(ContainerTy &&C, PredicateFn &&Pred) {
 }
 
 /// Filter a range to a SmallVector with the element types deduced.
+///
+/// \param C Range whose elements are filtered.
+/// \param Pred Predicate that selects which elements are copied.
+/// \return A SmallVector containing the elements of \p C for which \p Pred
+/// is true.
 template <class ContainerTy, class PredicateFn>
 auto filter_to_vector(ContainerTy &&C, PredicateFn &&Pred) {
   return to_vector(make_filter_range(std::forward<ContainerTy>(C),
@@ -35,6 +45,11 @@ auto filter_to_vector(ContainerTy &&C, PredicateFn &&Pred) {
 
 /// Map a range to a SmallVector with element types deduced from the mapping.
 /// \p F can be a function, lambda, or member pointer.
+///
+/// \param C Container or range to map over.
+/// \param F Mapping function applied to each element.
+/// \return A SmallVector of the results of applying \p F to each element of
+/// \p C.
 template <unsigned Size, class ContainerTy, class FuncTy>
 auto map_to_vector(ContainerTy &&C, FuncTy &&F) {
   return to_vector<Size>(
@@ -43,6 +58,11 @@ auto map_to_vector(ContainerTy &&C, FuncTy &&F) {
 
 /// Map a range to a SmallVector with element types deduced from the mapping.
 /// \p F can be a function, lambda, or member pointer.
+///
+/// \param C Container or range to map over.
+/// \param F Mapping function applied to each element.
+/// \return A SmallVector of the results of applying \p F to each element of
+/// \p C.
 template <class ContainerTy, class FuncTy>
 auto map_to_vector(ContainerTy &&C, FuncTy &&F) {
   return to_vector(

@@ -21,8 +21,17 @@
 
 namespace llvm {
 
+/// MLModelRunner that evaluates an EmitC-compiled ML model.
+///
+/// Wraps a compile-time EmitC model (\p TGen) for inference.
 template <class TGen> class EmitCModelRunner final : public MLModelRunner {
 public:
+  /// Construct a runner over an EmitC-compiled model.
+  ///
+  /// InputSpec's type should be an indexed collection of TensorSpec values,
+  /// like std::array or std::vector, that has a size() method.
+  /// @param Ctx LLVM context used for diagnostics.
+  /// @param InputSpec Indexed collection of TensorSpec describing model inputs.
   template <class FType>
   EmitCModelRunner(LLVMContext &Ctx, const FType &InputSpec)
       : MLModelRunner(Ctx, MLModelRunner::Kind::Release, InputSpec.size()) {
@@ -30,13 +39,19 @@ public:
       populateTensor(I, Spec);
   }
 
+  /// Destroy this EmitCModelRunner.
   ~EmitCModelRunner() override = default;
 
+  /// Return true if \p R is an EmitCModelRunner.
+  /// @param R Model runner to test.
+  /// @return True if \p R is an EmitCModelRunner.
   static bool classof(const MLModelRunner *R) {
     return R->getKind() == MLModelRunner::Kind::Release;
   }
 
 protected:
+  /// Run the EmitC-compiled model and return a pointer to the result.
+  /// @return Pointer to the stored model evaluation result.
   void *evaluateUntyped() override { return evaluateImpl(); }
 
 private:

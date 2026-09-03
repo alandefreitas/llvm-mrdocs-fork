@@ -12,10 +12,15 @@
 
 namespace llvm {
 
+/// Phase of SelectionDAG combining relative to legalization.
 enum CombineLevel {
+  /// Before type legalization has run.
   BeforeLegalizeTypes,
+  /// After type legalization has completed.
   AfterLegalizeTypes,
+  /// After vector-operation legalization has completed.
   AfterLegalizeVectorOps,
+  /// After full DAG legalization has completed.
   AfterLegalizeDAG
 };
 

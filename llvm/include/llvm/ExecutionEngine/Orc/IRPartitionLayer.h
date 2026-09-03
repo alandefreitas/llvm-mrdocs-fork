@@ -36,9 +36,11 @@ namespace orc {
 /// A layer that breaks up IR modules into smaller submodules that only contains
 /// looked up symbols.
 class LLVM_ABI IRPartitionLayer : public IRLayer {
+  /// Materialization unit that partitions IR modules as symbols are requested.
   friend class PartitioningIRMaterializationUnit;
 
 public:
+  /// Set of global values selected for a partition.
   using GlobalValueSet = std::set<const GlobalValue *>;
 
   /// Partitioning function.
@@ -46,23 +48,33 @@ public:
       std::function<std::optional<GlobalValueSet>(GlobalValueSet Requested)>;
 
   /// Construct a IRPartitionLayer.
+  /// \param ES Execution session for this layer.
+  /// \param BaseLayer Layer to emit partitioned modules to.
   IRPartitionLayer(ExecutionSession &ES, IRLayer &BaseLayer);
 
   /// Off-the-shelf partitioning which compiles all requested symbols (usually
   /// a single function at a time).
+  /// \param Requested Global values whose definitions were looked up.
+  /// \return The requested global values as the partition to compile.
   static std::optional<GlobalValueSet>
   compileRequested(GlobalValueSet Requested);
 
   /// Off-the-shelf partitioning which compiles whole modules whenever any
   /// symbol in them is requested.
+  /// \param Requested Global values whose definitions were looked up.
+  /// \return std::nullopt, indicating the whole module should be compiled.
   static std::optional<GlobalValueSet>
   compileWholeModule(GlobalValueSet Requested);
 
   /// Sets the partition function.
+  /// \param Partition Function that selects which global values to emit for a
+  ///        request.
   void setPartitionFunction(PartitionFunction Partition);
 
   /// Emits the given module. This should not be called by clients: it will be
   /// called by the JIT when a definition added via the add method is requested.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \param TSM Thread-safe module to partition and emit.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             ThreadSafeModule TSM) override;
 

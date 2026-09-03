@@ -65,7 +65,8 @@ public:
   /// @param DT Dominator tree for the function under verification.
   void verify(const DominatorTreeT &DT);
 
-  /// Return true if any controlled convergence tokens were observed.
+  /// Whether any controlled convergence tokens were observed.
+  /// @return True if controlled convergence tokens were seen.
   bool sawTokens() const { return ConvergenceKind == ControlledConvergence; }
 
 private:

@@ -20,30 +20,48 @@
 #include "llvm/Support/Compiler.h"
 
 namespace llvm {
+/// Bitstream record codes used in contextual PGO profiles.
 enum PGOCtxProfileRecords {
+  /// Sentinel; not a valid record code.
   Invalid = 0,
+  /// Profile format version record.
   Version,
+  /// Function GUID for a context or flat profile.
   Guid,
+  /// Callsite index identifying the call edge into a context.
   CallsiteIndex,
+  /// Counter vector for a context or flat profile.
   Counters,
+  /// Aggregate entry count across all roots of a contextual profile.
   TotalRootEntryCount
 };
 
+/// Bitstream block IDs used in contextual PGO profiles.
 enum PGOCtxProfileBlockIDs {
+  /// First application block ID reserved for contextual profiles.
   FIRST_VALID = bitc::FIRST_APPLICATION_BLOCKID,
+  /// Top-level metadata block (holds the version).
   ProfileMetadataBlockID = FIRST_VALID,
+  /// Section containing contextual profile roots.
   ContextsSectionBlockID = ProfileMetadataBlockID + 1,
+  /// One contextual profile root and its nested contexts.
   ContextRootBlockID = ContextsSectionBlockID + 1,
+  /// One nested context node under a root or another context.
   ContextNodeBlockID = ContextRootBlockID + 1,
+  /// Section containing non-contextual (flat) profiles.
   FlatProfilesSectionBlockID = ContextNodeBlockID + 1,
+  /// One flat profile for a single GUID.
   FlatProfileBlockID = FlatProfilesSectionBlockID + 1,
+  /// Flat profiles for contexts not attached under a root.
   UnhandledBlockID = FlatProfileBlockID + 1,
+  /// Last valid contextual-profile block ID.
   LAST_VALID = UnhandledBlockID
 };
 
-/// Write one or more ContextNodes to the provided raw_fd_stream.
-/// The caller must destroy the PGOCtxProfileWriter object before closing the
-/// stream.
+/// Writer that serializes contextual PGO profiles to a bitstream.
+///
+/// Write one or more ContextNodes to the provided raw_ostream. The caller must
+/// destroy the PGOCtxProfileWriter object before closing the stream.
 /// The design allows serializing a bunch of contexts embedded in some other
 /// file. The overall format is:
 ///
@@ -89,29 +107,54 @@ class LLVM_ABI PGOCtxProfileWriter final : public ctx_profile::ProfileWriter {
   void writeSubcontexts(const ctx_profile::ContextNode &Node);
 
 public:
+  /// Construct a writer that emits into \p Out.
+  /// @param Out Destination stream; keep open until this writer is destroyed.
+  /// @param VersionOverride Optional profile version to emit instead of
+  ///        CurrentVersion.
+  /// @param IncludeEmpty If true, write contexts whose counters are all zero.
   PGOCtxProfileWriter(raw_ostream &Out,
                       std::optional<unsigned> VersionOverride = std::nullopt,
                       bool IncludeEmpty = false);
+  /// Destroy the writer and exit the open metadata block.
   ~PGOCtxProfileWriter() override { Writer.ExitBlock(); }
 
+  /// Begin writing the contextual profile section.
   void startContextSection() override;
+  /// Write one contextual profile root and optional unhandled contexts.
+  /// @param RootNode Root context node to serialize.
+  /// @param Unhandled Optional list of contexts not attached to a root.
+  /// @param TotalRootEntryCount Aggregate entry count for the root.
   void writeContextual(const ctx_profile::ContextNode &RootNode,
                        const ctx_profile::ContextNode *Unhandled,
                        uint64_t TotalRootEntryCount) override;
+  /// Finish writing the contextual profile section.
   void endContextSection() override;
 
+  /// Begin writing the flat profile section.
   void startFlatSection() override;
+  /// Write one flat profile buffer for \p Guid.
+  /// @param Guid Function identifier for the flat profile.
+  /// @param Buffer Counter values to write.
+  /// @param BufferSize Number of elements in \p Buffer.
   void writeFlat(ctx_profile::GUID Guid, const uint64_t *Buffer,
                  size_t BufferSize) override;
+  /// Finish writing the flat profile section.
   void endFlatSection() override;
 
-  // constants used in writing which a reader may find useful.
+  /// Bit width of abbreviated record codes written by this format.
   static constexpr unsigned CodeLen = 2;
+  /// Default contextual profile format version emitted by the writer.
   static constexpr uint32_t CurrentVersion = 4;
+  /// VBR chunk width used when encoding record operands.
   static constexpr unsigned VBREncodingBits = 6;
+  /// Four-byte magic prefix identifying a contextual profile container.
   static constexpr StringRef ContainerMagic = "CTXP";
 };
 
+/// Convert a YAML contextual profile in \p Profile into bitstream form on \p Out.
+/// @param Profile YAML text describing contextual and flat profiles.
+/// @param Out Destination stream for the bitstream profile.
+/// @return Success, or an error if YAML parsing or conversion fails.
 LLVM_ABI Error createCtxProfFromYAML(StringRef Profile, raw_ostream &Out);
 } // namespace llvm
 #endif

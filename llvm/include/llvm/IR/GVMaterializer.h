@@ -26,24 +26,41 @@ class Error;
 class GlobalValue;
 class StructType;
 
+/// Abstract interface for lazily loading global values from an external source.
+///
+/// Implementations support incremental or random-access loading of functions,
+/// which is useful for JIT compilers and interprocedural optimizers that do not
+/// need the entire program in memory at once.
 class LLVM_ABI GVMaterializer {
 protected:
+  /// Default-construct an abstract materializer.
   GVMaterializer() = default;
 
 public:
+  /// Destroy the materializer.
   virtual ~GVMaterializer();
 
   /// Make sure the given GlobalValue is fully read.
   ///
+  /// \param GV Global value to materialize.
+  /// \return Success, or an error if materialization fails.
   virtual Error materialize(GlobalValue *GV) = 0;
 
   /// Make sure the entire Module has been completely read.
   ///
+  /// \return Success, or an error if materialization fails.
   virtual Error materializeModule() = 0;
 
+  /// Make sure module-level metadata has been completely read.
+  /// \return Success, or an error if materialization fails.
   virtual Error materializeMetadata() = 0;
+
+  /// Request that debug info be stripped during materialization.
   virtual void setStripDebugInfo() = 0;
 
+  /// Return the identified (non-literal) struct types known to this
+  /// materializer.
+  /// \return The identified struct types known to this materializer.
   virtual std::vector<StructType *> getIdentifiedStructTypes() const = 0;
 };
 

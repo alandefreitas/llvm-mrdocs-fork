@@ -25,6 +25,8 @@ namespace detail {
 LLVM_ABI unsigned claimPerThreadAllocatorId();
 } // namespace detail
 
+/// Concurrent wrapper that gives each thread its own sub-allocator.
+///
 /// PerThreadAllocator wraps a thread-unsafe allocator (e.g. BumpPtrAllocator)
 /// for lock-free concurrent allocation: each thread receives its own
 /// sub-allocator on first allocation, and the PerThreadAllocator owns all
@@ -40,6 +42,7 @@ class PerThreadAllocator
   };
 
 public:
+  /// Construct an empty per-thread allocator with a fresh instance id.
   PerThreadAllocator()
       : S(std::make_unique<State>()), Id(detail::claimPerThreadAllocatorId()) {}
 
@@ -47,22 +50,34 @@ public:
   ///
   /// @{
 
+  /// Bring AllocatorBase typed Allocate overloads into scope.
   using AllocatorBase<PerThreadAllocator<AllocatorTy>>::Allocate;
 
+  /// Bring AllocatorBase typed Deallocate overloads into scope.
   using AllocatorBase<PerThreadAllocator<AllocatorTy>>::Deallocate;
 
   /// Allocate \a Size bytes of \a Alignment aligned memory.
+  ///
+  /// \param Size Number of bytes to allocate.
+  /// \param Alignment Required alignment of the allocated memory in bytes.
+  /// \return Pointer to the allocated memory.
   void *Allocate(size_t Size, size_t Alignment) {
     return getThreadLocalAllocator().Allocate(Size, Alignment);
   }
 
   /// Deallocate \a Ptr to \a Size bytes of memory allocated by this
   /// allocator.
+  ///
+  /// \param Ptr Memory previously returned by Allocate.
+  /// \param Size Size in bytes of the allocation being freed.
+  /// \param Alignment Alignment of the allocation being freed.
   void Deallocate(const void *Ptr, size_t Size, size_t Alignment) {
     return getThreadLocalAllocator().Deallocate(Ptr, Size, Alignment);
   }
 
   /// Return the calling thread's sub-allocator, creating it on first use.
+  ///
+  /// \return Reference to this thread's sub-allocator for this instance.
   AllocatorTy &getThreadLocalAllocator() {
     // The calling thread's sub-allocator of each instance, indexed by a
     // process-unique instance id.
@@ -88,6 +103,8 @@ public:
   }
 
   /// Return the number of sub-allocators, i.e. threads that have allocated.
+  ///
+  /// \return Count of sub-allocators created so far.
   size_t getNumberOfAllocators() const {
     std::lock_guard<std::mutex> Lock(S->Mutex);
     return S->Allocators.size();
@@ -105,6 +122,8 @@ public:
   }
 
   /// Return total memory size used by all allocators.
+  ///
+  /// \return Total number of bytes used by all sub-allocators.
   size_t getTotalMemory() const {
     size_t TotalMemory = 0;
     for (const auto &A : S->Allocators)
@@ -113,6 +132,8 @@ public:
   }
 
   /// Set red zone for all allocators.
+  ///
+  /// \param NewSize Number of red-zone bytes to place between allocations.
   void setRedZoneSize(size_t NewSize) {
     for (const auto &A : S->Allocators)
       A->setRedZoneSize(NewSize);
@@ -129,10 +150,13 @@ public:
   /// @}
 
 protected:
+  /// Shared mutex and owned list of per-thread sub-allocators.
   std::unique_ptr<State> S;
+  /// Process-unique id indexing this instance in each thread's cache.
   unsigned Id;
 };
 
+/// Per-thread bump-pointer allocator for lock-free concurrent allocation.
 using PerThreadBumpPtrAllocator = PerThreadAllocator<BumpPtrAllocator>;
 
 } // end namespace parallel

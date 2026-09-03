@@ -117,6 +117,7 @@ public:
   };
 
 protected:
+  /// The data layout for the module being analyzed.
   const DataLayout &DL;
 
   /// \name Visitation infrastructure
@@ -168,12 +169,14 @@ protected:
   ///
   /// This will visit the users with the same offset of the current visit
   /// (including an unknown offset if that is the current state).
+  /// \param I The value whose users should be enqueued.
   LLVM_ABI void enqueueUsers(Value &I);
 
   /// Walk the operands of a GEP and adjust the offset as appropriate.
   ///
   /// This routine does the heavy lifting of the pointer walk by computing
   /// offsets and looking through GEPs.
+  /// \param GEPI The GEP whose operands should be walked.
   LLVM_ABI bool adjustOffsetForGEP(GetElementPtrInst &GEPI);
 };
 
@@ -212,12 +215,16 @@ class PtrUseVisitor : protected InstVisitor<DerivedT>,
   using Base = InstVisitor<DerivedT>;
 
 public:
+  /// Construct a pointer-use visitor with the given data layout.
+  /// \param DL The data layout for the module being analyzed.
   PtrUseVisitor(const DataLayout &DL) : PtrUseVisitorBase(DL) {
     static_assert(std::is_base_of<PtrUseVisitor, DerivedT>::value,
                   "Must pass the derived type to this template!");
   }
 
   /// Recursively visit the uses of the given pointer.
+  /// \param I The pointer value whose uses should be visited. May be an
+  /// instruction or an argument.
   /// \returns An info struct about the pointer. See \c PtrInfo for details.
   /// We may also need to process Argument pointers, so the input uses is
   /// a common Value type.
@@ -252,23 +259,33 @@ public:
   }
 
 protected:
+  /// Visit a store and mark the pointer as escaped if it is the value stored.
+  /// \param SI The store instruction being visited.
   void visitStoreInst(StoreInst &SI) {
     if (SI.getValueOperand() == U->get())
       PI.setEscaped(&SI);
   }
 
+  /// Visit a bitcast and enqueue its users with the current offset.
+  /// \param BC The bitcast instruction being visited.
   void visitBitCastInst(BitCastInst &BC) {
     enqueueUsers(BC);
   }
 
+  /// Visit an address-space cast and enqueue its users with the current offset.
+  /// \param ASC The address-space cast instruction being visited.
   void visitAddrSpaceCastInst(AddrSpaceCastInst &ASC) {
     enqueueUsers(ASC);
   }
 
+  /// Visit a ptrtoint and mark the pointer as escaped.
+  /// \param I The ptrtoint instruction being visited.
   void visitPtrToIntInst(PtrToIntInst &I) {
     PI.setEscaped(&I);
   }
 
+  /// Visit a GEP, adjust the offset if possible, and enqueue its users.
+  /// \param GEPI The GEP instruction being visited.
   void visitGetElementPtrInst(GetElementPtrInst &GEPI) {
     if (GEPI.use_empty())
       return;
@@ -283,9 +300,15 @@ protected:
     enqueueUsers(GEPI);
   }
 
-  // No-op intrinsics which we know don't escape the pointer to logic in
-  // some other function.
+  /// Visit a memory intrinsic that does not escape the pointer.
+  ///
+  /// These are no-op intrinsics which we know don't escape the pointer to
+  /// logic in some other function.
+  /// \param I The memory intrinsic being visited.
   void visitMemIntrinsic(MemIntrinsic &I) {}
+
+  /// Visit an intrinsic, handling known no-ops and escaping \c fake_use uses.
+  /// \param II The intrinsic instruction being visited.
   void visitIntrinsicInst(IntrinsicInst &II) {
     switch (II.getIntrinsicID()) {
     default:
@@ -303,8 +326,11 @@ protected:
     }
   }
 
-  // Generically, arguments to calls and invokes escape the pointer to some
-  // other function. Mark that.
+  /// Visit a call or invoke and mark the pointer as escaped.
+  ///
+  /// Generically, arguments to calls and invokes escape the pointer to some
+  /// other function.
+  /// \param CB The call or invoke instruction being visited.
   void visitCallBase(CallBase &CB) {
     PI.setEscaped(&CB);
     Base::visitCallBase(CB);

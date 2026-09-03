@@ -23,12 +23,17 @@ namespace objcopy {
 struct CommonConfig;
 struct WasmConfig;
 
+/// Wasm-specific object-file copying and stripping operations.
 namespace wasm {
 /// Apply the transformations described by \p Config and \p WasmConfig
 /// to \p In and writes the result into \p Out.
+/// \param Config Common objcopy configuration options.
+/// \param WasmConfig Wasm-specific configuration options.
+/// \param In Input Wasm object file to transform.
+/// \param Out Output stream to write the transformed binary to.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const CommonConfig &Config,
-                                      const WasmConfig &,
+                                      const WasmConfig &WasmConfig,
                                       object::WasmObjectFile &In,
                                       raw_ostream &Out);
 

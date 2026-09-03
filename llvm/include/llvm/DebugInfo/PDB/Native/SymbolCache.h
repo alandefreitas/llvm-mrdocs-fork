@@ -36,6 +36,7 @@ class PDBSymbol;
 class PDBSymbolCompiland;
 class DbiStream;
 
+/// Cache of parsed native PDB symbols and stable symbol index IDs.
 class SymbolCache {
   NativeSession &Session;
   DbiStream *Dbi = nullptr;
@@ -127,8 +128,17 @@ class SymbolCache {
                                                           uint32_t Offset);
 
 public:
+  /// Construct a symbol cache bound to \p Session and optional DBI stream.
+  ///
+  /// \param Session The native PDB session that owns this cache.
+  /// \param Dbi The DBI stream providing module/compiland metadata, or null.
   LLVM_ABI SymbolCache(NativeSession &Session, DbiStream *Dbi);
 
+  /// Create a concrete native symbol, cache it, and return its symbol index ID.
+  ///
+  /// \param ConstructorArgs Arguments forwarded to the concrete symbol constructor.
+  ///
+  /// \returns The newly allocated stable symbol index ID.
   template <typename ConcreteSymbolT, typename... Args>
   SymIndexId createSymbol(Args &&...ConstructorArgs) const {
     SymIndexId Id = Cache.size();
@@ -148,17 +158,44 @@ public:
     return Id;
   }
 
+  /// Create an enumerator over TPI types matching a single leaf kind.
+  ///
+  /// \param Kind The CodeView type leaf kind to enumerate.
+  ///
+  /// \returns An enumerator over matching type symbols, or nullptr on failure.
   LLVM_ABI std::unique_ptr<IPDBEnumSymbols>
   createTypeEnumerator(codeview::TypeLeafKind Kind);
 
+  /// Create an enumerator over TPI types matching any of the given leaf kinds.
+  ///
+  /// \param Kinds The CodeView type leaf kinds to enumerate.
+  ///
+  /// \returns An enumerator over matching type symbols, or nullptr on failure.
   LLVM_ABI std::unique_ptr<IPDBEnumSymbols>
   createTypeEnumerator(std::vector<codeview::TypeLeafKind> Kinds);
 
+  /// Create an enumerator over global symbols of the given kind.
+  ///
+  /// \param Kind The CodeView symbol kind to enumerate from the globals stream.
+  ///
+  /// \returns An enumerator over matching global symbols.
   LLVM_ABI std::unique_ptr<IPDBEnumSymbols>
   createGlobalsEnumerator(codeview::SymbolKind Kind);
 
+  /// Look up or lazily create the cached symbol for a TPI type index.
+  ///
+  /// \param TI The CodeView type index to resolve.
+  ///
+  /// \returns The stable symbol index ID, or 0 if the type cannot be created.
   LLVM_ABI SymIndexId findSymbolByTypeIndex(codeview::TypeIndex TI) const;
 
+  /// Look up or create a cached field-list member symbol.
+  ///
+  /// \param FieldListTI Type index of the field list that owns the member.
+  /// \param Index Zero-based index of the member within the field list.
+  /// \param ConstructorArgs Arguments forwarded when creating a new member symbol.
+  ///
+  /// \returns The stable symbol index ID for the field-list member.
   template <typename ConcreteSymbolT, typename... Args>
   SymIndexId getOrCreateFieldListMember(codeview::TypeIndex FieldListTI,
                                         uint32_t Index,
@@ -174,33 +211,94 @@ public:
     return SymId;
   }
 
+  /// Look up or create a cached global symbol at the given symbol-stream offset.
+  ///
+  /// \param Offset Byte offset of the global symbol record in the symbol stream.
+  ///
+  /// \returns The stable symbol index ID, or 0 if creation fails.
   LLVM_ABI SymIndexId getOrCreateGlobalSymbolByOffset(uint32_t Offset);
+
+  /// Look up or create a cached inline-site symbol.
+  ///
+  /// \param Sym The CodeView inline-site symbol record.
+  /// \param ParentAddr Absolute virtual address of the enclosing function.
+  /// \param Modi Module index that owns the inline site.
+  /// \param RecordOffset Offset of the record in the module symbol table.
+  ///
+  /// \returns The stable symbol index ID for the inline site.
   LLVM_ABI SymIndexId getOrCreateInlineSymbol(codeview::InlineSiteSym Sym,
                                               uint64_t ParentAddr,
                                               uint16_t Modi,
                                               uint32_t RecordOffset) const;
 
+  /// Find a symbol of the given type at an absolute virtual address.
+  ///
+  /// \param VA The absolute virtual address to search.
+  /// \param Type The symbol type tag to match, or a wildcard.
+  ///
+  /// \returns The matching symbol, or nullptr if none is found.
   LLVM_ABI std::unique_ptr<PDBSymbol> findSymbolByVA(uint64_t VA,
                                                      PDB_SymType Type);
 
+  /// Find line numbers covering the given virtual address range.
+  ///
+  /// \param VA Absolute virtual address of the start of the range.
+  /// \param Length Length in bytes of the address range.
+  ///
+  /// \returns An enumerator over matching line-number entries, or nullptr.
   LLVM_ABI std::unique_ptr<IPDBEnumLineNumbers>
   findLineNumbersByVA(uint64_t VA, uint32_t Length) const;
 
+  /// Look up or create the cached compiland symbol for a module index.
+  ///
+  /// \param Index Zero-based module/compiland index in the DBI stream.
+  ///
+  /// \returns The compiland symbol, or nullptr if the index is invalid.
   LLVM_ABI std::unique_ptr<PDBSymbolCompiland>
   getOrCreateCompiland(uint32_t Index);
+
+  /// Return the number of compilands (modules) in the PDB.
+  ///
+  /// \returns The module count from the DBI stream, or 0 if DBI is unavailable.
   LLVM_ABI uint32_t getNumCompilands() const;
 
+  /// Return a high-level PDB symbol wrapper for a cached symbol index ID.
+  ///
+  /// \param SymbolId The symbol index ID to resolve.
+  ///
+  /// \returns The matching symbol, or nullptr if the ID is reserved or invalid.
   LLVM_ABI std::unique_ptr<PDBSymbol> getSymbolById(SymIndexId SymbolId) const;
 
+  /// Return a reference to the cached native raw symbol for \p SymbolId.
+  ///
+  /// \param SymbolId The symbol index ID to resolve; must refer to a cached symbol.
+  ///
+  /// \returns A reference to the native raw symbol in the cache.
   LLVM_ABI NativeRawSymbol &getNativeSymbolById(SymIndexId SymbolId) const;
 
+  /// Return a typed reference to the cached native raw symbol for \p SymbolId.
+  ///
+  /// \param SymbolId The symbol index ID to resolve; must refer to a cached symbol.
+  ///
+  /// \returns A reference cast to \c ConcreteT.
   template <typename ConcreteT>
   ConcreteT &getNativeSymbolById(SymIndexId SymbolId) const {
     return static_cast<ConcreteT &>(getNativeSymbolById(SymbolId));
   }
 
+  /// Return a source-file object for a cached source-file index ID.
+  ///
+  /// \param FileId The source-file index ID to resolve.
+  ///
+  /// \returns The matching source file, or nullptr if the ID is reserved.
   LLVM_ABI std::unique_ptr<IPDBSourceFile>
   getSourceFileById(SymIndexId FileId) const;
+
+  /// Look up or create a cached source file from a checksum entry.
+  ///
+  /// \param Checksum File checksum entry describing the source file name and hash.
+  ///
+  /// \returns The stable source-file index ID.
   LLVM_ABI SymIndexId
   getOrCreateSourceFile(const codeview::FileChecksumEntry &Checksum) const;
 };

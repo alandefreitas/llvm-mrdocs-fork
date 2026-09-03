@@ -31,16 +31,25 @@ class AttributeMask {
   std::set<SmallString<32>, std::less<>> TargetDepAttrs;
 
 public:
+  /// Construct an empty attribute mask.
   AttributeMask() = default;
-  AttributeMask(const AttributeMask &) = delete;
-  AttributeMask(AttributeMask &&) = default;
+  /// Copying is deleted; AttributeMask owns mutable attribute state.
+  /// \param M Mask that would have been copied.
+  AttributeMask(const AttributeMask &M) = delete;
+  /// Move-construct from mask \p M.
+  /// \param M Mask to move from.
+  AttributeMask(AttributeMask &&M) = default;
 
+  /// Construct a mask containing the attributes from \p AS.
+  /// \param AS Attribute set whose kinds are added to the mask.
   AttributeMask(AttributeSet AS) {
     for (Attribute A : AS)
       addAttribute(A);
   }
 
   /// Add an attribute to the mask.
+  /// \param Val Enum attribute kind to add.
+  /// \return A reference to this mask.
   AttributeMask &addAttribute(Attribute::AttrKind Val) {
     assert((unsigned)Val < Attribute::EndAttrKinds &&
            "Attribute out of range!");
@@ -49,6 +58,8 @@ public:
   }
 
   /// Add the Attribute object to the builder.
+  /// \param A Attribute to add.
+  /// \return A reference to this mask.
   AttributeMask &addAttribute(Attribute A) {
     if (A.isStringAttribute())
       addAttribute(A.getKindAsString());
@@ -58,12 +69,16 @@ public:
   }
 
   /// Add the target-dependent attribute to the builder.
+  /// \param A Target-dependent attribute kind.
+  /// \return A reference to this mask.
   AttributeMask &addAttribute(StringRef A) {
     TargetDepAttrs.insert(A);
     return *this;
   }
 
   /// Return true if the builder has the specified attribute.
+  /// \param A Enum attribute kind to look up.
+  /// \return True if the mask contains the attribute.
   bool contains(Attribute::AttrKind A) const {
     assert((unsigned)A < Attribute::EndAttrKinds && "Attribute out of range!");
     return Attrs[A];
@@ -71,9 +86,13 @@ public:
 
   /// Return true if the builder has the specified target-dependent
   /// attribute.
+  /// \param A Target-dependent attribute kind to look up.
+  /// \return True if the mask contains the attribute.
   bool contains(StringRef A) const { return TargetDepAttrs.count(A); }
 
   /// Return true if the mask contains the specified attribute.
+  /// \param A Attribute to look up.
+  /// \return True if the mask contains the attribute.
   bool contains(Attribute A) const {
     if (A.isStringAttribute())
       return contains(A.getKindAsString());

@@ -1590,7 +1590,8 @@ enum NodeType {
   /// ptr = PTRADD ptr, offset
   PTRADD,
 
-// Vector Predication
+/// Emit a Vector Predication SDNode enumerator from \p VPSDID.
+/// \param VPSDID SelectionDAG node id for the VP opcode being registered.
 #define BEGIN_REGISTER_VP_SDNODE(VPSDID, ...) VPSDID,
 #include "llvm/IR/VPIntrinsics.def"
 
@@ -1682,17 +1683,23 @@ enum NodeType {
 };
 
 /// Whether this is bitwise logic opcode.
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is AND, OR, or XOR.
 inline bool isBitwiseLogicOp(unsigned Opcode) {
   return Opcode == ISD::AND || Opcode == ISD::OR || Opcode == ISD::XOR;
 }
 
 /// Whether this is an integer absolute-value opcode (ISD::ABS or
 /// ISD::ABS_MIN_POISON).
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is ABS or ABS_MIN_POISON.
 inline bool isAbsOpcode(unsigned Opcode) {
   return Opcode == ISD::ABS || Opcode == ISD::ABS_MIN_POISON;
 }
 
 /// Whether this is an integer min/max opcode (ISD::(U|S)MIN or ISD::(U|S)MAX).
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is a signed or unsigned min/max opcode.
 inline bool isMinMaxOpcode(unsigned Opcode) {
   return Opcode == ISD::SMIN || Opcode == ISD::SMAX || Opcode == ISD::UMIN ||
          Opcode == ISD::UMAX;
@@ -1700,41 +1707,66 @@ inline bool isMinMaxOpcode(unsigned Opcode) {
 
 /// Given a \p MinMaxOpc of ISD::(U|S)MIN or ISD::(U|S)MAX, returns
 /// ISD::(U|S)MAX and ISD::(U|S)MIN, respectively.
+/// \param MinMaxOpc Min or max opcode to invert.
+/// \return The opposite min/max opcode for \p MinMaxOpc.
 LLVM_ABI NodeType getInverseMinMaxOpcode(unsigned MinMaxOpc);
 
+/// Return the min/max opcode with the opposite signedness of \p MinMaxOpc.
+///
 /// Given a \p MinMaxOpc of ISD::(U|S)MIN or ISD::(U|S)MAX, returns the
 /// corresponding opcode with the opposite signedness:
 /// ISD::SMIN <-> ISD::UMIN, ISD::SMAX <-> ISD::UMAX.
+/// \param MinMaxOpc Min or max opcode whose signedness is flipped.
+/// \return The min/max opcode with opposite signedness.
 LLVM_ABI NodeType getOppositeSignednessMinMaxOpcode(unsigned MinMaxOpc);
 
 /// Get underlying scalar opcode for VECREDUCE opcode.
 /// For example ISD::AND for ISD::VECREDUCE_AND.
+/// \param VecReduceOpcode VECREDUCE opcode to map to its scalar base opcode.
+/// \return The underlying scalar opcode for \p VecReduceOpcode.
 LLVM_ABI NodeType getVecReduceBaseOpcode(unsigned VecReduceOpcode);
 
 /// Given a \p MaskedOpc of ISD::MASKED_(U|S)(DIV|REM), returns the unmasked
 /// ISD::(U|S)(DIV|REM).
+/// \param MaskedOpc Masked div/rem opcode to unwrap.
+/// \return The unmasked div/rem opcode corresponding to \p MaskedOpc.
 LLVM_ABI NodeType getUnmaskedBinOpOpcode(unsigned MaskedOpc);
 
 /// Whether this is a vector-predicated Opcode.
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is a vector-predicated opcode.
 LLVM_ABI bool isVPOpcode(unsigned Opcode);
 
 /// Whether this is a vector-predicated binary operation opcode.
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is a vector-predicated binary operation.
 LLVM_ABI bool isVPBinaryOp(unsigned Opcode);
 
 /// Whether this is a vector-predicated reduction opcode.
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is a vector-predicated reduction.
 LLVM_ABI bool isVPReduction(unsigned Opcode);
 
 /// The operand position of the vector mask.
+/// \param Opcode VP opcode whose mask operand index is requested.
+/// \return The mask operand index, or std::nullopt if none.
 LLVM_ABI std::optional<unsigned> getVPMaskIdx(unsigned Opcode);
 
 /// The operand position of the explicit vector length parameter.
+/// \param Opcode VP opcode whose EVL operand index is requested.
+/// \return The EVL operand index, or std::nullopt if none.
 LLVM_ABI std::optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
 
 /// Translate this VP Opcode to its corresponding non-VP Opcode.
+/// \param Opcode VP opcode to translate.
+/// \param hasFPExcept Whether floating-point exception semantics matter.
+/// \return The corresponding non-VP opcode, or std::nullopt if none.
 LLVM_ABI std::optional<unsigned> getBaseOpcodeForVP(unsigned Opcode,
                                                     bool hasFPExcept);
 
 /// Translate this non-VP Opcode to its corresponding VP Opcode.
+/// \param Opcode Non-VP opcode to translate.
+/// \return The corresponding VP opcode, or std::nullopt if none.
 LLVM_ABI std::optional<unsigned> getVPForBaseOpcode(unsigned Opcode);
 
 //===--------------------------------------------------------------------===//
@@ -1765,7 +1797,18 @@ LLVM_ABI std::optional<unsigned> getVPForBaseOpcode(unsigned Opcode);
 ///              (the result of the load and the result of the base +/- offset
 ///              computation); a post-indexed store produces one value (the
 ///              the result of the base +/- offset computation).
-enum MemIndexedMode { UNINDEXED = 0, PRE_INC, PRE_DEC, POST_INC, POST_DEC };
+enum MemIndexedMode {
+  /// Normal load/store; address already in the base pointer.
+  UNINDEXED = 0,
+  /// Pre-increment: address is base + offset, then base is updated.
+  PRE_INC,
+  /// Pre-decrement: address is base - offset, then base is updated.
+  PRE_DEC,
+  /// Post-increment: address is base, then base becomes base + offset.
+  POST_INC,
+  /// Post-decrement: address is base, then base becomes base - offset.
+  POST_DEC
+};
 
 static const int LAST_INDEXED_MODE = POST_DEC + 1;
 
@@ -1778,10 +1821,18 @@ static const int LAST_INDEXED_MODE = POST_DEC + 1;
 ///
 /// NOTE: The value of Scale is typically only known to the node owning the
 /// IndexType, with a value of 1 the equivalent of being unscaled.
-enum MemIndexType { SIGNED_SCALED = 0, UNSIGNED_SCALED };
+enum MemIndexType {
+  /// Treat the index as signed before scaling: Base + ((signed)Index * Scale).
+  SIGNED_SCALED = 0,
+  /// Treat the index as unsigned before scaling: Base + ((unsigned)Index * Scale).
+  UNSIGNED_SCALED
+};
 
 static const int LAST_MEM_INDEX_TYPE = UNSIGNED_SCALED + 1;
 
+/// Return true if \p IndexType treats the gather/scatter index as signed.
+/// \param IndexType Memory index signedness/scaling kind to test.
+/// \return True if \p IndexType treats the index as signed.
 inline bool isIndexTypeSigned(MemIndexType IndexType) {
   return IndexType == SIGNED_SCALED;
 }
@@ -1796,19 +1847,33 @@ inline bool isIndexTypeSigned(MemIndexType IndexType) {
 ///          integer result type.
 /// EXTLOAD  is used for two things: floating point extending loads and
 ///          integer extending loads [the top bits are undefined].
-enum LoadExtType { NON_EXTLOAD = 0, EXTLOAD, SEXTLOAD, ZEXTLOAD };
+enum LoadExtType {
+  /// Not an extending load.
+  NON_EXTLOAD = 0,
+  /// Extending load with undefined (or FP-extended) high bits.
+  EXTLOAD,
+  /// Sign-extending integer load.
+  SEXTLOAD,
+  /// Zero-extending integer load.
+  ZEXTLOAD
+};
 
 static const int LAST_LOADEXT_TYPE = ZEXTLOAD + 1;
 
-LLVM_ABI NodeType getExtForLoadExtType(bool IsFP, LoadExtType);
+/// Return the ANY/SIGN/ZERO_EXTEND opcode matching \p ExtType.
+/// \param IsFP True when selecting an FP extending-load opcode.
+/// \param ExtType Load extension kind to map to an ISD extend opcode.
+/// \return The ANY/SIGN/ZERO_EXTEND opcode for \p ExtType.
+LLVM_ABI NodeType getExtForLoadExtType(bool IsFP, LoadExtType ExtType);
 
 //===--------------------------------------------------------------------===//
-/// ISD::CondCode enum - These are ordered carefully to make the bitfields
-/// below work out, when considering SETFALSE (something that never exists
-/// dynamically) as 0.  "U" -> Unsigned (for integer operands) or Unordered
-/// (for floating point), "L" -> Less than, "G" -> Greater than, "E" -> Equal
-/// to.  If the "N" column is 1, the result of the comparison is undefined if
-/// the input is a NAN.
+/// Comparison condition codes for SETCC and related SelectionDAG nodes.
+///
+/// These are ordered carefully to make the bitfields below work out, when
+/// considering SETFALSE (something that never exists dynamically) as 0.
+/// "U" -> Unsigned (for integer operands) or Unordered (for floating point),
+/// "L" -> Less than, "G" -> Greater than, "E" -> Equal to.  If the "N" column
+/// is 1, the result of the comparison is undefined if the input is a NAN.
 ///
 /// All of these (except for the 'always folded ops') should be handled for
 /// floating point.  For integer, only the SETEQ,SETNE,SETLT,SETLE,SETGT,
@@ -1818,108 +1883,172 @@ LLVM_ABI NodeType getExtForLoadExtType(bool IsFP, LoadExtType);
 /// to transform conditions.
 enum CondCode {
   // Opcode       N U L G E       Intuitive operation
-  SETFALSE, //      0 0 0 0       Always false (always folded)
-  SETOEQ,   //      0 0 0 1       True if ordered and equal
-  SETOGT,   //      0 0 1 0       True if ordered and greater than
-  SETOGE,   //      0 0 1 1       True if ordered and greater than or equal
-  SETOLT,   //      0 1 0 0       True if ordered and less than
-  SETOLE,   //      0 1 0 1       True if ordered and less than or equal
-  SETONE,   //      0 1 1 0       True if ordered and operands are unequal
-  SETO,     //      0 1 1 1       True if ordered (no nans)
-  SETUO,    //      1 0 0 0       True if unordered: isnan(X) | isnan(Y)
-  SETUEQ,   //      1 0 0 1       True if unordered or equal
-  SETUGT,   //      1 0 1 0       True if unordered or greater than
-  SETUGE,   //      1 0 1 1       True if unordered, greater than, or equal
-  SETULT,   //      1 1 0 0       True if unordered or less than
-  SETULE,   //      1 1 0 1       True if unordered, less than, or equal
-  SETUNE,   //      1 1 1 0       True if unordered or not equal
-  SETTRUE,  //      1 1 1 1       Always true (always folded)
+  /// Always false (always folded).
+  SETFALSE, //      0 0 0 0
+  /// True if ordered and equal.
+  SETOEQ,   //      0 0 0 1
+  /// True if ordered and greater than.
+  SETOGT,   //      0 0 1 0
+  /// True if ordered and greater than or equal.
+  SETOGE,   //      0 0 1 1
+  /// True if ordered and less than.
+  SETOLT,   //      0 1 0 0
+  /// True if ordered and less than or equal.
+  SETOLE,   //      0 1 0 1
+  /// True if ordered and operands are unequal.
+  SETONE,   //      0 1 1 0
+  /// True if ordered (no nans).
+  SETO,     //      0 1 1 1
+  /// True if unordered: isnan(X) | isnan(Y).
+  SETUO,    //      1 0 0 0
+  /// True if unordered or equal.
+  SETUEQ,   //      1 0 0 1
+  /// True if unordered or greater than.
+  SETUGT,   //      1 0 1 0
+  /// True if unordered, greater than, or equal.
+  SETUGE,   //      1 0 1 1
+  /// True if unordered or less than.
+  SETULT,   //      1 1 0 0
+  /// True if unordered, less than, or equal.
+  SETULE,   //      1 1 0 1
+  /// True if unordered or not equal.
+  SETUNE,   //      1 1 1 0
+  /// Always true (always folded).
+  SETTRUE,  //      1 1 1 1
   // Don't care operations: undefined if the input is a nan.
-  SETFALSE2, //   1 X 0 0 0       Always false (always folded)
-  SETEQ,     //   1 X 0 0 1       True if equal
-  SETGT,     //   1 X 0 1 0       True if greater than
-  SETGE,     //   1 X 0 1 1       True if greater than or equal
-  SETLT,     //   1 X 1 0 0       True if less than
-  SETLE,     //   1 X 1 0 1       True if less than or equal
-  SETNE,     //   1 X 1 1 0       True if not equal
-  SETTRUE2,  //   1 X 1 1 1       Always true (always folded)
+  /// Always false (always folded); NaN behavior don't-care.
+  SETFALSE2, //   1 X 0 0 0
+  /// True if equal; NaN behavior don't-care.
+  SETEQ,     //   1 X 0 0 1
+  /// True if greater than; NaN behavior don't-care.
+  SETGT,     //   1 X 0 1 0
+  /// True if greater than or equal; NaN behavior don't-care.
+  SETGE,     //   1 X 0 1 1
+  /// True if less than; NaN behavior don't-care.
+  SETLT,     //   1 X 1 0 0
+  /// True if less than or equal; NaN behavior don't-care.
+  SETLE,     //   1 X 1 0 1
+  /// True if not equal; NaN behavior don't-care.
+  SETNE,     //   1 X 1 1 0
+  /// Always true (always folded); NaN behavior don't-care.
+  SETTRUE2,  //   1 X 1 1 1
 
-  SETCC_INVALID // Marker value.
+  /// Marker value for an invalid or unrepresentable condition code.
+  SETCC_INVALID
 };
 
 /// Return true if this is a setcc instruction that performs a signed
 /// comparison when used with integer operands.
+/// \param Code Condition code to test.
+/// \return True if \p Code is a signed integer comparison.
 inline bool isSignedIntSetCC(CondCode Code) {
   return Code == SETGT || Code == SETGE || Code == SETLT || Code == SETLE;
 }
 
 /// Return true if this is a setcc instruction that performs an unsigned
 /// comparison when used with integer operands.
+/// \param Code Condition code to test.
+/// \return True if \p Code is an unsigned integer comparison.
 inline bool isUnsignedIntSetCC(CondCode Code) {
   return Code == SETUGT || Code == SETUGE || Code == SETULT || Code == SETULE;
 }
 
 /// Return true if this is a setcc instruction that performs an equality
 /// comparison when used with integer operands.
+/// \param Code Condition code to test.
+/// \return True if \p Code is an integer equality comparison.
 inline bool isIntEqualitySetCC(CondCode Code) {
   return Code == SETEQ || Code == SETNE;
 }
 
 /// Return true if this is a setcc instruction that performs an equality
 /// comparison when used with floating point operands.
+/// \param Code Condition code to test.
+/// \return True if \p Code is a floating-point equality comparison.
 inline bool isFPEqualitySetCC(CondCode Code) {
   return Code == SETOEQ || Code == SETONE || Code == SETUEQ || Code == SETUNE;
 }
 
-/// Return true if the specified condition returns true if the two operands to
-/// the condition are equal. Note that if one of the two operands is a NaN,
-/// this value is meaningless.
+/// Return true if \p Cond is true when its operands are equal.
+///
+/// Note that if one of the two operands is a NaN, this value is meaningless.
+/// \param Cond Condition code to inspect.
+/// \return True if \p Cond evaluates to true when its operands are equal.
 inline bool isTrueWhenEqual(CondCode Cond) { return ((int)Cond & 1) != 0; }
 
-/// This function returns 0 if the condition is always false if an operand is
-/// a NaN, 1 if the condition is always true if the operand is a NaN, and 2 if
-/// the condition is undefined if the operand is a NaN.
+/// Classify how \p Cond behaves when an operand is NaN.
+///
+/// Returns 0 if the condition is always false if an operand is a NaN, 1 if the
+/// condition is always true if the operand is a NaN, and 2 if the condition is
+/// undefined if the operand is a NaN.
+/// \param Cond Condition code to classify.
+/// \return 0 if always false on NaN, 1 if always true, or 2 if undefined.
 inline unsigned getUnorderedFlavor(CondCode Cond) {
   return ((int)Cond >> 3) & 3;
 }
 
 /// Return the operation corresponding to !(X op Y), where 'op' is a valid
 /// SetCC operation.
+/// \param Operation Condition code to invert.
+/// \param Type Operand value type; selects integer vs floating-point rules.
+/// \return The condition code for the logical inverse of \p Operation.
 LLVM_ABI CondCode getSetCCInverse(CondCode Operation, EVT Type);
 
+/// Return true if \p Opcode is ANY/ZERO/SIGN_EXTEND.
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is ANY/ZERO/SIGN_EXTEND.
 inline bool isExtOpcode(unsigned Opcode) {
   return Opcode == ISD::ANY_EXTEND || Opcode == ISD::ZERO_EXTEND ||
          Opcode == ISD::SIGN_EXTEND;
 }
 
+/// Return true if \p Opcode is an *_EXTEND_VECTOR_INREG opcode.
+/// \param Opcode ISD node opcode to test.
+/// \return True if \p Opcode is an *_EXTEND_VECTOR_INREG opcode.
 inline bool isExtVecInRegOpcode(unsigned Opcode) {
   return Opcode == ISD::ANY_EXTEND_VECTOR_INREG ||
          Opcode == ISD::ZERO_EXTEND_VECTOR_INREG ||
          Opcode == ISD::SIGN_EXTEND_VECTOR_INREG;
 }
 
+/// GlobalISel helpers for ISD condition-code transforms.
 namespace GlobalISel {
-/// Return the operation corresponding to !(X op Y), where 'op' is a valid
-/// SetCC operation. The U bit of the condition code has different meanings
-/// between floating point and integer comparisons and LLT's don't provide
-/// this distinction. As such we need to be told whether the comparison is
-/// floating point or integer-like. Pointers should use integer-like
-/// comparisons.
+/// Return the SetCC opcode for !(X op Y) under GlobalISel type rules.
+///
+/// The U bit of the condition code has different meanings between floating
+/// point and integer comparisons and LLT's don't provide this distinction. As
+/// such we need to be told whether the comparison is floating point or
+/// integer-like. Pointers should use integer-like comparisons.
+/// \param Operation Condition code to invert.
+/// \param isIntegerLike True for integer/pointer compares; false for FP.
+/// \return The condition code for the logical inverse of \p Operation.
 LLVM_ABI CondCode getSetCCInverse(CondCode Operation, bool isIntegerLike);
 } // end namespace GlobalISel
 
 /// Return the operation corresponding to (Y op X) when given the operation
 /// for (X op Y).
+/// \param Operation Condition code whose operands are swapped.
+/// \return The condition code with operands swapped.
 LLVM_ABI CondCode getSetCCSwappedOperands(CondCode Operation);
 
-/// Return the result of a logical OR between different comparisons of
-/// identical values: ((X op1 Y) | (X op2 Y)). This function returns
-/// SETCC_INVALID if it is not possible to represent the resultant comparison.
+/// Return the SetCC opcode equivalent to ((X op1 Y) | (X op2 Y)).
+///
+/// Returns SETCC_INVALID if it is not possible to represent the resultant
+/// comparison.
+/// \param Op1 First comparison condition.
+/// \param Op2 Second comparison condition.
+/// \param Type Operand value type; selects integer vs floating-point rules.
+/// \return The combined OR condition code, or SETCC_INVALID if impossible.
 LLVM_ABI CondCode getSetCCOrOperation(CondCode Op1, CondCode Op2, EVT Type);
 
-/// Return the result of a logical AND between different comparisons of
-/// identical values: ((X op1 Y) & (X op2 Y)). This function returns
-/// SETCC_INVALID if it is not possible to represent the resultant comparison.
+/// Return the SetCC opcode equivalent to ((X op1 Y) & (X op2 Y)).
+///
+/// Returns SETCC_INVALID if it is not possible to represent the resultant
+/// comparison.
+/// \param Op1 First comparison condition.
+/// \param Op2 Second comparison condition.
+/// \param Type Operand value type; selects integer vs floating-point rules.
+/// \return The combined AND condition code, or SETCC_INVALID if impossible.
 LLVM_ABI CondCode getSetCCAndOperation(CondCode Op1, CondCode Op2, EVT Type);
 
 } // namespace ISD

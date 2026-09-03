@@ -21,15 +21,22 @@ namespace llvm {
 ///
 /// The underlying values are ABI-sensitive and should not be changed.
 enum class AtomicScope : unsigned {
-  System = 0,    // __MEMORY_SCOPE_SYSTEM
-  Device = 1,    // __MEMORY_SCOPE_DEVICE
-  Workgroup = 2, // __MEMORY_SCOPE_WRKGRP
-  Wavefront = 3, // __MEMORY_SCOPE_WVFRNT
-  Single = 4,    // __MEMORY_SCOPE_SINGLE
-  Cluster = 5,   // __MEMORY_SCOPE_CLUSTR
+  System = 0,    ///< System-wide synchronization (__MEMORY_SCOPE_SYSTEM).
+  Device = 1,    ///< Device-wide synchronization (__MEMORY_SCOPE_DEVICE).
+  Workgroup = 2, ///< Workgroup synchronization (__MEMORY_SCOPE_WRKGRP).
+  Wavefront = 3, ///< Wavefront synchronization (__MEMORY_SCOPE_WVFRNT).
+  Single = 4,    ///< Single-thread synchronization (__MEMORY_SCOPE_SINGLE).
+  Cluster = 5,   ///< Cluster synchronization (__MEMORY_SCOPE_CLUSTR).
 };
 
 /// Returns the LLVM IR syncscope string that \p T uses to spell \p S.
+///
+/// \param T Target triple that selects the syncscope spelling.
+/// \param S Abstract atomic scope to spell.
+/// \param IsSingleAddressSpace Whether to request the single-address-space
+///        syncscope variant when the target supports one.
+/// \returns The syncscope string spelling, or \c std::nullopt if the target
+///          or scope is unsupported.
 inline std::optional<StringRef>
 getAtomicScopeIRString(const Triple &T, AtomicScope S,
                        bool IsSingleAddressSpace = false) {
@@ -87,9 +94,15 @@ getAtomicScopeIRString(const Triple &T, AtomicScope S,
   return std::nullopt;
 }
 
-/// Parses a target syncscope string into its abstract scope, the inverse of
-/// getAtomicScopeIRString. Returns the scope and whether it is the single
-/// address space variant.
+/// Parses a target syncscope string into its abstract scope.
+///
+/// This is the inverse of getAtomicScopeIRString. Returns the scope and
+/// whether it is the single address space variant.
+///
+/// \param T Target triple that selects the syncscope spelling.
+/// \param Name LLVM IR syncscope string to parse.
+/// \returns The abstract scope and whether it is the single-address-space
+///          variant, or \c std::nullopt if \p Name is unrecognized for \p T.
 inline std::optional<std::pair<AtomicScope, bool>>
 parseAtomicScopeIRString(const Triple &T, StringRef Name) {
   using Result = std::optional<std::pair<AtomicScope, bool>>;

@@ -41,6 +41,10 @@ namespace llvm {
 class raw_ostream;
 
 namespace remarks {
+/// Main interface for streaming remarks to a serialized output.
+///
+/// Specialized remark emitters hold a reference to a RemarkStreamer and convert
+/// diagnostics into llvm::remarks::Remark objects as they are emitted.
 class RemarkStreamer final {
   /// The regex used to filter remarks based on the passes that emit them.
   std::optional<Regex> PassFilter;
@@ -50,35 +54,62 @@ class RemarkStreamer final {
   const std::optional<std::string> Filename;
 
 public:
+  /// Construct a RemarkStreamer with a serializer and optional filename.
+  ///
+  /// \param RemarkSerializer The serializer used to emit remarks.
+  /// \param Filename Optional path that the remark diagnostics are emitted to.
   LLVM_ABI
   RemarkStreamer(std::unique_ptr<remarks::RemarkSerializer> RemarkSerializer,
                  std::optional<StringRef> Filename = std::nullopt);
+  /// Destroy the RemarkStreamer.
+  ///
+  /// Asserts that the underlying RemarkSerializer has been released.
   LLVM_ABI ~RemarkStreamer();
 
   /// Return the filename that the remark diagnostics are emitted to.
+  ///
+  /// \return The optional filename, or \c std::nullopt if none was set.
   std::optional<StringRef> getFilename() const {
     return Filename ? std::optional<StringRef>(*Filename) : std::nullopt;
   }
   /// Return stream that the remark diagnostics are emitted to.
+  ///
+  /// \return The output stream owned by the remark serializer.
   raw_ostream &getStream() { return RemarkSerializer->OS; }
   /// Return the serializer used for this stream.
+  ///
+  /// \return The remark serializer for this streamer.
   remarks::RemarkSerializer &getSerializer() { return *RemarkSerializer; }
 
-  /// Release the underlying RemarkSerializer. Destructing the RemarkStreamer
-  /// will assert that the RemarkStreamer has been released, to ensure that the
-  /// remarks were properly finalized.
+  /// Release the underlying RemarkSerializer.
+  ///
+  /// Destructing the RemarkStreamer will assert that the RemarkStreamer has
+  /// been released, to ensure that the remarks were properly finalized.
+  ///
+  /// \return Ownership of the previously held remark serializer.
   std::unique_ptr<remarks::RemarkSerializer> releaseSerializer() {
     return std::move(RemarkSerializer);
   }
 
   /// Set a pass filter based on a regex \p Filter.
+  ///
   /// Returns an error if the regex is invalid.
+  ///
+  /// \param Filter The regex used to filter remarks by pass name.
+  /// \return Success, or an error if \p Filter is not a valid regex.
   LLVM_ABI Error setFilter(StringRef Filter);
-  /// Check wether the string matches the filter.
+  /// Check whether the string matches the filter.
+  ///
+  /// \param Str The string to match against the pass filter.
+  /// \return True if \p Str matches the pass filter, or if no filter is set.
   LLVM_ABI bool matchesFilter(StringRef Str);
-  /// Check if the remarks NEED to have metadata in an object section
+  /// Check if the remarks NEED to have metadata in an object section.
+  ///
+  /// \return True if remarks require metadata in an object section.
   LLVM_ABI bool needsSection() const;
-  /// Check if the remarks should store associated metadata if suppported
+  /// Check if the remarks should store associated metadata if supported.
+  ///
+  /// \return True if remarks should store associated metadata when supported.
   LLVM_ABI bool wantsSection() const;
 };
 } // end namespace remarks

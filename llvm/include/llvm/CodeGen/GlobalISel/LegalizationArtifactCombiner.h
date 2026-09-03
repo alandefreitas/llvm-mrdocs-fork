@@ -32,6 +32,7 @@
 #define DEBUG_TYPE "legalizer"
 
 namespace llvm {
+/// Helper that combines away legalization artifacts such as truncs and extends.
 class LegalizationArtifactCombiner {
   MachineIRBuilder &Builder;
   MachineRegisterInfo &MRI;
@@ -51,11 +52,24 @@ class LegalizationArtifactCombiner {
   }
 
 public:
+  /// Construct a legalization artifact combiner.
+  ///
+  /// \param B IR builder used to emit replacement instructions.
+  /// \param MRI Register info for the function being combined.
+  /// \param LI Legalizer info used for legality checks.
+  /// \param VT Optional value-tracking analysis.
   LegalizationArtifactCombiner(MachineIRBuilder &B, MachineRegisterInfo &MRI,
                                const LegalizerInfo &LI,
                                GISelValueTracking *VT = nullptr)
       : Builder(B), MRI(MRI), LI(LI), VT(VT) {}
 
+  /// Try to combine a G_ANYEXT legalization artifact.
+  ///
+  /// \param MI Any-extend instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
+  /// \return True if the any-extend was combined away.
   bool tryCombineAnyExt(MachineInstr &MI,
                         SmallVectorImpl<MachineInstr *> &DeadInsts,
                         SmallVectorImpl<Register> &UpdatedDefs,
@@ -114,6 +128,13 @@ public:
     return tryFoldImplicitDef(MI, DeadInsts, UpdatedDefs, Observer);
   }
 
+  /// Try to combine a G_ZEXT legalization artifact.
+  ///
+  /// \param MI Zero-extend instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
+  /// \return True if the zero-extend was combined away.
   bool tryCombineZExt(MachineInstr &MI,
                       SmallVectorImpl<MachineInstr *> &DeadInsts,
                       SmallVectorImpl<Register> &UpdatedDefs,
@@ -188,6 +209,13 @@ public:
     return tryFoldImplicitDef(MI, DeadInsts, UpdatedDefs, Observer);
   }
 
+  /// Try to combine a G_SEXT legalization artifact.
+  ///
+  /// \param MI Sign-extend instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
+  /// \return True if the sign-extend was combined away.
   bool tryCombineSExt(MachineInstr &MI,
                       SmallVectorImpl<MachineInstr *> &DeadInsts,
                       SmallVectorImpl<Register> &UpdatedDefs,
@@ -255,6 +283,13 @@ public:
     return tryFoldImplicitDef(MI, DeadInsts, UpdatedDefs, Observer);
   }
 
+  /// Try to combine a G_TRUNC legalization artifact.
+  ///
+  /// \param MI Truncate instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
+  /// \return True if the truncate was combined away.
   bool tryCombineTrunc(MachineInstr &MI,
                        SmallVectorImpl<MachineInstr *> &DeadInsts,
                        SmallVectorImpl<Register> &UpdatedDefs,
@@ -385,6 +420,12 @@ public:
   }
 
   /// Try to fold G_[ASZ]EXT (G_IMPLICIT_DEF).
+  ///
+  /// \param MI Extend instruction to fold.
+  /// \param DeadInsts Instructions made dead by the fold.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
+  /// \return True if the extend was folded.
   bool tryFoldImplicitDef(MachineInstr &MI,
                           SmallVectorImpl<MachineInstr *> &DeadInsts,
                           SmallVectorImpl<Register> &UpdatedDefs,
@@ -426,6 +467,13 @@ public:
     return false;
   }
 
+  /// Try to fold G_UNMERGE_VALUES of an artifact cast.
+  ///
+  /// \param MI Unmerge instruction to fold.
+  /// \param CastMI Artifact cast defining the unmerge source.
+  /// \param DeadInsts Instructions made dead by the fold.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \return True if the unmerge was folded.
   bool tryFoldUnmergeCast(MachineInstr &MI, MachineInstr &CastMI,
                           SmallVectorImpl<MachineInstr *> &DeadInsts,
                           SmallVectorImpl<Register> &UpdatedDefs) {
@@ -524,6 +572,13 @@ public:
     return false;
   }
 
+  /// Return true if a merge-like opcode can be folded through a cast.
+  ///
+  /// \param MergeOp Opcode of the merge-like defining instruction.
+  /// \param ConvertOp Intermediate cast opcode, or 0 if none.
+  /// \param OpTy Type of the unmerge source.
+  /// \param DestTy Type of each unmerge destination.
+  /// \return True if folding the merge through \p ConvertOp is valid.
   static bool canFoldMergeOpcode(unsigned MergeOp, unsigned ConvertOp,
                                  LLT OpTy, LLT DestTy) {
     // Check if we found a definition that is like G_MERGE_VALUES.
@@ -578,6 +633,13 @@ public:
 
   /// Try to replace DstReg with SrcReg or build a COPY instruction
   /// depending on the register constraints.
+  ///
+  /// \param DstReg Destination register to replace or copy into.
+  /// \param SrcReg Source register providing the value.
+  /// \param MRI Register info for the function.
+  /// \param Builder IR builder used when a COPY must be emitted.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
   static void replaceRegOrBuildCopy(Register DstReg, Register SrcReg,
                                     MachineRegisterInfo &MRI,
                                     MachineIRBuilder &Builder,
@@ -602,7 +664,11 @@ public:
       Observer.changedInstr(*UseMI);
   }
 
-  /// Return the operand index in \p MI that defines \p Def
+  /// Return the operand index in \p MI that defines \p SearchDef.
+  ///
+  /// \param MI Instruction whose defs are searched.
+  /// \param SearchDef Register definition to locate.
+  /// \return Operand index of the defining operand.
   static unsigned getDefIndex(const MachineInstr &MI, Register SearchDef) {
     unsigned DefIdx = 0;
     for (const MachineOperand &Def : MI.defs()) {
@@ -614,6 +680,8 @@ public:
     return DefIdx;
   }
 
+  /// Utilities for finding non-artifact sources of bit ranges.
+  ///
   /// This class provides utilities for finding source registers of specific
   /// bit ranges in an artifact. The routines can look through the source
   /// registers if they're other artifacts to try to find a non-artifact source
@@ -894,12 +962,22 @@ public:
     }
 
   public:
+    /// Construct an artifact value finder.
+    ///
+    /// \param Mri Register info for the function being combined.
+    /// \param Builder IR builder used to emit replacement instructions.
+    /// \param Info Legalizer info used for legality checks.
     ArtifactValueFinder(MachineRegisterInfo &Mri, MachineIRBuilder &Builder,
                         const LegalizerInfo &Info)
         : MRI(Mri), MIB(Builder), LI(Info) {}
 
     /// Try to find a source of the value defined in the def \p DefReg, starting
     /// at position \p StartBit with size \p Size.
+    ///
+    /// \param DefReg Definition register to search from.
+    /// \param StartBit Bit offset into \p DefReg at which the value starts.
+    /// \param Size Bit width of the value to find.
+    /// \param DstTy Type expected for a replacement register.
     /// \returns a register with the requested size, or an empty Register if no
     /// better value could be found.
     Register findValueFromDef(Register DefReg, unsigned StartBit, unsigned Size,
@@ -911,6 +989,10 @@ public:
 
     /// Try to combine the defs of an unmerge \p MI by attempting to find
     /// values that provides the bits for each def reg.
+    ///
+    /// \param MI Unmerge whose defs may be replaced.
+    /// \param Observer Observer notified of MIR changes.
+    /// \param UpdatedDefs Registers whose definitions were updated.
     /// \returns true if all the defs of the unmerge have been made dead.
     bool tryCombineUnmergeDefs(GUnmerge &MI, GISelChangeObserver &Observer,
                                SmallVectorImpl<Register> &UpdatedDefs) {
@@ -942,6 +1024,12 @@ public:
       return DeadDefs.all();
     }
 
+    /// Find an unmerge that defines the bits of \p Reg.
+    ///
+    /// \param Reg Register whose defining unmerge is sought.
+    /// \param Size Bit width of the value to look up.
+    /// \param DefOperandIdx Set to the unmerge def operand index on success.
+    /// \return The defining unmerge, or nullptr if none was found.
     GUnmerge *findUnmergeThatDefinesReg(Register Reg, unsigned Size,
                                         unsigned &DefOperandIdx) {
       if (Register Def = findValueFromDefImpl(Reg, 0, Size, MRI.getType(Reg))) {
@@ -954,9 +1042,21 @@ public:
       return nullptr;
     }
 
-    // Check if sequence of elements from merge-like instruction is defined by
-    // another sequence of elements defined by unmerge. Most often this is the
-    // same sequence. Search for elements using findValueFromDefImpl.
+    /// Return true if merge sources form a contiguous unmerge sequence.
+    ///
+    /// Checks whether a sequence of elements from a merge-like instruction is
+    /// defined by another sequence of elements defined by \p Unmerge. Most
+    /// often this is the same sequence. Search for elements using
+    /// findValueFromDefImpl.
+    ///
+    /// \param MI Merge-like instruction whose sources are inspected.
+    /// \param MergeStartIdx First source index in \p MI to check.
+    /// \param Unmerge Candidate unmerge that should define the sequence.
+    /// \param UnmergeIdxStart First def index in \p Unmerge for the sequence.
+    /// \param NumElts Number of consecutive elements to check.
+    /// \param EltSize Bit width of each element.
+    /// \param AllowUndef When true, G_IMPLICIT_DEF sources are accepted.
+    /// \return True if the sources form the expected unmerge sequence.
     bool isSequenceFromUnmerge(GMergeLikeInstr &MI, unsigned MergeStartIdx,
                                GUnmerge *Unmerge, unsigned UnmergeIdxStart,
                                unsigned NumElts, unsigned EltSize,
@@ -979,6 +1079,13 @@ public:
       return true;
     }
 
+    /// Try to combine a merge-like instruction with a defining unmerge.
+    ///
+    /// \param MI Merge-like instruction to combine.
+    /// \param DeadInsts Instructions made dead by the combine.
+    /// \param UpdatedDefs Registers whose definitions were updated.
+    /// \param Observer Observer notified of MIR changes.
+    /// \return True if the merge-like instruction was combined away.
     bool tryCombineMergeLike(GMergeLikeInstr &MI,
                              SmallVectorImpl<MachineInstr *> &DeadInsts,
                              SmallVectorImpl<Register> &UpdatedDefs,
@@ -1087,6 +1194,13 @@ public:
     }
   };
 
+  /// Try to combine a G_UNMERGE_VALUES with its defining instruction.
+  ///
+  /// \param MI Unmerge instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \param Observer Observer notified of MIR changes.
+  /// \return True if the unmerge was combined away.
   bool tryCombineUnmergeValues(GUnmerge &MI,
                                SmallVectorImpl<MachineInstr *> &DeadInsts,
                                SmallVectorImpl<Register> &UpdatedDefs,
@@ -1297,6 +1411,12 @@ public:
     return true;
   }
 
+  /// Try to combine a G_EXTRACT of a merge-like source.
+  ///
+  /// \param MI G_EXTRACT instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param UpdatedDefs Registers whose definitions were updated.
+  /// \return True if the extract was combined away.
   bool tryCombineExtract(MachineInstr &MI,
                          SmallVectorImpl<MachineInstr *> &DeadInsts,
                          SmallVectorImpl<Register> &UpdatedDefs) {
@@ -1353,10 +1473,15 @@ public:
     return true;
   }
 
-  /// Try to combine away MI.
-  /// Returns true if it combined away the MI.
-  /// Adds instructions that are dead as a result of the combine
-  /// into DeadInsts, which can include MI.
+  /// Try to combine away a legalization artifact instruction.
+  ///
+  /// Returns true if it combined away the MI. Adds instructions that are dead
+  /// as a result of the combine into DeadInsts, which can include MI.
+  ///
+  /// \param MI Instruction to combine.
+  /// \param DeadInsts Instructions made dead by the combine.
+  /// \param WrapperObserver Observer notified of MIR changes.
+  /// \return True if \p MI was combined away.
   bool tryCombineInstruction(MachineInstr &MI,
                              SmallVectorImpl<MachineInstr *> &DeadInsts,
                              GISelObserverWrapper &WrapperObserver) {

@@ -75,6 +75,7 @@ public:
 
   /// Return a const reference to the element at enumerator \p Index.
   /// @param Index Enumerator used as the array index.
+  /// @return Const reference to the element at \p Index.
   const ValueType &operator[](Enumeration Index) const {
     auto IX = static_cast<IndexType>(Index);
     assert(IX >= 0 && IX < Size && "Index is out of bounds.");
@@ -82,31 +83,42 @@ public:
   }
   /// Return a mutable reference to the element at enumerator \p Index.
   /// @param Index Enumerator used as the array index.
+  /// @return Mutable reference to the element at \p Index.
   ValueType &operator[](Enumeration Index) {
     return const_cast<ValueType &>(
         static_cast<const EnumeratedArray &>(*this)[Index]);
   }
   /// Return the number of elements in the array.
+  /// @return Number of elements in the array.
   IndexType size() const { return Size; }
   /// Return true if the array has zero elements.
+  /// @return True if the array has zero elements.
   bool empty() const { return size() == 0; }
 
   /// Return an iterator to the first element.
+  /// @return Iterator to the first element.
   iterator begin() { return Underlying.begin(); }
   /// Return a const iterator to the first element.
+  /// @return Const iterator to the first element.
   const_iterator begin() const { return Underlying.begin(); }
   /// Return an iterator past the last element.
+  /// @return Iterator past the last element.
   iterator end() { return Underlying.end(); }
   /// Return a const iterator past the last element.
+  /// @return Const iterator past the last element.
   const_iterator end() const { return Underlying.end(); }
 
   /// Return a reverse iterator to the last element.
+  /// @return Reverse iterator to the last element.
   reverse_iterator rbegin() { return Underlying.rbegin(); }
   /// Return a const reverse iterator to the last element.
+  /// @return Const reverse iterator to the last element.
   const_reverse_iterator rbegin() const { return Underlying.rbegin(); }
   /// Return a reverse iterator past the first element.
+  /// @return Reverse iterator past the first element.
   reverse_iterator rend() { return Underlying.rend(); }
   /// Return a const reverse iterator past the first element.
+  /// @return Const reverse iterator past the first element.
   const_reverse_iterator rend() const { return Underlying.rend(); }
 };
 

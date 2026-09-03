@@ -24,6 +24,10 @@ namespace llvm::jitlink {
 /// outlives the graph.
 ///
 /// WARNING: The big-endian backend has not been tested yet.
+///
+/// \param ObjectBuffer Buffer containing the ELF/ppc64 relocatable object.
+/// \param SSP Symbol string pool used to intern symbol names in the graph.
+/// \return A LinkGraph for the object, or an error if parsing fails.
 LLVM_ABI Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromELFObject_ppc64(MemoryBufferRef ObjectBuffer,
                                    std::shared_ptr<orc::SymbolStringPool> SSP);
@@ -33,6 +37,10 @@ createLinkGraphFromELFObject_ppc64(MemoryBufferRef ObjectBuffer,
 /// Note: The graph does not take ownership of the underlying buffer, nor copy
 /// its contents. The caller is responsible for ensuring that the object buffer
 /// outlives the graph.
+///
+/// \param ObjectBuffer Buffer containing the ELF/ppc64le relocatable object.
+/// \param SSP Symbol string pool used to intern symbol names in the graph.
+/// \return A LinkGraph for the object, or an error if parsing fails.
 LLVM_ABI Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromELFObject_ppc64le(
     MemoryBufferRef ObjectBuffer, std::shared_ptr<orc::SymbolStringPool> SSP);
@@ -40,10 +48,16 @@ createLinkGraphFromELFObject_ppc64le(
 /// jit-link the given object buffer, which must be a ELF ppc64le object file.
 ///
 /// WARNING: The big-endian backend has not been tested yet.
+///
+/// \param G Link graph to link.
+/// \param Ctx JITLink context providing memory management and callbacks.
 LLVM_ABI void link_ELF_ppc64(std::unique_ptr<LinkGraph> G,
                              std::unique_ptr<JITLinkContext> Ctx);
 
 /// jit-link the given object buffer, which must be a ELF ppc64le object file.
+///
+/// \param G Link graph to link.
+/// \param Ctx JITLink context providing memory management and callbacks.
 LLVM_ABI void link_ELF_ppc64le(std::unique_ptr<LinkGraph> G,
                                std::unique_ptr<JITLinkContext> Ctx);
 

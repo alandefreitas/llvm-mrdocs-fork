@@ -32,21 +32,33 @@ public:
   LLVM_ABI DeltaTree();
 
   /// Copy another tree. Currently only supported when \p RHS is empty.
+  ///
+  /// \param RHS Tree to copy; must currently be empty.
   LLVM_ABI DeltaTree(const DeltaTree &RHS);
 
   /// Assignment is deleted; DeltaTree is not copy-assignable.
-  DeltaTree &operator=(const DeltaTree &) = delete;
+  ///
+  /// \param RHS Unused; this assignment is deleted.
+  DeltaTree &operator=(const DeltaTree &RHS) = delete;
   /// Destroy the tree and free its nodes.
   LLVM_ABI ~DeltaTree();
 
   /// Return the accumulated delta at the specified file offset.
   /// This includes all insertions or delections that occurred *before* the
   /// specified file index.
+  ///
+  /// \param FileIndex File offset whose accumulated delta is requested.
+  /// \return Accumulated rewrite delta at \p FileIndex.
   LLVM_ABI int getDeltaAt(unsigned FileIndex) const;
 
-  /// When a change is made that shifts around the text buffer,
-  /// this method is used to record that info.  It inserts a delta of 'Delta'
-  /// into the current DeltaTree at offset FileIndex.
+  /// Record a rewrite delta at the given file offset.
+  ///
+  /// When a change is made that shifts around the text buffer, this method is
+  /// used to record that info.  It inserts a delta of 'Delta' into the current
+  /// DeltaTree at offset FileIndex.
+  ///
+  /// \param FileIndex File offset at which to insert the delta.
+  /// \param Delta Nonzero signed length of the insertion or deletion.
   LLVM_ABI void AddDelta(unsigned FileIndex, int Delta);
 };
 

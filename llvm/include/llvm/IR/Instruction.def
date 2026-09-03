@@ -124,57 +124,208 @@
 // instructions for it to be a well formed basic block.
 //
  FIRST_TERM_INST  ( 1)
+/// Visit a ret terminator that returns from the current function.
+/// \param I The return instruction being visited.
 HANDLE_TERM_INST  ( 1, Ret           , ReturnInst)
+/// Visit an unconditional branch to a single successor.
+/// \param I The unconditional branch instruction being visited.
 HANDLE_TERM_INST  ( 2, UncondBr      , UncondBrInst)
+/// Visit a conditional branch that chooses between two successors.
+/// \param I The conditional branch instruction being visited.
 HANDLE_TERM_INST  ( 3, CondBr        , CondBrInst)
+/// Visit a switch that dispatches on an integer value.
+/// \param I The switch instruction being visited.
 HANDLE_TERM_INST  ( 4, Switch        , SwitchInst)
+/// Visit an indirect branch through an address operand.
+/// \param I The indirect branch instruction being visited.
 HANDLE_TERM_INST  ( 5, IndirectBr    , IndirectBrInst)
+/// Visit an invoke that calls a function with an exceptional continuation.
+/// \param I The invoke instruction being visited.
 HANDLE_TERM_INST  ( 6, Invoke        , InvokeInst)
+/// Visit a resume that continues unwinding of an exception.
+/// \param I The resume instruction being visited.
 HANDLE_TERM_INST  ( 7, Resume        , ResumeInst)
+/// Visit an unreachable marker for code that must never execute.
+/// \param I The unreachable instruction being visited.
 HANDLE_TERM_INST  ( 8, Unreachable   , UnreachableInst)
+/// Visit a cleanupret that exits a cleanup funclet pad.
+/// \param I The cleanup return instruction being visited.
 HANDLE_TERM_INST  ( 9, CleanupRet    , CleanupReturnInst)
+/// Visit a catchret that exits a catch funclet pad.
+/// \param I The catch return instruction being visited.
 HANDLE_TERM_INST  (10, CatchRet      , CatchReturnInst)
+/// Visit a catchswitch that dispatches among catch pads.
+/// \param I The catchswitch instruction being visited.
 HANDLE_TERM_INST  (11, CatchSwitch   , CatchSwitchInst)
-HANDLE_TERM_INST  (12, CallBr        , CallBrInst) // A call-site terminator
+/// Visit a callbr call-site terminator with additional transfer labels.
+/// \param I The callbr instruction being visited.
+HANDLE_TERM_INST  (12, CallBr        , CallBrInst)
   LAST_TERM_INST  (12)
 
 // Standard unary operators...
  FIRST_UNARY_INST(13)
+/// Create or visit a floating-point negation (fneg) instruction.
+/// \param I The fneg instruction being visited.
+/// \param V Operand to negate.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_UNARY_INST(13, FNeg  , FPUnaryOperator)
   LAST_UNARY_INST(13)
 
 // Standard binary operators...
  FIRST_BINARY_INST(14)
+/// Create or visit an integer addition (add) instruction.
+/// \param I The add instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(14, Add  , BinaryOperator)
+/// Create or visit a floating-point addition (fadd) instruction.
+/// \param I The fadd instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(15, FAdd , FPBinaryOperator)
+/// Create or visit an integer subtraction (sub) instruction.
+/// \param I The sub instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(16, Sub  , BinaryOperator)
+/// Create or visit a floating-point subtraction (fsub) instruction.
+/// \param I The fsub instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(17, FSub , FPBinaryOperator)
+/// Create or visit an integer multiplication (mul) instruction.
+/// \param I The mul instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(18, Mul  , BinaryOperator)
+/// Create or visit a floating-point multiplication (fmul) instruction.
+/// \param I The fmul instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(19, FMul , FPBinaryOperator)
+/// Create or visit an unsigned integer division (udiv) instruction.
+/// \param I The udiv instruction being visited.
+/// \param V1 Left-hand operand (dividend).
+/// \param V2 Right-hand operand (divisor).
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(20, UDiv , BinaryOperator)
+/// Create or visit a signed integer division (sdiv) instruction.
+/// \param I The sdiv instruction being visited.
+/// \param V1 Left-hand operand (dividend).
+/// \param V2 Right-hand operand (divisor).
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(21, SDiv , BinaryOperator)
+/// Create or visit a floating-point division (fdiv) instruction.
+/// \param I The fdiv instruction being visited.
+/// \param V1 Left-hand operand (dividend).
+/// \param V2 Right-hand operand (divisor).
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(22, FDiv , FPBinaryOperator)
+/// Create or visit an unsigned integer remainder (urem) instruction.
+/// \param I The urem instruction being visited.
+/// \param V1 Left-hand operand (dividend).
+/// \param V2 Right-hand operand (divisor).
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(23, URem , BinaryOperator)
+/// Create or visit a signed integer remainder (srem) instruction.
+/// \param I The srem instruction being visited.
+/// \param V1 Left-hand operand (dividend).
+/// \param V2 Right-hand operand (divisor).
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(24, SRem , BinaryOperator)
+/// Create or visit a floating-point remainder (frem) instruction.
+/// \param I The frem instruction being visited.
+/// \param V1 Left-hand operand (dividend).
+/// \param V2 Right-hand operand (divisor).
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(25, FRem , FPBinaryOperator)
 
 // Logical operators (integer operands)
-HANDLE_BINARY_INST(26, Shl  , BinaryOperator) // Shift left  (logical)
-HANDLE_BINARY_INST(27, LShr , BinaryOperator) // Shift right (logical)
-HANDLE_BINARY_INST(28, AShr , BinaryOperator) // Shift right (arithmetic)
+/// Create or visit a logical left-shift (shl) instruction.
+/// \param I The shl instruction being visited.
+/// \param V1 Value to shift.
+/// \param V2 Shift amount.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
+HANDLE_BINARY_INST(26, Shl  , BinaryOperator)
+/// Create or visit a logical right-shift (lshr) instruction.
+/// \param I The lshr instruction being visited.
+/// \param V1 Value to shift.
+/// \param V2 Shift amount.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
+HANDLE_BINARY_INST(27, LShr , BinaryOperator)
+/// Create or visit an arithmetic right-shift (ashr) instruction.
+/// \param I The ashr instruction being visited.
+/// \param V1 Value to shift.
+/// \param V2 Shift amount.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
+HANDLE_BINARY_INST(28, AShr , BinaryOperator)
+/// Create or visit a bitwise AND (and) instruction.
+/// \param I The and instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(29, And  , BinaryOperator)
+/// Create or visit a bitwise OR (or) instruction.
+/// \param I The or instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(30, Or   , BinaryOperator)
+/// Create or visit a bitwise XOR (xor) instruction.
+/// \param I The xor instruction being visited.
+/// \param V1 Left-hand operand.
+/// \param V2 Right-hand operand.
+/// \param Name Optional name for the new instruction.
+/// \param InsertBefore Optional insertion point for the new instruction.
 HANDLE_BINARY_INST(31, Xor  , BinaryOperator)
   LAST_BINARY_INST(31)
 
 // Memory operators...
  FIRST_MEMORY_INST(32)
-HANDLE_MEMORY_INST(32, Alloca, AllocaInst)  // Stack management
-HANDLE_MEMORY_INST(33, Load  , LoadInst  )  // Memory manipulation instrs
+/// Visit an alloca that allocates stack memory.
+/// \param I The alloca instruction being visited.
+HANDLE_MEMORY_INST(32, Alloca, AllocaInst)
+/// Visit a load that reads from memory.
+/// \param I The load instruction being visited.
+HANDLE_MEMORY_INST(33, Load  , LoadInst  )
+/// Visit a store that writes a value to memory.
+/// \param I The store instruction being visited.
 HANDLE_MEMORY_INST(34, Store , StoreInst )
+/// Visit a getelementptr that computes an address within an aggregate.
+/// \param I The getelementptr instruction being visited.
 HANDLE_MEMORY_INST(35, GetElementPtr, GetElementPtrInst)
+/// Visit a fence that orders memory operations.
+/// \param I The fence instruction being visited.
 HANDLE_MEMORY_INST(36, Fence , FenceInst )
+/// Visit an atomic compare-and-exchange (cmpxchg) instruction.
+/// \param I The atomiccmpxchg instruction being visited.
 HANDLE_MEMORY_INST(37, AtomicCmpXchg , AtomicCmpXchgInst )
+/// Visit an atomic read-modify-write (atomicrmw) instruction.
+/// \param I The atomicrmw instruction being visited.
 HANDLE_MEMORY_INST(38, AtomicRMW , AtomicRMWInst )
   LAST_MEMORY_INST(38)
 
@@ -182,44 +333,106 @@ HANDLE_MEMORY_INST(38, AtomicRMW , AtomicRMWInst )
 // NOTE: The order matters here because CastInst::isEliminableCastPair
 // NOTE: (see Instructions.cpp) encodes a table based on this ordering.
  FIRST_CAST_INST(39)
-HANDLE_CAST_INST(39, Trunc   , TruncInst   )  // Truncate integers
-HANDLE_CAST_INST(40, ZExt    , ZExtInst    )  // Zero extend integers
-HANDLE_CAST_INST(41, SExt    , SExtInst    )  // Sign extend integers
-HANDLE_CAST_INST(42, FPToUI  , FPToUIInst  )  // floating point -> UInt
-HANDLE_CAST_INST(43, FPToSI  , FPToSIInst  )  // floating point -> SInt
-HANDLE_CAST_INST(44, UIToFP  , UIToFPInst  )  // UInt -> floating point
-HANDLE_CAST_INST(45, SIToFP  , SIToFPInst  )  // SInt -> floating point
-HANDLE_CAST_INST(46, FPTrunc , FPTruncInst )  // Truncate floating point
-HANDLE_CAST_INST(47, FPExt   , FPExtInst   )  // Extend floating point
-HANDLE_CAST_INST(48, PtrToInt, PtrToIntInst)  // Pointer -> Integer (bitcast)
-HANDLE_CAST_INST(49, PtrToAddr, PtrToAddrInst) // Pointer -> Address
-HANDLE_CAST_INST(50, IntToPtr, IntToPtrInst)  // Integer -> Pointer
-HANDLE_CAST_INST(51, BitCast , BitCastInst )  // Type cast
-HANDLE_CAST_INST(52, AddrSpaceCast, AddrSpaceCastInst)  // addrspace cast
+/// Visit a trunc that narrows an integer value.
+/// \param I The trunc instruction being visited.
+HANDLE_CAST_INST(39, Trunc   , TruncInst   )
+/// Visit a zext that zero-extends an integer value.
+/// \param I The zext instruction being visited.
+HANDLE_CAST_INST(40, ZExt    , ZExtInst    )
+/// Visit a sext that sign-extends an integer value.
+/// \param I The sext instruction being visited.
+HANDLE_CAST_INST(41, SExt    , SExtInst    )
+/// Visit an fptoui that converts floating-point to unsigned integer.
+/// \param I The fptoui instruction being visited.
+HANDLE_CAST_INST(42, FPToUI  , FPToUIInst  )
+/// Visit an fptosi that converts floating-point to signed integer.
+/// \param I The fptosi instruction being visited.
+HANDLE_CAST_INST(43, FPToSI  , FPToSIInst  )
+/// Visit a uitofp that converts unsigned integer to floating-point.
+/// \param I The uitofp instruction being visited.
+HANDLE_CAST_INST(44, UIToFP  , UIToFPInst  )
+/// Visit a sitofp that converts signed integer to floating-point.
+/// \param I The sitofp instruction being visited.
+HANDLE_CAST_INST(45, SIToFP  , SIToFPInst  )
+/// Visit an fptrunc that narrows a floating-point value.
+/// \param I The fptrunc instruction being visited.
+HANDLE_CAST_INST(46, FPTrunc , FPTruncInst )
+/// Visit an fpext that extends a floating-point value.
+/// \param I The fpext instruction being visited.
+HANDLE_CAST_INST(47, FPExt   , FPExtInst   )
+/// Visit a ptrtoint that bitcasts a pointer to an integer.
+/// \param I The ptrtoint instruction being visited.
+HANDLE_CAST_INST(48, PtrToInt, PtrToIntInst)
+/// Visit a ptrtoaddr that converts a pointer to an address integer.
+/// \param I The ptrtoaddr instruction being visited.
+HANDLE_CAST_INST(49, PtrToAddr, PtrToAddrInst)
+/// Visit an inttoptr that converts an integer to a pointer.
+/// \param I The inttoptr instruction being visited.
+HANDLE_CAST_INST(50, IntToPtr, IntToPtrInst)
+/// Visit a bitcast that reinterprets bits between types of equal size.
+/// \param I The bitcast instruction being visited.
+HANDLE_CAST_INST(51, BitCast , BitCastInst )
+/// Visit an addrspacecast that changes a pointer's address space.
+/// \param I The addrspacecast instruction being visited.
+HANDLE_CAST_INST(52, AddrSpaceCast, AddrSpaceCastInst)
   LAST_CAST_INST(52)
 
  FIRST_FUNCLETPAD_INST(53)
+/// Visit a cleanuppad that begins a cleanup funclet.
+/// \param I The cleanuppad instruction being visited.
 HANDLE_FUNCLETPAD_INST(53, CleanupPad, CleanupPadInst)
+/// Visit a catchpad that begins a catch funclet.
+/// \param I The catchpad instruction being visited.
 HANDLE_FUNCLETPAD_INST(54, CatchPad  , CatchPadInst)
   LAST_FUNCLETPAD_INST(54)
 
 // Other operators...
  FIRST_OTHER_INST(55)
-HANDLE_OTHER_INST(55, ICmp   , ICmpInst   )  // Integer comparison instruction
-HANDLE_OTHER_INST(56, FCmp   , FCmpInst   )  // Floating point comparison instr.
-HANDLE_OTHER_INST(57, PHI    , PHINode    )  // PHI node instruction
-HANDLE_OTHER_INST(58, Call   , CallInst   )  // Call a function
-HANDLE_OTHER_INST(59, Select , SelectInst )  // select instruction
-HANDLE_USER_INST (60, UserOp1, Instruction)  // May be used internally in a pass
-HANDLE_USER_INST (61, UserOp2, Instruction)  // Internal to passes only
-HANDLE_OTHER_INST(62, VAArg  , VAArgInst  )  // vaarg instruction
-HANDLE_OTHER_INST(63, ExtractElement, ExtractElementInst)// extract from vector
-HANDLE_OTHER_INST(64, InsertElement, InsertElementInst)  // insert into vector
-HANDLE_OTHER_INST(65, ShuffleVector, ShuffleVectorInst)  // shuffle two vectors.
-HANDLE_OTHER_INST(66, ExtractValue, ExtractValueInst)// extract from aggregate
-HANDLE_OTHER_INST(67, InsertValue, InsertValueInst)  // insert into aggregate
-HANDLE_OTHER_INST(68, LandingPad, LandingPadInst)  // Landing pad instruction.
-HANDLE_OTHER_INST(69, Freeze, FreezeInst) // Freeze instruction.
+/// Visit an icmp integer comparison instruction.
+/// \param I The icmp instruction being visited.
+HANDLE_OTHER_INST(55, ICmp   , ICmpInst   )
+/// Visit an fcmp floating-point comparison instruction.
+/// \param I The fcmp instruction being visited.
+HANDLE_OTHER_INST(56, FCmp   , FCmpInst   )
+/// Visit a phi node that merges values from predecessor blocks.
+/// \param I The phi instruction being visited.
+HANDLE_OTHER_INST(57, PHI    , PHINode    )
+/// Visit a call that invokes a function.
+/// \param I The call instruction being visited.
+HANDLE_OTHER_INST(58, Call   , CallInst   )
+/// Visit a select that chooses one of two values by a condition.
+/// \param I The select instruction being visited.
+HANDLE_OTHER_INST(59, Select , SelectInst )
+/// Visit a UserOp1 placeholder that may be used internally in a pass.
+/// \param I The UserOp1 instruction being visited.
+HANDLE_USER_INST (60, UserOp1, Instruction)
+/// Visit a UserOp2 placeholder that is internal to passes only.
+/// \param I The UserOp2 instruction being visited.
+HANDLE_USER_INST (61, UserOp2, Instruction)
+/// Visit a vaarg that reads the next variable argument.
+/// \param I The vaarg instruction being visited.
+HANDLE_OTHER_INST(62, VAArg  , VAArgInst  )
+/// Visit an extractelement that pulls one element from a vector.
+/// \param I The extractelement instruction being visited.
+HANDLE_OTHER_INST(63, ExtractElement, ExtractElementInst)
+/// Visit an insertelement that inserts one element into a vector.
+/// \param I The insertelement instruction being visited.
+HANDLE_OTHER_INST(64, InsertElement, InsertElementInst)
+/// Visit a shufflevector that permutes elements from two vectors.
+/// \param I The shufflevector instruction being visited.
+HANDLE_OTHER_INST(65, ShuffleVector, ShuffleVectorInst)
+/// Visit an extractvalue that pulls a field from an aggregate.
+/// \param I The extractvalue instruction being visited.
+HANDLE_OTHER_INST(66, ExtractValue, ExtractValueInst)
+/// Visit an insertvalue that inserts a field into an aggregate.
+/// \param I The insertvalue instruction being visited.
+HANDLE_OTHER_INST(67, InsertValue, InsertValueInst)
+/// Visit a landingpad that receives an exception in an invoke unwind edge.
+/// \param I The landingpad instruction being visited.
+HANDLE_OTHER_INST(68, LandingPad, LandingPadInst)
+/// Visit a freeze that replaces undef or poison with a fixed value.
+/// \param I The freeze instruction being visited.
+HANDLE_OTHER_INST(69, Freeze, FreezeInst)
   LAST_OTHER_INST(69)
 
 #undef  FIRST_TERM_INST

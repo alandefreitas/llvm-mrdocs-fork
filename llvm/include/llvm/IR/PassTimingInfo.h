@@ -29,10 +29,14 @@ class Pass;
 class PassInstrumentationCallbacks;
 class raw_ostream;
 
+/// True when the -time-passes command-line option is enabled.
+///
 /// If the user specifies the -time-passes argument on an LLVM tool command line
 /// then the value of this boolean will be true, otherwise false.
 /// This is the storage for the -time-passes option.
 LLVM_ABI extern bool TimePassesIsEnabled;
+/// True when each pass invocation is timed and reported separately.
+///
 /// If TimePassesPerRun is true, there would be one line of report for
 /// each pass invocation.
 /// If TimePassesPerRun is false, there would be only one line of
@@ -40,14 +44,21 @@ LLVM_ABI extern bool TimePassesIsEnabled;
 /// (For new pass manager only)
 LLVM_ABI extern bool TimePassesPerRun;
 
+/// Report collected pass timings immediately and reset the timers to zero.
+///
 /// If -time-passes has been specified, report the timings immediately and then
 /// reset the timers to zero. By default it uses the stream created by
 /// CreateInfoOutputFile().
+/// \param OutStream Stream to print to, or null for CreateInfoOutputFile().
 LLVM_ABI void reportAndResetTimings(raw_ostream *OutStream = nullptr);
 
 /// Request the timer for this legacy-pass-manager's pass instance.
-LLVM_ABI Timer *getPassTimer(Pass *);
+/// \param P The pass instance to time.
+/// \return The timer for \p P, or nullptr when pass timing is disabled.
+LLVM_ABI Timer *getPassTimer(Pass *P);
 
+/// Implements -time-passes timing for the new pass manager.
+///
 /// This class implements -time-passes functionality for new pass manager.
 /// It provides the pass-instrumentation callbacks that measure the pass
 /// execution time. They collect timing info into individual timers as
@@ -84,25 +95,39 @@ class TimePassesHandler {
   bool PerRun;
 
 public:
+  /// Timer group name for pass execution timing.
   static constexpr StringRef PassGroupName = "pass";
+  /// Timer group name for analysis execution timing.
   static constexpr StringRef AnalysisGroupName = "analysis";
+  /// Timer group description for pass execution timing.
   static constexpr StringRef PassGroupDesc = "Pass execution timing report";
+  /// Timer group description for analysis execution timing.
   static constexpr StringRef AnalysisGroupDesc =
       "Analysis execution timing report";
 
+  /// Construct a handler from the current -time-passes option values.
   LLVM_ABI TimePassesHandler();
+  /// Construct a handler with explicit enable and per-run flags.
+  /// \param Enabled True to collect pass and analysis execution times.
+  /// \param PerRun True to emit one report line per pass invocation.
   LLVM_ABI TimePassesHandler(bool Enabled, bool PerRun = false);
 
   /// Prints out timing information and then resets the timers.
   LLVM_ABI void print();
 
-  // We intend this to be unique per-compilation, thus no copies.
-  TimePassesHandler(const TimePassesHandler &) = delete;
-  void operator=(const TimePassesHandler &) = delete;
+  /// Copy construction is deleted; this handler is unique per compilation.
+  /// \param Other Unused; copy construction is deleted.
+  TimePassesHandler(const TimePassesHandler &Other) = delete;
+  /// Copy assignment is deleted; this handler is unique per compilation.
+  /// \param Other Unused; copy assignment is deleted.
+  void operator=(const TimePassesHandler &Other) = delete;
 
+  /// Register before/after pass and analysis timing callbacks on \p PIC.
+  /// \param PIC Pass instrumentation callbacks to register with.
   LLVM_ABI void registerCallbacks(PassInstrumentationCallbacks &PIC);
 
   /// Set a custom output stream for subsequent reporting.
+  /// \param OutStream Stream that later timing reports are written to.
   LLVM_ABI void setOutStream(raw_ostream &OutStream);
 
 private:

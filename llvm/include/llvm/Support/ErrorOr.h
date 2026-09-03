@@ -73,56 +73,86 @@ private:
 public:
   template <class E>
   /// Construct an error result from \p ErrorCode.
+  ///
+  /// \param ErrorCode Error-code or error-condition enum to store.
+  /// \param EnableIf SFINAE parameter enabling this overload for error enums.
   ErrorOr(E ErrorCode,
           std::enable_if_t<std::is_error_code_enum<E>::value ||
                                std::is_error_condition_enum<E>::value,
-                           void *> = nullptr)
+                           void *> EnableIf = nullptr)
       : HasError(true) {
+    (void)EnableIf;
     new (getErrorStorage()) std::error_code(make_error_code(ErrorCode));
   }
 
   /// Construct an error result from \p EC.
+  ///
+  /// \param EC Error code to store.
   ErrorOr(std::error_code EC) : HasError(true) {
     new (getErrorStorage()) std::error_code(EC);
   }
 
   template <class OtherT>
   /// Construct a success value from \p Val.
+  ///
+  /// \param Val Value to store on the success path.
+  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   ErrorOr(OtherT &&Val,
-          std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr)
+          std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
+              nullptr)
       : HasError(false) {
+    (void)EnableIf;
     new (getStorage()) storage_type(std::forward<OtherT>(Val));
   }
 
   /// Copy-construct from \p Other.
+  ///
+  /// \param Other ErrorOr to copy from.
   ErrorOr(const ErrorOr &Other) {
     copyConstruct(Other);
   }
 
   template <class OtherT>
   /// Copy-construct from \p Other.
+  ///
+  /// \param Other ErrorOr to copy from.
+  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   ErrorOr(const ErrorOr<OtherT> &Other,
-          std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr) {
+          std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
+              nullptr) {
+    (void)EnableIf;
     copyConstruct(Other);
   }
 
   template <class OtherT>
   /// Explicit copy-construct from an incompatible \p Other.
+  ///
+  /// \param Other ErrorOr to copy from.
+  /// \param EnableIf SFINAE parameter enabling this overload when not convertible.
   explicit ErrorOr(
       const ErrorOr<OtherT> &Other,
-      std::enable_if_t<!std::is_convertible_v<OtherT, const T &>> * = nullptr) {
+      std::enable_if_t<!std::is_convertible_v<OtherT, const T &>> *EnableIf =
+          nullptr) {
+    (void)EnableIf;
     copyConstruct(Other);
   }
 
   /// Move-construct from \p Other.
+  ///
+  /// \param Other ErrorOr to move from.
   ErrorOr(ErrorOr &&Other) {
     moveConstruct(std::move(Other));
   }
 
   template <class OtherT>
   /// Move-construct from \p Other.
+  ///
+  /// \param Other ErrorOr to move from.
+  /// \param EnableIf SFINAE parameter enabling this overload when convertible.
   ErrorOr(ErrorOr<OtherT> &&Other,
-          std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr) {
+          std::enable_if_t<std::is_convertible_v<OtherT, T>> *EnableIf =
+              nullptr) {
+    (void)EnableIf;
     moveConstruct(std::move(Other));
   }
 
@@ -130,19 +160,29 @@ public:
   // & I'm too lazy to write it right now.
   template <class OtherT>
   /// Explicit move-construct from an incompatible \p Other.
+  ///
+  /// \param Other ErrorOr to move from.
+  /// \param EnableIf SFINAE parameter enabling this overload when not convertible.
   explicit ErrorOr(
       ErrorOr<OtherT> &&Other,
-      std::enable_if_t<!std::is_convertible_v<OtherT, T>> * = nullptr) {
+      std::enable_if_t<!std::is_convertible_v<OtherT, T>> *EnableIf = nullptr) {
+    (void)EnableIf;
     moveConstruct(std::move(Other));
   }
 
   /// Copy-assign from \p Other, replacing the contained value or error.
+  ///
+  /// \param Other ErrorOr to copy from.
+  /// \returns A reference to this ErrorOr.
   ErrorOr &operator=(const ErrorOr &Other) {
     copyAssign(Other);
     return *this;
   }
 
   /// Move-assign from \p Other, replacing the contained value or error.
+  ///
+  /// \param Other ErrorOr to move from.
+  /// \returns A reference to this ErrorOr.
   ErrorOr &operator=(ErrorOr &&Other) {
     moveAssign(std::move(Other));
     return *this;
@@ -155,34 +195,50 @@ public:
   }
 
   /// Return false if there is an error.
+  ///
+  /// \returns True if a usable value is present; false on error.
   explicit operator bool() const {
     return !HasError;
   }
 
   /// Return a mutable reference to the stored value.
+  ///
+  /// \returns A mutable reference to the stored value.
   reference get() { return *getStorage(); }
   /// Return a const reference to the stored value.
+  ///
+  /// \returns A const reference to the stored value.
   const_reference get() const { return const_cast<ErrorOr<T> *>(this)->get(); }
 
   /// Return the stored error code, or a default-constructed code on success.
+  ///
+  /// \returns The stored error code, or a default-constructed code on success.
   std::error_code getError() const {
     return HasError ? *getErrorStorage() : std::error_code();
   }
 
   /// Return a pointer to the stored value.
+  ///
+  /// \returns A pointer to the stored value.
   pointer operator ->() {
     return toPointer(getStorage());
   }
 
   /// Return a const pointer to the stored value.
+  ///
+  /// \returns A const pointer to the stored value.
   const_pointer operator->() const { return toPointer(getStorage()); }
 
   /// Return a reference to the stored value.
+  ///
+  /// \returns A mutable reference to the stored value.
   reference operator *() {
     return *getStorage();
   }
 
   /// Return a const reference to the stored value.
+  ///
+  /// \returns A const reference to the stored value.
   const_reference operator*() const { return *getStorage(); }
 
 private:
@@ -286,6 +342,10 @@ std::enable_if_t<std::is_error_code_enum<E>::value ||
                      std::is_error_condition_enum<E>::value,
                  bool>
 /// Return true if \p Err holds error-code enum \p Code.
+///
+/// \param Err ErrorOr whose stored error is compared.
+/// \param Code Error-code or error-condition enum to compare against.
+/// \returns True if \p Err's error equals \p Code.
 operator==(const ErrorOr<T> &Err, E Code) {
   return Err.getError() == Code;
 }

@@ -73,18 +73,22 @@ using EnableIfCallable = std::enable_if_t<std::disjunction<
 
 template <typename ReturnT, typename... ParamTs> class UniqueFunctionBase {
 protected:
+  /// Size in bytes of the inline storage buffer for small callables.
   static constexpr size_t InlineStorageSize = sizeof(void *) * 3;
+  /// Alignment of the inline storage buffer for small callables.
   static constexpr size_t InlineStorageAlign = alignof(void *);
 
-  // Provide a type function to map parameters that won't observe extra copies
-  // or moves and which are small enough to likely pass in register to values
-  // and all other types to l-value reference types. We use this to compute the
-  // types used in our erased call utility to minimize copies and moves unless
-  // doing so would force things unnecessarily into memory.
-  //
-  // The heuristic used is related to common ABI register passing conventions.
-  // It doesn't have to be exact though, and in one way it is more strict
-  // because we want to still be able to observe either moves *or* copies.
+  /// Map a parameter type to a by-value or by-reference adjusted call type.
+  ///
+  /// Maps parameters that won't observe extra copies or moves and which are
+  /// small enough to likely pass in register to values, and all other types to
+  /// l-value reference types. We use this to compute the types used in our
+  /// erased call utility to minimize copies and moves unless doing so would
+  /// force things unnecessarily into memory.
+  ///
+  /// The heuristic used is related to common ABI register passing conventions.
+  /// It doesn't have to be exact though, and in one way it is more strict
+  /// because we want to still be able to observe either moves *or* copies.
   template <typename T> struct AdjustedParamTBase {
     static_assert(!std::is_reference<T>::value,
                   "references should be handled by template specialization");
@@ -97,24 +101,33 @@ protected:
                            T, T &>;
   };
 
-  // This specialization ensures that 'AdjustedParam<V<T>&>' or
-  // 'AdjustedParam<V<T>&&>' does not trigger a compile-time error when 'T' is
-  // an incomplete type and V a templated type.
+  /// Adjust an lvalue-reference parameter type without requiring a complete T.
+  ///
+  /// This specialization ensures that 'AdjustedParam<V<T>&>' or
+  /// 'AdjustedParam<V<T>&&>' does not trigger a compile-time error when 'T' is
+  /// an incomplete type and V a templated type.
   template <typename T> struct AdjustedParamTBase<T &> { using type = T &; };
+  /// Adjust an rvalue-reference parameter type without requiring a complete T.
   template <typename T> struct AdjustedParamTBase<T &&> { using type = T &; };
 
+  /// Parameter type used in the erased call callback for \p T.
   template <typename T>
   using AdjustedParamT = typename AdjustedParamTBase<T>::type;
 
-  // The type of the erased function pointer we use as a callback to dispatch to
-  // the stored callable when it is trivial to move and destroy.
+  /// Erased call callback invoked when the stored callable is called.
+  ///
+  /// Used when the stored callable is trivial to move and destroy, or more
+  /// generally as the dispatch entry point for operator().
   using CallPtrT = ReturnT (*)(const UniqueFunctionBase *Self,
                                AdjustedParamT<ParamTs>... Params);
+  /// Combined destroy/move callback for the stored callable.
+  ///
+  /// When \p LHS is non-null, move the callable from \p RHS into \p LHS; when
+  /// \p LHS is null, destroy the callable in \p RHS.
   using DestroyMovePtrT = void (*)(UniqueFunctionBase *LHS,
                                    UniqueFunctionBase *RHS);
 
-  // The main storage buffer. This will either have a pointer to out-of-line
-  // storage or an inline buffer storing the callable.
+  /// Storage for either an out-of-line pointer or an inline callable buffer.
   union StorageT {
     // For out-of-line storage we keep a pointer to the underlying storage.
     void *OutOfLine;
@@ -127,12 +140,14 @@ protected:
     // This is mutable as an inlined `const unique_function<void() const>` may
     // still modify its own mutable members.
     alignas(InlineStorageAlign) mutable std::byte Inline[InlineStorageSize];
-  } Storage;
+  } Storage; ///< Instance of StorageT holding the type-erased callable.
 
+  /// Callback that invokes the type-erased stored callable.
   CallPtrT CallPtr = nullptr;
+  /// Callback that moves or destroys the type-erased stored callable.
   DestroyMovePtrT DestroyMovePtr = nullptr;
 
-  // A simple tag type so the call-as type to be passed to the constructor.
+  /// Tag type selecting the cv-qualified type used to call the stored callable.
   template <typename T> struct CalledAs {};
 
   // Essentially the "main" unique_function constructor, but subclasses
@@ -215,6 +230,8 @@ protected:
 #endif
   }
 
+  /// Move-assign by destroying this object and move-constructing over it.
+  /// \param RHS Source base whose callable is taken.
   UniqueFunctionBase &operator=(UniqueFunctionBase &&RHS) noexcept {
     if (this == &RHS)
       return *this;
@@ -230,55 +247,106 @@ protected:
   UniqueFunctionBase() = default;
 
 public:
+  /// Return true if this object currently holds a callable.
   explicit operator bool() const { return (bool)CallPtr; }
 };
 
 } // namespace detail
 
+/// Non-const unique_function specialization for signature \c R(P...).
 template <typename R, typename... P>
 class unique_function<R(P...)> : public detail::UniqueFunctionBase<R, P...> {
   using Base = detail::UniqueFunctionBase<R, P...>;
 
 public:
+  /// Construct an empty unique_function that does not hold a callable.
   unique_function() = default;
-  unique_function(std::nullptr_t) {}
-  unique_function(unique_function &&) = default;
-  unique_function(const unique_function &) = delete;
-  unique_function &operator=(unique_function &&) = default;
-  unique_function &operator=(const unique_function &) = delete;
+  /// Construct an empty unique_function from nullptr.
+  /// \param Null Unused nullptr literal used to select this overload.
+  unique_function(std::nullptr_t Null) {}
+  /// Move-construct, leaving the source empty.
+  /// \param RHS Source unique_function whose callable is taken.
+  unique_function(unique_function &&RHS) = default;
+  /// Copy construction is deleted; unique_function is move-only.
+  /// \param Unused Unused; copy construction is not supported.
+  unique_function(const unique_function &Unused) = delete;
+  /// Move-assign, leaving the source empty.
+  /// \param RHS Source unique_function whose callable is taken.
+  /// \return Reference to this unique_function.
+  unique_function &operator=(unique_function &&RHS) = default;
+  /// Copy assignment is deleted; unique_function is move-only.
+  /// \param Unused Unused; copy assignment is not supported.
+  unique_function &operator=(const unique_function &Unused) = delete;
 
+  /// Construct a unique_function that owns a decayed move of \p Callable.
+  ///
+  /// Disabled when \p CallableT is unique_function itself, and when
+  /// \p CallableT cannot be invoked with \c P... to produce a type convertible
+  /// to \c R (or \c R is void).
+  /// \param Callable Callable to store; moved into owned storage.
+  /// \param DisableIfSame Unused; SFINAE-disables when CallableT is
+  /// unique_function.
+  /// \param EnableIfInvocable Unused; SFINAE-enables when CallableT is
+  /// invocable as required.
   template <typename CallableT>
   unique_function(
       CallableT Callable,
-      detail::EnableUnlessSameType<CallableT, unique_function> * = nullptr,
-      detail::EnableIfCallable<CallableT, R, P...> * = nullptr)
+      detail::EnableUnlessSameType<CallableT, unique_function> *DisableIfSame =
+          nullptr,
+      detail::EnableIfCallable<CallableT, R, P...> *EnableIfInvocable =
+          nullptr)
       : Base(std::forward<CallableT>(Callable),
              typename Base::template CalledAs<CallableT>{}) {}
 
+  /// Invoke the stored callable with \p Params and return its result.
+  /// \param Params Arguments forwarded to the stored callable.
+  /// \return Result of invoking the stored callable.
   R operator()(P... Params) { return this->CallPtr(this, Params...); }
 };
 
+/// Const unique_function specialization for signature \c R(P...) const.
 template <typename R, typename... P>
 class unique_function<R(P...) const>
     : public detail::UniqueFunctionBase<R, P...> {
   using Base = detail::UniqueFunctionBase<R, P...>;
 
 public:
+  /// Construct an empty unique_function that does not hold a callable.
   unique_function() = default;
+  /// Construct an empty unique_function from nullptr.
   unique_function(std::nullptr_t) {}
+  /// Move-construct, leaving the source empty.
   unique_function(unique_function &&) = default;
+  /// Copy construction is deleted; unique_function is move-only.
   unique_function(const unique_function &) = delete;
+  /// Move-assign, leaving the source empty.
   unique_function &operator=(unique_function &&) = default;
+  /// Copy assignment is deleted; unique_function is move-only.
   unique_function &operator=(const unique_function &) = delete;
 
+  /// Construct a unique_function that owns a decayed move of \p Callable.
+  ///
+  /// Disabled when \p CallableT is unique_function itself, and when a const
+  /// \p CallableT cannot be invoked with \c P... to produce a type convertible
+  /// to \c R (or \c R is void).
+  /// \param Callable Callable to store; moved into owned storage.
+  /// \param DisableIfSame Unused; SFINAE-disables when CallableT is
+  /// unique_function.
+  /// \param EnableIfInvocable Unused; SFINAE-enables when a const CallableT is
+  /// invocable as required.
   template <typename CallableT>
   unique_function(
       CallableT Callable,
-      detail::EnableUnlessSameType<CallableT, unique_function> * = nullptr,
-      detail::EnableIfCallable<const CallableT, R, P...> * = nullptr)
+      detail::EnableUnlessSameType<CallableT, unique_function> *DisableIfSame =
+          nullptr,
+      detail::EnableIfCallable<const CallableT, R, P...> *EnableIfInvocable =
+          nullptr)
       : Base(std::forward<CallableT>(Callable),
              typename Base::template CalledAs<const CallableT>{}) {}
 
+  /// Invoke the stored callable with \p Params and return its result.
+  /// \param Params Arguments forwarded to the stored callable.
+  /// \return Result of invoking the stored callable.
   R operator()(P... Params) const { return this->CallPtr(this, Params...); }
 };
 

@@ -34,14 +34,27 @@ class AlwaysInlinerPass : public RequiredPassInfoMixin<AlwaysInlinerPass> {
   bool InsertLifetime;
 
 public:
+  /// Construct an always-inliner pass.
+  ///
+  /// \param InsertLifetime Whether to insert lifetime markers for inlined
+  /// allocas.
   AlwaysInlinerPass(bool InsertLifetime = true)
       : InsertLifetime(InsertLifetime) {}
 
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Run the always-inliner over the given module.
+  ///
+  /// \param M Module whose always_inline functions are inlined.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 /// Create a legacy pass manager instance of a pass to inline and remove
 /// functions marked as "always_inline".
+///
+/// \param InsertLifetime Whether to insert lifetime markers for inlined
+/// allocas.
+/// \return A new always-inliner pass for the legacy pass manager.
 LLVM_ABI Pass *createAlwaysInlinerLegacyPass(bool InsertLifetime = true);
 }
 

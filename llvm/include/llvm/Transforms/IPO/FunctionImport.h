@@ -33,50 +33,62 @@ public:
   /// The different reasons selectCallee will chose not to import a
   /// candidate.
   enum class ImportFailureReason {
-    None,
-    // We can encounter a global variable instead of a function in rare
-    // situations with SamplePGO. See comments where this failure type is
-    // set for more details.
+    None, ///< No failure; the candidate was not rejected.
+    /// Encountered a global variable instead of a function (rare SamplePGO
+    /// cases). See comments where this failure type is set for more details.
     GlobalVar,
-    // Found to be globally dead, so we don't bother importing.
+    /// Found to be globally dead, so we don't bother importing.
     NotLive,
-    // Instruction count over the current threshold.
+    /// Instruction count over the current threshold.
     TooLarge,
-    // Don't import something with interposable linkage as we can't inline it
-    // anyway.
+    /// Interposable linkage; cannot inline anyway so do not import.
     InterposableLinkage,
-    // Generally we won't end up failing due to this reason, as we expect
-    // to find at least one summary for the GUID that is global or a local
-    // in the referenced module for direct calls.
+    /// Local linkage with no suitable summary in the referenced module.
+    ///
+    /// Generally we won't end up failing due to this reason, as we expect to
+    /// find at least one summary for the GUID that is global or a local in the
+    /// referenced module for direct calls.
     LocalLinkageNotInModule,
-    // This corresponds to the NotEligibleToImport being set on the summary,
-    // which can happen in a few different cases (e.g. local that can't be
-    // renamed or promoted because it is referenced on a llvm*.used variable).
+    /// NotEligibleToImport is set on the summary.
+    ///
+    /// This can happen in a few different cases (e.g. local that can't be
+    /// renamed or promoted because it is referenced on a llvm*.used variable).
     NotEligible,
-    // This corresponds to NoInline being set on the function summary,
-    // which will happen if it is known that the inliner will not be able
-    // to inline the function (e.g. it is marked with a NoInline attribute).
+    /// NoInline is set on the function summary.
+    ///
+    /// This will happen if it is known that the inliner will not be able to
+    /// inline the function (e.g. it is marked with a NoInline attribute).
     NoInline
   };
 
   /// Information optionally tracked for candidates the importer decided
   /// not to import. Used for optional stat printing.
   struct ImportFailureInfo {
-    // The ValueInfo corresponding to the candidate. We save an index hash
-    // table lookup for each GUID by stashing this here.
+    /// The ValueInfo corresponding to the candidate.
+    ///
+    /// We save an index hash table lookup for each GUID by stashing this here.
     ValueInfo VI;
-    // The maximum call edge hotness for all failed imports of this candidate.
+    /// The maximum call edge hotness for all failed imports of this candidate.
     CalleeInfo::HotnessType MaxHotness;
-    // most recent reason for failing to import (doesn't necessarily correspond
-    // to the attempt with the maximum hotness).
+    /// Most recent reason for failing to import.
+    ///
+    /// Does not necessarily correspond to the attempt with the maximum hotness.
     ImportFailureReason Reason;
-    // The number of times we tried to import candidate but failed.
+    /// The number of times we tried to import candidate but failed.
     unsigned Attempts;
+    /// Construct failure info for a rejected import candidate.
+    ///
+    /// \param VI ValueInfo for the candidate.
+    /// \param MaxHotness Hottest call-edge hotness among failed attempts.
+    /// \param Reason Most recent failure reason.
+    /// \param Attempts Number of failed import attempts.
     ImportFailureInfo(ValueInfo VI, CalleeInfo::HotnessType MaxHotness,
                       ImportFailureReason Reason, unsigned Attempts)
         : VI(VI), MaxHotness(MaxHotness), Reason(Reason), Attempts(Attempts) {}
   };
 
+  /// Map from callee GUID to import threshold and summary decision.
+  ///
   /// Map of callee GUID considered for import into a given module to a pair
   /// consisting of the largest threshold applied when deciding whether to
   /// import it and, if we decided to import, a pointer to the summary instance
@@ -86,41 +98,55 @@ public:
                std::tuple<unsigned, const GlobalValueSummary *,
                           std::unique_ptr<ImportFailureInfo>>>;
 
-  // Issues import IDs.  Each ID uniquely corresponds to a tuple of
-  // (FromModule, GUID, Definition/Declaration).
-  //
-  // The import IDs make the import list space efficient by referring to each
-  // import with a 32-bit integer ID while maintaining a central table that maps
-  // those integer IDs to tuples of (FromModule, GUID, Def/Decl).
-  //
-  // In one large application, a pair of (FromModule, GUID) is mentioned in
-  // import lists more than 50 times on average across all destination modules.
-  // Mentioning the 32-byte tuple:
-  //
-  // std::tuple<StringRef, GlobalValue::GUID, GlobalValueSummary::ImportKind>
-  //
-  // 50 times by value in various import lists would be costly.  We can reduce
-  // the memory footprint of import lists by placing one copy in a central table
-  // and referring to it with 32-bit integer IDs.
-  //
-  // To save space within the central table, we only store pairs of
-  // (FromModule, GUID) in the central table.  In the actual 32-bit integer ID,
-  // the top 31 bits index into the central table while the bottom 1 bit
-  // indicates whether an ID is for GlobalValueSummary::Declaration or
-  // GlobalValueSummary::Definition.
+  /// Issues compact import IDs for (FromModule, GUID, Def/Decl) tuples.
+  ///
+  /// Each ID uniquely corresponds to a tuple of (FromModule, GUID,
+  /// Definition/Declaration).
+  ///
+  /// The import IDs make the import list space efficient by referring to each
+  /// import with a 32-bit integer ID while maintaining a central table that maps
+  /// those integer IDs to tuples of (FromModule, GUID, Def/Decl).
+  ///
+  /// In one large application, a pair of (FromModule, GUID) is mentioned in
+  /// import lists more than 50 times on average across all destination modules.
+  /// Mentioning the 32-byte tuple:
+  ///
+  /// std::tuple<StringRef, GlobalValue::GUID, GlobalValueSummary::ImportKind>
+  ///
+  /// 50 times by value in various import lists would be costly.  We can reduce
+  /// the memory footprint of import lists by placing one copy in a central table
+  /// and referring to it with 32-bit integer IDs.
+  ///
+  /// To save space within the central table, we only store pairs of
+  /// (FromModule, GUID) in the central table.  In the actual 32-bit integer ID,
+  /// the top 31 bits index into the central table while the bottom 1 bit
+  /// indicates whether an ID is for GlobalValueSummary::Declaration or
+  /// GlobalValueSummary::Definition.
   class ImportIDTable {
   public:
+    /// 32-bit import identifier encoding table index and Def/Decl kind.
     using ImportIDTy = uint32_t;
 
+    /// Construct an empty import ID table.
     ImportIDTable() = default;
 
-    // Something is wrong with the application logic if we need to make a copy
-    // of this and potentially make a fork.
-    ImportIDTable(const ImportIDTable &) = delete;
-    ImportIDTable &operator=(const ImportIDTable &) = delete;
+    /// Copy construction is deleted; the table must not be forked.
+    ///
+    /// Something is wrong with the application logic if we need to make a copy
+    /// of this and potentially make a fork.
+    ///
+    /// \param Unused Ignored; copy construction is not supported.
+    ImportIDTable(const ImportIDTable &Unused) = delete;
+    /// Copy assignment is deleted; the table must not be forked.
+    ///
+    /// \param Unused Ignored; copy assignment is not supported.
+    ImportIDTable &operator=(const ImportIDTable &Unused) = delete;
 
-    // Create a pair of import IDs [Def, Decl] for a given pair of FromModule
-    // and GUID.
+    /// Create a pair of import IDs [Def, Decl] for FromModule and GUID.
+    ///
+    /// \param FromModule Source module path string.
+    /// \param GUID Global value GUID to import.
+    /// \return The newly created [Def, Decl] import ID pair.
     std::pair<ImportIDTy, ImportIDTy> createImportIDs(StringRef FromModule,
                                                       GlobalValue::GUID GUID) {
       auto Key = std::make_pair(FromModule, GUID);
@@ -128,8 +154,11 @@ public:
       return makeIDPair(InsertResult.first->second);
     }
 
-    // Get a pair of previously created import IDs [Def, Decl] for a given pair
-    // of FromModule and GUID.  Returns std::nullopt if not available.
+    /// Get previously created import IDs [Def, Decl] for FromModule and GUID.
+    ///
+    /// \param FromModule Source module path string.
+    /// \param GUID Global value GUID to look up.
+    /// \return The [Def, Decl] ID pair if previously created, or std::nullopt.
     std::optional<std::pair<ImportIDTy, ImportIDTy>>
     getImportIDs(StringRef FromModule, GlobalValue::GUID GUID) {
       auto Key = std::make_pair(FromModule, GUID);
@@ -139,8 +168,10 @@ public:
       return std::nullopt;
     }
 
-    // Return a tuple of [FromModule, GUID, Def/Decl] that a given ImportID
-    // corresponds to.
+    /// Return the [FromModule, GUID, Def/Decl] tuple for ImportID.
+    ///
+    /// \param ImportID Encoded import identifier to resolve.
+    /// \return The (FromModule, GUID, Def/Decl) tuple for \p ImportID.
     std::tuple<StringRef, GlobalValue::GUID, GlobalValueSummary::ImportKind>
     lookup(ImportIDTy ImportID) const {
       GlobalValueSummary::ImportKind Kind =
@@ -152,7 +183,10 @@ public:
       return std::make_tuple(FromModule, GUID, Kind);
     }
 
-    // The same as lookup above.  Useful for map_iterator.
+    /// Call operator forwarding to lookup; useful for map_iterator.
+    ///
+    /// \param ImportID Encoded import identifier to resolve.
+    /// \return The (FromModule, GUID, Def/Decl) tuple for \p ImportID.
     std::tuple<StringRef, GlobalValue::GUID, GlobalValueSummary::ImportKind>
     operator()(ImportIDTable::ImportIDTy ImportID) const {
       return lookup(ImportID);
@@ -184,31 +218,53 @@ public:
   /// path string table).
   class ImportMapTy {
   public:
+    /// Status returned when requesting that a GUID be imported as a definition.
     enum class AddDefinitionStatus {
-      // No change was made to the list of imports or whether each import should
-      // be imported as a declaration or definition.
+      /// No change was made to the list of imports or whether each import
+      /// should be imported as a declaration or definition.
       NoChange,
-      // Successfully added the given GUID to be imported as a definition. There
-      // was no existing entry with the same GUID as a declaration.
+      /// Successfully added the given GUID to be imported as a definition.
+      ///
+      /// There was no existing entry with the same GUID as a declaration.
       Inserted,
-      // An existing with the given GUID was changed to a definition.
+      /// An existing entry with the given GUID was changed to a definition.
       ChangedToDefinition,
     };
 
+    /// Default construction is deleted; an ImportIDTable is required.
     ImportMapTy() = delete;
+    /// Construct an import map backed by the given import ID table.
+    ///
+    /// \param IDs Central import ID table that owns encoded import entries.
     ImportMapTy(ImportIDTable &IDs) : IDs(IDs) {}
 
-    // Add the given GUID to ImportList as a definition.  If the same GUID has
-    // been added as a declaration previously, that entry is overridden.
+    /// Add the given GUID to ImportList as a definition.
+    ///
+    /// If the same GUID has been added as a declaration previously, that entry
+    /// is overridden.
+    ///
+    /// \param FromModule Source module path string.
+    /// \param GUID Global value GUID to import as a definition.
+    /// \return Whether the import list was unchanged, newly inserted, or
+    /// upgraded from a declaration to a definition.
     LLVM_ABI AddDefinitionStatus addDefinition(StringRef FromModule,
                                                GlobalValue::GUID GUID);
 
-    // Add the given GUID to ImportList as a declaration.  If the same GUID has
-    // been added as a definition previously, that entry takes precedence, and
-    // no change is made.
+    /// Add the given GUID to ImportList as a declaration if not already a def.
+    ///
+    /// If the same GUID has been added as a definition previously, that entry
+    /// takes precedence, and no change is made.
+    ///
+    /// \param FromModule Source module path string.
+    /// \param GUID Global value GUID to import as a declaration.
     LLVM_ABI void maybeAddDeclaration(StringRef FromModule,
                                       GlobalValue::GUID GUID);
 
+    /// Add GUID as a definition or declaration according to ImportKind.
+    ///
+    /// \param FromModule Source module path string.
+    /// \param GUID Global value GUID to import.
+    /// \param ImportKind Whether to import as a definition or declaration.
     void addGUID(StringRef FromModule, GlobalValue::GUID GUID,
                  GlobalValueSummary::ImportKind ImportKind) {
       if (ImportKind == GlobalValueSummary::Definition)
@@ -217,17 +273,31 @@ public:
         maybeAddDeclaration(FromModule, GUID);
     }
 
-    // Return the list of source modules sorted in the ascending alphabetical
-    // order.
+    /// Return the list of source modules sorted in ascending alphabetical order.
+    ///
+    /// \return Source module path strings in ascending alphabetical order.
     LLVM_ABI SmallVector<StringRef, 0> getSourceModules() const;
 
+    /// Return the import kind for GUID from FromModule, if present.
+    ///
+    /// \param FromModule Source module path string.
+    /// \param GUID Global value GUID to query.
+    /// \return The import kind if present, or std::nullopt if absent.
     LLVM_ABI std::optional<GlobalValueSummary::ImportKind>
     getImportType(StringRef FromModule, GlobalValue::GUID GUID) const;
 
-    // Iterate over the import list.  The caller gets tuples of FromModule,
-    // GUID, and ImportKind instead of import IDs.  std::cref below prevents
-    // map_iterator from deep-copying IDs.
+    /// Iterator to the first import as a (FromModule, GUID, ImportKind) tuple.
+    ///
+    /// The caller gets tuples of FromModule, GUID, and ImportKind instead of
+    /// import IDs. std::cref below prevents map_iterator from deep-copying IDs.
+    ///
+    /// \return Mapped iterator to the first (FromModule, GUID, ImportKind)
+    /// tuple.
     auto begin() const { return map_iterator(Imports.begin(), std::cref(IDs)); }
+    /// Iterator past the last import as a (FromModule, GUID, ImportKind) tuple.
+    ///
+    /// \return Mapped iterator past the last (FromModule, GUID, ImportKind)
+    /// tuple.
     auto end() const { return map_iterator(Imports.end(), std::cref(IDs)); }
 
     friend class SortedImportList;
@@ -237,10 +307,13 @@ public:
     DenseSet<ImportIDTable::ImportIDTy> Imports;
   };
 
-  // A read-only copy of ImportMapTy with its contents sorted according to the
-  // given comparison function.
+  /// A read-only copy of ImportMapTy with contents sorted by a comparator.
   class SortedImportList {
   public:
+    /// Construct a sorted view of ImportMap using comparison function Comp.
+    ///
+    /// \param ImportMap Import map whose entries are copied and sorted.
+    /// \param Comp Comparison on (FromModule, GUID) pairs used to order entries.
     SortedImportList(const ImportMapTy &ImportMap,
                      llvm::function_ref<
                          bool(const std::pair<StringRef, GlobalValue::GUID> &,
@@ -258,10 +331,18 @@ public:
       });
     }
 
-    // Iterate over the import list.  The caller gets tuples of FromModule,
-    // GUID, and ImportKind instead of import IDs.  std::cref below prevents
-    // map_iterator from deep-copying IDs.
+    /// Iterator to the first import as a (FromModule, GUID, ImportKind) tuple.
+    ///
+    /// The caller gets tuples of FromModule, GUID, and ImportKind instead of
+    /// import IDs. std::cref below prevents map_iterator from deep-copying IDs.
+    ///
+    /// \return Mapped iterator to the first (FromModule, GUID, ImportKind)
+    /// tuple.
     auto begin() const { return map_iterator(Imports.begin(), std::cref(IDs)); }
+    /// Iterator past the last import as a (FromModule, GUID, ImportKind) tuple.
+    ///
+    /// \return Mapped iterator past the last (FromModule, GUID, ImportKind)
+    /// tuple.
     auto end() const { return map_iterator(Imports.end(), std::cref(IDs)); }
 
   private:
@@ -269,17 +350,30 @@ public:
     SmallVector<ImportIDTable::ImportIDTy, 0> Imports;
   };
 
-  // A map from destination modules to lists of imports.
+  /// A map from destination modules to lists of imports.
   class ImportListsTy {
   public:
+    /// Construct an empty destination-to-import-list map.
     ImportListsTy() : ImportIDs(), EmptyList(ImportIDs) {}
+    /// Construct with reserved capacity for destination modules.
+    ///
+    /// \param Size Initial bucket count hint for the destination-module map.
     ImportListsTy(size_t Size)
         : ImportIDs(), EmptyList(ImportIDs), ListsImpl(Size) {}
 
+    /// Return a mutable import list for destination module DestMod.
+    ///
+    /// \param DestMod Destination module path whose import list is accessed.
+    /// \return Mutable reference to the import list for \p DestMod.
     ImportMapTy &operator[](StringRef DestMod) {
       return ListsImpl.try_emplace(DestMod, ImportIDs).first->second;
     }
 
+    /// Return the import list for DestMod, or an empty list if absent.
+    ///
+    /// \param DestMod Destination module path whose import list is queried.
+    /// \return Const reference to the import list for \p DestMod, or an empty
+    /// list if none exists.
     const ImportMapTy &lookup(StringRef DestMod) const {
       auto It = ListsImpl.find(DestMod);
       if (It != ListsImpl.end())
@@ -287,10 +381,22 @@ public:
       return EmptyList;
     }
 
+    /// Return the number of destination modules with an import list.
+    ///
+    /// \return The number of destination modules that have an import list.
     size_t size() const { return ListsImpl.size(); }
 
+    /// Const iterator over (destination module, import map) entries.
     using const_iterator = DenseMap<StringRef, ImportMapTy>::const_iterator;
+    /// Iterator to the first destination-module import-list entry.
+    ///
+    /// \return Const iterator to the first (destination module, import map)
+    /// entry.
     const_iterator begin() const { return ListsImpl.begin(); }
+    /// Iterator past the last destination-module import-list entry.
+    ///
+    /// \return Const iterator past the last (destination module, import map)
+    /// entry.
     const_iterator end() const { return ListsImpl.end(); }
 
   private:
@@ -299,6 +405,8 @@ public:
     DenseMap<StringRef, ImportMapTy> ListsImpl;
   };
 
+  /// Set of global values a module exports for cross-module importing.
+  ///
   /// The set contains an entry for every global value that the module exports.
   /// Depending on the user context, this container is allowed to contain
   /// definitions, declarations or a mix of both.
@@ -309,12 +417,21 @@ public:
       std::function<Expected<std::unique_ptr<Module>>(StringRef Identifier)>;
 
   /// Create a Function Importer.
+  ///
+  /// \param Index Module summary index used to drive importing decisions.
+  /// \param ModuleLoader Callback that loads a Module given its identifier.
+  /// \param ClearDSOLocalOnDeclarations Whether to clear dso_local on decls;
+  /// see ClearDSOLocalOnDeclarations in Utils/FunctionImportUtils.h.
   FunctionImporter(const ModuleSummaryIndex &Index, ModuleLoaderTy ModuleLoader,
                    bool ClearDSOLocalOnDeclarations)
       : Index(Index), ModuleLoader(std::move(ModuleLoader)),
         ClearDSOLocalOnDeclarations(ClearDSOLocalOnDeclarations) {}
 
   /// Import functions in Module \p M based on the supplied import list.
+  ///
+  /// \param M Destination module that receives imported functions.
+  /// \param ImportList Map of source modules and GUIDs to import into \p M.
+  /// \return True if any globals were imported, or an error on failure.
   LLVM_ABI Expected<bool> importFunctions(Module &M,
                                           const ImportMapTy &ImportList);
 
@@ -333,30 +450,33 @@ private:
 /// The function importing pass
 class FunctionImportPass : public OptionalPassInfoMixin<FunctionImportPass> {
 public:
+  /// Run function importing over the given module.
+  ///
+  /// \param M Module that may import functions from other modules.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 /// Compute all the imports and exports for every module in the Index.
 ///
-/// \p ModuleToDefinedGVSummaries contains for each Module a map
-/// (GUID -> Summary) for every global defined in the module.
-///
-/// \p isPrevailing is a callback that will be called with a global value's GUID
-/// and summary and should return whether the module corresponding to the
-/// summary contains the linker-prevailing copy of that value.
-///
-/// \p ImportLists will be populated with an entry for every Module we are
-/// importing into. This entry is itself a map that can be passed to
-/// FunctionImporter::importFunctions() above (see description there).
-///
-/// \p ExportLists contains for each Module the set of globals (GUID) that will
-/// be imported by another module, or referenced by such a function. I.e. this
-/// is the set of globals that need to be promoted/renamed appropriately.
-///
 /// The module identifier strings that are the keys of the above two maps
 /// are owned by the in-memory ModuleSummaryIndex the importing decisions
 /// are made from (the module path for each summary is owned by the index's
 /// module path string table).
+///
+/// \param Index Combined module summary index for the ThinLTO link.
+/// \param ModuleToDefinedGVSummaries Map from each module to (GUID -> Summary)
+/// for every global defined in that module.
+/// \param isPrevailing Callback invoked with a global value's GUID and summary;
+/// should return whether the module corresponding to the summary contains the
+/// linker-prevailing copy of that value.
+/// \param ImportLists Populated with an entry for every module we are importing
+/// into. Each entry is a map that can be passed to
+/// FunctionImporter::importFunctions().
+/// \param ExportLists For each module, the set of globals (GUID) that will be
+/// imported by another module, or referenced by such a function. These globals
+/// need to be promoted/renamed appropriately.
 LLVM_ABI void ComputeCrossModuleImport(
     const ModuleSummaryIndex &Index,
     const DenseMap<StringRef, GVSummaryMapTy> &ModuleToDefinedGVSummaries,
@@ -365,17 +485,27 @@ LLVM_ABI void ComputeCrossModuleImport(
     FunctionImporter::ImportListsTy &ImportLists,
     DenseMap<StringRef, FunctionImporter::ExportSetTy> &ExportLists);
 
-/// PrevailingType enum used as a return type of callback passed
-/// to computeDeadSymbolsAndUpdateIndirectCalls. Yes and No values used when
-/// status explicitly set by symbols resolution, otherwise status is Unknown.
-enum class PrevailingType { Yes, No, Unknown };
+/// Prevailing status of a symbol for dead-symbol analysis callbacks.
+///
+/// Used as the return type of the callback passed to
+/// computeDeadSymbolsAndUpdateIndirectCalls. Yes and No are used when status is
+/// explicitly set by symbol resolution; otherwise status is Unknown.
+enum class PrevailingType {
+  Yes,     ///< Symbol resolution marked this GUID as prevailing.
+  No,      ///< Symbol resolution marked this GUID as non-prevailing.
+  Unknown, ///< Prevailing status was not explicitly set by resolution.
+};
 
-/// Update call edges for indirect calls to local functions added from
-/// SamplePGO when needed. Normally this is done during
-/// computeDeadSymbolsAndUpdateIndirectCalls, but can be called standalone
-/// when that is not called (e.g. during testing).
+/// Update SamplePGO indirect call edges to local functions when needed.
+///
+/// Normally this is done during computeDeadSymbolsAndUpdateIndirectCalls, but
+/// can be called standalone when that is not called (e.g. during testing).
+///
+/// \param Index Combined module summary index whose call edges are updated.
 LLVM_ABI void updateIndirectCalls(ModuleSummaryIndex &Index);
 
+/// Compute dead symbols in the summary index and update SamplePGO edges.
+///
 /// Compute all the symbols that are "dead": i.e these that can't be reached
 /// in the graph from any of the given symbols listed in
 /// \p GUIDPreservedSymbols. Non-prevailing symbols are symbols without a
@@ -383,6 +513,10 @@ LLVM_ABI void updateIndirectCalls(ModuleSummaryIndex &Index);
 /// predicate returns status of symbol.
 /// Also update call edges for indirect calls to local functions added from
 /// SamplePGO when needed.
+///
+/// \param Index Combined module summary index to analyze and update.
+/// \param GUIDPreservedSymbols GUIDs that must be treated as live roots.
+/// \param isPrevailing Callback returning prevailing status for a GUID.
 LLVM_ABI void computeDeadSymbolsAndUpdateIndirectCalls(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
@@ -390,6 +524,11 @@ LLVM_ABI void computeDeadSymbolsAndUpdateIndirectCalls(
 
 /// Compute dead symbols and run constant propagation in combined index
 /// after that.
+///
+/// \param Index Combined module summary index to analyze and update.
+/// \param GUIDPreservedSymbols GUIDs that must be treated as live roots.
+/// \param isPrevailing Callback returning prevailing status for a GUID.
+/// \param ImportEnabled Whether ThinLTO importing is enabled for this link.
 LLVM_ABI void computeDeadSymbolsWithConstProp(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
@@ -397,22 +536,27 @@ LLVM_ABI void computeDeadSymbolsWithConstProp(
     bool ImportEnabled);
 
 /// Converts value \p GV to declaration, or replaces with a declaration if
-/// it is an alias. Returns true if converted, false if replaced.
+/// it is an alias.
+///
+/// \param GV Global value to convert or replace with a declaration.
+/// \return True if converted in place, false if replaced with a new declaration.
 LLVM_ABI bool convertToDeclaration(GlobalValue &GV);
 
-/// Compute the set of summaries needed for a ThinLTO backend compilation of
-/// \p ModulePath.
-//
+/// Compute summaries needed for ThinLTO backend compilation of a module.
+///
 /// This includes summaries from that module (in case any global summary based
 /// optimizations were recorded) and from any definitions in other modules that
 /// should be imported.
-//
-/// \p ModuleToSummariesForIndex will be populated with the needed summaries
-/// from each required module path. Use a std::map instead of StringMap to get
-/// stable order for bitcode emission.
 ///
-/// \p DecSummaries will be popluated with the subset of of summary pointers
-/// that have 'declaration' import type among all summaries the module need.
+/// \param ModulePath Path of the module being compiled in the ThinLTO backend.
+/// \param ModuleToDefinedGVSummaries Map from each module to its defined GV
+/// summaries.
+/// \param ImportList Imports selected for \p ModulePath.
+/// \param ModuleToSummariesForIndex Populated with the needed summaries from
+/// each required module path. Use a std::map instead of StringMap to get stable
+/// order for bitcode emission.
+/// \param DecSummaries Populated with the subset of summary pointers that have
+/// 'declaration' import type among all summaries the module needs.
 LLVM_ABI void gatherImportedSummariesForModule(
     StringRef ModulePath,
     const DenseMap<StringRef, GVSummaryMapTy> &ModuleToDefinedGVSummaries,
@@ -421,28 +565,49 @@ LLVM_ABI void gatherImportedSummariesForModule(
     GVSummaryPtrSet &DecSummaries);
 
 /// Emit into \p OutputFilename the files module \p ModulePath will import from.
+///
+/// \param ModulePath Path of the module whose import file list is emitted.
+/// \param OutputFilename Path of the file to write the import list into.
+/// \param ModuleToSummariesForIndex Map of module paths to summaries used for
+/// the backend, defining which modules are imported from.
+/// \return Success, or an error if \p OutputFilename could not be opened.
 LLVM_ABI Error
 EmitImportsFiles(StringRef ModulePath, StringRef OutputFilename,
                  const ModuleToSummariesForIndexTy &ModuleToSummariesForIndex);
 
 /// Call \p F passing each of the files module \p ModulePath will import from.
+///
+/// \param ModulePath Path of the module whose import sources are visited.
+/// \param ModuleToSummariesForIndex Map of module paths to summaries used for
+/// the backend, defining which modules are imported from.
+/// \param F Callback invoked once per imported module path string.
 LLVM_ABI void processImportsFiles(
     StringRef ModulePath,
     const ModuleToSummariesForIndexTy &ModuleToSummariesForIndex,
     function_ref<void(const std::string &)> F);
 
+/// Apply ThinLTO summary linkage, visibility, and optional attribute updates.
+///
 /// Based on the information recorded in the summaries during global
 /// summary-based analysis:
 /// 1. Resolve prevailing symbol linkages and constrain visibility (CanAutoHide
 ///    and consider visibility from other definitions for ELF) in \p TheModule
 /// 2. (optional) Apply propagated function attributes to \p TheModule if
 ///    PropagateAttrs is true
+///
+/// \param TheModule Module whose linkages, visibility, and attrs are updated.
+/// \param DefinedGlobals Summaries for globals defined in \p TheModule.
+/// \param PropagateAttrs If true, apply propagated function attributes from the
+/// summaries.
 LLVM_ABI void thinLTOFinalizeInModule(Module &TheModule,
                                       const GVSummaryMapTy &DefinedGlobals,
                                       bool PropagateAttrs);
 
 /// Internalize \p TheModule based on the information recorded in the summaries
 /// during global summary-based analysis.
+///
+/// \param TheModule Module whose symbols may be internalized.
+/// \param DefinedGlobals Summaries for globals defined in \p TheModule.
 LLVM_ABI void thinLTOInternalizeModule(Module &TheModule,
                                        const GVSummaryMapTy &DefinedGlobals);
 

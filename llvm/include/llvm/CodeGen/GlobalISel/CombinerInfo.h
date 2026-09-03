@@ -19,9 +19,22 @@ namespace llvm {
 
 class LegalizerInfo;
 
-// Contains information relevant to enabling/disabling various combines for a
-// pass.
+/// Options that control which GlobalISel combines run and how they iterate.
+///
+/// Contains information relevant to enabling/disabling various combines for a
+/// pass.
 struct CombinerInfo {
+  /// Construct combiner options from legality and optimization flags.
+  ///
+  /// \param AllowIllegalOps If false, CombinerHelper checks legality before
+  ///        each transformation.
+  /// \param ShouldLegalizeIllegal If true, illegal ops created by combines
+  ///        are legalized.
+  /// \param LInfo Legalizer used when illegal ops are disallowed or
+  ///        legalized.
+  /// \param OptEnabled Whether optimizations are enabled.
+  /// \param OptSize Whether to optimize for size.
+  /// \param MinSize Whether to optimize for minsize (-Oz).
   CombinerInfo(bool AllowIllegalOps, bool ShouldLegalizeIllegal,
                const LegalizerInfo *LInfo, bool OptEnabled, bool OptSize,
                bool MinSize)
@@ -31,6 +44,7 @@ struct CombinerInfo {
     assert(((AllowIllegalOps || !LegalizeIllegalOps) || LInfo) &&
            "Expecting legalizerInfo when illegalops not allowed");
   }
+  /// Virtual destructor for polymorphic CombinerInfo subclasses.
   virtual ~CombinerInfo() = default;
   /// If \p IllegalOpsAllowed is false, the CombinerHelper will make use of
   /// the legalizerInfo to check for legality before each transformation.
@@ -39,11 +53,13 @@ struct CombinerInfo {
   /// If \p LegalizeIllegalOps is true, the Combiner will also legalize the
   /// illegal ops that are created.
   bool LegalizeIllegalOps; // TODO: Make use of this.
+  /// Legalizer used when illegal ops are disallowed or must be legalized.
   const LegalizerInfo *LInfo;
 
-  /// Whether optimizations should be enabled. This is to distinguish between
-  /// uses of the combiner unconditionally and only when optimizations are
-  /// specifically enabled/
+  /// Whether optimizations should be enabled.
+  ///
+  /// This is to distinguish between uses of the combiner unconditionally and
+  /// only when optimizations are specifically enabled.
   bool EnableOpt;
   /// Whether we're optimizing for size.
   bool EnableOptSize;
@@ -54,6 +70,7 @@ struct CombinerInfo {
   /// MachineFunction. Setting this to 0 enables fixed-point iteration.
   unsigned MaxIterations = 0;
 
+  /// How the Combiner worklist reacts to MIR changes.
   enum class ObserverLevel {
     /// Only retry combining created/changed instructions.
     /// This replicates the legacy default Observer behavior for use with
@@ -75,6 +92,7 @@ struct CombinerInfo {
   ObserverLevel ObserverLvl = ObserverLevel::Basic;
 
   /// Whether dead code elimination is performed before each Combiner iteration.
+  ///
   /// If Observer-based DCE is enabled, this controls if a full DCE pass is
   /// performed before the first Combiner iteration.
   bool EnableFullDCE = true;

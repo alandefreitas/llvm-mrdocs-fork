@@ -32,15 +32,23 @@ class StreamedHTTPResponseHandler : public HTTPResponseHandler {
   std::unique_ptr<CachedFileStream> FileStream;
 
 public:
+  /// Construct a handler that streams response bodies via \p CreateStream.
+  /// \param CreateStream Factory that creates the destination CachedFileStream.
+  /// \param Client HTTP client whose response status gates stream creation.
   StreamedHTTPResponseHandler(CreateStreamFn CreateStream, HTTPClient &Client)
       : CreateStream(std::move(CreateStream)), Client(Client) {}
 
   /// Must be called exactly once after the writes have been completed
   /// but before the StreamedHTTPResponseHandler object is destroyed.
+  /// \return Success, or an error if the stream could not be committed.
   Error commit();
 
+  /// Destroy the streamed HTTP response handler.
   virtual ~StreamedHTTPResponseHandler() = default;
 
+  /// Processes an additional chunk of bytes of the HTTP response body.
+  /// \param BodyChunk Next contiguous slice of the response body.
+  /// \return Success, or an error that aborts the request.
   Error handleBodyChunk(StringRef BodyChunk) override;
 };
 

@@ -76,89 +76,137 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this alloca without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI AllocaInst *cloneImpl() const;
 
 public:
+  /// Construct an alloca of type \p Ty in address space \p AddrSpace.
+  /// \param Ty The allocated element type.
+  /// \param AddrSpace The address space of the resulting pointer.
+  /// \param ArraySize Number of elements to allocate.
+  /// \param Name Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI explicit AllocaInst(Type *Ty, unsigned AddrSpace, Value *ArraySize,
                                const Twine &Name, InsertPosition InsertBefore);
 
+  /// Construct an alloca of a single element of type \p Ty.
+  /// \param Ty The allocated element type.
+  /// \param AddrSpace The address space of the resulting pointer.
+  /// \param Name Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI AllocaInst(Type *Ty, unsigned AddrSpace, const Twine &Name,
                       InsertPosition InsertBefore);
 
+  /// Construct an alloca of \p Ty with the given alignment.
+  /// \param Ty The allocated element type.
+  /// \param AddrSpace The address space of the resulting pointer.
+  /// \param ArraySize Number of elements to allocate.
+  /// \param Align Alignment of the allocation.
+  /// \param Name Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI AllocaInst(Type *Ty, unsigned AddrSpace, Value *ArraySize,
                       Align Align, const Twine &Name = "",
                       InsertPosition InsertBefore = nullptr);
 
   /// Return true if there is an allocation size parameter to the allocation
   /// instruction that is not 1.
+  /// @return True if there is an allocation size parameter to the allocation instruction that is not 1.
   LLVM_ABI bool isArrayAllocation() const;
 
   /// Get the number of elements allocated. For a simple allocation of a single
   /// element, this will return a constant 1 value.
+  /// @return The operand value at that index.
   const Value *getArraySize() const { return getOperand(0); }
+  /// Return the array size.
+  /// @return Array size.
   Value *getArraySize() { return getOperand(0); }
 
   /// Overload to return most specific pointer type.
+  /// @return Most specific pointer type.
   PointerType *getType() const {
     return cast<PointerType>(Instruction::getType());
   }
 
   /// Return the address space for the allocation.
+  /// @return The address space for the allocation.
   unsigned getAddressSpace() const {
     return getType()->getAddressSpace();
   }
 
-  /// Get allocation size in bytes. Returns std::nullopt if size can't be
-  /// determined, e.g. in case of a VLA.
+  /// Get allocation size in bytes using data layout \p DL.
+  ///
+  /// Returns std::nullopt if size can't be determined, e.g. in case of a VLA.
+  /// \param DL The data layout used for size computation.
+  /// @return The allocation size in bytes, or std::nullopt if unknown.
   LLVM_ABI std::optional<TypeSize>
   getAllocationSize(const DataLayout &DL) const;
 
-  /// Get allocation size in bits. Returns std::nullopt if size can't be
-  /// determined, e.g. in case of a VLA.
+  /// Get allocation size in bits using data layout \p DL.
+  ///
+  /// Returns std::nullopt if size can't be determined, e.g. in case of a VLA.
+  /// \param DL The data layout used for size computation.
+  /// @return The allocation size in bits, or std::nullopt if unknown.
   LLVM_ABI std::optional<TypeSize>
   getAllocationSizeInBits(const DataLayout &DL) const;
 
   /// Return the type that is being allocated by the instruction.
+  /// @return The type that is being allocated by the instruction.
   Type *getAllocatedType() const { return AllocatedType; }
-  /// for use only in special circumstances that need to generically
-  /// transform a whole instruction (eg: IR linking and vectorization).
+  /// Set the allocated type (for IR linking / vectorization only).
+  /// \param Ty The new allocated element type.
   void setAllocatedType(Type *Ty) { AllocatedType = Ty; }
 
   /// Return the alignment of the memory that is being allocated by the
   /// instruction.
+  /// @return The alignment of the memory that is being allocated by the instruction.
   Align getAlign() const {
     return Align(1ULL << getSubclassData<AlignmentField>());
   }
 
+  /// Set the alignment of the allocated memory to \p Align.
+  /// \param Align The required alignment of the allocation.
   void setAlignment(Align Align) {
     setSubclassData<AlignmentField>(Log2(Align));
   }
 
-  /// Return true if this alloca is in the entry block of the function and is a
-  /// constant size. If so, the code generator will fold it into the
-  /// prolog/epilog code, so it is basically free.
+  /// Return true if this alloca is a constant-size entry-block allocation.
+  ///
+  /// If so, the code generator will fold it into the prolog/epilog code, so it
+  /// is basically free.
+  /// @return True if this alloca is a constant-size entry-block allocation.
   LLVM_ABI bool isStaticAlloca() const;
 
   /// Return true if this alloca is used as an inalloca argument to a call. Such
   /// allocas are never considered static even if they are in the entry block.
+  /// @return True if this alloca is used as an inalloca argument to a call.
   bool isUsedWithInAlloca() const {
     return getSubclassData<UsedWithInAllocaField>();
   }
 
-  /// Specify whether this alloca is used to represent the arguments to a call.
+  /// Specify whether this alloca represents an inalloca argument.
+  /// \param V True if this alloca is used with inalloca.
   void setUsedWithInAlloca(bool V) {
     setSubclassData<UsedWithInAllocaField>(V);
   }
 
   /// Return true if this alloca is used as a swifterror argument to a call.
+  /// @return True if this alloca is used as a swifterror argument to a call.
   bool isSwiftError() const { return getSubclassData<SwiftErrorField>(); }
-  /// Specify whether this alloca is used to represent a swifterror.
+  /// Specify whether this alloca represents a swifterror value.
+  /// \param V True if this alloca is used as swifterror.
   void setSwiftError(bool V) { setSubclassData<SwiftErrorField>(V); }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c AllocaInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::Alloca);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c AllocaInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -178,11 +226,11 @@ private:
 
 /// A structure representing the properties of a load or store instruction.
 struct LoadStoreInstProperties {
-  bool IsVolatile;
-  Align Alignment;
-  AtomicOrdering Ordering;
-  SyncScope::ID SSID;
-  bool IsElementwise = false;
+  bool IsVolatile; ///< Whether the access is volatile.
+  Align Alignment; ///< Alignment of the memory access.
+  AtomicOrdering Ordering; ///< Atomic ordering constraint for the access.
+  SyncScope::ID SSID; ///< Synchronization scope for atomic accesses.
+  bool IsElementwise = false; ///< Whether the access is elementwise atomic.
 };
 
 /// An instruction for reading from memory. This uses the SubclassData field in
@@ -202,66 +250,114 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI LoadInst *cloneImpl() const;
 
 public:
+  /// Construct a load of type \p Ty from \p Ptr.
+  /// \param Ty The loaded value type.
+  /// \param Ptr The pointer operand.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr,
                     InsertPosition InsertBefore);
+  /// Construct a volatile or non-volatile load of type \p Ty from \p Ptr.
+  /// \param Ty The loaded value type.
+  /// \param Ptr The pointer operand.
+  /// \param NameStr Name of the new instruction.
+  /// \param isVolatile Whether the load is volatile.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
                     InsertPosition InsertBefore);
+  /// Construct a load of type \p Ty from \p Ptr with alignment \p Align.
+  /// \param Ty The loaded value type.
+  /// \param Ptr The pointer operand.
+  /// \param NameStr Name of the new instruction.
+  /// \param isVolatile Whether the load is volatile.
+  /// \param Align Required alignment of the load.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
                     Align Align, InsertPosition InsertBefore = nullptr);
+  /// Construct an atomic load of type \p Ty from \p Ptr.
+  /// \param Ty The loaded value type.
+  /// \param Ptr The pointer operand.
+  /// \param NameStr Name of the new instruction.
+  /// \param isVolatile Whether the load is volatile.
+  /// \param Align Required alignment of the load.
+  /// \param Order Atomic ordering constraint.
+  /// \param SSID Synchronization scope for the access.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
                     Align Align, AtomicOrdering Order,
                     SyncScope::ID SSID = SyncScope::System,
                     InsertPosition InsertBefore = nullptr);
+  /// Construct a load from properties \p Props.
+  /// \param Ty The loaded value type.
+  /// \param Ptr The pointer operand.
+  /// \param NameStr Name of the new instruction.
+  /// \param Props Volatile/align/ordering/SSID/elementwise properties.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr,
                     const LoadStoreInstProperties &Props,
                     InsertPosition InsertBefore = nullptr);
 
   /// Return true if this is a load from a volatile memory location.
+  /// @return True if this is a load from a volatile memory location.
   bool isVolatile() const { return getSubclassData<VolatileField>(); }
 
   /// Specify whether this is a volatile load or not.
+  /// \param V True if the load is volatile.
   void setVolatile(bool V) { setSubclassData<VolatileField>(V); }
 
   /// Return true if this is an elementwise atomic load.
+  /// @return True if this is an elementwise atomic load.
   bool isElementwise() const { return getSubclassData<ElementWiseField>(); }
 
   /// Specify whether this is an elementwise atomic load or not.
+  /// \param V True if the load is elementwise.
   void setElementwise(bool V) { setSubclassData<ElementWiseField>(V); }
 
   /// Return the alignment of the access that is being performed.
+  /// @return The alignment of the access that is being performed.
   Align getAlign() const {
     return Align(1ULL << (getSubclassData<AlignmentField>()));
   }
 
+  /// Set the alignment of the memory access to \p Align.
+  /// \param Align The required alignment of the load.
   void setAlignment(Align Align) {
     setSubclassData<AlignmentField>(Log2(Align));
   }
 
   /// Returns the ordering constraint of this load instruction.
+  /// @return The ordering constraint of this load instruction.
   AtomicOrdering getOrdering() const {
     return getSubclassData<OrderingField>();
   }
   /// Sets the ordering constraint of this load instruction.  May not be Release
   /// or AcquireRelease.
+  /// \param Ordering The atomic ordering constraint.
   void setOrdering(AtomicOrdering Ordering) {
     setSubclassData<OrderingField>(Ordering);
   }
 
   /// Returns the synchronization scope ID of this load instruction.
+  /// @return The synchronization scope ID of this load instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
   }
 
   /// Sets the synchronization scope ID of this load instruction.
+  /// \param SSID The synchronization scope.
   void setSyncScopeID(SyncScope::ID SSID) {
     this->SSID = SSID;
   }
 
   /// Sets the ordering constraint and the synchronization scope ID of this load
   /// instruction.
+  /// \param Ordering The atomic ordering constraint.
+  /// \param SSID The synchronization scope.
   void setAtomic(AtomicOrdering Ordering,
                  SyncScope::ID SSID = SyncScope::System) {
     setOrdering(Ordering);
@@ -269,12 +365,14 @@ public:
   }
 
   /// Returns the properties of this load instruction.
+  /// @return The properties of this load instruction.
   LoadStoreInstProperties getProperties() const {
     return {isVolatile(), getAlign(), getOrdering(), getSyncScopeID(),
             isElementwise()};
   }
 
   /// Sets the properties of this load instruction.
+  /// \param Props The volatile/align/ordering/SSID/elementwise properties.
   void setProperties(const LoadStoreInstProperties &Props) {
     setVolatile(Props.IsVolatile);
     setAlignment(Props.Alignment);
@@ -283,28 +381,46 @@ public:
     setElementwise(Props.IsElementwise);
   }
 
+  /// Return true if this load is non-atomic and non-volatile.
+  /// @return True if this load is non-atomic and non-volatile.
   bool isSimple() const { return !isAtomic() && !isVolatile(); }
 
+  /// Return true if this load has unordered or non-atomic ordering and is not volatile.
+  /// @return True if this load has unordered or non-atomic ordering and is not volatile.
   bool isUnordered() const {
     return (getOrdering() == AtomicOrdering::NotAtomic ||
             getOrdering() == AtomicOrdering::Unordered) &&
            !isVolatile();
   }
 
+  /// Return the pointer operand of this load.
+  /// @return The pointer operand.
   Value *getPointerOperand() { return getOperand(0); }
+  /// Return the pointer operand of this load.
+  /// @return The pointer operand.
   const Value *getPointerOperand() const { return getOperand(0); }
+  /// Return the operand index of the pointer.
+  /// @return The operand index of the pointer.
   static unsigned getPointerOperandIndex() { return 0U; }
+  /// Return the type of the pointer operand.
+  /// @return The type of the pointer operand.
   Type *getPointerOperandType() const { return getPointerOperand()->getType(); }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperandType()->getPointerAddressSpace();
   }
 
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c LoadInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Load;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c LoadInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -320,6 +436,7 @@ private:
   /// The synchronization scope ID of this load instruction.  Not quite enough
   /// room in SubClassData for everything, so synchronization scope ID gets its
   /// own field.
+  /// @return The synchronization scope ID of this load instruction.
   SyncScope::ID SSID;
 };
 
@@ -329,9 +446,13 @@ private:
 
 /// An instruction for storing to memory.
 class StoreInst : public Instruction {
+  /// Bitfield element for the volatile flag.
   using VolatileField = BoolBitfieldElementT<0>;
+  /// Bitfield element for the access alignment.
   using AlignmentField = AlignmentBitfieldElementT<VolatileField::NextBit>;
+  /// Bitfield element for the atomic ordering.
   using OrderingField = AtomicOrderingBitfieldElementT<AlignmentField::NextBit>;
+  /// Bitfield element for the elementwise flag.
   using ElementWiseField = BoolBitfieldElementT<OrderingField::NextBit>;
   static_assert(Bitfield::areContiguous<VolatileField, AlignmentField,
                                         OrderingField, ElementWiseField>(),
@@ -345,72 +466,150 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI StoreInst *cloneImpl() const;
 
 public:
+  /// Construct a store of \p Val to \p Ptr.
+  /// \param Val The value to store.
+  /// \param Ptr The pointer operand.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI StoreInst(Value *Val, Value *Ptr, InsertPosition InsertBefore);
+  /// Construct a volatile or non-volatile store of \p Val to \p Ptr.
+  /// \param Val The value to store.
+  /// \param Ptr The pointer operand.
+  /// \param isVolatile Whether the store is volatile.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI StoreInst(Value *Val, Value *Ptr, bool isVolatile,
                      InsertPosition InsertBefore);
+  /// Construct a store of \p Val to \p Ptr with alignment \p Align.
+  /// \param Val The value to store.
+  /// \param Ptr The pointer operand.
+  /// \param isVolatile Whether the store is volatile.
+  /// \param Align Required alignment of the store.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI StoreInst(Value *Val, Value *Ptr, bool isVolatile, Align Align,
                      InsertPosition InsertBefore = nullptr);
+  /// Construct an atomic store of \p Val to \p Ptr.
+  /// \param Val The value to store.
+  /// \param Ptr The pointer operand.
+  /// \param isVolatile Whether the store is volatile.
+  /// \param Align Required alignment of the store.
+  /// \param Order Atomic ordering constraint.
+  /// \param SSID Synchronization scope for the access.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI StoreInst(Value *Val, Value *Ptr, bool isVolatile, Align Align,
                      AtomicOrdering Order,
                      SyncScope::ID SSID = SyncScope::System,
                      InsertPosition InsertBefore = nullptr);
+  /// Construct a store from properties \p Props.
+  /// \param Val The value to store.
+  /// \param Ptr The pointer operand.
+  /// \param Props Volatile/align/ordering/SSID/elementwise properties.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI StoreInst(Value *Val, Value *Ptr,
                      const LoadStoreInstProperties &Props,
                      InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly two operands
+  /// Allocate a StoreInst with space for its two fixed operands.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate a StoreInst created with the fixed-size allocator.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
   /// Return true if this is a store to a volatile memory location.
+  /// @return True if this is a store to a volatile memory location.
   bool isVolatile() const { return getSubclassData<VolatileField>(); }
 
   /// Specify whether this is a volatile store or not.
+  /// \param V True if the store is volatile.
   void setVolatile(bool V) { setSubclassData<VolatileField>(V); }
 
   /// Return true if this is an elementwise atomic store.
+  /// @return True if this is an elementwise atomic store.
   bool isElementwise() const { return getSubclassData<ElementWiseField>(); }
 
   /// Specify whether this is an elementwise atomic store or not.
+  /// \param V True if the store is elementwise.
   void setElementwise(bool V) { setSubclassData<ElementWiseField>(V); }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return the alignment of this access.
+  /// @return Alignment of this access.
   Align getAlign() const {
     return Align(1ULL << (getSubclassData<AlignmentField>()));
   }
 
+  /// Set the alignment of the memory access to \p Align.
+  /// \param Align The required alignment of the store.
   void setAlignment(Align Align) {
     setSubclassData<AlignmentField>(Log2(Align));
   }
 
   /// Returns the ordering constraint of this store instruction.
+  /// @return The ordering constraint of this store instruction.
   AtomicOrdering getOrdering() const {
     return getSubclassData<OrderingField>();
   }
 
   /// Sets the ordering constraint of this store instruction.  May not be
   /// Acquire or AcquireRelease.
+  /// \param Ordering The atomic ordering constraint.
   void setOrdering(AtomicOrdering Ordering) {
     setSubclassData<OrderingField>(Ordering);
   }
 
   /// Returns the synchronization scope ID of this store instruction.
+  /// @return The synchronization scope ID of this store instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
   }
 
   /// Sets the synchronization scope ID of this store instruction.
+  /// \param SSID The synchronization scope.
   void setSyncScopeID(SyncScope::ID SSID) {
     this->SSID = SSID;
   }
 
   /// Sets the ordering constraint and the synchronization scope ID of this
   /// store instruction.
+  /// \param Ordering The atomic ordering constraint.
+  /// \param SSID The synchronization scope.
   void setAtomic(AtomicOrdering Ordering,
                  SyncScope::ID SSID = SyncScope::System) {
     setOrdering(Ordering);
@@ -418,12 +617,14 @@ public:
   }
 
   /// Returns the properties of this store instruction.
+  /// @return The properties of this store instruction.
   LoadStoreInstProperties getProperties() const {
     return {isVolatile(), getAlign(), getOrdering(), getSyncScopeID(),
             isElementwise()};
   }
 
   /// Sets the properties of this store instruction.
+  /// \param Props The volatile/align/ordering/SSID/elementwise properties.
   void setProperties(const LoadStoreInstProperties &Props) {
     setVolatile(Props.IsVolatile);
     setAlignment(Props.Alignment);
@@ -432,31 +633,54 @@ public:
     setElementwise(Props.IsElementwise);
   }
 
+  /// Return true if this access is non-atomic and non-volatile.
+  /// @return True if the condition holds.
   bool isSimple() const { return !isAtomic() && !isVolatile(); }
 
+  /// Return true if this access is unordered or non-atomic and not volatile.
+  /// @return True if the condition holds.
   bool isUnordered() const {
     return (getOrdering() == AtomicOrdering::NotAtomic ||
             getOrdering() == AtomicOrdering::Unordered) &&
            !isVolatile();
   }
 
+  /// Return the value operand of this store.
+  /// @return The operand value at that index.
   Value *getValueOperand() { return getOperand(0); }
+  /// Return the value operand of this store.
+  /// @return The operand value at that index.
   const Value *getValueOperand() const { return getOperand(0); }
 
+  /// Return the pointer operand of this store.
+  /// @return The operand value at that index.
   Value *getPointerOperand() { return getOperand(1); }
+  /// Return the pointer operand of this store.
+  /// @return The operand value at that index.
   const Value *getPointerOperand() const { return getOperand(1); }
+  /// Return the operand index of the pointer.
+  /// @return The operand index of the pointer.
   static unsigned getPointerOperandIndex() { return 1U; }
+  /// Return the type of the pointer operand.
+  /// @return The type of the pointer operand.
   Type *getPointerOperandType() const { return getPointerOperand()->getType(); }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperandType()->getPointerAddressSpace();
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c StoreInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Store;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c StoreInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -472,9 +696,11 @@ private:
   /// The synchronization scope ID of this store instruction.  Not quite enough
   /// room in SubClassData for everything, so synchronization scope ID gets its
   /// own field.
+  /// @return The synchronization scope ID of this store instruction.
   SyncScope::ID SSID;
 };
 
+/// Operand layout traits for StoreInst.
 template <>
 struct OperandTraits<StoreInst> : public FixedNumOperandTraits<StoreInst, 2> {
 };
@@ -497,44 +723,64 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI FenceInst *cloneImpl() const;
 
 public:
-  // Ordering may only be Acquire, Release, AcquireRelease, or
-  // SequentiallyConsistent.
+  /// Construct a fence with ordering \p Ordering and scope \p SSID.
+  /// \param C The LLVM context.
+  /// \param Ordering Atomic ordering constraint.
+  /// \param SSID Synchronization scope for the fence.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI FenceInst(LLVMContext &C, AtomicOrdering Ordering,
                      SyncScope::ID SSID = SyncScope::System,
                      InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly zero operands
+  /// Allocate a FenceInst with no operands.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate a FenceInst created with the fixed-size allocator.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
   /// Returns the ordering constraint of this fence instruction.
+  /// @return The ordering constraint of this fence instruction.
   AtomicOrdering getOrdering() const {
     return getSubclassData<OrderingField>();
   }
 
   /// Sets the ordering constraint of this fence instruction.  May only be
   /// Acquire, Release, AcquireRelease, or SequentiallyConsistent.
+  /// \param Ordering The atomic ordering constraint.
   void setOrdering(AtomicOrdering Ordering) {
     setSubclassData<OrderingField>(Ordering);
   }
 
   /// Returns the synchronization scope ID of this fence instruction.
+  /// @return The synchronization scope ID of this fence instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
   }
 
   /// Sets the synchronization scope ID of this fence instruction.
+  /// \param SSID The synchronization scope.
   void setSyncScopeID(SyncScope::ID SSID) {
     this->SSID = SSID;
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FenceInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Fence;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FenceInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -550,6 +796,7 @@ private:
   /// The synchronization scope ID of this fence instruction.  Not quite enough
   /// room in SubClassData for everything, so synchronization scope ID gets its
   /// own field.
+  /// @return The synchronization scope ID of this fence instruction.
   SyncScope::ID SSID;
 };
 
@@ -557,13 +804,20 @@ private:
 //                                AtomicCmpXchgInst Class
 //===----------------------------------------------------------------------===//
 
-/// An instruction that atomically checks whether a
-/// specified value is in a memory location, and, if it is, stores a new value
-/// there. The value returned by this instruction is a pair containing the
-/// original value as first element, and an i1 indicating success (true) or
-/// failure (false) as second element.
+/// An atomic compare-and-exchange instruction.
 ///
+/// Atomically checks whether a specified value equals the value at a memory
+/// location and, if so, stores a new value there. The result is a pair
+/// containing the original value and an i1 success indicator.
 class AtomicCmpXchgInst : public Instruction {
+  /// Initialize this compare-and-exchange after construction.
+  /// \param Ptr The pointer to the memory location.
+  /// \param Cmp The expected value to compare against.
+  /// \param NewVal The value to store on success.
+  /// \param Align Required alignment of the memory access.
+  /// \param SuccessOrdering Ordering constraint if the comparison succeeds.
+  /// \param FailureOrdering Ordering constraint if the comparison fails.
+  /// \param SSID Synchronization scope for the access.
   void Init(Value *Ptr, Value *Cmp, Value *NewVal, Align Align,
             AtomicOrdering SuccessOrdering, AtomicOrdering FailureOrdering,
             SyncScope::ID SSID);
@@ -579,24 +833,45 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI AtomicCmpXchgInst *cloneImpl() const;
 
 public:
+  /// Construct an atomic compare-and-exchange at \p Ptr.
+  /// \param Ptr The pointer to the memory location.
+  /// \param Cmp The expected value to compare against.
+  /// \param NewVal The value to store on success.
+  /// \param Alignment Required alignment of the memory access.
+  /// \param SuccessOrdering Ordering constraint if the comparison succeeds.
+  /// \param FailureOrdering Ordering constraint if the comparison fails.
+  /// \param SSID Synchronization scope for the access.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
                              Align Alignment, AtomicOrdering SuccessOrdering,
                              AtomicOrdering FailureOrdering, SyncScope::ID SSID,
                              InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly three operands
+  /// Allocate an AtomicCmpXchgInst with space for its three fixed operands.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate an AtomicCmpXchgInst created with the fixed-size allocator.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
+  /// Bitfield element for the volatile flag.
   using VolatileField = BoolBitfieldElementT<0>;
+  /// Bitfield element for the weak compare-and-exchange flag.
   using WeakField = BoolBitfieldElementT<VolatileField::NextBit>;
+  /// Bitfield element for the success ordering.
   using SuccessOrderingField =
       AtomicOrderingBitfieldElementT<WeakField::NextBit>;
+  /// Bitfield element for the failure ordering.
   using FailureOrderingField =
       AtomicOrderingBitfieldElementT<SuccessOrderingField::NextBit>;
+  /// Bitfield element for the access alignment.
   using AlignmentField =
       AlignmentBitfieldElementT<FailureOrderingField::NextBit>;
   static_assert(
@@ -604,38 +879,77 @@ public:
                               FailureOrderingField, AlignmentField>(),
       "Bitfields must be contiguous");
 
-  /// Return the alignment of the memory that is being allocated by the
-  /// instruction.
+  /// Return the alignment of the memory access performed by this instruction.
+  /// @return The alignment of the memory access performed by this instruction.
   Align getAlign() const {
     return Align(1ULL << getSubclassData<AlignmentField>());
   }
 
+  /// Set the alignment of the memory access performed by this instruction.
+  /// \param Align The required alignment of the access.
   void setAlignment(Align Align) {
     setSubclassData<AlignmentField>(Log2(Align));
   }
 
-  /// Return true if this is a cmpxchg from a volatile memory
-  /// location.
-  ///
+  /// Return true if this is a compare-and-exchange on a volatile memory location.
+  /// @return True if this is a compare-and-exchange on a volatile memory location.
   bool isVolatile() const { return getSubclassData<VolatileField>(); }
 
-  /// Specify whether this is a volatile cmpxchg.
-  ///
+  /// Specify whether this is a volatile compare-and-exchange.
+  /// \param V True if the access is volatile.
   void setVolatile(bool V) { setSubclassData<VolatileField>(V); }
 
-  /// Return true if this cmpxchg may spuriously fail.
+  /// Return true if this compare-and-exchange may spuriously fail.
+  /// @return True if this compare-and-exchange may spuriously fail.
   bool isWeak() const { return getSubclassData<WeakField>(); }
 
+  /// Specify whether this compare-and-exchange may spuriously fail.
+  /// \param IsWeak True if the operation is weak.
   void setWeak(bool IsWeak) { setSubclassData<WeakField>(IsWeak); }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return true if \p Ordering is a valid success ordering for cmpxchg.
+  /// \param Ordering The ordering to validate.
+  /// @return True if \p Ordering is a valid success ordering for cmpxchg.
   static bool isValidSuccessOrdering(AtomicOrdering Ordering) {
     return Ordering != AtomicOrdering::NotAtomic &&
            Ordering != AtomicOrdering::Unordered;
   }
 
+  /// Return true if \p Ordering is a valid failure ordering for cmpxchg.
+  /// \param Ordering The ordering to validate.
+  /// @return True if \p Ordering is a valid failure ordering for cmpxchg.
   static bool isValidFailureOrdering(AtomicOrdering Ordering) {
     return Ordering != AtomicOrdering::NotAtomic &&
            Ordering != AtomicOrdering::Unordered &&
@@ -644,11 +958,13 @@ public:
   }
 
   /// Returns the success ordering constraint of this cmpxchg instruction.
+  /// @return The success ordering constraint of this cmpxchg instruction.
   AtomicOrdering getSuccessOrdering() const {
     return getSubclassData<SuccessOrderingField>();
   }
 
   /// Sets the success ordering constraint of this cmpxchg instruction.
+  /// \param Ordering The success ordering constraint.
   void setSuccessOrdering(AtomicOrdering Ordering) {
     assert(isValidSuccessOrdering(Ordering) &&
            "invalid CmpXchg success ordering");
@@ -656,11 +972,13 @@ public:
   }
 
   /// Returns the failure ordering constraint of this cmpxchg instruction.
+  /// @return The failure ordering constraint of this cmpxchg instruction.
   AtomicOrdering getFailureOrdering() const {
     return getSubclassData<FailureOrderingField>();
   }
 
   /// Sets the failure ordering constraint of this cmpxchg instruction.
+  /// \param Ordering The failure ordering constraint.
   void setFailureOrdering(AtomicOrdering Ordering) {
     assert(isValidFailureOrdering(Ordering) &&
            "invalid CmpXchg failure ordering");
@@ -669,6 +987,7 @@ public:
 
   /// Returns a single ordering which is at least as strong as both the
   /// success and failure orderings for this cmpxchg.
+  /// @return A single ordering which is at least as strong as both the success and failure orderings for this cmpxchg.
   AtomicOrdering getMergedOrdering() const {
     if (getFailureOrdering() == AtomicOrdering::SequentiallyConsistent)
       return AtomicOrdering::SequentiallyConsistent;
@@ -682,37 +1001,56 @@ public:
   }
 
   /// Returns the synchronization scope ID of this cmpxchg instruction.
+  /// @return The synchronization scope ID of this cmpxchg instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
   }
 
   /// Sets the synchronization scope ID of this cmpxchg instruction.
+  /// \param SSID The synchronization scope.
   void setSyncScopeID(SyncScope::ID SSID) {
     this->SSID = SSID;
   }
 
+  /// Return the pointer operand of this atomic RMW instruction.
+  /// @return The operand value at that index.
   Value *getPointerOperand() { return getOperand(0); }
+  /// Return the pointer operand of this atomic RMW instruction.
+  /// @return The operand value at that index.
   const Value *getPointerOperand() const { return getOperand(0); }
+  /// Return the operand index of the pointer.
+  /// @return The operand index of the pointer.
   static unsigned getPointerOperandIndex() { return 0U; }
 
+  /// Return the expected value operand of this compare-and-exchange.
+  /// @return The operand value at that index.
   Value *getCompareOperand() { return getOperand(1); }
+  /// Return the compare operand.
+  /// @return Compare operand.
   const Value *getCompareOperand() const { return getOperand(1); }
 
+  /// Return the new value operand of this compare-and-exchange.
+  /// @return The operand value at that index.
   Value *getNewValOperand() { return getOperand(2); }
+  /// Return the new-value operand.
+  /// @return New-value operand.
   const Value *getNewValOperand() const { return getOperand(2); }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperand()->getType()->getPointerAddressSpace();
   }
 
-  /// Returns the strongest permitted ordering on failure, given the
-  /// desired ordering on success.
+  /// Returns the strongest permitted failure ordering for success ordering
+  /// \p SuccessOrdering.
   ///
   /// If the comparison in a cmpxchg operation fails, there is no atomic store
   /// so release semantics cannot be provided. So this function drops explicit
   /// Release requests from the AtomicOrdering. A SequentiallyConsistent
   /// operation would remain SequentiallyConsistent.
+  /// \param SuccessOrdering The desired ordering on success.
+  /// @return The strongest permitted failure ordering for success ordering.
   static AtomicOrdering
   getStrongestFailureOrdering(AtomicOrdering SuccessOrdering) {
     switch (SuccessOrdering) {
@@ -730,9 +1068,15 @@ public:
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c AtomicCmpXchgInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::AtomicCmpXchg;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c AtomicCmpXchgInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -748,9 +1092,11 @@ private:
   /// The synchronization scope ID of this cmpxchg instruction.  Not quite
   /// enough room in SubClassData for everything, so synchronization scope ID
   /// gets its own field.
+  /// @return The synchronization scope ID of this cmpxchg instruction.
   SyncScope::ID SSID;
 };
 
+/// Operand layout traits for AtomicCmpXchgInst.
 template <>
 struct OperandTraits<AtomicCmpXchgInst> :
     public FixedNumOperandTraits<AtomicCmpXchgInst, 3> {
@@ -762,22 +1108,25 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(AtomicCmpXchgInst, Value)
 //                                AtomicRMWInst Class
 //===----------------------------------------------------------------------===//
 
-/// an instruction that atomically reads a memory location,
-/// combines it with another value, and then stores the result back.  Returns
-/// the old value.
+/// An atomic read-modify-write instruction.
 ///
+/// Atomically loads a value from memory, applies a binary operation, stores
+/// the result back, and returns the old value.
 class AtomicRMWInst : public Instruction {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this AtomicRMWInst without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI AtomicRMWInst *cloneImpl() const;
 
 public:
-  /// This enumeration lists the possible modifications atomicrmw can make.  In
-  /// the descriptions, 'p' is the pointer to the instruction's memory location,
-  /// 'old' is the initial value of *p, and 'v' is the other value passed to the
-  /// instruction.  These instructions always return 'old'.
+  /// Binary operations supported by atomic read-modify-write.
+  ///
+  /// In the descriptions, \p p is the pointer to the instruction's memory
+  /// location, \p old is the initial value of \p *p, and \p v is the other
+  /// value passed to the instruction. These operations always return \p old.
   enum BinOp : unsigned {
     /// *p = v
     Xchg,
@@ -848,8 +1197,11 @@ public:
     /// \p usub.sat matches the behavior of \p llvm.usub.sat.*.
     USubSat,
 
+    /// First valid atomic RMW binary operation.
     FIRST_BINOP = Xchg,
+    /// Last valid atomic RMW binary operation.
     LAST_BINOP = USubSat,
+    /// Sentinel value for an invalid binary operation.
     BAD_BINOP
   };
 
@@ -866,30 +1218,57 @@ private:
   constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
 
 public:
+  /// Create an atomic read-modify-write of \p Val at \p Ptr.
+  /// \param Operation The binary operation to perform.
+  /// \param Ptr The pointer to the memory location.
+  /// \param Val The value operand for the operation.
+  /// \param Alignment Required alignment of the memory access.
+  /// \param Ordering Atomic ordering constraint for the access.
+  /// \param SSID Synchronization scope for the access.
+  /// \param Elementwise Whether the operation is elementwise on a vector.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI AtomicRMWInst(BinOp Operation, Value *Ptr, Value *Val,
                          Align Alignment, AtomicOrdering Ordering,
                          SyncScope::ID SSID, bool Elementwise = false,
                          InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly two operands
+  /// Allocate an AtomicRMWInst with space for its two fixed operands.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate an AtomicRMWInst created with the fixed-size allocator.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
+  /// Bitfield element for the volatile flag.
   using VolatileField = BoolBitfieldElementT<0>;
+  /// Bitfield element for the atomic ordering.
   using AtomicOrderingField =
       AtomicOrderingBitfieldElementT<VolatileField::NextBit>;
+  /// Bitfield element for the binary operation.
   using OperationField = BinOpBitfieldElement<AtomicOrderingField::NextBit>;
+  /// Bitfield element for the access alignment.
   using AlignmentField = AlignmentBitfieldElementT<OperationField::NextBit>;
+  /// Bitfield element for the elementwise flag.
   using ElementwiseField = BoolBitfieldElementT<AlignmentField::NextBit>;
   static_assert(Bitfield::areContiguous<VolatileField, AtomicOrderingField,
                                         OperationField, AlignmentField,
                                         ElementwiseField>(),
                 "Bitfields must be contiguous");
 
+  /// Return the binary operation performed by this instruction.
+  /// @return The binary operation performed by this instruction.
   BinOp getOperation() const { return getSubclassData<OperationField>(); }
 
+  /// Return the name of atomic RMW binary operation \p Op.
+  /// \param Op The binary operation to name.
+  /// @return The name of atomic RMW binary operation \p Op.
   LLVM_ABI static StringRef getOperationName(BinOp Op);
 
+  /// Return true if atomic RMW binary operation \p Op is floating-point.
+  /// \param Op The binary operation to test.
+  /// @return True if the RMW operation is a floating-point op.
   static bool isFPOperation(BinOp Op) {
     switch (Op) {
     case AtomicRMWInst::FAdd:
@@ -906,43 +1285,80 @@ public:
     }
   }
 
+  /// Set the binary operation performed by this instruction.
+  /// \param Operation The new binary operation.
   void setOperation(BinOp Operation) {
     setSubclassData<OperationField>(Operation);
   }
 
-  /// Return the alignment of the memory that is being allocated by the
-  /// instruction.
+  /// Return the alignment of the memory access performed by this instruction.
+  /// @return The alignment of the memory access performed by this instruction.
   Align getAlign() const {
     return Align(1ULL << getSubclassData<AlignmentField>());
   }
 
+  /// Set the alignment of the memory access performed by this instruction.
+  /// \param Align The required alignment of the access.
   void setAlignment(Align Align) {
     setSubclassData<AlignmentField>(Log2(Align));
   }
 
-  /// Return true if this is a RMW on a volatile memory location.
-  ///
+  /// Return true if this is an atomic RMW on a volatile memory location.
+  /// @return True if this is an atomic RMW on a volatile memory location.
   bool isVolatile() const { return getSubclassData<VolatileField>(); }
 
   /// Specify whether this is a volatile RMW or not.
-  ///
+  /// \param V True if the access is volatile.
   void setVolatile(bool V) { setSubclassData<VolatileField>(V); }
 
   /// Return true if this RMW has elementwise vector semantics.
+  /// @return True if this RMW has elementwise vector semantics.
   bool isElementwise() const { return getSubclassData<ElementwiseField>(); }
 
   /// Specify whether this RMW has elementwise vector semantics.
+  /// \param V True if the operation is elementwise.
   void setElementwise(bool V) { setSubclassData<ElementwiseField>(V); }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   /// Returns the ordering constraint of this rmw instruction.
+  /// @return The ordering constraint of this rmw instruction.
   AtomicOrdering getOrdering() const {
     return getSubclassData<AtomicOrderingField>();
   }
 
   /// Sets the ordering constraint of this rmw instruction.
+  /// \param Ordering The atomic ordering constraint.
   void setOrdering(AtomicOrdering Ordering) {
     assert(Ordering != AtomicOrdering::NotAtomic &&
            "atomicrmw instructions can only be atomic.");
@@ -952,40 +1368,69 @@ public:
   }
 
   /// Returns the synchronization scope ID of this rmw instruction.
+  /// @return The synchronization scope ID of this rmw instruction.
   SyncScope::ID getSyncScopeID() const {
     return SSID;
   }
 
   /// Sets the synchronization scope ID of this rmw instruction.
+  /// \param SSID The synchronization scope.
   void setSyncScopeID(SyncScope::ID SSID) {
     this->SSID = SSID;
   }
 
+  /// Return the pointer operand.
+  /// @return Pointer operand.
   Value *getPointerOperand() { return getOperand(0); }
+  /// Return the pointer operand.
+  /// @return Pointer operand.
   const Value *getPointerOperand() const { return getOperand(0); }
+  /// Return the operand index of the pointer.
+  /// @return Operand index of the pointer.
   static unsigned getPointerOperandIndex() { return 0U; }
 
+  /// Return the value operand.
+  /// @return Value operand.
   Value *getValOperand() { return getOperand(1); }
+  /// Return the value operand.
+  /// @return Value operand.
   const Value *getValOperand() const { return getOperand(1); }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperand()->getType()->getPointerAddressSpace();
   }
 
+  /// Return true if this RMW operates on floating-point values.
+  /// @return True if the condition holds.
   bool isFloatingPointOperation() const {
     return isFPOperation(getOperation());
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c AtomicRMWInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::AtomicRMW;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c AtomicRMWInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
 private:
+  /// Initialize this atomic RMW after construction.
+  /// \param Operation The binary operation to perform.
+  /// \param Ptr The pointer to the memory location.
+  /// \param Val The value operand for the operation.
+  /// \param Align Required alignment of the memory access.
+  /// \param Ordering Atomic ordering constraint for the access.
+  /// \param SSID Synchronization scope for the access.
+  /// \param Elementwise Whether the operation is elementwise on a vector.
   void Init(BinOp Operation, Value *Ptr, Value *Val, Align Align,
             AtomicOrdering Ordering, SyncScope::ID SSID, bool Elementwise);
 
@@ -999,9 +1444,11 @@ private:
   /// The synchronization scope ID of this rmw instruction.  Not quite enough
   /// room in SubClassData for everything, so synchronization scope ID gets its
   /// own field.
+  /// @return The synchronization scope ID of this rmw instruction.
   SyncScope::ID SSID;
 };
 
+/// Operand layout traits for AtomicRMWInst.
 template <>
 struct OperandTraits<AtomicRMWInst>
     : public FixedNumOperandTraits<AtomicRMWInst,2> {
@@ -1013,9 +1460,9 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(AtomicRMWInst, Value)
 //                             GetElementPtrInst Class
 //===----------------------------------------------------------------------===//
 
-// checkGEPType - Simple wrapper function to give a better assertion failure
-// message on bad indexes for a gep instruction.
-//
+/// Return \p Ty after asserting it is a valid GEP index result type.
+/// \param Ty The type produced by indexing into a GEP source.
+/// @return \p Ty unchanged when the assertion holds.
 inline Type *checkGEPType(Type *Ty) {
   assert(Ty && "Invalid GetElementPtrInst indices for type!");
   return Ty;
@@ -1030,10 +1477,11 @@ class GetElementPtrInst : public Instruction {
 
   GetElementPtrInst(const GetElementPtrInst &GEPI, AllocInfo AllocInfo);
 
-  /// Constructors - Create a getelementptr instruction with a base pointer an
-  /// list of indices. The first and second ctor can optionally insert before an
-  /// existing instruction, the third appends the new instruction to the
-  /// specified BasicBlock.
+  /// Construct a getelementptr with base pointer and indices.
+  ///
+  /// The first and second ctor can optionally insert before an existing
+  /// instruction, the third appends the new instruction to the specified
+  /// BasicBlock.
   inline GetElementPtrInst(Type *PointeeType, Value *Ptr,
                            ArrayRef<Value *> IdxList, AllocInfo AllocInfo,
                            const Twine &NameStr, InsertPosition InsertBefore);
@@ -1045,9 +1493,18 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI GetElementPtrInst *cloneImpl() const;
 
 public:
+  /// Create a getelementptr with base pointer \p Ptr and indices \p IdxList.
+  /// \param PointeeType The source element type of the pointer.
+  /// \param Ptr The base pointer operand.
+  /// \param IdxList The index operands.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c GetElementPtrInst.
   static GetElementPtrInst *Create(Type *PointeeType, Value *Ptr,
                                    ArrayRef<Value *> IdxList,
                                    const Twine &NameStr = "",
@@ -1059,6 +1516,14 @@ public:
         PointeeType, Ptr, IdxList, AllocMarker, NameStr, InsertBefore);
   }
 
+  /// Create a getelementptr with nowrap flags \p NW.
+  /// \param PointeeType The source element type of the pointer.
+  /// \param Ptr The base pointer operand.
+  /// \param IdxList The index operands.
+  /// \param NW No-wrap flags for the new instruction.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c GetElementPtrInst.
   static GetElementPtrInst *Create(Type *PointeeType, Value *Ptr,
                                    ArrayRef<Value *> IdxList, GEPNoWrapFlags NW,
                                    const Twine &NameStr = "",
@@ -1069,8 +1534,15 @@ public:
     return GEP;
   }
 
-  /// Create an "inbounds" getelementptr. See the documentation for the
-  /// "inbounds" flag in LangRef.html for details.
+  /// Create a getelementptr with the inbounds flag set.
+  ///
+  /// See the documentation for the inbounds flag in LangRef.html for details.
+  /// \param PointeeType The source element type of the pointer.
+  /// \param Ptr The base pointer operand.
+  /// \param IdxList The index operands.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c GetElementPtrInst.
   static GetElementPtrInst *
   CreateInBounds(Type *PointeeType, Value *Ptr, ArrayRef<Value *> IdxList,
                  const Twine &NameStr = "",
@@ -1079,32 +1551,80 @@ public:
                   NameStr, InsertBefore);
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return the source element type of the base pointer.
+  /// @return The source element type of the base pointer.
   Type *getSourceElementType() const { return SourceElementType; }
 
+  /// Set the source element type of the base pointer.
+  /// \param Ty The new source element type.
   void setSourceElementType(Type *Ty) { SourceElementType = Ty; }
+  /// Set the result element type referenced by the pointer.
+  /// \param Ty The new result element type.
   void setResultElementType(Type *Ty) { ResultElementType = Ty; }
 
+  /// Return the result element type.
+  /// @return Result element type.
   Type *getResultElementType() const {
     return ResultElementType;
   }
 
-  /// Returns the address space of this instruction's pointer type.
+  /// Return the address space of this instruction's pointer result type.
+  /// @return The address space of this instruction's pointer result type.
   unsigned getAddressSpace() const {
     // Note that this is always the same as the pointer operand's address space
     // and that is cheaper to compute, so cheat here.
     return getPointerAddressSpace();
   }
 
-  /// Returns the result type of a getelementptr with the given source
-  /// element type and indexes.
+  /// Return the result element type of a getelementptr with the given indices.
   ///
-  /// Null is returned if the indices are invalid for the specified
-  /// source element type.
+  /// Returns null if the indices are invalid for the specified source element
+  /// type.
+  /// \param Ty The source element type.
+  /// \param IdxList The index operands.
+  /// @return The result element type of a getelementptr with the given indices.
   LLVM_ABI static Type *getIndexedType(Type *Ty, ArrayRef<Value *> IdxList);
+  /// Return the result element type of a getelementptr with constant indices.
+  /// \param Ty The source element type.
+  /// \param IdxList The constant index operands.
+  /// @return The result element type of a getelementptr with constant indices.
   LLVM_ABI static Type *getIndexedType(Type *Ty, ArrayRef<Constant *> IdxList);
+  /// Return the result element type of a getelementptr with integer indices.
+  /// \param Ty The source element type.
+  /// \param IdxList The integer index operands.
+  /// @return The result element type of a getelementptr with integer indices.
   LLVM_ABI static Type *getIndexedType(Type *Ty, ArrayRef<uint64_t> IdxList);
 
   /// Return the type of the element at the given index of an indexable
@@ -1112,47 +1632,81 @@ public:
   ///
   /// Returns null if the type can't be indexed, or the given index is not
   /// legal for the given type.
+  /// Return the type of the element at index \p Idx in indexable type \p Ty.
+  /// \param Ty The indexable aggregate type.
+  /// \param Idx The index value.
+  /// @return The type of the element at the given index of an indexable type.
   LLVM_ABI static Type *getTypeAtIndex(Type *Ty, Value *Idx);
+  /// Return the type of the element at integer index \p Idx.
+  /// \param Ty The indexable aggregate type.
+  /// \param Idx The index value.
+  /// @return Type of the element at the given index.
   LLVM_ABI static Type *getTypeAtIndex(Type *Ty, uint64_t Idx);
 
+  /// Return an iterator to the first index.
+  /// @return Iterator to the first index.
   inline op_iterator       idx_begin()       { return op_begin()+1; }
+  /// Return an iterator to the first index.
+  /// @return Iterator to the first index.
   inline const_op_iterator idx_begin() const { return op_begin()+1; }
+  /// Return an iterator past the last index operand.
+  /// @return Iterator past the last operand.
   inline op_iterator       idx_end()         { return op_end(); }
+  /// Return a const iterator past the last index operand.
+  /// @return Const iterator past the last operand.
   inline const_op_iterator idx_end()   const { return op_end(); }
 
+  /// Return a range over the index operands.
+  /// @return A range over the index operands.
   inline iterator_range<op_iterator> indices() {
     return make_range(idx_begin(), idx_end());
   }
 
+  /// Return a const range over the index operands.
+  /// @return A const range over the index operands.
   inline iterator_range<const_op_iterator> indices() const {
     return make_range(idx_begin(), idx_end());
   }
 
+  /// Return the base pointer operand of this getelementptr.
+  /// @return The base pointer operand of this getelementptr.
   Value *getPointerOperand() {
     return getOperand(0);
   }
+  /// Return the base pointer operand of this getelementptr.
+  /// @return The base pointer operand of this getelementptr.
   const Value *getPointerOperand() const {
     return getOperand(0);
   }
+  /// Return the operand index of the base pointer.
+  /// @return The operand index of the base pointer.
   static unsigned getPointerOperandIndex() {
     return 0U;    // get index for modifying correct operand.
   }
 
-  /// Method to return the pointer operand as a
-  /// PointerType.
+  /// Return the type of the pointer operand.
+  /// @return The type of the pointer operand.
   Type *getPointerOperandType() const {
     return getPointerOperand()->getType();
   }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperandType()->getPointerAddressSpace();
   }
 
-  /// Returns the pointer type returned by the GEP
-  /// instruction, which may be a vector of pointers.
+  /// Return the result type of a getelementptr with the given operands.
+  ///
+  /// The result may be a vector of pointers when \p Ptr or an index is vector
+  /// typed.
+  /// \param Ptr The base pointer operand.
+  /// \param IdxList The index operands.
+  /// @return The result type of a getelementptr with the given operands.
   static Type *getGEPReturnType(Value *Ptr, ArrayRef<Value *> IdxList) {
     // Vector GEP
+    /// Return the type.
+    /// @return Type.
     Type *Ty = Ptr->getType();
     if (Ty->isVectorTy())
       return Ty;
@@ -1166,45 +1720,60 @@ public:
     return Ty;
   }
 
+  /// Return the number of indices.
+  /// @return Number of indices.
   unsigned getNumIndices() const {  // Note: always non-negative
     return getNumOperands() - 1;
   }
 
+  /// Return true if this getelementptr has at least one index operand.
+  /// @return True if this getelementptr has at least one index operand.
   bool hasIndices() const {
     return getNumOperands() > 1;
   }
 
-  /// Return true if all of the indices of this GEP are
-  /// zeros.  If so, the result pointer and the first operand have the same
-  /// value, just potentially different types.
+  /// Return true if every index operand is zero.
+  ///
+  /// If so, the result pointer and the base pointer have the same value, but
+  /// potentially different types.
+  /// @return True if every index operand is zero.
   LLVM_ABI bool hasAllZeroIndices() const;
 
-  /// Return true if all of the indices of this GEP are
-  /// constant integers.  If so, the result pointer and the first operand have
-  /// a constant offset between them.
+  /// Return true if every index operand is a constant integer.
+  ///
+  /// If so, the result pointer and the base pointer have a constant offset
+  /// between them.
+  /// @return True if every index operand is a constant integer.
   LLVM_ABI bool hasAllConstantIndices() const;
 
-  /// Set nowrap flags for GEP instruction.
+  /// Set nowrap flags for this getelementptr instruction.
+  /// \param NW The no-wrap flags to set.
   LLVM_ABI void setNoWrapFlags(GEPNoWrapFlags NW);
 
-  /// Set or clear the inbounds flag on this GEP instruction.
+  /// Set or clear the inbounds flag on this getelementptr instruction.
+  ///
   /// See LangRef.html for the meaning of inbounds on a getelementptr.
   /// TODO: Remove this method in favor of setNoWrapFlags().
+  /// \param b True to set the inbounds flag, false to clear it.
   LLVM_ABI void setIsInBounds(bool b = true);
 
   /// Get the nowrap flags for the GEP instruction.
+  /// @return The nowrap flags for the GEP instruction.
   LLVM_ABI GEPNoWrapFlags getNoWrapFlags() const;
 
   /// Determine whether the GEP has the inbounds flag.
+  /// @return True if the GEP has the inbounds flag.
   LLVM_ABI bool isInBounds() const;
 
   /// Determine whether the GEP has the nusw flag.
+  /// @return True if the GEP has the nusw flag.
   LLVM_ABI bool hasNoUnsignedSignedWrap() const;
 
   /// Determine whether the GEP has the nuw flag.
+  /// @return True if the GEP has the nuw flag.
   LLVM_ABI bool hasNoUnsignedWrap() const;
 
-  /// Accumulate the constant address offset of this GEP if possible.
+  /// Accumulate the constant address offset of this getelementptr if possible.
   ///
   /// This routine accepts an APInt into which it will accumulate the constant
   /// offset of this GEP if the GEP is in fact constant. If the GEP is not
@@ -1212,21 +1781,37 @@ public:
   /// undefined (it is *not* preserved!). The APInt passed into this routine
   /// must be at least as wide as the IntPtr type for the address space of
   /// the base GEP pointer.
+  /// \param DL The data layout used for type sizes and offsets.
+  /// \param Offset APInt into which the constant offset is accumulated.
+  /// @return True if the condition described by this query holds.
   LLVM_ABI bool accumulateConstantOffset(const DataLayout &DL,
                                          APInt &Offset) const;
+  /// Collect constant and variable offsets contributed by this getelementptr.
+  /// \param DL The data layout used for type sizes and offsets.
+  /// \param BitWidth Bit width of the accumulated offset.
+  /// \param VariableOffsets Map of non-constant index values to their offsets.
+  /// \param ConstantOffset Accumulated constant offset.
+  /// @return True on success.
   LLVM_ABI bool
   collectOffset(const DataLayout &DL, unsigned BitWidth,
                 SmallMapVector<Value *, APInt, 4> &VariableOffsets,
                 APInt &ConstantOffset) const;
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c GetElementPtrInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::GetElementPtr);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c GetElementPtrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for GetElementPtrInst.
 template <>
 struct OperandTraits<GetElementPtrInst>
     : public VariadicOperandTraits<GetElementPtrInst> {};
@@ -1248,10 +1833,11 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(GetElementPtrInst, Value)
 //                               ICmpInst Class
 //===----------------------------------------------------------------------===//
 
+/// Represent an integer comparison operator.
+///
 /// This instruction compares its operands according to the predicate given
 /// to the constructor. It only operates on integers or pointers. The operands
 /// must be identical types.
-/// Represent an integer comparison operator.
 class ICmpInst: public CmpInst {
   void AssertOK() {
     assert(isIntPredicate() &&
@@ -1270,16 +1856,22 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
-  /// Clone an identical ICmpInst
+  /// Create a copy of this icmp without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI ICmpInst *cloneImpl() const;
 
 public:
-  /// Constructor with insertion semantics.
-  ICmpInst(InsertPosition InsertBefore, ///< Where to insert
-           Predicate pred, ///< The predicate to use for the comparison
-           Value *LHS,     ///< The left-hand-side of the expression
-           Value *RHS,     ///< The right-hand-side of the expression
-           const Twine &NameStr = "" ///< Name of the instruction
+  /// Construct an integer comparison and optionally insert it into a block.
+  /// \param InsertBefore Where to insert.
+  /// \param pred The predicate to use for the comparison.
+  /// \param LHS The left-hand-side of the expression.
+  /// \param RHS The right-hand-side of the expression.
+  /// \param NameStr Name of the instruction.
+  ICmpInst(InsertPosition InsertBefore,
+           Predicate pred,
+           Value *LHS,
+           Value *RHS,
+           const Twine &NameStr = ""
            )
       : CmpInst(makeCmpResultType(LHS->getType()), Instruction::ICmp, pred, LHS,
                 RHS, NameStr, InsertBefore) {
@@ -1288,12 +1880,16 @@ public:
 #endif
   }
 
-  /// Constructor with no-insertion semantics
+  /// Construct an integer comparison without inserting it into a block.
+  /// \param pred The predicate to use for the comparison.
+  /// \param LHS The left-hand-side of the expression.
+  /// \param RHS The right-hand-side of the expression.
+  /// \param NameStr Name of the instruction.
   ICmpInst(
-    Predicate pred, ///< The predicate to use for the comparison
-    Value *LHS,     ///< The left-hand-side of the expression
-    Value *RHS,     ///< The right-hand-side of the expression
-    const Twine &NameStr = "" ///< Name of the instruction
+    Predicate pred,
+    Value *LHS,
+    Value *RHS,
+    const Twine &NameStr = ""
   ) : CmpInst(makeCmpResultType(LHS->getType()),
               Instruction::ICmp, pred, LHS, RHS, NameStr) {
 #ifndef NDEBUG
@@ -1301,177 +1897,223 @@ public:
 #endif
   }
 
-  /// @returns the predicate along with samesign information.
+  /// Return the predicate along with samesign information.
+  /// @return The predicate along with samesign information.
   CmpPredicate getCmpPredicate() const {
     return {getPredicate(), hasSameSign()};
   }
 
-  /// @returns the inverse predicate along with samesign information: static
-  /// variant.
+  /// Return the inverse predicate along with samesign information.
+  /// \param Pred The predicate to invert.
+  /// @return The inverse predicate along with samesign information.
   static CmpPredicate getInverseCmpPredicate(CmpPredicate Pred) {
     return {getInversePredicate(Pred), Pred.hasSameSign()};
   }
 
-  /// @returns the inverse predicate along with samesign information.
+  /// Return the inverse predicate along with samesign information.
+  /// @return The inverse predicate along with samesign information.
   CmpPredicate getInverseCmpPredicate() const {
     return getInverseCmpPredicate(getCmpPredicate());
   }
 
-  /// @returns the swapped predicate along with samesign information: static
-  /// variant.
+  /// Return the swapped predicate along with samesign information.
+  /// \param Pred The predicate to swap.
+  /// @return The swapped predicate along with samesign information.
   static CmpPredicate getSwappedCmpPredicate(CmpPredicate Pred) {
     return {getSwappedPredicate(Pred), Pred.hasSameSign()};
   }
 
-  /// @returns the swapped predicate along with samesign information.
+  /// Return the swapped predicate along with samesign information.
+  /// @return The swapped predicate along with samesign information.
   CmpPredicate getSwappedCmpPredicate() const {
     return getSwappedCmpPredicate(getCmpPredicate());
   }
 
-  /// @returns the non-strict predicate along with samesign information: static
-  /// variant.
+  /// Return the non-strict predicate along with samesign information.
+  ///
+  /// For example, SGT -> SGE, SLT -> SLE, ULT -> ULE, UGT -> UGE.
+  /// \param Pred The predicate to convert.
+  /// @return The non-strict predicate along with samesign information.
   static CmpPredicate getNonStrictCmpPredicate(CmpPredicate Pred) {
     return {getNonStrictPredicate(Pred), Pred.hasSameSign()};
   }
 
+  /// Return the non-strict predicate along with samesign information.
+  ///
   /// For example, SGT -> SGE, SLT -> SLE, ULT -> ULE, UGT -> UGE.
-  /// @returns the non-strict predicate along with samesign information.
+  /// @return The non-strict predicate along with samesign information.
   Predicate getNonStrictCmpPredicate() const {
     return getNonStrictCmpPredicate(getCmpPredicate());
   }
 
-  /// For example, EQ->EQ, SLE->SLE, UGT->SGT, etc.
-  /// @returns the predicate that would be the result if the operand were
-  /// regarded as signed.
   /// Return the signed version of the predicate.
+  ///
+  /// For example, EQ->EQ, SLE->SLE, UGT->SGT, etc.
+  /// @return The signed version of the predicate.
   Predicate getSignedPredicate() const {
     return getSignedPredicate(getPredicate());
   }
 
-  /// Return the signed version of the predicate: static variant.
+  /// Return the signed version of the predicate.
+  /// \param Pred The predicate to convert.
+  /// @return The signed version of the predicate.
   LLVM_ABI static Predicate getSignedPredicate(Predicate Pred);
 
-  /// For example, EQ->EQ, SLE->ULE, UGT->UGT, etc.
-  /// @returns the predicate that would be the result if the operand were
-  /// regarded as unsigned.
   /// Return the unsigned version of the predicate.
+  ///
+  /// For example, EQ->EQ, SLE->ULE, UGT->UGT, etc.
+  /// @return The unsigned version of the predicate.
   Predicate getUnsignedPredicate() const {
     return getUnsignedPredicate(getPredicate());
   }
 
-  /// Return the unsigned version of the predicate: static variant.
+  /// Return the unsigned version of the predicate.
+  /// \param Pred The predicate to convert.
+  /// @return The unsigned version of the predicate.
   LLVM_ABI static Predicate getUnsignedPredicate(Predicate Pred);
 
-  /// For example, SLT->ULT, ULT->SLT, SLE->ULE, ULE->SLE, EQ->EQ
-  /// @returns the unsigned version of the signed predicate pred or
-  ///          the signed version of the signed predicate pred.
-  /// Static variant.
+  /// Return the predicate with signedness flipped.
+  ///
+  /// For example, SLT->ULT, ULT->SLT, SLE->ULE, ULE->SLE, EQ->EQ.
+  /// \param Pred The predicate to convert.
+  /// @return The predicate with signedness flipped.
   LLVM_ABI static Predicate getFlippedSignednessPredicate(Predicate Pred);
 
-  /// For example, SLT->ULT, ULT->SLT, SLE->ULE, ULE->SLE, EQ->EQ
-  /// @returns the unsigned version of the signed predicate pred or
-  ///          the signed version of the signed predicate pred.
+  /// Return the predicate with signedness flipped.
+  ///
+  /// For example, SLT->ULT, ULT->SLT, SLE->ULE, ULE->SLE, EQ->EQ.
+  /// @return The predicate with signedness flipped.
   Predicate getFlippedSignednessPredicate() const {
     return getFlippedSignednessPredicate(getPredicate());
   }
 
-  /// Determine if Pred1 implies Pred2 is true, false, or if nothing can be
-  /// inferred about the implication, when two compares have matching operands.
+  /// Determine if \p Pred1 implies \p Pred2 when two compares have matching operands.
+  /// \param Pred1 The first predicate.
+  /// \param Pred2 The second predicate.
+  /// @return True if \p Pred1 implies \p Pred2 when two compares have matching operands.
   LLVM_ABI static std::optional<bool>
   isImpliedByMatchingCmp(CmpPredicate Pred1, CmpPredicate Pred2);
 
+  /// Mark whether the two operands are known to have the same sign.
+  /// \param B True to set the samesign flag.
   void setSameSign(bool B = true) {
     SubclassOptionalData = (SubclassOptionalData & ~SameSign) | (B * SameSign);
   }
 
+  /// Return true if this icmp is marked samesign.
+  ///
   /// An icmp instruction, which can be marked as "samesign", indicating that
   /// the two operands have the same sign. This means that we can convert
   /// "slt" to "ult" and vice versa, which enables more optimizations.
+  /// @return True if this icmp is marked samesign.
   bool hasSameSign() const { return SubclassOptionalData & SameSign; }
 
-  /// Return true if this predicate is either EQ or NE.  This also
-  /// tests for commutativity.
+  /// Return true if the predicate is EQ or NE.
+  ///
+  /// This also tests for commutativity.
+  /// \param P The predicate to test.
+  /// @return True if the predicate is EQ or NE.
   static bool isEquality(Predicate P) {
     return P == ICMP_EQ || P == ICMP_NE;
   }
 
-  /// Return true if this predicate is either EQ or NE.  This also
-  /// tests for commutativity.
+  /// Return true if this instruction's predicate is EQ or NE.
+  /// @return True if this instruction's predicate is EQ or NE.
   bool isEquality() const {
     return isEquality(getPredicate());
   }
 
-  /// @returns true if the predicate is commutative
-  /// Determine if this relation is commutative.
+  /// Return true if the predicate is commutative.
+  /// \param P The predicate to test.
+  /// @return True if the predicate is commutative.
   static bool isCommutative(Predicate P) { return isEquality(P); }
 
-  /// @returns true if the predicate of this ICmpInst is commutative
-  /// Determine if this relation is commutative.
+  /// Return true if this instruction's predicate is commutative.
+  /// @return True if this instruction's predicate is commutative.
   bool isCommutative() const { return isCommutative(getPredicate()); }
 
-  /// Return true if the predicate is relational (not EQ or NE).
-  ///
+  /// Return true if this instruction's predicate is relational (not EQ or NE).
+  /// @return True if this instruction's predicate is relational (not EQ or NE).
   bool isRelational() const {
     return !isEquality();
   }
 
   /// Return true if the predicate is relational (not EQ or NE).
-  ///
+  /// \param P The predicate to test.
+  /// @return True if the predicate is relational (not EQ or NE).
   static bool isRelational(Predicate P) {
     return !isEquality(P);
   }
 
   /// Return true if the predicate is SGT or UGT.
-  ///
+  /// \param P The predicate to test.
+  /// @return True if the predicate is SGT or UGT.
   static bool isGT(Predicate P) {
     return P == ICMP_SGT || P == ICMP_UGT;
   }
 
   /// Return true if the predicate is SLT or ULT.
-  ///
+  /// \param P The predicate to test.
+  /// @return True if the predicate is SLT or ULT.
   static bool isLT(Predicate P) {
     return P == ICMP_SLT || P == ICMP_ULT;
   }
 
   /// Return true if the predicate is SGE or UGE.
-  ///
+  /// \param P The predicate to test.
+  /// @return True if the predicate is SGE or UGE.
   static bool isGE(Predicate P) {
     return P == ICMP_SGE || P == ICMP_UGE;
   }
 
   /// Return true if the predicate is SLE or ULE.
-  ///
+  /// \param P The predicate to test.
+  /// @return True if the predicate is SLE or ULE.
   static bool isLE(Predicate P) {
     return P == ICMP_SLE || P == ICMP_ULE;
   }
 
-  /// Returns the sequence of all ICmp predicates.
-  ///
+  /// Return the sequence of all ICmp predicates.
+  /// @return The sequence of all ICmp predicates.
   static auto predicates() { return ICmpPredicates(); }
 
+  /// Swap operands and adjust predicate.
+  ///
   /// Exchange the two operands to this instruction in such a way that it does
   /// not modify the semantics of the instruction. The predicate value may be
   /// changed to retain the same result if the predicate is order dependent
   /// (e.g. ult).
-  /// Swap operands and adjust predicate.
   void swapOperands() {
     setPredicate(getSwappedPredicate());
     Op<0>().swap(Op<1>());
   }
 
-  /// Return result of `LHS Pred RHS` comparison.
+  /// Return the result of `LHS Pred RHS` comparison.
+  /// \param LHS The left-hand side value.
+  /// \param RHS The right-hand side value.
+  /// \param Pred The comparison predicate.
+  /// @return The result of `LHS Pred RHS` comparison.
   LLVM_ABI static bool compare(const APInt &LHS, const APInt &RHS,
                                ICmpInst::Predicate Pred);
 
-  /// Return result of `LHS Pred RHS`, if it can be determined from the
-  /// KnownBits. Otherwise return nullopt.
+  /// Return the result of \p LHS Pred \p RHS if known from the KnownBits.
+  /// \param LHS Known bits for the left-hand side.
+  /// \param RHS Known bits for the right-hand side.
+  /// \param Pred The comparison predicate.
+  /// @return The result of \p LHS Pred \p RHS if known from the KnownBits.
   LLVM_ABI static std::optional<bool>
   compare(const KnownBits &LHS, const KnownBits &RHS, ICmpInst::Predicate Pred);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ICmpInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::ICmp;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ICmpInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -1481,10 +2123,11 @@ public:
 //                               FCmpInst Class
 //===----------------------------------------------------------------------===//
 
+/// Represents a floating point comparison operator.
+///
 /// This instruction compares its operands according to the predicate given
 /// to the constructor. It only operates on floating point values or packed
 /// vectors of floating point values. The operands must be identical types.
-/// Represents a floating point comparison operator.
 class FCmpInst : public CmpInst, public FastMathFlagsStorage {
   void AssertOK() {
     assert(isFPPredicate() && "Invalid FCmp predicate value");
@@ -1499,27 +2142,38 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
-  /// Clone an identical FCmpInst
+  /// Create a copy of this fcmp without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI FCmpInst *cloneImpl() const;
 
 public:
-  /// Constructor with insertion semantics.
-  FCmpInst(InsertPosition InsertBefore, ///< Where to insert
-           Predicate pred, ///< The predicate to use for the comparison
-           Value *LHS,     ///< The left-hand-side of the expression
-           Value *RHS,     ///< The right-hand-side of the expression
-           const Twine &NameStr = "" ///< Name of the instruction
+  /// Construct a floating-point comparison and optionally insert it into a block.
+  /// \param InsertBefore Where to insert.
+  /// \param pred The predicate to use for the comparison.
+  /// \param LHS The left-hand-side of the expression.
+  /// \param RHS The right-hand-side of the expression.
+  /// \param NameStr Name of the instruction.
+  FCmpInst(InsertPosition InsertBefore,
+           Predicate pred,
+           Value *LHS,
+           Value *RHS,
+           const Twine &NameStr = ""
            )
       : CmpInst(makeCmpResultType(LHS->getType()), Instruction::FCmp, pred, LHS,
                 RHS, NameStr, InsertBefore) {
     AssertOK();
   }
 
-  /// Constructor with no-insertion semantics
-  FCmpInst(Predicate Pred, ///< The predicate to use for the comparison
-           Value *LHS,     ///< The left-hand-side of the expression
-           Value *RHS,     ///< The right-hand-side of the expression
-           const Twine &NameStr = "", ///< Name of the instruction
+  /// Construct a floating-point comparison without inserting it into a block.
+  /// \param Pred The predicate to use for the comparison.
+  /// \param LHS The left-hand-side of the expression.
+  /// \param RHS The right-hand-side of the expression.
+  /// \param NameStr Name of the instruction.
+  /// \param FlagsSource Instruction to copy fast-math flags from, if non-null.
+  FCmpInst(Predicate Pred,
+           Value *LHS,
+           Value *RHS,
+           const Twine &NameStr = "",
            Instruction *FlagsSource = nullptr)
       : CmpInst(makeCmpResultType(LHS->getType()), Instruction::FCmp, Pred, LHS,
                 RHS, NameStr) {
@@ -1528,69 +2182,86 @@ public:
     AssertOK();
   }
 
-  /// @returns true if the predicate is EQ or NE.
-  /// Determine if this is an equality predicate.
+  /// Return true if the predicate is an equality comparison.
+  /// \param Pred The predicate to test.
+  /// @return True if the predicate is an equality comparison.
   static bool isEquality(Predicate Pred) {
     return Pred == FCMP_OEQ || Pred == FCMP_ONE || Pred == FCMP_UEQ ||
            Pred == FCMP_UNE;
   }
 
-  /// @returns true if the predicate of this instruction is EQ or NE.
-  /// Determine if this is an equality predicate.
+  /// Return true if this instruction's predicate is an equality comparison.
+  /// @return True if this instruction's predicate is an equality comparison.
   bool isEquality() const { return isEquality(getPredicate()); }
 
-  /// @returns true if the predicate is commutative.
-  /// Determine if this is a commutative predicate.
+  /// Return true if the predicate is commutative.
+  /// \param Pred The predicate to test.
+  /// @return True if the predicate is commutative.
   static bool isCommutative(Predicate Pred) {
     return isEquality(Pred) || Pred == FCMP_FALSE || Pred == FCMP_TRUE ||
            Pred == FCMP_ORD || Pred == FCMP_UNO;
   }
 
-  /// @returns true if the predicate of this instruction is commutative.
-  /// Determine if this is a commutative predicate.
+  /// Return true if this instruction's predicate is commutative.
+  /// @return True if this instruction's predicate is commutative.
   bool isCommutative() const { return isCommutative(getPredicate()); }
 
-  /// @returns true if the predicate is relational (not EQ or NE).
-  /// Determine if this a relational predicate.
+  /// Return true if this instruction's predicate is relational (not EQ or NE).
+  /// @return True if this instruction's predicate is relational (not EQ or NE).
   bool isRelational() const { return !isEquality(); }
 
+  /// Swap operands and adjust predicate.
+  ///
   /// Exchange the two operands to this instruction in such a way that it does
   /// not modify the semantics of the instruction. The predicate value may be
   /// changed to retain the same result if the predicate is order dependent
-  /// (e.g. ult).
-  /// Swap operands and adjust predicate.
+  /// (e.g. olt).
   void swapOperands() {
     setPredicate(getSwappedPredicate());
     Op<0>().swap(Op<1>());
   }
 
-  /// Returns the sequence of all FCmp predicates.
-  ///
+  /// Return the sequence of all FCmp predicates.
+  /// @return The sequence of all FCmp predicates.
   static auto predicates() { return FCmpPredicates(); }
 
-  /// Return result of `LHS Pred RHS` comparison.
+  /// Return the result of `LHS Pred RHS` comparison.
+  /// \param LHS The left-hand side value.
+  /// \param RHS The right-hand side value.
+  /// \param Pred The comparison predicate.
+  /// @return The result of `LHS Pred RHS` comparison.
   LLVM_ABI static bool compare(const APFloat &LHS, const APFloat &RHS,
                                FCmpInst::Predicate Pred);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FCmpInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::FCmp;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FCmpInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
 //===----------------------------------------------------------------------===//
+//                               CallInst Class
+//===----------------------------------------------------------------------===//
+
+/// Represent a direct function call instruction.
+///
 /// This class represents a function call, abstracting a target
 /// machine's calling convention.  This class uses low bit of the SubClassData
 /// field to indicate whether or not this is a tail call.  The rest of the bits
 /// hold the calling convention of the call.
-///
 class CallInst : public CallBase, public FastMathFlagsStorage {
   CallInst(const CallInst &CI, AllocInfo AllocInfo);
 
   /// Construct a CallInst from a range of arguments
+  /// @return Construct a CallInst from a range of arguments.
   inline CallInst(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
                   ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr,
                   AllocInfo AllocInfo, InsertPosition InsertBefore);
@@ -1608,6 +2279,7 @@ class CallInst : public CallBase, public FastMathFlagsStorage {
   void init(FunctionType *FTy, Value *Func, const Twine &NameStr);
 
   /// Compute the number of operands to allocate.
+  /// @return Compute the number of operands to allocate.
   static unsigned ComputeNumOperands(unsigned NumArgs,
                                      unsigned NumBundleInputs = 0) {
     // We need one operand for the called function, plus the input operand
@@ -1619,9 +2291,17 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI CallInst *cloneImpl() const;
 
 public:
+  /// Create a call to \p F with no arguments.
+  /// \param Ty Function type of the callee.
+  /// \param F The callee value.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   static CallInst *Create(FunctionType *Ty, Value *F, const Twine &NameStr = "",
                           InsertPosition InsertBefore = nullptr) {
     IntrusiveOperandsAllocMarker AllocMarker{ComputeNumOperands(0)};
@@ -1629,6 +2309,13 @@ public:
         CallInst(Ty, F, NameStr, AllocMarker, InsertBefore);
   }
 
+  /// Create a call to \p Func with arguments \p Args.
+  /// \param Ty Function type of the callee.
+  /// \param Func The callee value.
+  /// \param Args Call arguments.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   static CallInst *Create(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
                           const Twine &NameStr,
                           InsertPosition InsertBefore = nullptr) {
@@ -1637,6 +2324,14 @@ public:
         CallInst(Ty, Func, Args, {}, NameStr, AllocMarker, InsertBefore);
   }
 
+  /// Create a call to \p Func with arguments \p Args and operand bundles.
+  /// \param Ty Function type of the callee.
+  /// \param Func The callee value.
+  /// \param Args Call arguments.
+  /// \param Bundles Optional operand bundles.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   static CallInst *Create(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
                           ArrayRef<OperandBundleDef> Bundles = {},
                           const Twine &NameStr = "",
@@ -1649,12 +2344,24 @@ public:
         CallInst(Ty, Func, Args, Bundles, NameStr, AllocMarker, InsertBefore);
   }
 
+  /// Create a call with no arguments to \p Func.
+  /// \param Func The callee.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   static CallInst *Create(FunctionCallee Func, const Twine &NameStr = "",
                           InsertPosition InsertBefore = nullptr) {
     return Create(Func.getFunctionType(), Func.getCallee(), NameStr,
                   InsertBefore);
   }
 
+  /// Create a call to \p Func with arguments and operand bundles.
+  /// \param Func The callee.
+  /// \param Args Call arguments.
+  /// \param Bundles Operand bundles for the call.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   static CallInst *Create(FunctionCallee Func, ArrayRef<Value *> Args,
                           ArrayRef<OperandBundleDef> Bundles = {},
                           const Twine &NameStr = "",
@@ -1663,6 +2370,12 @@ public:
                   NameStr, InsertBefore);
   }
 
+  /// Create a call to \p Func with arguments \p Args.
+  /// \param Func The callee.
+  /// \param Args Call arguments.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   static CallInst *Create(FunctionCallee Func, ArrayRef<Value *> Args,
                           const Twine &NameStr,
                           InsertPosition InsertBefore = nullptr) {
@@ -1670,56 +2383,81 @@ public:
                   InsertBefore);
   }
 
-  /// Create a clone of \p CI with a different set of operand bundles and
-  /// insert it before \p InsertBefore.
+  /// Create a clone of \p CI with a different set of operand bundles.
   ///
-  /// The returned call instruction is identical \p CI in every way except that
-  /// the operand bundles for the new instruction are set to the operand bundles
-  /// in \p Bundles.
+  /// The returned call instruction is identical to \p CI in every way except
+  /// that the operand bundles for the new instruction are set to \p Bundles.
+  /// \param CI The call instruction to clone.
+  /// \param Bundles Operand bundles for the new call.
+  /// \param InsertPt Insertion position for the new instruction.
+  /// @return The newly created \c CallInst.
   LLVM_ABI static CallInst *Create(CallInst *CI,
                                    ArrayRef<OperandBundleDef> Bundles,
                                    InsertPosition InsertPt = nullptr);
 
   // Note that 'musttail' implies 'tail'.
+  /// Kind of tail-call marker on a call instruction.
   enum TailCallKind : unsigned {
+    /// No tail-call kind is set.
     TCK_None = 0,
+    /// Ordinary tail call.
     TCK_Tail = 1,
+    /// Must-tail call.
     TCK_MustTail = 2,
+    /// Explicit notail call.
     TCK_NoTail = 3,
+    /// Last valid tail-call kind enumerator.
     TCK_LAST = TCK_NoTail
   };
 
+  /// Bitfield storing the tail-call kind in SubclassData.
+  /// Bitfield element storing the TailCallKind in SubclassData.
   using TailCallKindField = Bitfield::Element<TailCallKind, 0, 2, TCK_LAST>;
   static_assert(
       Bitfield::areContiguous<TailCallKindField, CallBase::CallingConvField>(),
       "Bitfields must be contiguous");
 
+  /// Return the tail-call kind.
+  /// @return Tail-call kind.
   TailCallKind getTailCallKind() const {
     return getSubclassData<TailCallKindField>();
   }
 
+  /// Return true if this is a tail call.
+  /// @return True if the condition holds.
   bool isTailCall() const {
     TailCallKind Kind = getTailCallKind();
     return Kind == TCK_Tail || Kind == TCK_MustTail;
   }
 
+  /// Return true if this call is marked musttail.
+  /// @return True if this call is marked musttail.
   bool isMustTailCall() const { return getTailCallKind() == TCK_MustTail; }
 
+  /// Return true if this call is marked notail.
+  /// @return True if this call is marked notail.
   bool isNoTailCall() const { return getTailCallKind() == TCK_NoTail; }
 
+  /// Set the tail-call kind for this call.
+  /// \param TCK The new tail-call kind.
   void setTailCallKind(TailCallKind TCK) {
     setSubclassData<TailCallKindField>(TCK);
   }
 
+  /// Mark or clear this call as a tail-call candidate.
+  /// \param IsTc True to mark as a tail call, false to clear.
   void setTailCall(bool IsTc = true) {
     setTailCallKind(IsTc ? TCK_Tail : TCK_None);
   }
 
   /// Return true if the call can return twice
+  /// @return True if the call can return twice.
   bool canReturnTwice() const { return hasFnAttr(Attribute::ReturnsTwice); }
+  /// Mark this call as able to return twice.
   void setCanReturnTwice() { addFnAttr(Attribute::ReturnsTwice); }
 
   /// Return true if the call is for a noreturn trap intrinsic.
+  /// @return True if the call is for a noreturn trap intrinsic.
   bool isNonContinuableTrap() const {
     switch (getIntrinsicID()) {
     case Intrinsic::trap:
@@ -1731,14 +2469,22 @@ public:
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CallInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Call;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CallInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
-  /// Updates profile metadata by scaling it by \p S / \p T.
+  /// Update profile metadata by scaling it by \p S / \p T.
+  /// \param S Numerator of the scale factor.
+  /// \param T Denominator of the scale factor.
   LLVM_ABI void updateProfWeight(uint64_t S, uint64_t T);
 
 private:
@@ -1765,7 +2511,6 @@ CallInst::CallInst(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
 //===----------------------------------------------------------------------===//
 
 /// This class represents the LLVM 'select' instruction.
-///
 class SelectInst : public Instruction, public FastMathFlagsStorage {
   constexpr static IntrusiveOperandsAllocMarker AllocMarker{3};
 
@@ -1788,9 +2533,19 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI SelectInst *cloneImpl() const;
 
 public:
+  /// Create a select on condition \p C between \p S1 and \p S2.
+  /// \param C The selection condition.
+  /// \param S1 The true value.
+  /// \param S2 The false value.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
+  /// \param MDFrom Optional instruction to copy metadata from.
+  /// @return The newly created \c SelectInst.
   static SelectInst *Create(Value *C, Value *S1, Value *S2,
                             const Twine &NameStr = "",
                             InsertPosition InsertBefore = nullptr,
@@ -1802,42 +2557,101 @@ public:
     return Sel;
   }
 
+  /// Return the condition operand.
+  /// @return Condition operand.
   const Value *getCondition() const { return Op<0>(); }
+  /// Return the true value operand.
+  /// @return True value operand.
   const Value *getTrueValue() const { return Op<1>(); }
+  /// Return the false value operand.
+  /// @return False value operand.
   const Value *getFalseValue() const { return Op<2>(); }
+  /// Return the condition operand.
+  /// @return Condition operand.
   Value *getCondition() { return Op<0>(); }
+  /// Return the true value operand.
+  /// @return True value operand.
   Value *getTrueValue() { return Op<1>(); }
+  /// Return the false value operand.
+  /// @return False value operand.
   Value *getFalseValue() { return Op<2>(); }
 
+  /// Set the selection condition operand.
+  /// \param V The new condition value.
   void setCondition(Value *V) { Op<0>() = V; }
+  /// Set the true value operand.
+  /// \param V The new true value.
   void setTrueValue(Value *V) { Op<1>() = V; }
+  /// Set the false value operand.
+  /// \param V The new false value.
   void setFalseValue(Value *V) { Op<2>() = V; }
 
   /// Swap the true and false values of the select instruction.
   /// This doesn't swap prof metadata.
   void swapValues() { Op<1>().swap(Op<2>()); }
 
-  /// Return a string if the specified operands are invalid
-  /// for a select operation, otherwise return null.
+  /// Return a string if the specified operands are invalid for a select.
+  /// \param Cond The selection condition.
+  /// \param True The true value.
+  /// \param False The false value.
+  /// @return A string if the specified operands are invalid for a select.
   LLVM_ABI static const char *areInvalidOperands(Value *Cond, Value *True,
                                                  Value *False);
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return the instruction opcode.
+  /// @return Instruction opcode.
   OtherOps getOpcode() const {
     return static_cast<OtherOps>(Instruction::getOpcode());
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c SelectInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Select;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c SelectInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for SelectInst.
 template <>
 struct OperandTraits<SelectInst> : public FixedNumOperandTraits<SelectInst, 3> {
 };
@@ -1848,31 +2662,51 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(SelectInst, Value)
 //                                VAArgInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents the va_arg llvm instruction, which returns
-/// an argument of the specified type given a va_list and increments that list
+/// Represent the va_arg instruction.
 ///
+/// This class represents the va_arg llvm instruction, which returns
+/// an argument of the specified type given a va_list and increments that list.
 class VAArgInst : public UnaryInstruction {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this va_arg without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI VAArgInst *cloneImpl() const;
 
 public:
+  /// Construct a va_arg instruction and optionally insert it into a block.
+  /// \param List The va_list pointer operand.
+  /// \param Ty The type of the argument to retrieve.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
   VAArgInst(Value *List, Type *Ty, const Twine &NameStr = "",
             InsertPosition InsertBefore = nullptr)
       : UnaryInstruction(Ty, VAArg, List, InsertBefore) {
     setName(NameStr);
   }
 
+  /// Return the pointer operand.
+  /// @return Pointer operand.
   Value *getPointerOperand() { return getOperand(0); }
+  /// Return the pointer operand.
+  /// @return Pointer operand.
   const Value *getPointerOperand() const { return getOperand(0); }
+  /// Return the operand index of the pointer.
+  /// @return Operand index of the pointer.
   static unsigned getPointerOperandIndex() { return 0U; }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c VAArgInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == VAArg;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c VAArgInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -1882,9 +2716,7 @@ public:
 //                                ExtractElementInst Class
 //===----------------------------------------------------------------------===//
 
-/// This instruction extracts a single (scalar)
-/// element from a VectorType value
-///
+/// Extract a single scalar element from a vector value.
 class ExtractElementInst : public Instruction {
   constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
 
@@ -1895,9 +2727,17 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this extractelement without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI ExtractElementInst *cloneImpl() const;
 
 public:
+  /// Create an extractelement instruction.
+  /// \param Vec The vector to extract from.
+  /// \param Idx The index of the element to extract.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c ExtractElementInst.
   static ExtractElementInst *Create(Value *Vec, Value *Idx,
                                     const Twine &NameStr = "",
                                     InsertPosition InsertBefore = nullptr) {
@@ -1905,31 +2745,79 @@ public:
         ExtractElementInst(Vec, Idx, NameStr, InsertBefore);
   }
 
-  /// Return true if an extractelement instruction can be
-  /// formed with the specified operands.
+  /// Return true if the operands are valid for an extractelement instruction.
+  /// \param Vec The vector operand.
+  /// \param Idx The index operand.
+  /// @return True if the operands are valid for an extractelement instruction.
   LLVM_ABI static bool isValidOperands(const Value *Vec, const Value *Idx);
 
+  /// Return the vector operand.
+  /// @return Reference to the operand Use.
   Value *getVectorOperand() { return Op<0>(); }
+  /// Return the index operand.
+  /// @return Reference to the operand Use.
   Value *getIndexOperand() { return Op<1>(); }
+  /// Return the vector operand.
+  /// @return Reference to the operand Use.
   const Value *getVectorOperand() const { return Op<0>(); }
+  /// Return the index operand.
+  /// @return Reference to the operand Use.
   const Value *getIndexOperand() const { return Op<1>(); }
 
+  /// Return the vector type of the vector operand.
+  /// @return The vector type of the vector operand.
   VectorType *getVectorOperandType() const {
     return cast<VectorType>(getVectorOperand()->getType());
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ExtractElementInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::ExtractElement;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ExtractElementInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for ExtractElementInst.
 template <>
 struct OperandTraits<ExtractElementInst> :
   public FixedNumOperandTraits<ExtractElementInst, 2> {
@@ -1941,9 +2829,7 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ExtractElementInst, Value)
 //                                InsertElementInst Class
 //===----------------------------------------------------------------------===//
 
-/// This instruction inserts a single (scalar)
-/// element into a VectorType value
-///
+/// Insert a single scalar element into a vector value.
 class InsertElementInst : public Instruction {
   constexpr static IntrusiveOperandsAllocMarker AllocMarker{3};
 
@@ -1955,9 +2841,18 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI InsertElementInst *cloneImpl() const;
 
 public:
+  /// Create an insertelement of \p NewElt into \p Vec at \p Idx.
+  /// \param Vec The vector to insert into.
+  /// \param NewElt The element value to insert.
+  /// \param Idx The insertion index.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c InsertElementInst.
   static InsertElementInst *Create(Value *Vec, Value *NewElt, Value *Idx,
                                    const Twine &NameStr = "",
                                    InsertPosition InsertBefore = nullptr) {
@@ -1965,29 +2860,68 @@ public:
         InsertElementInst(Vec, NewElt, Idx, NameStr, InsertBefore);
   }
 
-  /// Return true if an insertelement instruction can be
-  /// formed with the specified operands.
+  /// Return true if the operands are valid for an insertelement instruction.
+  /// \param Vec The vector operand.
+  /// \param NewElt The element to insert.
+  /// \param Idx The index operand.
+  /// @return True if the operands are valid for an insertelement instruction.
   LLVM_ABI static bool isValidOperands(const Value *Vec, const Value *NewElt,
                                        const Value *Idx);
 
-  /// Overload to return most specific vector type.
-  ///
+  /// Return the result vector type of this insertelement instruction.
+  /// @return The result vector type of this insertelement instruction.
   VectorType *getType() const {
     return cast<VectorType>(Instruction::getType());
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c InsertElementInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::InsertElement;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c InsertElementInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for InsertElementInst.
 template <>
 struct OperandTraits<InsertElementInst> :
   public FixedNumOperandTraits<InsertElementInst, 3> {
@@ -1999,6 +2933,9 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(InsertElementInst, Value)
 //                           ShuffleVectorInst Class
 //===----------------------------------------------------------------------===//
 
+/// Shuffle mask element value indicating a poison result element.
+/// Shuffle mask element value that marks the corresponding result lane as poison.
+/// @return Shuffle mask element value indicating a poison result element.
 constexpr int PoisonMaskElem = -1;
 
 /// This instruction constructs a fixed permutation of two
@@ -2021,22 +2958,51 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI ShuffleVectorInst *cloneImpl() const;
 
 public:
+  /// Create a single-source shuffle of \p V1 using constant mask \p Mask.
+  /// \param V1 The source vector.
+  /// \param Mask The shuffle mask constant.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
   LLVM_ABI ShuffleVectorInst(Value *V1, Value *Mask, const Twine &NameStr = "",
                              InsertPosition InsertBefore = nullptr);
+  /// Create a single-source shuffle of \p V1 using integer mask \p Mask.
+  /// \param V1 The source vector.
+  /// \param Mask The shuffle mask indices.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
   LLVM_ABI ShuffleVectorInst(Value *V1, ArrayRef<int> Mask,
                              const Twine &NameStr = "",
                              InsertPosition InsertBefore = nullptr);
+  /// Create a shuffle of \p V1 and \p V2 with constant mask \p Mask.
+  /// \param V1 The first source vector.
+  /// \param V2 The second source vector.
+  /// \param Mask The shuffle mask constant.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
   LLVM_ABI ShuffleVectorInst(Value *V1, Value *V2, Value *Mask,
                              const Twine &NameStr = "",
                              InsertPosition InsertBefore = nullptr);
+  /// Create a shuffle of \p V1 and \p V2 with integer mask \p Mask.
+  /// \param V1 The first source vector.
+  /// \param V2 The second source vector.
+  /// \param Mask The shuffle mask indices.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
   LLVM_ABI ShuffleVectorInst(Value *V1, Value *V2, ArrayRef<int> Mask,
                              const Twine &NameStr = "",
                              InsertPosition InsertBefore = nullptr);
 
+  /// Allocate a ShuffleVectorInst with the fixed-size operand allocator.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate a ShuffleVectorInst created with the fixed-size allocator.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) {
     return User::operator delete(Ptr, AllocMarker);
   }
@@ -2045,33 +3011,74 @@ public:
   /// of the instruction.
   LLVM_ABI void commute();
 
-  /// Return true if a shufflevector instruction can be
-  /// formed with the specified operands.
+  /// Return whether \p V1, \p V2, and constant mask \p Mask are valid operands.
+  /// \param V1 The first source vector.
+  /// \param V2 The second source vector.
+  /// \param Mask The shuffle mask constant.
+  /// @return True if \p V1, \p V2, and \p Mask are valid shuffle operands.
   LLVM_ABI static bool isValidOperands(const Value *V1, const Value *V2,
                                        const Value *Mask);
+  /// Return whether \p V1, \p V2, and integer mask \p Mask are valid operands.
+  /// \param V1 The first source vector.
+  /// \param V2 The second source vector.
+  /// \param Mask The shuffle mask indices.
+  /// @return True if \p V1, \p V2, and integer mask \p Mask are valid operands.
   LLVM_ABI static bool isValidOperands(const Value *V1, const Value *V2,
                                        ArrayRef<int> Mask);
 
   /// Overload to return most specific vector type.
-  ///
+  /// @return Most specific vector type.
   VectorType *getType() const {
     return cast<VectorType>(Instruction::getType());
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
-  /// Return the shuffle mask value of this instruction for the given element
-  /// index. Return PoisonMaskElem if the element is undef.
+  /// Return shuffle mask element \p Elt, or PoisonMaskElem if undef.
+  /// \param Elt Element index in the shuffle mask.
+  /// @return The shuffle mask value of this instruction for the given element index.
   int getMaskValue(unsigned Elt) const { return ShuffleMask[Elt]; }
 
-  /// Convert the input shuffle mask operand to a vector of integers. Undefined
-  /// elements of the mask are returned as PoisonMaskElem.
+  /// Convert constant shuffle mask \p Mask into integer indices in \p Result.
+  /// \param Mask The constant shuffle mask operand.
+  /// \param Result Output vector of mask integers.
   LLVM_ABI static void getShuffleMask(const Constant *Mask,
                                       SmallVectorImpl<int> &Result);
 
-  /// Return the mask for this instruction as a vector of integers. Undefined
-  /// elements of the mask are returned as PoisonMaskElem.
+  /// Write this instruction's shuffle mask into \p Result as integers.
+  ///
+  /// Undefined elements of the mask are returned as PoisonMaskElem.
+  /// \param Result Output vector of mask integers.
   void getShuffleMask(SmallVectorImpl<int> &Result) const {
     Result.assign(ShuffleMask.begin(), ShuffleMask.end());
   }
@@ -2080,19 +3087,31 @@ public:
   ///
   /// TODO: This is temporary until we decide a new bitcode encoding for
   /// shufflevector.
+  /// @return The mask for this instruction, for use in bitcode.
   Constant *getShuffleMaskForBitcode() const { return ShuffleMaskForBitcode; }
 
+  /// Convert integer shuffle mask \p Mask to a Constant of type \p ResultTy.
+  /// \param Mask The shuffle mask indices.
+  /// \param ResultTy The result vector type for the constant mask.
+  /// @return A constant shuffle mask suitable for bitcode.
   LLVM_ABI static Constant *convertShuffleMaskForBitcode(ArrayRef<int> Mask,
                                                          Type *ResultTy);
 
+  /// Replace this instruction's shuffle mask with \p Mask.
+  /// \param Mask The new shuffle mask indices.
   LLVM_ABI void setShuffleMask(ArrayRef<int> Mask);
 
+  /// Return the shuffle mask.
+  /// @return Shuffle mask.
   ArrayRef<int> getShuffleMask() const { return ShuffleMask; }
 
+  /// Return true if the result vector length differs from the sources.
+  ///
   /// Return true if this shuffle returns a vector with a different number of
   /// elements than its source vectors.
   /// Examples: shufflevector <4 x n> A, <4 x n> B, <1,2,3>
   ///           shufflevector <4 x n> A, <4 x n> B, <1,2,3,4,5>
+  /// @return True if the result vector length differs from the sources.
   bool changesLength() const {
     unsigned NumSourceElts = cast<VectorType>(Op<0>()->getType())
                                  ->getElementCount()
@@ -2101,9 +3120,12 @@ public:
     return NumSourceElts != NumMaskElts;
   }
 
+  /// Return true if the result vector is longer than the sources.
+  ///
   /// Return true if this shuffle returns a vector with a greater number of
   /// elements than its source vectors.
   /// Example: shufflevector <2 x n> A, <2 x n> B, <1,2,3>
+  /// @return True if the result vector is longer than the sources.
   bool increasesLength() const {
     unsigned NumSourceElts = cast<VectorType>(Op<0>()->getType())
                                  ->getElementCount()
@@ -2112,12 +3134,21 @@ public:
     return NumSourceElts < NumMaskElts;
   }
 
+  /// Return true if \p Mask selects elements from one source vector.
+  ///
   /// Return true if this shuffle mask chooses elements from exactly one source
   /// vector.
   /// Example: <7,5,undef,7>
   /// This assumes that vector operands (of length \p NumSrcElts) are the same
   /// length as the mask.
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if \p Mask selects elements from one source vector.
   LLVM_ABI static bool isSingleSourceMask(ArrayRef<int> Mask, int NumSrcElts);
+  /// Return true if constant \p Mask selects from one source vector.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if constant \p Mask selects from one source vector.
   static bool isSingleSourceMask(const Constant *Mask, int NumSrcElts) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
     SmallVector<int, 16> MaskAsInts;
@@ -2125,21 +3156,33 @@ public:
     return isSingleSourceMask(MaskAsInts, NumSrcElts);
   }
 
+  /// Return true if this shuffle selects from one source without changing length.
+  ///
   /// Return true if this shuffle chooses elements from exactly one source
   /// vector without changing the length of that vector.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <3,0,undef,3>
   /// TODO: Optionally allow length-changing shuffles.
+  /// @return True if this shuffle selects from one source without changing length.
   bool isSingleSource() const {
     return !changesLength() &&
            isSingleSourceMask(ShuffleMask, ShuffleMask.size());
   }
 
+  /// Return true if \p Mask is an in-order selection from one source vector.
+  ///
   /// Return true if this shuffle mask chooses elements from exactly one source
   /// vector without lane crossings. A shuffle using this mask is not
   /// necessarily a no-op because it may change the number of elements from its
   /// input vectors or it may provide demanded bits knowledge via undef lanes.
   /// Example: <undef,undef,2,3>
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if \p Mask is an in-order selection from one source vector.
   LLVM_ABI static bool isIdentityMask(ArrayRef<int> Mask, int NumSrcElts);
+  /// Return true if constant \p Mask is an in-order single-source selection.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if constant \p Mask is an in-order single-source selection.
   static bool isIdentityMask(const Constant *Mask, int NumSrcElts) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
 
@@ -2153,10 +3196,13 @@ public:
     return isIdentityMask(MaskAsInts, NumSrcElts);
   }
 
+  /// Return true if this shuffle is an in-order single-source selection.
+  ///
   /// Return true if this shuffle chooses elements from exactly one source
   /// vector without lane crossings and does not change the number of elements
   /// from its input vectors.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <4,undef,6,undef>
+  /// @return True if this shuffle is an in-order single-source selection.
   bool isIdentity() const {
     // Not possible to express a shuffle mask for a scalable vector for this
     // case.
@@ -2166,19 +3212,30 @@ public:
     return !changesLength() && isIdentityMask(ShuffleMask, ShuffleMask.size());
   }
 
+  /// Return true if one source vector is extended with undef padding.
+  ///
   /// Return true if this shuffle lengthens exactly one source vector with
   /// undefs in the high elements.
+  /// @return True if one source vector is extended with undef padding.
   LLVM_ABI bool isIdentityWithPadding() const;
 
+  /// Return true if the first elements of one source vector are extracted.
+  ///
   /// Return true if this shuffle extracts the first N elements of exactly one
   /// source vector.
+  /// @return True if the first elements of one source vector are extracted.
   LLVM_ABI bool isIdentityWithExtract() const;
 
+  /// Return true if this shuffle concatenates its two source vectors.
+  ///
   /// Return true if this shuffle concatenates its 2 source vectors. This
   /// returns false if either input is undefined. In that case, the shuffle is
   /// is better classified as an identity with padding operation.
+  /// @return True if this shuffle concatenates its two source vectors.
   LLVM_ABI bool isConcat() const;
 
+  /// Return true if \p Mask is equivalent to a vector select condition.
+  ///
   /// Return true if this shuffle mask chooses elements from its source vectors
   /// without lane crossings. A shuffle using this mask would be
   /// equivalent to a vector select with a constant condition operand.
@@ -2187,7 +3244,14 @@ public:
   /// In that case, the shuffle is better classified as an identity shuffle.
   /// This assumes that vector operands are the same length as the mask
   /// (a length-changing shuffle can never be equivalent to a vector select).
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if \p Mask is equivalent to a vector select condition.
   LLVM_ABI static bool isSelectMask(ArrayRef<int> Mask, int NumSrcElts);
+  /// Return true if constant \p Mask is equivalent to a vector select condition.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if constant \p Mask is equivalent to a vector select condition.
   static bool isSelectMask(const Constant *Mask, int NumSrcElts) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
     SmallVector<int, 16> MaskAsInts;
@@ -2195,6 +3259,8 @@ public:
     return isSelectMask(MaskAsInts, NumSrcElts);
   }
 
+  /// Return true if this shuffle is equivalent to a vector select.
+  ///
   /// Return true if this shuffle chooses elements from its source vectors
   /// without lane crossings and all operands have the same number of elements.
   /// In other words, this shuffle is equivalent to a vector select with a
@@ -2203,16 +3269,26 @@ public:
   /// This returns false if the mask does not choose from both input vectors.
   /// In that case, the shuffle is better classified as an identity shuffle.
   /// TODO: Optionally allow length-changing shuffles.
+  /// @return True if this shuffle is equivalent to a vector select.
   bool isSelect() const {
     return !changesLength() && isSelectMask(ShuffleMask, ShuffleMask.size());
   }
 
+  /// Return true if \p Mask reverses elements from one source vector.
+  ///
   /// Return true if this shuffle mask swaps the order of elements from exactly
   /// one source vector.
   /// Example: <7,6,undef,4>
   /// This assumes that vector operands (of length \p NumSrcElts) are the same
   /// length as the mask.
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if \p Mask reverses elements from one source vector.
   LLVM_ABI static bool isReverseMask(ArrayRef<int> Mask, int NumSrcElts);
+  /// Return true if constant \p Mask reverses elements from one source vector.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if constant \p Mask reverses elements from one source vector.
   static bool isReverseMask(const Constant *Mask, int NumSrcElts) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
     SmallVector<int, 16> MaskAsInts;
@@ -2220,20 +3296,32 @@ public:
     return isReverseMask(MaskAsInts, NumSrcElts);
   }
 
+  /// Return true if this shuffle reverses elements from one source vector.
+  ///
   /// Return true if this shuffle swaps the order of elements from exactly
   /// one source vector.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <3,undef,1,undef>
   /// TODO: Optionally allow length-changing shuffles.
+  /// @return True if this shuffle reverses elements from one source vector.
   bool isReverse() const {
     return !changesLength() && isReverseMask(ShuffleMask, ShuffleMask.size());
   }
 
+  /// Return true if \p Mask splats element zero from one source vector.
+  ///
   /// Return true if this shuffle mask chooses all elements with the same value
   /// as the first element of exactly one source vector.
   /// Example: <4,undef,undef,4>
   /// This assumes that vector operands (of length \p NumSrcElts) are the same
   /// length as the mask.
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if \p Mask splats element zero from one source vector.
   LLVM_ABI static bool isZeroEltSplatMask(ArrayRef<int> Mask, int NumSrcElts);
+  /// Return true if constant \p Mask splats element zero from one source vector.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if constant \p Mask splats element zero from one source vector.
   static bool isZeroEltSplatMask(const Constant *Mask, int NumSrcElts) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
     SmallVector<int, 16> MaskAsInts;
@@ -2241,17 +3329,22 @@ public:
     return isZeroEltSplatMask(MaskAsInts, NumSrcElts);
   }
 
+  /// Return true if this shuffle splats element zero from one source vector.
+  ///
   /// Return true if all elements of this shuffle are the same value as the
   /// first element of exactly one source vector without changing the length
   /// of that vector.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <undef,0,undef,0>
   /// TODO: Optionally allow length-changing shuffles.
   /// TODO: Optionally allow splats from other elements.
+  /// @return True if this shuffle splats element zero from one source vector.
   bool isZeroEltSplat() const {
     return !changesLength() &&
            isZeroEltSplatMask(ShuffleMask, ShuffleMask.size());
   }
 
+  /// Return true if \p Mask transposes a 2-by-n matrix of vectors.
+  ///
   /// Return true if this shuffle mask is a transpose mask.
   /// Transpose vector masks transpose a 2xn matrix. They read corresponding
   /// even- or odd-numbered vector elements from two n-dimensional source
@@ -2284,7 +3377,14 @@ public:
   ///   ; Transposed matrix
   ///   t0 = < a, e, c, g > = shufflevector m0, m1 < 0, 4, 2, 6 >
   ///   t1 = < b, f, d, h > = shufflevector m0, m1 < 1, 5, 3, 7 >
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if \p Mask transposes a 2-by-n matrix of vectors.
   LLVM_ABI static bool isTransposeMask(ArrayRef<int> Mask, int NumSrcElts);
+  /// Return true if constant \p Mask transposes a 2-by-n matrix of vectors.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// @return True if constant \p Mask transposes a 2-by-n matrix of vectors.
   static bool isTransposeMask(const Constant *Mask, int NumSrcElts) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
     SmallVector<int, 16> MaskAsInts;
@@ -2292,23 +3392,37 @@ public:
     return isTransposeMask(MaskAsInts, NumSrcElts);
   }
 
+  /// Return true if this shuffle transposes its inputs without changing length.
+  ///
   /// Return true if this shuffle transposes the elements of its inputs without
   /// changing the length of the vectors. This operation may also be known as a
   /// merge or interleave. See the description for isTransposeMask() for the
   /// exact specification.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <0,4,2,6>
+  /// @return True if this shuffle transposes its inputs without changing length.
   bool isTranspose() const {
     return !changesLength() && isTransposeMask(ShuffleMask, ShuffleMask.size());
   }
 
+  /// Return true if \p Mask splices two vectors at \p Index.
+  ///
   /// Return true if this shuffle mask is a splice mask, concatenating the two
   /// inputs together and then extracts an original width vector starting from
   /// the splice index.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <1,2,3,4>
   /// This assumes that vector operands (of length \p NumSrcElts) are the same
   /// length as the mask.
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// \param Index Output splice start index in the concatenated vectors.
+  /// @return True if \p Mask splices two vectors at \p Index.
   LLVM_ABI static bool isSpliceMask(ArrayRef<int> Mask, int NumSrcElts,
                                     int &Index);
+  /// Return true if constant \p Mask splices two vectors at \p Index.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// \param Index Output splice start index in the concatenated vectors.
+  /// @return True if constant \p Mask splices two vectors at \p Index.
   static bool isSpliceMask(const Constant *Mask, int NumSrcElts, int &Index) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
     SmallVector<int, 16> MaskAsInts;
@@ -2316,20 +3430,35 @@ public:
     return isSpliceMask(MaskAsInts, NumSrcElts, Index);
   }
 
+  /// Return true if this shuffle splices its inputs at \p Index.
+  ///
   /// Return true if this shuffle splices two inputs without changing the length
   /// of the vectors. This operation concatenates the two inputs together and
   /// then extracts an original width vector starting from the splice index.
   /// Example: shufflevector <4 x n> A, <4 x n> B, <1,2,3,4>
+  /// \param Index Output splice start index in the concatenated vectors.
+  /// @return True if this shuffle splices its inputs at \p Index.
   bool isSplice(int &Index) const {
     return !changesLength() &&
            isSpliceMask(ShuffleMask, ShuffleMask.size(), Index);
   }
 
+  /// Return true if \p Mask extracts a subvector from one source.
+  ///
   /// Return true if this shuffle mask is an extract subvector mask.
   /// A valid extract subvector mask returns a smaller vector from a single
   /// source operand. The base extraction index is returned as well.
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// \param Index Output base extraction index.
+  /// @return True if \p Mask extracts a subvector from one source.
   LLVM_ABI static bool isExtractSubvectorMask(ArrayRef<int> Mask,
                                               int NumSrcElts, int &Index);
+  /// Return true if constant \p Mask extracts a subvector from one source.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// \param Index Output base extraction index.
+  /// @return True if constant \p Mask extracts a subvector from one source.
   static bool isExtractSubvectorMask(const Constant *Mask, int NumSrcElts,
                                      int &Index) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
@@ -2342,7 +3471,11 @@ public:
     return isExtractSubvectorMask(MaskAsInts, NumSrcElts, Index);
   }
 
+  /// Return true if this shuffle extracts a subvector at \p Index.
+  ///
   /// Return true if this shuffle mask is an extract subvector mask.
+  /// \param Index Output base extraction index.
+  /// @return True if this shuffle extracts a subvector at \p Index.
   bool isExtractSubvectorMask(int &Index) const {
     // Not possible to express a shuffle mask for a scalable vector for this
     // case.
@@ -2354,12 +3487,25 @@ public:
     return isExtractSubvectorMask(ShuffleMask, NumSrcElts, Index);
   }
 
+  /// Return true if \p Mask inserts a subvector into the first source.
+  ///
   /// Return true if this shuffle mask is an insert subvector mask.
   /// A valid insert subvector mask inserts the lowest elements of a second
   /// source operand into an in-place first source operand.
   /// Both the sub vector width and the insertion index is returned.
+  /// \param Mask The shuffle mask indices.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// \param NumSubElts Output width of the inserted subvector.
+  /// \param Index Output insertion index.
+  /// @return True if \p Mask inserts a subvector into the first source.
   LLVM_ABI static bool isInsertSubvectorMask(ArrayRef<int> Mask, int NumSrcElts,
                                              int &NumSubElts, int &Index);
+  /// Return true if constant \p Mask inserts a subvector into the first source.
+  /// \param Mask The constant shuffle mask.
+  /// \param NumSrcElts The number of elements in each source vector.
+  /// \param NumSubElts Output width of the inserted subvector.
+  /// \param Index Output insertion index.
+  /// @return True if constant \p Mask inserts a subvector into the first source.
   static bool isInsertSubvectorMask(const Constant *Mask, int NumSrcElts,
                                     int &NumSubElts, int &Index) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
@@ -2372,7 +3518,12 @@ public:
     return isInsertSubvectorMask(MaskAsInts, NumSrcElts, NumSubElts, Index);
   }
 
+  /// Return true if this shuffle inserts a subvector at \p Index.
+  ///
   /// Return true if this shuffle mask is an insert subvector mask.
+  /// \param NumSubElts Output width of the inserted subvector.
+  /// \param Index Output insertion index.
+  /// @return True if this shuffle inserts a subvector at \p Index.
   bool isInsertSubvectorMask(int &NumSubElts, int &Index) const {
     // Not possible to express a shuffle mask for a scalable vector for this
     // case.
@@ -2384,12 +3535,22 @@ public:
     return isInsertSubvectorMask(ShuffleMask, NumSrcElts, NumSubElts, Index);
   }
 
-  /// Return true if this shuffle mask replicates each of the \p VF elements
-  /// in a vector \p ReplicationFactor times.
-  /// For example, the mask for \p ReplicationFactor=3 and \p VF=4 is:
+  /// Return true if \p Mask is a replication mask for \p VF elements.
+  ///
+  /// A replication mask repeats each of the VF elements ReplicationFactor
+  /// times. For example, the mask for ReplicationFactor=3 and VF=4 is:
   ///   <0,0,0,1,1,1,2,2,2,3,3,3>
+  /// \param Mask The shuffle mask indices.
+  /// \param ReplicationFactor Set to the detected replication factor on success.
+  /// \param VF Set to the detected vector factor on success.
+  /// @return True if the mask is a replication mask.
   LLVM_ABI static bool isReplicationMask(ArrayRef<int> Mask,
                                          int &ReplicationFactor, int &VF);
+  /// Return true if constant shuffle mask \p Mask is a replication mask.
+  /// \param Mask The constant shuffle mask.
+  /// \param ReplicationFactor Set to the detected replication factor on success.
+  /// \param VF Set to the detected vector factor on success.
+  /// @return True if the mask is a replication mask.
   static bool isReplicationMask(const Constant *Mask, int &ReplicationFactor,
                                 int &VF) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
@@ -2402,9 +3563,14 @@ public:
     return isReplicationMask(MaskAsInts, ReplicationFactor, VF);
   }
 
-  /// Return true if this shuffle mask is a replication mask.
+  /// Return true if this shuffle replicates each lane \p ReplicationFactor times.
+  /// \param ReplicationFactor Output replication factor.
+  /// \param VF Output vector factor being replicated.
+  /// @return True if this shuffle replicates each lane \p ReplicationFactor times.
   LLVM_ABI bool isReplicationMask(int &ReplicationFactor, int &VF) const;
 
+  /// Return true if \p Mask is a clustered single-source mask of width \p VF.
+  ///
   /// Return true if this shuffle mask represents "clustered" mask of size VF,
   /// i.e. each index between [0..VF) is used exactly once in each submask of
   /// size VF.
@@ -2414,14 +3580,25 @@ public:
   /// 0, 1, 2, 3, 3, 3, 1, 0 - not "clustered", because
   ///                          element 3 is used twice in the second submask
   ///                          (3,3,1,0) and index 2 is not used at all.
+  /// \param Mask The shuffle mask indices.
+  /// \param VF The cluster width.
+  /// @return True if \p Mask is a clustered single-source mask of width \p VF.
   LLVM_ABI static bool isOneUseSingleSourceMask(ArrayRef<int> Mask, int VF);
 
+  /// Return true if this shuffle is a clustered single-source mask of width \p VF.
+  ///
   /// Return true if this shuffle mask is a one-use-single-source("clustered")
   /// mask.
+  /// \param VF The cluster width.
+  /// @return True if this shuffle is a clustered single-source mask of width \p VF.
   LLVM_ABI bool isOneUseSingleSourceMask(int VF) const;
 
+  /// Adjust \p Mask after swapping two equal-length source vector operands.
+  ///
   /// Change values in a shuffle permute mask assuming the two vector operands
   /// of length InVecNumElts have swapped position.
+  /// \param Mask The shuffle mask indices to update in place.
+  /// \param InVecNumElts The number of elements in each source vector.
   static void commuteShuffleMask(MutableArrayRef<int> Mask,
                                  unsigned InVecNumElts) {
     for (int &Idx : Mask) {
@@ -2433,7 +3610,9 @@ public:
     }
   }
 
-  /// Return if this shuffle interleaves its two input vectors together.
+  /// Return true if this shuffle interleaves its inputs with factor \p Factor.
+  /// \param Factor The interleave factor.
+  /// @return True if this shuffle interleaves its two input vectors together.
   LLVM_ABI bool isInterleave(unsigned Factor);
 
   /// Return true if the mask interleaves one or more input vectors together.
@@ -2455,26 +3634,48 @@ public:
   /// Note that this does not check if the input vectors are consecutive:
   /// It will return true for masks such as
   /// <0, 4, 6, 1, 5, 7> (Factor=3, LaneLen=2)
+  /// @return True if the mask interleaves one or more input vectors together.
+  /// \param Mask The shuffle mask indices.
+  /// \param Factor The interleave factor.
+  /// \param NumInputElts Total number of elements in the input vectors.
+  /// \param StartIndexes Output first indexes of each interleaved vector.
   LLVM_ABI static bool
   isInterleaveMask(ArrayRef<int> Mask, unsigned Factor, unsigned NumInputElts,
                    SmallVectorImpl<unsigned> &StartIndexes);
+  /// Return true if \p Mask interleaves vectors with factor \p Factor.
+  /// \param Mask The shuffle mask indices.
+  /// \param Factor The interleave factor.
+  /// \param NumInputElts Total number of elements in the input vectors.
+  /// @return True if the mask is an interleave mask.
   static bool isInterleaveMask(ArrayRef<int> Mask, unsigned Factor,
                                unsigned NumInputElts) {
     SmallVector<unsigned, 8> StartIndexes;
     return isInterleaveMask(Mask, Factor, NumInputElts, StartIndexes);
   }
 
+  /// Return true if \p Mask de-interleaves vectors with factor \p Factor.
+  ///
   /// Check if the mask is a DE-interleave mask of the given factor
   /// \p Factor like:
   ///     <Index, Index+Factor, ..., Index+(NumElts-1)*Factor>
+  /// \param Mask The shuffle mask indices.
+  /// \param Factor The de-interleave factor.
+  /// \param Index Output starting index of the de-interleaved sequence.
+  /// @return True if \p Mask de-interleaves vectors with factor \p Factor.
   LLVM_ABI static bool isDeInterleaveMaskOfFactor(ArrayRef<int> Mask,
                                                   unsigned Factor,
                                                   unsigned &Index);
+  /// Return true if \p Mask de-interleaves vectors with factor \p Factor.
+  /// \param Mask The shuffle mask indices.
+  /// \param Factor The de-interleave factor.
+  /// @return True if \p Mask de-interleaves vectors with factor \p Factor.
   static bool isDeInterleaveMaskOfFactor(ArrayRef<int> Mask, unsigned Factor) {
     unsigned Unused;
     return isDeInterleaveMaskOfFactor(Mask, Factor, Unused);
   }
 
+  /// Return true if \p Mask represents a bit rotation of grouped subelements.
+  ///
   /// Checks if the shuffle is a bit rotation of the first operand across
   /// multiple subelements, e.g:
   ///
@@ -2486,21 +3687,34 @@ public:
   ///
   /// If it can be expressed as a rotation, returns the number of subelements to
   /// group by in NumSubElts and the number of bits to rotate left in RotateAmt.
+  /// \param Mask The shuffle mask indices.
+  /// \param EltSizeInBits The size of each vector element in bits.
+  /// \param MinSubElts Minimum subelement group size to consider.
+  /// \param MaxSubElts Maximum subelement group size to consider.
+  /// \param NumSubElts Output subelement group size.
+  /// \param RotateAmt Output left rotation amount in bits.
+  /// @return True if \p Mask represents a bit rotation of grouped subelements.
   LLVM_ABI static bool isBitRotateMask(ArrayRef<int> Mask,
                                        unsigned EltSizeInBits,
                                        unsigned MinSubElts, unsigned MaxSubElts,
                                        unsigned &NumSubElts,
                                        unsigned &RotateAmt);
 
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Return true if \p I is a ShuffleVector instruction.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ShuffleVectorInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::ShuffleVector;
   }
+  /// Return true if \p V is a ShuffleVector instruction.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ShuffleVectorInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for ShuffleVectorInst.
 template <>
 struct OperandTraits<ShuffleVectorInst>
     : public FixedNumOperandTraits<ShuffleVectorInst, 2> {};
@@ -2511,6 +3725,8 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ShuffleVectorInst, Value)
 //                                ExtractValueInst Class
 //===----------------------------------------------------------------------===//
 
+/// Extract a struct field or array element from an aggregate value.
+///
 /// This instruction extracts a struct member or array
 /// element value from an aggregate value.
 ///
@@ -2519,10 +3735,17 @@ class ExtractValueInst : public UnaryInstruction {
 
   ExtractValueInst(const ExtractValueInst &EVI);
 
+  /// Construct an extractvalue with aggregate \p Agg and indices \p Idxs.
+  ///
   /// Constructors - Create a extractvalue instruction with a base aggregate
   /// value and a list of indices. The first and second ctor can optionally
   /// insert before an existing instruction, the third appends the new
   /// instruction to the specified BasicBlock.
+  /// \param Agg The aggregate value to extract from.
+  /// \param Idxs Indices into the aggregate type.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
+  /// @return Construct an extractvalue with aggregate \p Agg and indices \p Idxs.
   inline ExtractValueInst(Value *Agg, ArrayRef<unsigned> Idxs,
                           const Twine &NameStr, InsertPosition InsertBefore);
 
@@ -2532,9 +3755,17 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone an identical ExtractValueInst.
+  /// @return A clone of this instruction.
   LLVM_ABI ExtractValueInst *cloneImpl() const;
 
 public:
+  /// Create an extractvalue from aggregate \p Agg at indices \p Idxs.
+  /// \param Agg The aggregate value to extract from.
+  /// \param Idxs Indices into the aggregate type.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c ExtractValueInst.
   static ExtractValueInst *Create(Value *Agg, ArrayRef<unsigned> Idxs,
                                   const Twine &NameStr = "",
                                   InsertPosition InsertBefore = nullptr) {
@@ -2542,46 +3773,73 @@ public:
       ExtractValueInst(Agg, Idxs, NameStr, InsertBefore);
   }
 
-  /// Returns the type of the element that would be extracted
-  /// with an extractvalue instruction with the specified parameters.
+  /// Return the result type of an extractvalue with aggregate \p Agg and indices \p Idxs.
   ///
-  /// Null is returned if the indices are invalid for the specified type.
+  /// Returns null if the indices are invalid for the specified type.
+  /// \param Agg The aggregate type.
+  /// \param Idxs Indices into the aggregate type.
+  /// @return The type of the element that would be extracted with an extractvalue instruction with the specified parameters.
   LLVM_ABI static Type *getIndexedType(Type *Agg, ArrayRef<unsigned> Idxs);
 
+  /// Iterator over extractvalue index operands.
   using idx_iterator = const unsigned*;
 
+  /// Return an iterator to the first index.
+  /// @return Iterator to the first index.
   inline idx_iterator idx_begin() const { return Indices.begin(); }
+  /// Return an iterator past the last index.
+  /// @return Iterator past the last index.
   inline idx_iterator idx_end()   const { return Indices.end(); }
+  /// Return a range over indices.
+  /// @return Range over indices.
   inline iterator_range<idx_iterator> indices() const {
     return make_range(idx_begin(), idx_end());
   }
 
+  /// Return the aggregate operand.
+  /// @return Aggregate operand.
   Value *getAggregateOperand() {
     return getOperand(0);
   }
+  /// Return the aggregate operand.
+  /// @return Aggregate operand.
   const Value *getAggregateOperand() const {
     return getOperand(0);
   }
+  /// Return the operand index of the aggregate.
+  /// @return Operand index of the aggregate.
   static unsigned getAggregateOperandIndex() {
     return 0U;                      // get index for modifying correct operand
   }
 
+  /// Return the index list.
+  /// @return Index list.
   ArrayRef<unsigned> getIndices() const {
     return Indices;
   }
 
+  /// Return the number of indices.
+  /// @return Number of indices.
   unsigned getNumIndices() const {
     return (unsigned)Indices.size();
   }
 
+  /// Return true if this instruction has indices.
+  /// @return True if the condition holds.
   bool hasIndices() const {
     return true;
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ExtractValueInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::ExtractValue;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ExtractValueInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -2599,6 +3857,8 @@ ExtractValueInst::ExtractValueInst(Value *Agg, ArrayRef<unsigned> Idxs,
 //                                InsertValueInst Class
 //===----------------------------------------------------------------------===//
 
+/// Insert a struct field or array element into an aggregate value.
+///
 /// This instruction inserts a struct field of array element
 /// value into an aggregate value.
 ///
@@ -2609,15 +3869,27 @@ class InsertValueInst : public Instruction {
 
   InsertValueInst(const InsertValueInst &IVI);
 
+  /// Construct an insertvalue with aggregate \p Agg, value \p Val, and indices.
+  ///
   /// Constructors - Create a insertvalue instruction with a base aggregate
   /// value, a value to insert, and a list of indices. The first and second ctor
   /// can optionally insert before an existing instruction, the third appends
   /// the new instruction to the specified BasicBlock.
+  /// \param Agg The aggregate value to insert into.
+  /// \param Val The value to insert.
+  /// \param Idxs Indices into the aggregate type.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
+  /// @return Construct an insertvalue with aggregate \p Agg, value \p Val, and indices.
   inline InsertValueInst(Value *Agg, Value *Val, ArrayRef<unsigned> Idxs,
                          const Twine &NameStr, InsertPosition InsertBefore);
 
-  /// Constructors - These three constructors are convenience methods because
-  /// one and two index insertvalue instructions are so common.
+  /// Construct an insertvalue with a single index \p Idx.
+  /// \param Agg The aggregate value to insert into.
+  /// \param Val The value to insert.
+  /// \param Idx The insertion index.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
   InsertValueInst(Value *Agg, Value *Val, unsigned Idx,
                   const Twine &NameStr = "",
                   InsertPosition InsertBefore = nullptr);
@@ -2629,13 +3901,26 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone an identical InsertValueInst.
+  /// @return A clone of this instruction.
   LLVM_ABI InsertValueInst *cloneImpl() const;
 
 public:
-  // allocate space for exactly two operands
+  /// Allocate an InsertValueInst with the fixed-size operand allocator.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate an InsertValueInst created with the fixed-size allocator.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
+  /// Create an insertvalue into \p Agg at indices \p Idxs with value \p Val.
+  /// \param Agg The aggregate value to insert into.
+  /// \param Val The value to insert.
+  /// \param Idxs Indices into the aggregate type.
+  /// \param NameStr Optional name for the result.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c InsertValueInst.
   static InsertValueInst *Create(Value *Agg, Value *Val,
                                  ArrayRef<unsigned> Idxs,
                                  const Twine &NameStr = "",
@@ -2643,58 +3928,119 @@ public:
     return new InsertValueInst(Agg, Val, Idxs, NameStr, InsertBefore);
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Iterator over insertvalue index operands.
   using idx_iterator = const unsigned*;
 
+  /// Return an iterator to the first index.
+  /// @return Iterator to the first index.
   inline idx_iterator idx_begin() const { return Indices.begin(); }
+  /// Return an iterator past the last index.
+  /// @return Iterator past the last index.
   inline idx_iterator idx_end()   const { return Indices.end(); }
+  /// Return a range over indices.
+  /// @return Range over indices.
   inline iterator_range<idx_iterator> indices() const {
     return make_range(idx_begin(), idx_end());
   }
 
+  /// Return the aggregate operand.
+  /// @return Aggregate operand.
   Value *getAggregateOperand() {
     return getOperand(0);
   }
+  /// Return the aggregate operand.
+  /// @return Aggregate operand.
   const Value *getAggregateOperand() const {
     return getOperand(0);
   }
+  /// Return the operand index of the aggregate.
+  /// @return Operand index of the aggregate.
   static unsigned getAggregateOperandIndex() {
     return 0U;                      // get index for modifying correct operand
   }
 
+  /// Return the inserted value operand.
+  /// @return Inserted value operand.
   Value *getInsertedValueOperand() {
     return getOperand(1);
   }
+  /// Return the inserted value operand.
+  /// @return Inserted value operand.
   const Value *getInsertedValueOperand() const {
     return getOperand(1);
   }
+  /// Return the operand index of the inserted value.
+  /// @return Operand index of the inserted value.
   static unsigned getInsertedValueOperandIndex() {
     return 1U;                      // get index for modifying correct operand
   }
 
+  /// Return the index list.
+  /// @return Index list.
   ArrayRef<unsigned> getIndices() const {
     return Indices;
   }
 
+  /// Return the number of indices.
+  /// @return Number of indices.
   unsigned getNumIndices() const {
     return (unsigned)Indices.size();
   }
 
+  /// Return true if this instruction has indices.
+  /// @return True if the condition holds.
   bool hasIndices() const {
     return true;
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c InsertValueInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::InsertValue;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c InsertValueInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for InsertValueInst.
 template <>
 struct OperandTraits<InsertValueInst> :
   public FixedNumOperandTraits<InsertValueInst, 2> {
@@ -2713,15 +4059,14 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(InsertValueInst, Value)
 //                               PHINode Class
 //===----------------------------------------------------------------------===//
 
-// PHINode - The PHINode class is used to represent the magical mystical PHI
-// node, that can not exist in nature, but can be synthesized in a computer
-// scientist's overactive imagination.
-//
+/// PHI node merging values from multiple predecessor blocks.
+///
 class PHINode : public Instruction, public FastMathFlagsStorage {
   constexpr static HungOffOperandsAllocMarker AllocMarker{};
 
   /// The number of operands actually allocated.  NumOperands is
   /// the number actually in use.
+  /// @return The number of operands actually allocated.
   unsigned ReservedSpace;
 
   PHINode(const PHINode &PN);
@@ -2739,18 +4084,23 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI PHINode *cloneImpl() const;
 
-  // allocHungoffUses - this is more complicated than the generic
-  // User::allocHungoffUses, because we have to allocate Uses for the incoming
-  // values and pointers to the incoming blocks, all in one allocation.
+  /// Allocate hung-off uses for \p N incoming values and predecessor blocks.
+  /// \param N Number of incoming edges to reserve.
   void allocHungoffUses(unsigned N) {
     User::allocHungoffUses(N, /*WithExtraValues=*/true);
   }
 
 public:
-  /// Constructors - NumReservedValues is a hint for the number of incoming
-  /// edges that this phi node will have (use 0 if you really have no idea).
+  /// Create a PHI node of type \p Ty with reserved incoming slots.
+  /// \param Ty The PHI result type.
+  /// \param NumReservedValues Hint for the number of incoming edges.
+  /// \param NameStr Optional name for the PHI node.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c PHINode.
   static PHINode *Create(Type *Ty, unsigned NumReservedValues,
                          const Twine &NameStr = "",
                          InsertPosition InsertBefore = nullptr) {
@@ -2759,41 +4109,89 @@ public:
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   // Block iterator interface. This provides access to the list of incoming
   // basic blocks, which parallels the list of incoming values.
   // Please note that we are not providing non-const iterators for blocks to
   // force all updates go through an interface function.
 
+  /// Mutable iterator over incoming PHI predecessor blocks.
   using block_iterator = BasicBlock **;
+  /// Const iterator over incoming PHI predecessor blocks.
   using const_block_iterator = BasicBlock * const *;
 
+  /// Return an iterator to the first incoming block.
+  /// @return Iterator to the first incoming block.
   const_block_iterator block_begin() const {
     return reinterpret_cast<const_block_iterator>(op_begin() + ReservedSpace);
   }
 
+  /// Return an iterator past the last incoming block.
+  /// @return Iterator past the last incoming block.
   const_block_iterator block_end() const {
     return block_begin() + getNumOperands();
   }
 
+  /// Return a range over incoming PHI blocks.
+  /// @return Range over incoming PHI blocks.
   iterator_range<const_block_iterator> blocks() const {
     return make_range(block_begin(), block_end());
   }
 
+  /// Return a range over incoming PHI values.
+  /// @return Range over incoming PHI values.
+  /// Return a range over incoming PHI values.
+  /// @return Range over incoming PHI values.
   op_range incoming_values() { return operands(); }
 
+  /// Return a const range over incoming PHI values.
+  /// @return Const range over incoming PHI values.
   const_op_range incoming_values() const { return operands(); }
 
   /// Return the number of incoming edges
-  ///
+  /// @return The operand count.
   unsigned getNumIncomingValues() const { return getNumOperands(); }
 
-  /// Return incoming value number x
-  ///
+  /// Return incoming value number \p i.
+  /// \param i The incoming value index.
+  /// @return Incoming value number \p i.
   Value *getIncomingValue(unsigned i) const {
     return getOperand(i);
   }
+  /// Set incoming value number \p i to \p V.
+  /// \param i The incoming value index.
+  /// \param V The new incoming value.
   void setIncomingValue(unsigned i, Value *V) {
     assert(V && "PHI node got a null value!");
     assert(getType() == V->getType() &&
@@ -2801,47 +4199,60 @@ public:
     setOperand(i, V);
   }
 
+  /// Map an incoming-value index to an operand index.
+  /// \param i The incoming value index.
+  /// @return The corresponding operand index.
   static unsigned getOperandNumForIncomingValue(unsigned i) {
     return i;
   }
 
+  /// Map an operand index to an incoming-value index.
+  /// \param i The operand index.
+  /// @return The corresponding incoming value index.
   static unsigned getIncomingValueNumForOperand(unsigned i) {
     return i;
   }
 
-  /// Return incoming basic block number @p i.
-  ///
+  /// Return incoming basic block number \p i.
+  /// \param i The incoming edge index.
+  /// @return Incoming basic block number \p i.
   BasicBlock *getIncomingBlock(unsigned i) const {
     return block_begin()[i];
   }
 
-  /// Return incoming basic block corresponding
-  /// to an operand of the PHI.
-  ///
+  /// Return the incoming basic block for PHI operand use \p U.
+  /// \param U A use of this PHI node's operands.
+  /// @return Incoming basic block corresponding to an operand of the PHI.
   BasicBlock *getIncomingBlock(const Use &U) const {
     assert(this == U.getUser() && "Iterator doesn't point to PHI's Uses?");
     return getIncomingBlock(unsigned(&U - op_begin()));
   }
 
-  /// Return incoming basic block corresponding
-  /// to value use iterator.
-  ///
+  /// Return the incoming basic block for user iterator \p I.
+  /// \param I A user iterator referring to a use of this PHI.
+  /// @return Incoming basic block corresponding to value use iterator.
   BasicBlock *getIncomingBlock(Value::const_user_iterator I) const {
     return getIncomingBlock(I.getUse());
   }
 
+  /// Set the incoming basic block for edge number \p i.
+  /// \param i The incoming edge index.
+  /// \param BB The new predecessor basic block.
   void setIncomingBlock(unsigned i, BasicBlock *BB) {
     const_cast<block_iterator>(block_begin())[i] = BB;
   }
 
-  /// Copies the basic blocks from \p BBRange to the incoming basic block list
-  /// of this PHINode, starting at \p ToIdx.
+  /// Copy incoming basic blocks from \p BBRange into this PHI starting at \p ToIdx.
+  /// \param BBRange Source range of predecessor blocks.
+  /// \param ToIdx Destination starting index in this PHI.
   void copyIncomingBlocks(iterator_range<const_block_iterator> BBRange,
                           uint32_t ToIdx = 0) {
     copy(BBRange, const_cast<block_iterator>(block_begin()) + ToIdx);
   }
 
-  /// Replace every incoming basic block \p Old to basic block \p New.
+  /// Replace every incoming basic block \p Old with basic block \p New.
+  /// \param Old The predecessor block to replace.
+  /// \param New The replacement predecessor block.
   void replaceIncomingBlockWith(const BasicBlock *Old, BasicBlock *New) {
     assert(New && Old && "PHI node got a null basic block!");
     for (unsigned Op = 0, NumOps = getNumOperands(); Op != NumOps; ++Op)
@@ -2849,8 +4260,9 @@ public:
         setIncomingBlock(Op, New);
   }
 
-  /// Add an incoming value to the end of the PHI list
-  ///
+  /// Append incoming value \p V from predecessor block \p BB.
+  /// \param V The incoming value.
+  /// \param BB The predecessor block.
   void addIncoming(Value *V, BasicBlock *BB) {
     if (getNumOperands() == ReservedSpace)
       growOperands();  // Get more space!
@@ -2860,30 +4272,39 @@ public:
     setIncomingBlock(getNumOperands() - 1, BB);
   }
 
-  /// Remove an incoming value.  This is useful if a
-  /// predecessor basic block is deleted.  The value removed is returned.
+  /// Remove incoming value number \p Idx.
   ///
-  /// If the last incoming value for a PHI node is removed (and DeletePHIIfEmpty
-  /// is true), the PHI node is destroyed and any uses of it are replaced with
-  /// dummy values.  The only time there should be zero incoming values to a PHI
-  /// node is when the block is dead, so this strategy is sound.
+  /// This is useful if a predecessor basic block is deleted. The value removed
+  /// is returned. If the last incoming value for a PHI node is removed (and
+  /// DeletePHIIfEmpty is true), the PHI node is destroyed and any uses of it
+  /// are replaced with dummy values. The only time there should be zero
+  /// incoming values to a PHI node is when the block is dead, so this strategy
+  /// is sound.
+  /// \param Idx The incoming value index to remove.
+  /// \param DeletePHIIfEmpty Whether to erase the PHI if it becomes empty.
+  /// @return The removed incoming value.
   LLVM_ABI Value *removeIncomingValue(unsigned Idx,
                                       bool DeletePHIIfEmpty = true);
 
+  /// Remove the incoming value associated with predecessor \p BB.
+  /// \param BB The predecessor basic block.
+  /// \param DeletePHIIfEmpty Whether to erase the PHI if it becomes empty.
+  /// @return The removed incoming value.
   Value *removeIncomingValue(const BasicBlock *BB, bool DeletePHIIfEmpty=true) {
     int Idx = getBasicBlockIndex(BB);
     assert(Idx >= 0 && "Invalid basic block argument to remove!");
     return removeIncomingValue(Idx, DeletePHIIfEmpty);
   }
 
-  /// Remove all incoming values for which the predicate returns true.
-  /// The predicate accepts the incoming value index.
+  /// Remove incoming values for which \p Predicate returns true.
+  /// \param Predicate Called with each incoming value index; return true to remove.
+  /// \param DeletePHIIfEmpty Whether to erase the PHI if it becomes empty.
   LLVM_ABI void removeIncomingValueIf(function_ref<bool(unsigned)> Predicate,
                                       bool DeletePHIIfEmpty = true);
 
-  /// Return the first index of the specified basic
-  /// block in the value list for this PHI.  Returns -1 if no instance.
-  ///
+  /// Return the index of predecessor block \p BB, or -1 if not found.
+  /// \param BB The predecessor block to search for.
+  /// @return The index of predecessor block \p BB, or -1 if not found.
   int getBasicBlockIndex(const BasicBlock *BB) const {
     for (unsigned i = 0, e = getNumOperands(); i != e; ++i)
       if (block_begin()[i] == BB)
@@ -2891,13 +4312,18 @@ public:
     return -1;
   }
 
+  /// Return the incoming value from predecessor block \p BB.
+  /// \param BB The predecessor basic block.
+  /// @return Incoming value for a basic block.
   Value *getIncomingValueForBlock(const BasicBlock *BB) const {
     int Idx = getBasicBlockIndex(BB);
     assert(Idx >= 0 && "Invalid basic block argument!");
     return getIncomingValue(Idx);
   }
 
-  /// Set every incoming value(s) for block \p BB to \p V.
+  /// Set all incoming values from predecessor block \p BB to \p V.
+  /// \param BB The predecessor block.
+  /// \param V The new incoming value.
   void setIncomingValueForBlock(const BasicBlock *BB, Value *V) {
     assert(BB && "PHI node got a null basic block!");
     bool Found = false;
@@ -2910,17 +4336,23 @@ public:
     assert(Found && "Invalid basic block argument to set!");
   }
 
+  /// Return the common incoming value if all edges agree, otherwise null.
+  ///
   /// If the specified PHI node always merges together the
   /// same value, return the value, otherwise return null.
+  /// @return The common incoming value if all edges agree, otherwise null.
   LLVM_ABI Value *hasConstantValue() const;
 
+  /// Return true if all incoming values are equal, treating undef as equal.
+  ///
   /// Whether the specified PHI node always merges
   /// together the same value, assuming undefs are equal to a unique
   /// non-undef value.
+  /// @return True if all incoming values are equal, treating undef as equal.
   LLVM_ABI bool hasConstantOrUndefValue() const;
 
-  /// If the PHI node is complete which means all of its parent's predecessors
-  /// have incoming value in this PHI, return true, otherwise return false.
+  /// Return true if every predecessor has an incoming value in this PHI.
+  /// @return True if every predecessor has an incoming value in this PHI.
   bool isComplete() const {
     return llvm::all_of(predecessors(getParent()),
                         [this](const BasicBlock *Pred) {
@@ -2928,10 +4360,15 @@ public:
                         });
   }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Return true if \p I is a PHI instruction.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c PHINode.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::PHI;
   }
+  /// Return true if \p V is a PHI instruction.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c PHINode.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -2940,6 +4377,7 @@ private:
   LLVM_ABI void growOperands();
 };
 
+/// Operand layout traits for PHINode.
 template <> struct OperandTraits<PHINode> : public HungoffOperandTraits {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(PHINode, Value)
@@ -2948,7 +4386,8 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(PHINode, Value)
 //                           LandingPadInst Class
 //===----------------------------------------------------------------------===//
 
-//===---------------------------------------------------------------------------
+/// Landing pad instruction for exception handling in an unwind block.
+///
 /// The landingpad instruction holds all of the information
 /// necessary to generate correct exception handling. The landingpad instruction
 /// cannot be moved from the top of a landing pad block, which itself is
@@ -2963,18 +4402,28 @@ class LandingPadInst : public Instruction {
 
   /// The number of operands actually allocated.  NumOperands is
   /// the number actually in use.
+  /// @return The number of operands actually allocated.
   unsigned ReservedSpace;
 
   LandingPadInst(const LandingPadInst &LP);
 
 public:
-  enum ClauseType { Catch, Filter };
+  /// Kind of landing pad clause stored as an operand.
+  enum ClauseType {
+    /// Catch clause matching an exception type.
+    Catch,
+    /// Filter clause listing types that must not be caught.
+    Filter
+  };
 
 private:
   explicit LandingPadInst(Type *RetTy, unsigned NumReservedValues,
                           const Twine &NameStr, InsertPosition InsertBefore);
 
   // Allocate space for exactly zero operands.
+  /// Allocate a LandingPadInst with the hung-off-uses allocator.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
 
   LLVM_ABI void growOperands(unsigned Size);
@@ -2984,64 +4433,125 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI LandingPadInst *cloneImpl() const;
 
 public:
+  /// Deallocate a LandingPadInst created with the hung-off-uses allocator.
+  /// \param Ptr Pointer returned by the hung-off-uses \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
-  /// Constructors - NumReservedClauses is a hint for the number of incoming
-  /// clauses that this landingpad will have (use 0 if you really have no idea).
+  /// Create a landing pad of type \p RetTy with \p NumReservedClauses slots.
+  /// \param RetTy The landing pad result type.
+  /// \param NumReservedClauses Hint for the number of clauses.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c LandingPadInst.
   LLVM_ABI static LandingPadInst *Create(Type *RetTy,
                                          unsigned NumReservedClauses,
                                          const Twine &NameStr = "",
                                          InsertPosition InsertBefore = nullptr);
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return true if this landing pad runs on all unwinds.
+  ///
   /// Return 'true' if this landingpad instruction is a
   /// cleanup. I.e., it should be run when unwinding even if its landing pad
   /// doesn't catch the exception.
+  /// @return True if this landing pad runs on all unwinds.
   bool isCleanup() const { return getSubclassData<CleanupField>(); }
 
-  /// Indicate that this landingpad instruction is a cleanup.
+  /// Mark this landing pad as a cleanup handler.
+  /// \param V True if this landing pad should run on all unwinds.
   void setCleanup(bool V) { setSubclassData<CleanupField>(V); }
 
-  /// Add a catch or filter clause to the landing pad.
+  /// Append catch or filter clause \p ClauseVal to this landing pad.
+  /// \param ClauseVal The clause constant to append.
   LLVM_ABI void addClause(Constant *ClauseVal);
 
+  /// Return clause constant at index \p Idx.
+  ///
   /// Get the value of the clause at index Idx. Use isCatch/isFilter to
   /// determine what type of clause this is.
+  /// \param Idx The clause index.
+  /// @return Clause constant at index \p Idx.
   Constant *getClause(unsigned Idx) const {
     return cast<Constant>(getOperandList()[Idx]);
   }
 
-  /// Return 'true' if the clause and index Idx is a catch clause.
+  /// Return true if clause \p Idx is a catch clause.
+  /// \param Idx The clause index.
+  /// @return True if clause \p Idx is a catch clause.
   bool isCatch(unsigned Idx) const {
     return !isa<ArrayType>(getOperandList()[Idx]->getType());
   }
 
-  /// Return 'true' if the clause and index Idx is a filter clause.
+  /// Return true if clause \p Idx is a filter clause.
+  /// \param Idx The clause index.
+  /// @return True if clause \p Idx is a filter clause.
   bool isFilter(unsigned Idx) const {
     return isa<ArrayType>(getOperandList()[Idx]->getType());
   }
 
-  /// Get the number of clauses for this landing pad.
+  /// Return the number of catch and filter clauses.
+  /// @return The operand count.
   unsigned getNumClauses() const { return getNumOperands(); }
 
+  /// Reserve space for at least \p Size clause operands.
+  ///
   /// Grow the size of the operand list to accommodate the new
   /// number of clauses.
+  /// \param Size The number of clause operands to reserve.
   void reserveClauses(unsigned Size) { growOperands(Size); }
 
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Return true if \p I is a LandingPad instruction.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c LandingPadInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::LandingPad;
   }
+  /// Return true if \p V is a LandingPad instruction.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c LandingPadInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for LandingPadInst.
 template <>
 struct OperandTraits<LandingPadInst> : public HungoffOperandTraits {};
 
@@ -3052,6 +4562,8 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(LandingPadInst, Value)
 //===----------------------------------------------------------------------===//
 
 //===---------------------------------------------------------------------------
+/// Return from the current function, optionally with a value.
+///
 /// Return a value (possibly void), from a function.  Execution
 /// does not continue in this function any longer.
 ///
@@ -3080,46 +4592,102 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI ReturnInst *cloneImpl() const;
 
 public:
+  /// Create a return in context \p C with optional value \p retVal.
+  /// \param C The LLVM context.
+  /// \param retVal Optional return value; null for void return.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c ReturnInst.
   static ReturnInst *Create(LLVMContext &C, Value *retVal = nullptr,
                             InsertPosition InsertBefore = nullptr) {
     IntrusiveOperandsAllocMarker AllocMarker{retVal ? 1U : 0U};
     return new (AllocMarker) ReturnInst(C, retVal, AllocMarker, InsertBefore);
   }
 
+  /// Create a void return at the end of \p InsertAtEnd.
+  /// \param C The LLVM context.
+  /// \param InsertAtEnd The basic block to append to.
+  /// @return The newly created \c ReturnInst.
   static ReturnInst *Create(LLVMContext &C, BasicBlock *InsertAtEnd) {
     IntrusiveOperandsAllocMarker AllocMarker{0};
     return new (AllocMarker) ReturnInst(C, nullptr, AllocMarker, InsertAtEnd);
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
-  /// Convenience accessor. Returns null if there is no return value.
+  /// Return the value operand, or null for a void return.
+  /// @return The value operand, or null for a void return.
   Value *getReturnValue() const {
     return getNumOperands() != 0 ? getOperand(0) : nullptr;
   }
 
+  /// Return an empty successor range (returns have no successors).
+  /// @return An empty successor range (returns have no successors).
   iterator_range<succ_iterator> successors() {
     return {succ_iterator(op_end()), succ_iterator(op_end())};
   }
+  /// Return an empty const successor range (returns have no successors).
+  /// @return An empty const successor range (returns have no successors).
   iterator_range<const_succ_iterator> successors() const {
     return {const_succ_iterator(op_end()), const_succ_iterator(op_end())};
   }
 
+  /// Return the number of successors (always 0).
+  /// @return The number of successors (always 0).
   unsigned getNumSuccessors() const { return 0; }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ReturnInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::Ret);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ReturnInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
 private:
+  /// Return the successor basic block at the given index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned idx) const {
     llvm_unreachable("ReturnInst has no successors!");
   }
@@ -3129,6 +4697,7 @@ private:
   }
 };
 
+/// Operand layout traits for ReturnInst.
 template <>
 struct OperandTraits<ReturnInst> : public VariadicOperandTraits<ReturnInst> {};
 
@@ -3152,48 +4721,104 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone this unconditional branch without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI UncondBrInst *cloneImpl() const;
 
 public:
+  /// Create an unconditional branch to \p Target.
+  /// \param Target The sole successor basic block.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c UncondBrInst.
   static UncondBrInst *Create(BasicBlock *Target,
                               InsertPosition InsertBefore = nullptr) {
     return new (AllocMarker) UncondBrInst(Target, InsertBefore);
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return 1; }
 
+  /// Return successor \p i (only index 0 is valid).
+  /// \param i Successor index (must be 0).
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned i = 0) const {
     assert(i == 0 && "Successor # out of range for Branch!");
     return cast_or_null<BasicBlock>(Op<-1>().get());
   }
 
+  /// Set the sole successor basic block.
+  /// \param NewSucc The new target block.
   void setSuccessor(BasicBlock *NewSucc) { Op<-1>() = NewSucc; }
+  /// Set successor \p idx to \p NewSucc (only index 0 is valid).
+  /// \param idx Successor index (must be 0).
+  /// \param NewSucc The new target block.
   void setSuccessor(unsigned idx, BasicBlock *NewSucc) {
     assert(idx == 0 && "Successor # out of range for Branch!");
     Op<-1>() = NewSucc;
   }
 
+  /// Iterate over the single successor block.
+  /// @return A range over the requested elements.
   iterator_range<succ_iterator> successors() {
     return make_range(succ_iterator(op_begin()), succ_iterator(op_end()));
   }
 
+  /// Iterate over the single successor block.
+  /// @return A range over the requested elements.
   iterator_range<const_succ_iterator> successors() const {
     return make_range(const_succ_iterator(op_begin()),
                       const_succ_iterator(op_end()));
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c UncondBrInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::UncondBr);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c UncondBrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for UncondBrInst.
 template <>
 struct OperandTraits<UncondBrInst>
     : public FixedNumOperandTraits<UncondBrInst, 1> {};
@@ -3220,28 +4845,77 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone this conditional branch without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI CondBrInst *cloneImpl() const;
 
 public:
+  /// Create a conditional branch on \p Cond to \p IfTrue or \p IfFalse.
+  /// \param Cond The branch condition value.
+  /// \param IfTrue Successor when the condition is true.
+  /// \param IfFalse Successor when the condition is false.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CondBrInst.
   static CondBrInst *Create(Value *Cond, BasicBlock *IfTrue,
                             BasicBlock *IfFalse,
                             InsertPosition InsertBefore = nullptr) {
     return new (AllocMarker) CondBrInst(Cond, IfTrue, IfFalse, InsertBefore);
   }
 
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return the condition operand.
+  /// @return Condition operand.
   Value *getCondition() const { return Op<-3>(); }
+  /// Set the branch condition operand.
+  /// \param V The new condition value.
   void setCondition(Value *V) { Op<-3>() = V; }
 
+  /// Return the number of successors (always 2).
+  /// @return The number of successors (always 2).
   unsigned getNumSuccessors() const { return 2; }
 
+  /// Return successor \p i (0 = true, 1 = false).
+  /// \param i Successor index.
+  /// @return Successor \p i (0 = true, 1 = false).
   BasicBlock *getSuccessor(unsigned i) const {
     assert(i < getNumSuccessors() && "Successor # out of range for Branch!");
     return cast_or_null<BasicBlock>((&Op<-2>() + i)->get());
   }
 
+  /// Set successor \p idx to \p NewSucc.
+  /// \param idx Successor index (0 = true, 1 = false).
+  /// \param NewSucc The new target block.
   void setSuccessor(unsigned idx, BasicBlock *NewSucc) {
     assert(idx < getNumSuccessors() && "Successor # out of range for Branch!");
     *(&Op<-2>() + idx) = NewSucc;
@@ -3254,25 +4928,36 @@ public:
   /// continues to map correctly to each operand.
   LLVM_ABI void swapSuccessors();
 
+  /// Iterate over the true and false successor blocks.
+  /// @return A range over the requested elements.
   iterator_range<succ_iterator> successors() {
     return make_range(succ_iterator(std::next(op_begin())),
                       succ_iterator(op_end()));
   }
 
+  /// Iterate over the true and false successor blocks.
+  /// @return A range over the requested elements.
   iterator_range<const_succ_iterator> successors() const {
     return make_range(const_succ_iterator(std::next(op_begin())),
                       const_succ_iterator(op_end()));
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CondBrInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::CondBr);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CondBrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for CondBrInst.
 template <>
 struct OperandTraits<CondBrInst> : public FixedNumOperandTraits<CondBrInst, 3> {
 };
@@ -3284,7 +4969,7 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CondBrInst, Value)
 //===----------------------------------------------------------------------===//
 
 //===---------------------------------------------------------------------------
-/// Multiway switch
+/// Switch on an integer value with a default and case destinations.
 ///
 class SwitchInst : public Instruction {
   constexpr static HungOffOperandsAllocMarker AllocMarker{};
@@ -3314,23 +4999,33 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI SwitchInst *cloneImpl() const;
 
+  /// Allocate hung-off uses for \p N case values and successor blocks.
+  /// \param N Number of reserved case/successor slots.
   void allocHungoffUses(unsigned N) {
     User::allocHungoffUses(N, /*WithExtraValues=*/true);
   }
 
+  /// Return the case values array.
+  /// @return Case values array.
   ConstantInt *const *case_values() const {
     return reinterpret_cast<ConstantInt *const *>(op_begin() + ReservedSpace);
   }
+  /// Return the case values array.
+  /// @return Case values array.
   ConstantInt **case_values() {
     return reinterpret_cast<ConstantInt **>(op_begin() + ReservedSpace);
   }
 
 public:
+  /// Deallocate a SwitchInst created with the hung-off-uses allocator.
+  /// \param Ptr Pointer returned by the hung-off-uses \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
-  // -2
+  /// Pseudo-index representing the default case in case iterators.
   static const unsigned DefaultPseudoIndex = static_cast<unsigned>(~0L-1);
 
   template <typename CaseHandleT> class CaseIteratorImpl;
@@ -3347,17 +5042,24 @@ public:
         CaseHandleImpl<SwitchInstT, ConstantIntT, BasicBlockT>>;
 
   protected:
-    // Expose the switch type we're parameterized with to the iterator.
+    /// Switch instruction type for this handle.
     using SwitchInstType = SwitchInstT;
 
+    /// The owning switch instruction.
     SwitchInstT *SI;
+    /// Case index, or DefaultPseudoIndex for the default case.
     ptrdiff_t Index;
 
+    /// Default-construct an invalid case handle.
     CaseHandleImpl() = default;
+    /// Construct a handle to case \p Index of \p SI.
+    /// \param SI The owning switch instruction.
+    /// \param Index The case index or DefaultPseudoIndex.
     CaseHandleImpl(SwitchInstT *SI, ptrdiff_t Index) : SI(SI), Index(Index) {}
 
   public:
     /// Resolves case value for current case.
+    /// @return A pointer to the requested value.
     ConstantIntT *getCaseValue() const {
       assert((unsigned)Index < SI->getNumCases() &&
              "Index out the number of cases.");
@@ -3365,6 +5067,7 @@ public:
     }
 
     /// Resolves successor for current case.
+    /// @return A pointer to the requested value.
     BasicBlockT *getCaseSuccessor() const {
       assert(((unsigned)Index < SI->getNumCases() ||
               (unsigned)Index == DefaultPseudoIndex) &&
@@ -3373,9 +5076,11 @@ public:
     }
 
     /// Returns number of current case.
+    /// @return Number of current case.
     unsigned getCaseIndex() const { return Index; }
 
     /// Returns successor index for current case successor.
+    /// @return Successor index for current case successor.
     unsigned getSuccessorIndex() const {
       assert(((unsigned)Index == DefaultPseudoIndex ||
               (unsigned)Index < SI->getNumCases()) &&
@@ -3383,35 +5088,49 @@ public:
       return (unsigned)Index != DefaultPseudoIndex ? Index + 1 : 0;
     }
 
+    /// Compare two handles on the same switch instruction.
+    /// \param RHS The handle to compare against.
+    /// @return True if both handles refer to the same case.
+    /// Compare two handles on the same switch instruction.
+    /// \param RHS The handle to compare against.
+    /// @return True if both handles refer to the same case.
     bool operator==(const CaseHandleImpl &RHS) const {
       assert(SI == RHS.SI && "Incompatible operators.");
       return Index == RHS.Index;
     }
   };
 
+  /// Const handle to one switch case.
   using ConstCaseHandle =
       CaseHandleImpl<const SwitchInst, const ConstantInt, const BasicBlock>;
 
+  /// Mutable handle to one switch case.
   class CaseHandle
       : public CaseHandleImpl<SwitchInst, ConstantInt, BasicBlock> {
     friend class SwitchInst::CaseIteratorImpl<CaseHandle>;
 
   public:
+    /// Construct a handle to case \p Index of \p SI.
+    /// \param SI The owning switch instruction.
+    /// \param Index The zero-based case index.
     CaseHandle(SwitchInst *SI, ptrdiff_t Index) : CaseHandleImpl(SI, Index) {}
 
-    /// Sets the new value for current case.
+    /// Replace the case value for this handle.
+    /// \param V The new case constant.
     void setValue(ConstantInt *V) const {
       assert((unsigned)Index < SI->getNumCases() &&
              "Index out the number of cases.");
       SI->case_values()[Index] = V;
     }
 
-    /// Sets the new successor for current case.
+    /// Set the successor block for this case.
+    /// \param S The new destination basic block.
     void setSuccessor(BasicBlock *S) const {
       SI->setSuccessor(getSuccessorIndex(), S);
     }
   };
 
+  /// Random-access iterator over switch cases.
   template <typename CaseHandleT>
   class CaseIteratorImpl
       : public iterator_facade_base<CaseIteratorImpl<CaseHandleT>,
@@ -3426,12 +5145,15 @@ public:
     /// a case for a particular switch.
     CaseIteratorImpl() = default;
 
-    /// Initializes case iterator for given SwitchInst and for given
-    /// case number.
+    /// Initialize an iterator for case \p CaseNum of \p SI.
+    /// \param SI The switch instruction to iterate.
+    /// \param CaseNum The zero-based case index.
     CaseIteratorImpl(SwitchInstT *SI, unsigned CaseNum) : Case(SI, CaseNum) {}
 
-    /// Initializes case iterator for given SwitchInst and for given
-    /// successor index.
+    /// Initialize an iterator from successor index \p SuccessorIndex of \p SI.
+    /// \param SI The switch instruction to iterate.
+    /// \param SuccessorIndex The successor operand index.
+    /// @return Case iterator for the given successor index.
     static CaseIteratorImpl fromSuccessorIndex(SwitchInstT *SI,
                                                unsigned SuccessorIndex) {
       assert(SuccessorIndex < SI->getNumSuccessors() &&
@@ -3440,12 +5162,15 @@ public:
                                  : CaseIteratorImpl(SI, DefaultPseudoIndex);
     }
 
-    /// Support converting to the const variant. This will be a no-op for const
-    /// variant.
+    /// Convert to the const case iterator type.
+    /// @return Const case iterator for the same case.
     operator CaseIteratorImpl<ConstCaseHandle>() const {
       return CaseIteratorImpl<ConstCaseHandle>(Case.SI, Case.Index);
     }
 
+    /// Advance this iterator by \p N cases.
+    /// \param N Number of cases to advance.
+    /// @return This iterator after advancing.
     CaseIteratorImpl &operator+=(ptrdiff_t N) {
       // Check index correctness after addition.
       // Note: Index == getNumCases() means end().
@@ -3455,6 +5180,9 @@ public:
       Case.Index += N;
       return *this;
     }
+    /// Move this iterator back by \p N cases.
+    /// \param N Number of cases to move back.
+    /// @return This iterator after moving back.
     CaseIteratorImpl &operator-=(ptrdiff_t N) {
       // Check index correctness after subtraction.
       // Note: Case.Index == getNumCases() means end().
@@ -3464,23 +5192,42 @@ public:
       Case.Index -= N;
       return *this;
     }
+    /// Return the distance in cases between this iterator and \p RHS.
+    /// \param RHS The iterator to subtract.
+    /// @return Number of cases between the two iterators.
     ptrdiff_t operator-(const CaseIteratorImpl &RHS) const {
       assert(Case.SI == RHS.Case.SI && "Incompatible operators.");
       return Case.Index - RHS.Case.Index;
     }
+    /// Return true if this iterator refers to the same case as \p RHS.
+    /// \param RHS The iterator to compare against.
+    /// @return True if both iterators refer to the same case.
     bool operator==(const CaseIteratorImpl &RHS) const {
       return Case == RHS.Case;
     }
+    /// Return true if this iterator precedes \p RHS.
+    /// \param RHS The iterator to compare against.
+    /// @return True if this iterator precedes \p RHS.
     bool operator<(const CaseIteratorImpl &RHS) const {
       assert(Case.SI == RHS.Case.SI && "Incompatible operators.");
       return Case.Index < RHS.Case.Index;
     }
+    /// Return the case handle for the current iterator position.
+    /// @return The case handle for the current iterator position.
     const CaseHandleT &operator*() const { return Case; }
   };
 
+  /// Mutable iterator over switch cases.
   using CaseIt = CaseIteratorImpl<CaseHandle>;
+  /// Const iterator over switch cases.
   using ConstCaseIt = CaseIteratorImpl<ConstCaseHandle>;
 
+  /// Create a switch on \p Value with default destination \p Default.
+  /// \param Value The condition value to switch on.
+  /// \param Default The default destination basic block.
+  /// \param NumCases Reserved number of additional cases.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c SwitchInst.
   static SwitchInst *Create(Value *Value, BasicBlock *Default,
                             unsigned NumCases,
                             InsertPosition InsertBefore = nullptr) {
@@ -3488,85 +5235,132 @@ public:
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   // Accessor Methods for Switch stmt
+  /// Return the condition operand.
+  /// @return Condition operand.
   Value *getCondition() const { return getOperand(0); }
+  /// Set the switch condition operand.
+  /// \param V The new condition value.
   void setCondition(Value *V) { setOperand(0, V); }
 
+  /// Return the default destination basic block.
+  /// @return Default destination basic block.
   BasicBlock *getDefaultDest() const {
     return cast<BasicBlock>(getOperand(1));
   }
 
   /// Returns true if the default branch must result in immediate undefined
   /// behavior, false otherwise.
+  /// @return True if the default branch must result in immediate undefined behavior, false otherwise.
   bool defaultDestUnreachable() const {
     return isa<UnreachableInst>(getDefaultDest()->getFirstNonPHIOrDbg());
   }
 
+  /// Set the default destination basic block.
+  /// \param DefaultCase The new default destination.
   void setDefaultDest(BasicBlock *DefaultCase) {
     setOperand(1, reinterpret_cast<Value*>(DefaultCase));
   }
 
   /// Return the number of 'cases' in this switch instruction, excluding the
   /// default case.
+  /// @return The operand count.
   unsigned getNumCases() const { return getNumOperands() - 2; }
 
   /// Returns a read/write iterator that points to the first case in the
   /// SwitchInst.
+  /// @return A read/write iterator that points to the first case in the SwitchInst.
   CaseIt case_begin() {
     return CaseIt(this, 0);
   }
 
   /// Returns a read-only iterator that points to the first case in the
   /// SwitchInst.
+  /// @return A read-only iterator that points to the first case in the SwitchInst.
   ConstCaseIt case_begin() const {
     return ConstCaseIt(this, 0);
   }
 
   /// Returns a read/write iterator that points one past the last in the
   /// SwitchInst.
+  /// @return A read/write iterator that points one past the last in the SwitchInst.
   CaseIt case_end() {
     return CaseIt(this, getNumCases());
   }
 
   /// Returns a read-only iterator that points one past the last in the
   /// SwitchInst.
+  /// @return A read-only iterator that points one past the last in the SwitchInst.
   ConstCaseIt case_end() const {
     return ConstCaseIt(this, getNumCases());
   }
 
   /// Iteration adapter for range-for loops.
+  /// @return A range over the requested elements.
   iterator_range<CaseIt> cases() {
     return make_range(case_begin(), case_end());
   }
 
   /// Constant iteration adapter for range-for loops.
+  /// @return A range over the requested elements.
   iterator_range<ConstCaseIt> cases() const {
     return make_range(case_begin(), case_end());
   }
 
-  /// Returns an iterator that points to the default case.
-  /// Note: this iterator allows to resolve successor only. Attempt
-  /// to resolve case value causes an assertion.
-  /// Also note, that increment and decrement also causes an assertion and
-  /// makes iterator invalid.
+  /// Return an iterator to the default case.
+  /// @return An iterator that points to the default case.
   CaseIt case_default() {
     return CaseIt(this, DefaultPseudoIndex);
   }
+  /// Return a const iterator to the default case.
+  /// @return A const iterator that points to the default case.
   ConstCaseIt case_default() const {
     return ConstCaseIt(this, DefaultPseudoIndex);
   }
 
-  /// Search all of the case values for the specified constant. If it is
-  /// explicitly handled, return the case iterator of it, otherwise return
-  /// default case iterator to indicate that it is handled by the default
-  /// handler.
+  /// Find the case iterator for constant \p C, or the default case iterator.
+  /// \param C The case constant to search for.
+  /// @return Case iterator for \p C, or the default case iterator.
   CaseIt findCaseValue(const ConstantInt *C) {
     return CaseIt(
         this,
         const_cast<const SwitchInst *>(this)->findCaseValue(C)->getCaseIndex());
   }
+  /// Find the const case iterator for constant \p C.
+  /// \param C The case constant to search for.
+  /// @return Const case iterator for \p C, or the default case iterator.
   ConstCaseIt findCaseValue(const ConstantInt *C) const {
     ConstCaseIt I = llvm::find_if(cases(), [C](const ConstCaseHandle &Case) {
       return Case.getCaseValue() == C;
@@ -3579,6 +5373,8 @@ public:
 
   /// Finds the unique case value for a given successor. Returns null if the
   /// successor is not found, not unique, or is the default case.
+  /// \param BB The successor basic block to look up.
+  /// @return A pointer to the requested value.
   ConstantInt *findCaseDest(BasicBlock *BB) {
     if (BB == getDefaultDest())
       return nullptr;
@@ -3601,8 +5397,12 @@ public:
   /// Note:
   /// This action invalidates case_end(). Old case_end() iterator will
   /// point to the added case.
+  /// \param OnVal The case constant value.
+  /// \param Dest The destination basic block for this case.
   LLVM_ABI void addCase(ConstantInt *OnVal, BasicBlock *Dest);
 
+  /// Remove the case referenced by \p I from this switch.
+  ///
   /// This method removes the specified case and its successor from the switch
   /// instruction. Note that this operation may reorder the remaining cases at
   /// index idx and above.
@@ -3610,34 +5410,56 @@ public:
   /// This action invalidates iterators for all cases following the one removed,
   /// including the case_end() iterator. It returns an iterator for the next
   /// case.
+  /// \param I Iterator to the case to remove.
+  /// @return Iterator to the next case after the removed one.
   LLVM_ABI CaseIt removeCase(CaseIt I);
 
+  /// Iterate over all successor blocks (default first, then cases).
+  /// @return A range over the requested elements.
   iterator_range<succ_iterator> successors() {
     return make_range(std::next(op_begin()), op_end());
   }
+  /// Iterate over all successor blocks (default first, then cases).
+  /// @return A range over the requested elements.
   iterator_range<const_succ_iterator> successors() const {
     return make_range(std::next(op_begin()), op_end());
   }
 
+  /// Return the number of successor blocks (default plus all cases).
+  /// @return The operand count.
   unsigned getNumSuccessors() const { return getNumOperands() - 1; }
+  /// Return successor \p idx (0 = default, otherwise a case destination).
+  /// \param idx Successor index.
+  /// @return Successor \p idx (0 = default, otherwise a case destination).
   BasicBlock *getSuccessor(unsigned idx) const {
     assert(idx < getNumSuccessors() &&"Successor idx out of range for switch!");
     return cast<BasicBlock>(getOperand(idx + 1));
   }
+  /// Set successor \p idx to \p NewSucc.
+  /// \param idx Successor index (0 = default).
+  /// \param NewSucc The new destination basic block.
   void setSuccessor(unsigned idx, BasicBlock *NewSucc) {
     assert(idx < getNumSuccessors() && "Successor # out of range for switch!");
     setOperand(idx + 1, NewSucc);
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c SwitchInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Switch;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c SwitchInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Keep SwitchInst branch-weight metadata in sync when editing cases.
+///
 /// A wrapper class to simplify modification of SwitchInst cases along with
 /// their prof branch_weights metadata.
 class SwitchInstProfUpdateWrapper {
@@ -3646,16 +5468,27 @@ class SwitchInstProfUpdateWrapper {
   bool Changed = false;
 
 protected:
+  /// Initialize branch-weight metadata from the wrapped switch.
   LLVM_ABI void init();
 
 public:
+  /// Optional profile weight for one switch successor.
   using CaseWeightOpt = std::optional<uint32_t>;
+  /// Return a pointer to the wrapped switch instruction.
+  /// @return Pointer to the wrapped switch instruction.
   SwitchInst *operator->() { return &SI; }
+  /// Return a reference to the wrapped switch instruction.
+  /// @return Reference to the wrapped switch instruction.
   SwitchInst &operator*() { return SI; }
+  /// Convert to a pointer to the wrapped switch instruction.
+  /// @return Pointer to the wrapped switch instruction.
   operator SwitchInst *() { return &SI; }
 
+  /// Construct a wrapper that keeps branch weights in sync for \p SI.
+  /// \param SI The switch instruction to wrap.
   SwitchInstProfUpdateWrapper(SwitchInst &SI) : SI(SI) { init(); }
 
+  /// Write updated branch weights back to the switch if needed.
   ~SwitchInstProfUpdateWrapper() {
     if (Changed && Weights.has_value()) {
       if (Weights->size() >= 2) {
@@ -3670,30 +5503,43 @@ public:
     }
   }
 
-  /// Delegate the call to the underlying SwitchInst::removeCase() and remove
-  /// correspondent branch weight.
+  /// Remove case \p I and its branch weight from the wrapped switch.
+  /// \param I Iterator to the case to remove.
+  /// @return Iterator to the next case after the removed one.
   LLVM_ABI SwitchInst::CaseIt removeCase(SwitchInst::CaseIt I);
 
-  /// Replace the default destination by given case. Delegate the call to
-  /// the underlying SwitchInst::setDefaultDest and remove correspondent branch
-  /// weight.
+  /// Replace the default destination with the case referenced by \p I.
+  /// \param I Iterator to the case that becomes the new default.
   LLVM_ABI void replaceDefaultDest(SwitchInst::CaseIt I);
 
-  /// Delegate the call to the underlying SwitchInst::addCase() and set the
-  /// specified branch weight for the added case.
+  /// Add case \p OnVal -> \p Dest with optional branch weight \p W.
+  /// \param OnVal The case constant value.
+  /// \param Dest The destination basic block.
+  /// \param W Optional profile weight for the added case.
   LLVM_ABI void addCase(ConstantInt *OnVal, BasicBlock *Dest, CaseWeightOpt W);
 
-  /// Delegate the call to the underlying SwitchInst::eraseFromParent() and mark
-  /// this object to not touch the underlying SwitchInst in destructor.
+  /// Delegate eraseFromParent to the wrapped switch and skip destructor updates.
+  /// @return Iterator to the next instruction in the parent block.
   LLVM_ABI Instruction::InstListType::iterator eraseFromParent();
 
+  /// Set the profile weight of successor \p idx.
+  /// \param idx Successor index (0 = default).
+  /// \param W Optional profile weight; nullopt clears the weight.
   LLVM_ABI void setSuccessorWeight(unsigned idx, CaseWeightOpt W);
+  /// Return the profile weight of successor \p idx.
+  /// \param idx Successor index (0 = default).
+  /// @return The profile weight of the successor, if present.
   LLVM_ABI CaseWeightOpt getSuccessorWeight(unsigned idx);
 
+  /// Return the profile weight of successor \p idx in \p SI.
+  /// \param SI The switch instruction to query.
+  /// \param idx Successor index (0 = default).
+  /// @return The profile weight of the successor, if present.
   LLVM_ABI static CaseWeightOpt getSuccessorWeight(const SwitchInst &SI,
                                                    unsigned idx);
 };
 
+/// Operand layout traits for SwitchInst.
 template <> struct OperandTraits<SwitchInst> : public HungoffOperandTraits {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(SwitchInst, Value)
@@ -3722,6 +5568,9 @@ class IndirectBrInst : public Instruction {
                           InsertPosition InsertBefore);
 
   // allocate space for exactly zero operands
+  /// Allocate an IndirectBrInst with the hung-off-uses allocator.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
 
   void init(Value *Address, unsigned NumDests);
@@ -3731,67 +5580,138 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone this indirectbr without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI IndirectBrInst *cloneImpl() const;
 
 public:
+  /// Deallocate an IndirectBrInst created with the hung-off-uses allocator.
+  /// \param Ptr Pointer returned by the hung-off-uses \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
+  /// Create an indirect branch through \p Address with \p NumDests slots.
+  /// \param Address The address value to branch through.
+  /// \param NumDests Reserved number of destination blocks.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c IndirectBrInst.
   static IndirectBrInst *Create(Value *Address, unsigned NumDests,
                                 InsertPosition InsertBefore = nullptr) {
     return new IndirectBrInst(Address, NumDests, InsertBefore);
   }
 
   /// Provide fast operand accessors.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   // Accessor Methods for IndirectBrInst instruction.
+  /// Return the address operand.
+  /// @return Address operand.
   Value *getAddress() { return getOperand(0); }
+  /// Return the address operand.
+  /// @return Address operand.
   const Value *getAddress() const { return getOperand(0); }
+  /// Set the address operand.
+  /// \param V The new address value.
   void setAddress(Value *V) { setOperand(0, V); }
 
   /// return the number of possible destinations in this
   /// indirectbr instruction.
+  /// @return The operand count.
   unsigned getNumDestinations() const { return getNumOperands()-1; }
 
-  /// Return the specified destination.
+  /// Return destination basic block \p i.
+  /// \param i Destination index.
+  /// @return Destination basic block.
   BasicBlock *getDestination(unsigned i) { return getSuccessor(i); }
+  /// Return destination basic block \p i.
+  /// \param i Destination index.
+  /// @return Destination basic block.
   const BasicBlock *getDestination(unsigned i) const { return getSuccessor(i); }
 
   /// Add a destination.
-  ///
+  /// Add destination basic block \p Dest.
+  /// \param Dest The destination basic block to add.
   LLVM_ABI void addDestination(BasicBlock *Dest);
 
-  /// This method removes the specified successor from the
-  /// indirectbr instruction.
+  /// Remove destination basic block \p i.
+  /// \param i Destination index to remove.
   LLVM_ABI void removeDestination(unsigned i);
 
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return getNumOperands()-1; }
+  /// Return successor basic block \p i.
+  /// \param i Successor index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned i) const {
     return cast<BasicBlock>(getOperand(i+1));
   }
+  /// Set successor \p i to \p NewSucc.
+  /// \param i Successor index.
+  /// \param NewSucc The new destination basic block.
   void setSuccessor(unsigned i, BasicBlock *NewSucc) {
     setOperand(i + 1, NewSucc);
   }
 
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<succ_iterator> successors() {
     return make_range(succ_iterator(std::next(op_begin())),
                       succ_iterator(op_end()));
   }
 
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<const_succ_iterator> successors() const {
     return make_range(const_succ_iterator(std::next(op_begin())),
                       const_succ_iterator(op_end()));
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c IndirectBrInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::IndirectBr;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c IndirectBrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for IndirectBrInst.
 template <>
 struct OperandTraits<IndirectBrInst> : public HungoffOperandTraits {};
 
@@ -3801,18 +5721,23 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(IndirectBrInst, Value)
 //                               InvokeInst Class
 //===----------------------------------------------------------------------===//
 
+/// Call that transfers control to normal or unwind destinations on completion.
+///
 /// Invoke instruction.  The SubclassData field is used to hold the
 /// calling convention of the call.
 ///
 class InvokeInst : public CallBase {
   /// The number of operands for this call beyond the called function,
   /// arguments, and operand bundles.
+  /// @return The number of operands for this call beyond the called function, arguments, and operand bundles.
   static constexpr int NumExtraOperands = 2;
 
   /// The index from the end of the operand array to the normal destination.
+  /// @return The index from the end of the operand array to the normal destination.
   static constexpr int NormalDestOpEndIdx = -3;
 
   /// The index from the end of the operand array to the unwind destination.
+  /// @return The index from the end of the operand array to the unwind destination.
   static constexpr int UnwindDestOpEndIdx = -2;
 
   InvokeInst(const InvokeInst &BI, AllocInfo AllocInfo);
@@ -3820,6 +5745,7 @@ class InvokeInst : public CallBase {
   /// Construct an InvokeInst given a range of arguments.
   ///
   /// Construct an InvokeInst from a range of arguments
+  /// @return Construct an InvokeInst given a range of arguments.
   inline InvokeInst(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
                     BasicBlock *IfException, ArrayRef<Value *> Args,
                     ArrayRef<OperandBundleDef> Bundles, AllocInfo AllocInfo,
@@ -3830,6 +5756,7 @@ class InvokeInst : public CallBase {
                      ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr);
 
   /// Compute the number of operands to allocate.
+  /// @return Compute the number of operands to allocate.
   static unsigned ComputeNumOperands(unsigned NumArgs,
                                      size_t NumBundleInputs = 0) {
     // We need one operand for the called function, plus our extra operands and
@@ -3841,9 +5768,20 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI InvokeInst *cloneImpl() const;
 
 public:
+  /// Create an invoke of \p Func to \p IfNormal or \p IfException.
+  /// \param Ty Function type of the callee.
+  /// \param Func The callee value.
+  /// \param IfNormal Normal destination on success.
+  /// \param IfException Unwind destination on exception.
+  /// \param Args Call arguments.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c InvokeInst.
   static InvokeInst *Create(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
                             BasicBlock *IfException, ArrayRef<Value *> Args,
                             const Twine &NameStr,
@@ -3854,6 +5792,16 @@ public:
                                         {}, AllocMarker, NameStr, InsertBefore);
   }
 
+  /// Create an invoke of \p Func with operand bundles.
+  /// \param Ty Function type of the callee.
+  /// \param Func The callee value.
+  /// \param IfNormal Normal destination on success.
+  /// \param IfException Unwind destination on exception.
+  /// \param Args Call arguments.
+  /// \param Bundles Optional operand bundles.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c InvokeInst.
   static InvokeInst *Create(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
                             BasicBlock *IfException, ArrayRef<Value *> Args,
                             ArrayRef<OperandBundleDef> Bundles = {},
@@ -3868,6 +5816,14 @@ public:
                    NameStr, InsertBefore);
   }
 
+  /// Create an invoke of \p Func to \p IfNormal or \p IfException.
+  /// \param Func The callee.
+  /// \param IfNormal Normal destination on success.
+  /// \param IfException Unwind destination on exception.
+  /// \param Args Call arguments.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c InvokeInst.
   static InvokeInst *Create(FunctionCallee Func, BasicBlock *IfNormal,
                             BasicBlock *IfException, ArrayRef<Value *> Args,
                             const Twine &NameStr,
@@ -3876,6 +5832,15 @@ public:
                   IfException, Args, {}, NameStr, InsertBefore);
   }
 
+  /// Create an invoke of \p Func with operand bundles.
+  /// \param Func The callee.
+  /// \param IfNormal Normal destination on success.
+  /// \param IfException Unwind destination on exception.
+  /// \param Args Call arguments.
+  /// \param Bundles Optional operand bundles.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c InvokeInst.
   static InvokeInst *Create(FunctionCallee Func, BasicBlock *IfNormal,
                             BasicBlock *IfException, ArrayRef<Value *> Args,
                             ArrayRef<OperandBundleDef> Bundles = {},
@@ -3885,39 +5850,56 @@ public:
                   IfException, Args, Bundles, NameStr, InsertBefore);
   }
 
-  /// Create a clone of \p II with a different set of operand bundles and
-  /// insert it before \p InsertBefore.
+  /// Create a clone of \p II with a different set of operand bundles.
   ///
   /// The returned invoke instruction is identical to \p II in every way except
-  /// that the operand bundles for the new instruction are set to the operand
-  /// bundles in \p Bundles.
+  /// that the operand bundles for the new instruction are set to \p Bundles.
+  /// \param II The invoke instruction to clone.
+  /// \param Bundles Operand bundles for the new invoke.
+  /// \param InsertPt Insertion position for the new instruction.
+  /// @return The newly created \c InvokeInst.
   LLVM_ABI static InvokeInst *Create(InvokeInst *II,
                                      ArrayRef<OperandBundleDef> Bundles,
                                      InsertPosition InsertPt = nullptr);
 
   // get*Dest - Return the destination basic blocks...
+  /// Return the normal destination basic block.
+  /// @return Normal destination basic block.
   BasicBlock *getNormalDest() const {
     return cast<BasicBlock>(Op<NormalDestOpEndIdx>());
   }
+  /// Return the unwind destination basic block.
+  /// @return Unwind destination basic block.
   BasicBlock *getUnwindDest() const {
     return cast<BasicBlock>(Op<UnwindDestOpEndIdx>());
   }
+  /// Set the normal destination basic block.
+  /// \param B The new normal destination.
   void setNormalDest(BasicBlock *B) {
     Op<NormalDestOpEndIdx>() = reinterpret_cast<Value *>(B);
   }
+  /// Set the unwind destination basic block.
+  /// \param B The new unwind destination.
   void setUnwindDest(BasicBlock *B) {
     Op<UnwindDestOpEndIdx>() = reinterpret_cast<Value *>(B);
   }
 
   /// Get the landingpad instruction from the landing pad
   /// block (the unwind destination).
+  /// @return The landingpad instruction from the landing pad block (the unwind destination).
   LLVM_ABI LandingPadInst *getLandingPadInst() const;
 
+  /// Return successor \p i (0 = normal, 1 = unwind).
+  /// \param i Successor index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned i) const {
     assert(i < 2 && "Successor # out of range for invoke!");
     return i == 0 ? getNormalDest() : getUnwindDest();
   }
 
+  /// Set successor \p i to \p NewSucc.
+  /// \param i Successor index (0 = normal, 1 = unwind).
+  /// \param NewSucc The new destination basic block.
   void setSuccessor(unsigned i, BasicBlock *NewSucc) {
     assert(i < 2 && "Successor # out of range for invoke!");
     if (i == 0)
@@ -3926,24 +5908,38 @@ public:
       setUnwindDest(NewSucc);
   }
 
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return 2; }
 
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<succ_iterator> successors() {
     Use *First = &Op<NormalDestOpEndIdx>();
     return {succ_iterator(First), succ_iterator(First + 2)};
   }
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<const_succ_iterator> successors() const {
     const Use *First = &Op<NormalDestOpEndIdx>();
     return {const_succ_iterator(First), const_succ_iterator(First + 2)};
   }
 
   /// Updates profile metadata by scaling it by \p S / \p T.
+  /// \param S Numerator of the scale factor.
+  /// \param T Denominator of the scale factor.
   LLVM_ABI void updateProfWeight(uint64_t S, uint64_t T);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c InvokeInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::Invoke);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c InvokeInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -3970,6 +5966,8 @@ InvokeInst::InvokeInst(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
 //                              CallBrInst Class
 //===----------------------------------------------------------------------===//
 
+/// Call that may transfer control to a default or indirect destination.
+///
 /// CallBr instruction, tracking function calls that may not return control but
 /// instead transfer it to a third location. The SubclassData field is used to
 /// hold the calling convention of the call.
@@ -3983,6 +5981,7 @@ class CallBrInst : public CallBase {
   /// Construct a CallBrInst given a range of arguments.
   ///
   /// Construct a CallBrInst from a range of arguments
+  /// @return Construct a CallBrInst given a range of arguments.
   inline CallBrInst(FunctionType *Ty, Value *Func, BasicBlock *DefaultDest,
                     ArrayRef<BasicBlock *> IndirectDests,
                     ArrayRef<Value *> Args, ArrayRef<OperandBundleDef> Bundles,
@@ -3995,6 +5994,7 @@ class CallBrInst : public CallBase {
                      const Twine &NameStr);
 
   /// Compute the number of operands to allocate.
+  /// @return Compute the number of operands to allocate.
   static unsigned ComputeNumOperands(int NumArgs, int NumIndirectDests,
                                      int NumBundleInputs = 0) {
     // We need one operand for the called function, plus our extra operands and
@@ -4006,9 +6006,20 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI CallBrInst *cloneImpl() const;
 
 public:
+  /// Create a callbr of \p Func with default and indirect destinations.
+  /// \param Ty Function type of the callee.
+  /// \param Func The callee value.
+  /// \param DefaultDest The fall-through destination block.
+  /// \param IndirectDests Possible indirect destination blocks.
+  /// \param Args Call arguments.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CallBrInst.
   static CallBrInst *Create(FunctionType *Ty, Value *Func,
                             BasicBlock *DefaultDest,
                             ArrayRef<BasicBlock *> IndirectDests,
@@ -4021,6 +6032,16 @@ public:
                    NameStr, InsertBefore);
   }
 
+  /// Create a callbr of \p Func with operand bundles.
+  /// \param Ty Function type of the callee.
+  /// \param Func The callee value.
+  /// \param DefaultDest The fall-through destination block.
+  /// \param IndirectDests Possible indirect destination blocks.
+  /// \param Args Call arguments.
+  /// \param Bundles Optional operand bundles.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CallBrInst.
   static CallBrInst *
   Create(FunctionType *Ty, Value *Func, BasicBlock *DefaultDest,
          ArrayRef<BasicBlock *> IndirectDests, ArrayRef<Value *> Args,
@@ -4036,6 +6057,14 @@ public:
                    AllocMarker, NameStr, InsertBefore);
   }
 
+  /// Create a callbr from \p Func with default and indirect destinations.
+  /// \param Func The callee.
+  /// \param DefaultDest The fall-through destination block.
+  /// \param IndirectDests Possible indirect destination blocks.
+  /// \param Args Call arguments.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CallBrInst.
   static CallBrInst *Create(FunctionCallee Func, BasicBlock *DefaultDest,
                             ArrayRef<BasicBlock *> IndirectDests,
                             ArrayRef<Value *> Args, const Twine &NameStr,
@@ -4044,6 +6073,15 @@ public:
                   IndirectDests, Args, NameStr, InsertBefore);
   }
 
+  /// Create a callbr of \p Func with operand bundles.
+  /// \param Func The callee.
+  /// \param DefaultDest The fall-through destination block.
+  /// \param IndirectDests Possible indirect destination blocks.
+  /// \param Args Call arguments.
+  /// \param Bundles Optional operand bundles.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CallBrInst.
   static CallBrInst *Create(FunctionCallee Func, BasicBlock *DefaultDest,
                             ArrayRef<BasicBlock *> IndirectDests,
                             ArrayRef<Value *> Args,
@@ -4054,79 +6092,120 @@ public:
                   IndirectDests, Args, Bundles, NameStr, InsertBefore);
   }
 
-  /// Create a clone of \p CBI with a different set of operand bundles and
-  /// insert it before \p InsertBefore.
+  /// Create a clone of \p CBI with a different set of operand bundles.
   ///
   /// The returned callbr instruction is identical to \p CBI in every way
-  /// except that the operand bundles for the new instruction are set to the
-  /// operand bundles in \p Bundles.
+  /// except that the operand bundles for the new instruction are set to
+  /// \p Bundles.
+  /// \param CBI The callbr instruction to clone.
+  /// \param Bundles Operand bundles for the new callbr.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// @return The newly created \c CallBrInst.
   LLVM_ABI static CallBrInst *Create(CallBrInst *CBI,
                                      ArrayRef<OperandBundleDef> Bundles,
                                      InsertPosition InsertBefore = nullptr);
 
   /// Return the number of callbr indirect dest labels.
-  ///
+  /// @return The number of callbr indirect dest labels.
   unsigned getNumIndirectDests() const { return NumIndirectDests; }
 
-  /// getIndirectDestLabel - Return the i-th indirect dest label.
-  ///
+  /// Return the \p i-th indirect destination label.
+  /// \param i Indirect destination index.
+  /// @return The \p i-th indirect destination label value.
   Value *getIndirectDestLabel(unsigned i) const {
     assert(i < getNumIndirectDests() && "Out of bounds!");
     return getOperand(i + arg_size() + getNumTotalBundleOperands() + 1);
   }
 
+  /// Return the use of indirect destination label \p i.
+  /// \param i Indirect destination index.
+  /// @return Use of an indirect destination label.
   Value *getIndirectDestLabelUse(unsigned i) const {
     assert(i < getNumIndirectDests() && "Out of bounds!");
     return getOperandUse(i + arg_size() + getNumTotalBundleOperands() + 1);
   }
 
   // Return the destination basic blocks...
+  /// Return the default destination basic block.
+  /// @return Default destination basic block.
   BasicBlock *getDefaultDest() const {
     return cast<BasicBlock>(*(&Op<-1>() - getNumIndirectDests() - 1));
   }
+  /// Return indirect destination basic block \p i.
+  /// \param i Indirect destination index.
+  /// @return Indirect destination basic block.
   BasicBlock *getIndirectDest(unsigned i) const {
     return cast_or_null<BasicBlock>(*(&Op<-1>() - getNumIndirectDests() + i));
   }
+  /// Return all indirect destination basic blocks.
+  /// @return The requested value.
   SmallVector<BasicBlock *, 16> getIndirectDests() const {
     SmallVector<BasicBlock *, 16> IndirectDests;
     for (unsigned i = 0, e = getNumIndirectDests(); i < e; ++i)
       IndirectDests.push_back(getIndirectDest(i));
     return IndirectDests;
   }
+  /// Set the default (fall-through) destination basic block.
+  /// \param B The new default destination.
   void setDefaultDest(BasicBlock *B) {
     *(&Op<-1>() - getNumIndirectDests() - 1) = reinterpret_cast<Value *>(B);
   }
+  /// Set indirect destination \p i to \p B.
+  /// \param i Indirect destination index.
+  /// \param B The new destination basic block.
   void setIndirectDest(unsigned i, BasicBlock *B) {
     *(&Op<-1>() - getNumIndirectDests() + i) = reinterpret_cast<Value *>(B);
   }
 
+  /// Return successor \p i (0 = default, otherwise an indirect destination).
+  /// \param i Successor index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned i) const {
     assert(i < getNumSuccessors() + 1 &&
            "Successor # out of range for callbr!");
     return i == 0 ? getDefaultDest() : getIndirectDest(i - 1);
   }
 
+  /// Set successor \p i to \p NewSucc.
+  /// \param i Successor index (0 = default).
+  /// \param NewSucc The new destination basic block.
   void setSuccessor(unsigned i, BasicBlock *NewSucc) {
     assert(i < getNumIndirectDests() + 1 &&
            "Successor # out of range for callbr!");
     return i == 0 ? setDefaultDest(NewSucc) : setIndirectDest(i - 1, NewSucc);
   }
 
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return getNumIndirectDests() + 1; }
 
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<succ_iterator> successors() {
+    /// Return the number of indirect destinations.
+    /// @return Number of indirect destinations.
     Use *First = &Op<-1>() - getNumIndirectDests() - 1;
     return {succ_iterator(First), succ_iterator(&Op<-1>())};
   }
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<const_succ_iterator> successors() const {
+    /// Return the number of indirect destinations.
+    /// @return Number of indirect destinations.
     const Use *First = &Op<-1>() - getNumIndirectDests() - 1;
     return {const_succ_iterator(First), const_succ_iterator(&Op<-1>())};
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CallBrInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::CallBr);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CallBrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4169,30 +6248,77 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone this resume without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI ResumeInst *cloneImpl() const;
 
 public:
+  /// Create a resume of the in-flight exception \p Exn.
+  /// \param Exn The exception value to resume propagating.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c ResumeInst.
   static ResumeInst *Create(Value *Exn, InsertPosition InsertBefore = nullptr) {
     return new (AllocMarker) ResumeInst(Exn, InsertBefore);
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
-  /// Convenience accessor.
+  /// Return the exception value being resumed.
+  /// @return Reference to the operand Use.
   Value *getValue() const { return Op<0>(); }
 
+  /// Return the number of successors (always 0).
+  /// @return The number of successors (always 0).
   unsigned getNumSuccessors() const { return 0; }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ResumeInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Resume;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ResumeInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
 private:
+  /// Return the successor basic block at the given index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned idx) const {
     llvm_unreachable("ResumeInst has no successors!");
   }
@@ -4201,14 +6327,19 @@ private:
     llvm_unreachable("ResumeInst has no successors!");
   }
 
+  /// Return an empty successor range (resume has no successors).
+  /// @return An empty successor range (resume has no successors).
   iterator_range<succ_iterator> successors() {
     return {succ_iterator(op_end()), succ_iterator(op_end())};
   }
+  /// Return an empty const successor range (resume has no successors).
+  /// @return An empty const successor range (resume has no successors).
   iterator_range<const_succ_iterator> successors() const {
     return {const_succ_iterator(op_end()), const_succ_iterator(op_end())};
   }
 };
 
+/// Operand layout traits for ResumeInst.
 template <>
 struct OperandTraits<ResumeInst> :
     public FixedNumOperandTraits<ResumeInst, 1> {
@@ -4219,6 +6350,8 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ResumeInst, Value)
 //===----------------------------------------------------------------------===//
 //                         CatchSwitchInst Class
 //===----------------------------------------------------------------------===//
+
+/// Dispatch to handler blocks within a Windows EH funclet scope.
 class CatchSwitchInst : public Instruction {
   using UnwindDestField = BoolBitfieldElementT<0>;
 
@@ -4226,6 +6359,7 @@ class CatchSwitchInst : public Instruction {
 
   /// The number of operands actually allocated.  NumOperands is
   /// the number actually in use.
+  /// @return The number of operands actually allocated.
   unsigned ReservedSpace;
 
   // Operand[0] = Outer scope
@@ -4251,13 +6385,24 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI CatchSwitchInst *cloneImpl() const;
 
 public:
+  /// Deallocate a CatchSwitchInst created with the hung-off-uses allocator.
+  /// \param Ptr Pointer returned by the hung-off-uses \c operator new.
   void operator delete(void *Ptr) {
     return User::operator delete(Ptr, AllocMarker);
   }
 
+  /// Create a catchswitch nested under \p ParentPad.
+  /// \param ParentPad The parent funclet pad token.
+  /// \param UnwindDest Optional unwind destination block.
+  /// \param NumHandlers Reserved number of handler blocks.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CatchSwitchInst.
   static CatchSwitchInst *Create(Value *ParentPad, BasicBlock *UnwindDest,
                                  unsigned NumHandlers,
                                  const Twine &NameStr = "",
@@ -4267,20 +6412,61 @@ public:
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   // Accessor Methods for CatchSwitch stmt
+  /// Return the parent funclet pad token for this catchswitch.
+  /// @return The operand value at that index.
   Value *getParentPad() const { return getOperand(0); }
+  /// Set the parent funclet pad token.
+  /// \param ParentPad The new parent pad value.
   void setParentPad(Value *ParentPad) { setOperand(0, ParentPad); }
 
-  // Accessor Methods for CatchSwitch stmt
+  /// Return true if this catchswitch has an explicit unwind destination.
+  /// @return True if this catchswitch has an explicit unwind destination.
   bool hasUnwindDest() const { return getSubclassData<UnwindDestField>(); }
+  /// Return true if unmatched exceptions unwind to the caller.
+  /// @return True if unmatched exceptions unwind to the caller.
   bool unwindsToCaller() const { return !hasUnwindDest(); }
+  /// Return the unwind destination basic block, or null if unwinding to caller.
+  /// @return The unwind destination basic block, or null if unwinding to caller.
   BasicBlock *getUnwindDest() const {
     if (hasUnwindDest())
       return cast<BasicBlock>(getOperand(1));
     return nullptr;
   }
+  /// Set the unwind destination basic block.
+  /// \param UnwindDest The new unwind block.
   void setUnwindDest(BasicBlock *UnwindDest) {
     assert(UnwindDest);
     assert(hasUnwindDest());
@@ -4289,6 +6475,7 @@ public:
 
   /// return the number of 'handlers' in this catchswitch
   /// instruction, except the default handler
+  /// @return The number of 'handlers' in this catchswitch instruction, except the default handler.
   unsigned getNumHandlers() const {
     if (hasUnwindDest())
       return getNumOperands() - 2;
@@ -4302,16 +6489,25 @@ private:
   }
 
 public:
+  /// Function type used to dereference handler operands as basic blocks.
   using DerefFnTy = BasicBlock *(*)(Value *);
+  /// Iterator over handler basic blocks.
   using handler_iterator = mapped_iterator<op_iterator, DerefFnTy>;
+  /// Range over handler basic blocks.
   using handler_range = iterator_range<handler_iterator>;
+  /// Const function type used to dereference handler operands.
   using ConstDerefFnTy = const BasicBlock *(*)(const Value *);
+  /// Const iterator over handler basic blocks.
   using const_handler_iterator =
       mapped_iterator<const_op_iterator, ConstDerefFnTy>;
+  /// Const range over handler basic blocks.
   using const_handler_range = iterator_range<const_handler_iterator>;
 
   /// Returns an iterator that points to the first handler in CatchSwitchInst.
+  /// @return An iterator that points to the first handler in CatchSwitchInst.
   handler_iterator handler_begin() {
+    /// Return an iterator to the first operand.
+    /// @return Iterator to the first operand.
     op_iterator It = op_begin() + 1;
     if (hasUnwindDest())
       ++It;
@@ -4320,7 +6516,10 @@ public:
 
   /// Returns an iterator that points to the first handler in the
   /// CatchSwitchInst.
+  /// @return An iterator that points to the first handler in the CatchSwitchInst.
   const_handler_iterator handler_begin() const {
+    /// Return an iterator to the first operand.
+    /// @return Iterator to the first operand.
     const_op_iterator It = op_begin() + 1;
     if (hasUnwindDest())
       ++It;
@@ -4329,63 +6528,89 @@ public:
 
   /// Returns a read-only iterator that points one past the last
   /// handler in the CatchSwitchInst.
+  /// @return A read-only iterator that points one past the last handler in the CatchSwitchInst.
   handler_iterator handler_end() {
     return handler_iterator(op_end(), DerefFnTy(handler_helper));
   }
 
   /// Returns an iterator that points one past the last handler in the
   /// CatchSwitchInst.
+  /// @return An iterator that points one past the last handler in the CatchSwitchInst.
   const_handler_iterator handler_end() const {
     return const_handler_iterator(op_end(), ConstDerefFnTy(handler_helper));
   }
 
   /// iteration adapter for range-for loops.
+  /// @return A range over the requested elements.
   handler_range handlers() {
     return make_range(handler_begin(), handler_end());
   }
 
   /// iteration adapter for range-for loops.
+  /// @return A range over the requested elements.
   const_handler_range handlers() const {
     return make_range(handler_begin(), handler_end());
   }
 
-  /// Add an entry to the switch instruction...
-  /// Note:
-  /// This action invalidates handler_end(). Old handler_end() iterator will
-  /// point to the added handler.
+  /// Add handler block \p Dest to this catchswitch.
+  ///
+  /// Note: This action invalidates handler_end(). Old handler_end() iterator
+  /// will point to the added handler.
+  /// \param Dest The handler basic block to add.
   LLVM_ABI void addHandler(BasicBlock *Dest);
 
+  /// Remove the handler referenced by \p HI from this catchswitch.
+  /// \param HI Iterator to the handler to remove.
   LLVM_ABI void removeHandler(handler_iterator HI);
 
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return getNumOperands() - 1; }
+  /// Return successor \p Idx (0 = unwind dest if present, otherwise handlers).
+  /// \param Idx Successor index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned Idx) const {
     assert(Idx < getNumSuccessors() &&
            "Successor # out of range for catchswitch!");
     return cast<BasicBlock>(getOperand(Idx + 1));
   }
+  /// Set successor \p Idx to \p NewSucc.
+  /// \param Idx Successor index.
+  /// \param NewSucc The new destination basic block.
   void setSuccessor(unsigned Idx, BasicBlock *NewSucc) {
     assert(Idx < getNumSuccessors() &&
            "Successor # out of range for catchswitch!");
     setOperand(Idx + 1, NewSucc);
   }
 
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<succ_iterator> successors() {
     return {succ_iterator(std::next(op_begin())), succ_iterator(op_end())};
   }
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<const_succ_iterator> successors() const {
     return {const_succ_iterator(std::next(op_begin())),
             const_succ_iterator(op_end())};
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CatchSwitchInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::CatchSwitch;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CatchSwitchInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
+/// Operand layout traits for CatchSwitchInst.
 template <>
 struct OperandTraits<CatchSwitchInst> : public HungoffOperandTraits {};
 
@@ -4394,6 +6619,8 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CatchSwitchInst, Value)
 //===----------------------------------------------------------------------===//
 //                               CleanupPadInst Class
 //===----------------------------------------------------------------------===//
+
+/// Enter a cleanup funclet within Windows EH.
 class CleanupPadInst : public FuncletPadInst {
 private:
   explicit CleanupPadInst(Value *ParentPad, ArrayRef<Value *> Args,
@@ -4403,6 +6630,12 @@ private:
                        NameStr, InsertBefore) {}
 
 public:
+  /// Create a cleanup pad nested under \p ParentPad.
+  /// \param ParentPad The enclosing funclet pad token.
+  /// \param Args Optional arguments forwarded to the cleanup handler.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CleanupPadInst.
   static CleanupPadInst *Create(Value *ParentPad, ArrayRef<Value *> Args = {},
                                 const Twine &NameStr = "",
                                 InsertPosition InsertBefore = nullptr) {
@@ -4411,10 +6644,15 @@ public:
         CleanupPadInst(ParentPad, Args, AllocMarker, NameStr, InsertBefore);
   }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CleanupPadInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::CleanupPad;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CleanupPadInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4423,6 +6661,8 @@ public:
 //===----------------------------------------------------------------------===//
 //                               CatchPadInst Class
 //===----------------------------------------------------------------------===//
+
+/// Enter a catch handler funclet within Windows EH.
 class CatchPadInst : public FuncletPadInst {
 private:
   explicit CatchPadInst(Value *CatchSwitch, ArrayRef<Value *> Args,
@@ -4432,6 +6672,12 @@ private:
                        NameStr, InsertBefore) {}
 
 public:
+  /// Create a catch pad for \p CatchSwitch with optional filter arguments.
+  /// \param CatchSwitch The owning catchswitch instruction.
+  /// \param Args Optional catch filter arguments.
+  /// \param NameStr Optional name for the instruction.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CatchPadInst.
   static CatchPadInst *Create(Value *CatchSwitch, ArrayRef<Value *> Args,
                               const Twine &NameStr = "",
                               InsertPosition InsertBefore = nullptr) {
@@ -4440,19 +6686,27 @@ public:
         CatchPadInst(CatchSwitch, Args, AllocMarker, NameStr, InsertBefore);
   }
 
-  /// Convenience accessors
+  /// Return the owning catchswitch instruction.
+  /// @return The owning catchswitch instruction.
   CatchSwitchInst *getCatchSwitch() const {
     return cast<CatchSwitchInst>(Op<-1>());
   }
+  /// Set the owning catchswitch instruction.
+  /// \param CatchSwitch The new catchswitch value.
   void setCatchSwitch(Value *CatchSwitch) {
     assert(CatchSwitch);
     Op<-1>() = CatchSwitch;
   }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CatchPadInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::CatchPad;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CatchPadInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4462,6 +6716,7 @@ public:
 //                               CatchReturnInst Class
 //===----------------------------------------------------------------------===//
 
+/// Transfer control from a catch pad to its resume destination.
 class CatchReturnInst : public Instruction {
   constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
 
@@ -4475,9 +6730,16 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone this catchret without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI CatchReturnInst *cloneImpl() const;
 
 public:
+  /// Create a catchret from \p CatchPad to resume block \p BB.
+  /// \param CatchPad The catch pad being exited.
+  /// \param BB The basic block to resume in.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CatchReturnInst.
   static CatchReturnInst *Create(Value *CatchPad, BasicBlock *BB,
                                  InsertPosition InsertBefore = nullptr) {
     assert(CatchPad);
@@ -4486,37 +6748,85 @@ public:
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
   /// Convenience accessors.
+  /// @return Reference to the operand Use.
   CatchPadInst *getCatchPad() const { return cast<CatchPadInst>(Op<0>()); }
+  /// Set the catch pad being exited.
+  /// \param CatchPad The new catch pad value.
   void setCatchPad(CatchPadInst *CatchPad) {
     assert(CatchPad);
     Op<0>() = CatchPad;
   }
 
+  /// Return the successor basic block at the given index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor() const { return cast<BasicBlock>(Op<1>()); }
+  /// Set the resume destination basic block.
+  /// \param NewSucc The new successor block.
   void setSuccessor(BasicBlock *NewSucc) {
     assert(NewSucc);
     Op<1>() = NewSucc;
   }
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return 1; }
 
   /// Get the parentPad of this catchret's catchpad's catchswitch.
   /// The successor block is implicitly a member of this funclet.
+  /// @return The parentPad of this catchret's catchpad's catchswitch.
   Value *getCatchSwitchParentPad() const {
     return getCatchPad()->getCatchSwitch()->getParentPad();
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CatchReturnInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::CatchRet);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CatchReturnInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
 private:
+  /// Return the successor basic block at the given index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned Idx) const {
     assert(Idx < getNumSuccessors() && "Successor # out of range for catchret!");
     return getSuccessor();
@@ -4527,15 +6837,20 @@ private:
     setSuccessor(B);
   }
 
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<succ_iterator> successors() {
     return {succ_iterator(std::next(op_begin())), succ_iterator(op_end())};
   }
+  /// Return a range over successor basic blocks.
+  /// @return Range over successor basic blocks.
   iterator_range<const_succ_iterator> successors() const {
     return {const_succ_iterator(std::next(op_begin())),
             const_succ_iterator(op_end())};
   }
 };
 
+/// Operand layout traits for CatchReturnInst.
 template <>
 struct OperandTraits<CatchReturnInst>
     : public FixedNumOperandTraits<CatchReturnInst, 2> {};
@@ -4546,6 +6861,7 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CatchReturnInst, Value)
 //                               CleanupReturnInst Class
 //===----------------------------------------------------------------------===//
 
+/// Exit a cleanup funclet, optionally unwinding to a successor block.
 class CleanupReturnInst : public Instruction {
   using UnwindDestField = BoolBitfieldElementT<0>;
 
@@ -4561,9 +6877,16 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Clone this cleanupret without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI CleanupReturnInst *cloneImpl() const;
 
 public:
+  /// Create a cleanupret from \p CleanupPad, optionally to \p UnwindBB.
+  /// \param CleanupPad The cleanup pad being exited.
+  /// \param UnwindBB Optional unwind destination; null unwinds to caller.
+  /// \param InsertBefore Optional insertion point.
+  /// @return The newly created \c CleanupReturnInst.
   static CleanupReturnInst *Create(Value *CleanupPad,
                                    BasicBlock *UnwindBB = nullptr,
                                    InsertPosition InsertBefore = nullptr) {
@@ -4577,25 +6900,68 @@ public:
   }
 
   /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+  /// Return operand at index \p i_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// @return The operand value at that index.
+  inline Value *getOperand(unsigned i_nocapture) const;
+  /// Set operand at index \p i_nocapture to \p Val_nocapture.
+  /// \param i_nocapture The zero-based operand index.
+  /// \param Val_nocapture The new operand value.
+  inline void setOperand(unsigned i_nocapture, Value *Val_nocapture);
+  /// Return an iterator to the first operand.
+  /// @return Iterator to the first operand.
+  inline op_iterator op_begin();
+  /// Return a const iterator to the first operand.
+  /// @return Const iterator to the first operand.
+  inline const_op_iterator op_begin() const;
+  /// Return an iterator past the last operand.
+  /// @return Iterator past the last operand.
+  inline op_iterator op_end();
+  /// Return a const iterator past the last operand.
+  /// @return Const iterator past the last operand.
+  inline const_op_iterator op_end() const;
+protected:
+  /// Return a reference to the operand at a compile-time index.
+  /// @return Reference to the operand Use.
+  template <int> inline Use &Op();
+  /// Return a const reference to the operand at a compile-time index.
+  /// @return Const reference to the operand Use.
+  template <int> inline const Use &Op() const;
+public:
+  /// Return the number of operands.
+  /// @return The operand count.
+  inline unsigned getNumOperands() const;
 
+  /// Return true if this instruction has an unwind destination.
+  /// @return True if the condition holds.
   bool hasUnwindDest() const { return getSubclassData<UnwindDestField>(); }
+  /// Return true if this instruction unwinds to the caller.
+  /// @return True if the condition holds.
   bool unwindsToCaller() const { return !hasUnwindDest(); }
 
   /// Convenience accessor.
+  /// @return A pointer to the requested value.
   CleanupPadInst *getCleanupPad() const {
     return cast<CleanupPadInst>(Op<0>());
   }
+  /// Set the cleanup pad being exited.
+  /// \param CleanupPad The new cleanup pad value.
   void setCleanupPad(CleanupPadInst *CleanupPad) {
     assert(CleanupPad);
     Op<0>() = CleanupPad;
   }
 
+  /// Return the number of successors.
+  /// @return Number of successors.
   unsigned getNumSuccessors() const { return hasUnwindDest() ? 1 : 0; }
 
+  /// Return the unwind destination basic block.
+  /// @return Unwind destination basic block.
   BasicBlock *getUnwindDest() const {
     return hasUnwindDest() ? cast<BasicBlock>(Op<1>()) : nullptr;
   }
+  /// Set the unwind destination basic block.
+  /// \param NewDest The new unwind block.
   void setUnwindDest(BasicBlock *NewDest) {
     assert(NewDest);
     assert(hasUnwindDest());
@@ -4603,14 +6969,22 @@ public:
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c CleanupReturnInst.
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::CleanupRet);
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c CleanupReturnInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
 private:
+  /// Return the successor basic block at the given index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned Idx) const {
     assert(Idx == 0);
     return getUnwindDest();
@@ -4621,9 +6995,13 @@ private:
     setUnwindDest(B);
   }
 
+  /// Iterate over the optional unwind successor block.
+  /// @return A range over the requested elements.
   iterator_range<succ_iterator> successors() {
     return {succ_iterator(std::next(op_begin())), succ_iterator(op_end())};
   }
+  /// Iterate over the optional unwind successor block.
+  /// @return A range over the requested elements.
   iterator_range<const_succ_iterator> successors() const {
     return {const_succ_iterator(std::next(op_begin())),
             const_succ_iterator(op_end())};
@@ -4637,6 +7015,7 @@ private:
   }
 };
 
+/// Operand layout traits for CleanupReturnInst.
 template <>
 struct OperandTraits<CleanupReturnInst>
     : public VariadicOperandTraits<CleanupReturnInst> {};
@@ -4648,6 +7027,8 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CleanupReturnInst, Value)
 //===----------------------------------------------------------------------===//
 
 //===---------------------------------------------------------------------------
+/// Mark a basic block as unreachable (undefined behavior if executed).
+///
 /// This function has undefined behavior.  In particular, the
 /// presence of this instruction indicates some higher level knowledge that the
 /// end of the block cannot be reached.
@@ -4659,31 +7040,52 @@ protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
+  /// Create a copy of this instruction without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI UnreachableInst *cloneImpl() const;
 
 public:
+  /// Construct an unreachable instruction in \p C.
+  /// \param C The LLVM context.
+  /// \param InsertBefore Optional insertion point.
   LLVM_ABI explicit UnreachableInst(LLVMContext &C,
                                     InsertPosition InsertBefore = nullptr);
 
-  // allocate space for exactly zero operands
+  /// Allocate an unreachable instruction with zero operands.
+  /// \param S Size of the allocation in bytes.
+  /// @return A pointer to the allocated storage.
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  /// Deallocate an unreachable instruction.
+  /// \param Ptr Pointer returned by the fixed-size \c operator new.
   void operator delete(void *Ptr) { User::operator delete(Ptr, AllocMarker); }
 
+  /// Return the number of successors (always 0).
+  /// @return The number of successors (always 0).
   unsigned getNumSuccessors() const { return 0; }
 
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c UnreachableInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::Unreachable;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c UnreachableInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
-  // Whether to do target lowering in SelectionDAG.
+  /// Return whether SelectionDAG should lower this to a trap.
+  /// \param TrapUnreachable Whether unreachable should become a trap.
+  /// \param NoTrapAfterNoreturn Whether to skip traps after noreturn calls.
+  /// @return True if this unreachable should lower to a trap.
   LLVM_ABI bool shouldLowerToTrap(bool TrapUnreachable,
                                   bool NoTrapAfterNoreturn) const;
 
 private:
+  /// Return the successor basic block at the given index.
+  /// @return Successor basic block at the given index.
   BasicBlock *getSuccessor(unsigned idx) const {
     llvm_unreachable("UnreachableInst has no successors!");
   }
@@ -4692,9 +7094,13 @@ private:
     llvm_unreachable("UnreachableInst has no successors!");
   }
 
+  /// Return an empty successor range (unreachable has no successors).
+  /// @return An empty successor range.
   iterator_range<succ_iterator> successors() {
     return {succ_iterator(op_end()), succ_iterator(op_end())};
   }
+  /// Return an empty const successor range (unreachable has no successors).
+  /// @return An empty const successor range.
   iterator_range<const_succ_iterator> successors() const {
     return {const_succ_iterator(op_end()), const_succ_iterator(op_end())};
   }
@@ -4704,57 +7110,76 @@ private:
 //                                 TruncInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a truncation of integer types.
+/// Instruction that truncates an integer value to a smaller integer type.
 class TruncInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical TruncInst
+  /// @return A clone of this instruction.
   LLVM_ABI TruncInst *cloneImpl() const;
 
 public:
-  enum { AnyWrap = 0, NoUnsignedWrap = (1 << 0), NoSignedWrap = (1 << 1) };
+  /// No-wrap kind flags stored in SubclassOptionalData.
+  enum {
+    /// No no-wrap flags are set.
+    AnyWrap = 0,
+    /// The nuw (no unsigned wrap) property is known.
+    NoUnsignedWrap = (1 << 0),
+    /// The nsw (no signed wrap) property is known.
+    NoSignedWrap = (1 << 1)
+  };
 
-  /// Constructor with insert-before-instruction semantics
+  /// Truncate \p S to integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The value to truncate.
+  /// \param Ty The smaller integer type to truncate to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  TruncInst(Value *S,                  ///< The value to be truncated
-            Type *Ty,                  ///< The (smaller) type to truncate to
-            const Twine &NameStr = "", ///< A name for the new instruction
-            InsertPosition InsertBefore =
-                nullptr ///< Where to insert the new instruction
-  );
+  TruncInst(Value *S, Type *Ty, const Twine &NameStr = "",
+            InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c TruncInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Trunc;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c TruncInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
+  /// Set whether this truncation is known to never unsigned-overflow (nuw).
+  /// \param B True if the nuw property holds.
   void setHasNoUnsignedWrap(bool B) {
     SubclassOptionalData =
         (SubclassOptionalData & ~NoUnsignedWrap) | (B * NoUnsignedWrap);
   }
+  /// Set whether this truncation is known to never signed-overflow (nsw).
+  /// \param B True if the nsw property holds.
   void setHasNoSignedWrap(bool B) {
     SubclassOptionalData =
         (SubclassOptionalData & ~NoSignedWrap) | (B * NoSignedWrap);
   }
 
-  /// Test whether this operation is known to never
-  /// undergo unsigned overflow, aka the nuw property.
+  /// Return true if this truncation has the nuw property.
+  /// @return True if this truncation has the nuw property.
   bool hasNoUnsignedWrap() const {
     return SubclassOptionalData & NoUnsignedWrap;
   }
 
-  /// Test whether this operation is known to never
-  /// undergo signed overflow, aka the nsw property.
+  /// Return true if this truncation has the nsw property.
+  /// @return True if this truncation has the nsw property.
   bool hasNoSignedWrap() const {
     return (SubclassOptionalData & NoSignedWrap) != 0;
   }
 
-  /// Returns the no-wrap kind of the operation.
+  /// Return the combined no-wrap kind flags for this truncation.
+  /// @return The combined no-wrap kind flags for this truncation.
   unsigned getNoWrapKind() const {
     unsigned NoWrapKind = 0;
     if (hasNoUnsignedWrap())
@@ -4771,29 +7196,35 @@ public:
 //                                 ZExtInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents zero extension of integer types.
+/// Instruction that zero-extends an integer value to a wider integer type.
 class ZExtInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical ZExtInst
+  /// @return A clone of this instruction.
   LLVM_ABI ZExtInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Zero-extend \p S to integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The value to zero extend.
+  /// \param Ty The wider integer type to extend to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  ZExtInst(Value *S,                  ///< The value to be zero extended
-           Type *Ty,                  ///< The type to zero extend to
-           const Twine &NameStr = "", ///< A name for the new instruction
-           InsertPosition InsertBefore =
-               nullptr ///< Where to insert the new instruction
-  );
+  ZExtInst(Value *S, Type *Ty, const Twine &NameStr = "",
+           InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c ZExtInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == ZExt;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c ZExtInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4803,29 +7234,35 @@ public:
 //                                 SExtInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a sign extension of integer types.
+/// Instruction that sign-extends an integer value to a wider integer type.
 class SExtInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical SExtInst
+  /// @return A clone of this instruction.
   LLVM_ABI SExtInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Sign-extend \p S to integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The value to sign extend.
+  /// \param Ty The wider integer type to extend to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  SExtInst(Value *S,                  ///< The value to be sign extended
-           Type *Ty,                  ///< The type to sign extend to
-           const Twine &NameStr = "", ///< A name for the new instruction
-           InsertPosition InsertBefore =
-               nullptr ///< Where to insert the new instruction
-  );
+  SExtInst(Value *S, Type *Ty, const Twine &NameStr = "",
+           InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c SExtInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == SExt;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c SExtInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4835,28 +7272,35 @@ public:
 //                                 FPTruncInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a truncation of floating point types.
+/// Instruction that truncates a floating-point value to a smaller FP type.
 class FPTruncInst : public CastInst, public FastMathFlagsStorage {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical FPTruncInst
+  /// @return A clone of this instruction.
   LLVM_ABI FPTruncInst *cloneImpl() const;
 
-public:                 /// Constructor with insert-before-instruction semantics
+public:
+  /// Truncate \p S to FP type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The floating-point value to truncate.
+  /// \param Ty The smaller floating-point type to truncate to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  FPTruncInst(Value *S,                  ///< The value to be truncated
-              Type *Ty,                  ///< The type to truncate to
-              const Twine &NameStr = "", ///< A name for the new instruction
-              InsertPosition InsertBefore =
-                  nullptr ///< Where to insert the new instruction
-  );
+  FPTruncInst(Value *S, Type *Ty, const Twine &NameStr = "",
+              InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FPTruncInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == FPTrunc;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FPTruncInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4873,22 +7317,28 @@ protected:
   friend class Instruction;
 
   /// Clone an identical FPExtInst
+  /// @return A clone of this instruction.
   LLVM_ABI FPExtInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Extend \p S to FP type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The floating-point value to extend.
+  /// \param Ty The wider floating-point type to extend to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  FPExtInst(Value *S,                  ///< The value to be extended
-            Type *Ty,                  ///< The type to extend to
-            const Twine &NameStr = "", ///< A name for the new instruction
-            InsertPosition InsertBefore =
-                nullptr ///< Where to insert the new instruction
-  );
+  FPExtInst(Value *S, Type *Ty, const Twine &NameStr = "",
+            InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FPExtInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == FPExt;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FPExtInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4898,29 +7348,35 @@ public:
 //                                 UIToFPInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a cast unsigned integer to floating point.
+/// Instruction that converts an unsigned integer to floating point.
 class UIToFPInst : public CastInst, public FastMathFlagsStorage {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical UIToFPInst
+  /// @return A clone of this instruction.
   LLVM_ABI UIToFPInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Convert unsigned integer \p S to FP type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The unsigned integer value to convert.
+  /// \param Ty The floating-point type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  UIToFPInst(Value *S,                  ///< The value to be converted
-             Type *Ty,                  ///< The type to convert to
-             const Twine &NameStr = "", ///< A name for the new instruction
-             InsertPosition InsertBefore =
-                 nullptr ///< Where to insert the new instruction
-  );
+  UIToFPInst(Value *S, Type *Ty, const Twine &NameStr = "",
+             InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c UIToFPInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == UIToFP;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c UIToFPInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4930,29 +7386,35 @@ public:
 //                                 SIToFPInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a cast from signed integer to floating point.
+/// Instruction that converts a signed integer to floating point.
 class SIToFPInst : public CastInst, public FastMathFlagsStorage {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical SIToFPInst
+  /// @return A clone of this instruction.
   LLVM_ABI SIToFPInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Convert signed integer \p S to FP type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The signed integer value to convert.
+  /// \param Ty The floating-point type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  SIToFPInst(Value *S,                  ///< The value to be converted
-             Type *Ty,                  ///< The type to convert to
-             const Twine &NameStr = "", ///< A name for the new instruction
-             InsertPosition InsertBefore =
-                 nullptr ///< Where to insert the new instruction
-  );
+  SIToFPInst(Value *S, Type *Ty, const Twine &NameStr = "",
+             InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c SIToFPInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == SIToFP;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c SIToFPInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -4962,29 +7424,35 @@ public:
 //                                 FPToUIInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a cast from floating point to unsigned integer
+/// Instruction that converts floating point to an unsigned integer.
 class FPToUIInst  : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical FPToUIInst
+  /// @return A clone of this instruction.
   LLVM_ABI FPToUIInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Convert FP value \p S to unsigned integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The floating-point value to convert.
+  /// \param Ty The unsigned integer type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  FPToUIInst(Value *S,                  ///< The value to be converted
-             Type *Ty,                  ///< The type to convert to
-             const Twine &NameStr = "", ///< A name for the new instruction
-             InsertPosition InsertBefore =
-                 nullptr ///< Where to insert the new instruction
-  );
+  FPToUIInst(Value *S, Type *Ty, const Twine &NameStr = "",
+             InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FPToUIInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == FPToUI;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FPToUIInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -5001,22 +7469,28 @@ protected:
   friend class Instruction;
 
   /// Clone an identical FPToSIInst
+  /// @return A clone of this instruction.
   LLVM_ABI FPToSIInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Convert FP value \p S to signed integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The floating-point value to convert.
+  /// \param Ty The signed integer type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  FPToSIInst(Value *S,                  ///< The value to be converted
-             Type *Ty,                  ///< The type to convert to
-             const Twine &NameStr = "", ///< A name for the new instruction
-             InsertPosition InsertBefore =
-                 nullptr ///< Where to insert the new instruction
-  );
+  FPToSIInst(Value *S, Type *Ty, const Twine &NameStr = "",
+             InsertPosition InsertBefore = nullptr);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FPToSIInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == FPToSI;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FPToSIInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -5026,33 +7500,41 @@ public:
 //                                 IntToPtrInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a cast from an integer to a pointer.
+/// Instruction that casts an integer to a pointer.
 class IntToPtrInst : public CastInst {
 public:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
-  /// Constructor with insert-before-instruction semantics
+  /// Cast integer \p S to pointer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The integer value to convert.
+  /// \param Ty The pointer type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  IntToPtrInst(Value *S,                  ///< The value to be converted
-               Type *Ty,                  ///< The type to convert to
-               const Twine &NameStr = "", ///< A name for the new instruction
-               InsertPosition InsertBefore =
-                   nullptr ///< Where to insert the new instruction
-  );
+  IntToPtrInst(Value *S, Type *Ty, const Twine &NameStr = "",
+               InsertPosition InsertBefore = nullptr);
 
   /// Clone an identical IntToPtrInst.
+  /// @return A clone of this instruction.
   LLVM_ABI IntToPtrInst *cloneImpl() const;
 
   /// Returns the address space of this instruction's pointer type.
+  /// @return The address space of this instruction's pointer type.
   unsigned getAddressSpace() const {
     return getType()->getPointerAddressSpace();
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c IntToPtrInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == IntToPtr;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c IntToPtrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -5062,82 +7544,103 @@ public:
 //                                 PtrToIntInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a cast from a pointer to an integer.
+/// Instruction that casts a pointer to an integer.
 class PtrToIntInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical PtrToIntInst.
+  /// @return A clone of this instruction.
   LLVM_ABI PtrToIntInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Cast pointer \p S to integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The pointer value to convert.
+  /// \param Ty The integer type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  PtrToIntInst(Value *S,                  ///< The value to be converted
-               Type *Ty,                  ///< The type to convert to
-               const Twine &NameStr = "", ///< A name for the new instruction
-               InsertPosition InsertBefore =
-                   nullptr ///< Where to insert the new instruction
-  );
+  PtrToIntInst(Value *S, Type *Ty, const Twine &NameStr = "",
+               InsertPosition InsertBefore = nullptr);
 
   /// Gets the pointer operand.
+  /// @return The operand value at that index.
   Value *getPointerOperand() { return getOperand(0); }
   /// Gets the pointer operand.
+  /// @return The operand value at that index.
   const Value *getPointerOperand() const { return getOperand(0); }
   /// Gets the operand index of the pointer operand.
+  /// @return The operand index of the pointer operand.
   static unsigned getPointerOperandIndex() { return 0U; }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperand()->getType()->getPointerAddressSpace();
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c PtrToIntInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == PtrToInt;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c PtrToIntInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
-/// This class represents a cast from a pointer to an address (non-capturing
-/// ptrtoint).
+/// Instruction that casts a pointer to a non-capturing address integer.
 class PtrToAddrInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical PtrToAddrInst.
+  /// @return A clone of this instruction.
   LLVM_ABI PtrToAddrInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Cast pointer \p S to address integer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The pointer value to convert.
+  /// \param Ty The address integer type to convert to.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  PtrToAddrInst(Value *S,                  ///< The value to be converted
-                Type *Ty,                  ///< The type to convert to
-                const Twine &NameStr = "", ///< A name for the new instruction
-                InsertPosition InsertBefore =
-                    nullptr ///< Where to insert the new instruction
-  );
+  PtrToAddrInst(Value *S, Type *Ty, const Twine &NameStr = "",
+                InsertPosition InsertBefore = nullptr);
 
   /// Gets the pointer operand.
+  /// @return The operand value at that index.
   Value *getPointerOperand() { return getOperand(0); }
   /// Gets the pointer operand.
+  /// @return The operand value at that index.
   const Value *getPointerOperand() const { return getOperand(0); }
   /// Gets the operand index of the pointer operand.
+  /// @return The operand index of the pointer operand.
   static unsigned getPointerOperandIndex() { return 0U; }
 
   /// Returns the address space of the pointer operand.
+  /// @return The address space of the pointer operand.
   unsigned getPointerAddressSpace() const {
     return getPointerOperand()->getType()->getPointerAddressSpace();
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c PtrToAddrInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == PtrToAddr;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c PtrToAddrInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -5147,29 +7650,36 @@ public:
 //                             BitCastInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a no-op cast from one type to another.
+/// Instruction that bitcasts a value to another type of the same size.
 class BitCastInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical BitCastInst.
+  /// @return A clone of this instruction.
   LLVM_ABI BitCastInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
+  /// Bitcast \p S to type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The value to bitcast.
+  /// \param Ty The destination type (same size as the source type).
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
   LLVM_ABI
-  BitCastInst(Value *S,                  ///< The value to be casted
-              Type *Ty,                  ///< The type to casted to
-              const Twine &NameStr = "", ///< A name for the new instruction
-              InsertPosition InsertBefore =
-                  nullptr ///< Where to insert the new instruction
-  );
+  BitCastInst(Value *S, Type *Ty, const Twine &NameStr = "",
+              InsertPosition InsertBefore = nullptr);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c BitCastInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == BitCast;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c BitCastInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
@@ -5179,55 +7689,65 @@ public:
 //                          AddrSpaceCastInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a conversion between pointers from one address space
-/// to another.
+/// Instruction that casts a pointer from one address space to another.
 class AddrSpaceCastInst : public CastInst {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
   /// Clone an identical AddrSpaceCastInst.
+  /// @return A clone of this instruction.
   LLVM_ABI AddrSpaceCastInst *cloneImpl() const;
 
 public:
-  /// Constructor with insert-before-instruction semantics
-  LLVM_ABI AddrSpaceCastInst(
-      Value *S,                  ///< The value to be casted
-      Type *Ty,                  ///< The type to casted to
-      const Twine &NameStr = "", ///< A name for the new instruction
-      InsertPosition InsertBefore =
-          nullptr ///< Where to insert the new instruction
-  );
+  /// Cast pointer \p S to pointer type \p Ty and optionally insert before \p InsertBefore.
+  /// \param S The pointer value to cast.
+  /// \param Ty The destination pointer type (different address space).
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Where to insert the new instruction.
+  LLVM_ABI AddrSpaceCastInst(Value *S, Type *Ty, const Twine &NameStr = "",
+                             InsertPosition InsertBefore = nullptr);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c AddrSpaceCastInst.
   static bool classof(const Instruction *I) {
     return I->getOpcode() == AddrSpaceCast;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c AddrSpaceCastInst.
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 
   /// Gets the pointer operand.
+  /// @return The pointer operand.
   Value *getPointerOperand() {
     return getOperand(0);
   }
 
   /// Gets the pointer operand.
+  /// @return The pointer operand.
   const Value *getPointerOperand() const {
     return getOperand(0);
   }
 
   /// Gets the operand index of the pointer operand.
+  /// @return The operand index of the pointer operand.
   static unsigned getPointerOperandIndex() {
     return 0U;
   }
 
-  /// Returns the address space of the pointer operand.
+  /// Return the address space of the source pointer operand.
+  /// @return The address space of the source pointer operand.
   unsigned getSrcAddressSpace() const {
     return getPointerOperand()->getType()->getPointerAddressSpace();
   }
 
-  /// Returns the address space of the result.
+  /// Return the address space of the cast result pointer type.
+  /// @return The address space of the cast result pointer type.
   unsigned getDestAddressSpace() const {
     return getType()->getPointerAddressSpace();
   }
@@ -5237,8 +7757,9 @@ public:
 //                          Helper functions
 //===----------------------------------------------------------------------===//
 
-/// A helper function that returns the pointer operand of a load or store
-/// instruction. Returns nullptr if not load or store.
+/// Return the pointer operand of a load or store, or null if \p V is neither.
+/// \param V The instruction to inspect.
+/// @return The pointer operand of a load or store, or null if \p V is neither.
 inline const Value *getLoadStorePointerOperand(const Value *V) {
   if (auto *Load = dyn_cast<LoadInst>(V))
     return Load->getPointerOperand();
@@ -5246,13 +7767,17 @@ inline const Value *getLoadStorePointerOperand(const Value *V) {
     return Store->getPointerOperand();
   return nullptr;
 }
+/// Return the pointer operand of a load or store, or null if \p V is neither.
+/// \param V The instruction to inspect.
+/// @return The pointer operand of a load or store, or null if \p V is neither.
 inline Value *getLoadStorePointerOperand(Value *V) {
   return const_cast<Value *>(
       getLoadStorePointerOperand(static_cast<const Value *>(V)));
 }
 
-/// A helper function that returns the pointer operand of a load, store
-/// or GEP instruction. Returns nullptr if not load, store, or GEP.
+/// Return the pointer operand of a load, store, or GEP, or null otherwise.
+/// \param V The instruction to inspect.
+/// @return The pointer operand of a load, store, or GEP, or null otherwise.
 inline const Value *getPointerOperand(const Value *V) {
   if (auto *Ptr = getLoadStorePointerOperand(V))
     return Ptr;
@@ -5260,11 +7785,16 @@ inline const Value *getPointerOperand(const Value *V) {
     return Gep->getPointerOperand();
   return nullptr;
 }
+/// Non-const overload of getPointerOperand.
+/// \param V The instruction to inspect.
+/// @return A pointer to the requested value.
 inline Value *getPointerOperand(Value *V) {
   return const_cast<Value *>(getPointerOperand(static_cast<const Value *>(V)));
 }
 
-/// A helper function that returns the alignment of load or store instruction.
+/// Return the alignment of load or store instruction \p I.
+/// \param I A load or store instruction.
+/// @return The alignment of load or store instruction \p I.
 inline Align getLoadStoreAlignment(const Value *I) {
   assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
          "Expected Load or Store instruction");
@@ -5273,7 +7803,9 @@ inline Align getLoadStoreAlignment(const Value *I) {
   return cast<StoreInst>(I)->getAlign();
 }
 
-/// A helper function that set the alignment of load or store instruction.
+/// Set the alignment of load or store instruction \p I.
+/// \param I A load or store instruction.
+/// \param NewAlign The new alignment.
 inline void setLoadStoreAlignment(Value *I, Align NewAlign) {
   assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
          "Expected Load or Store instruction");
@@ -5283,8 +7815,9 @@ inline void setLoadStoreAlignment(Value *I, Align NewAlign) {
     cast<StoreInst>(I)->setAlignment(NewAlign);
 }
 
-/// A helper function that returns the address space of the pointer operand of
-/// load or store instruction.
+/// Return the address space of the pointer operand of load or store \p I.
+/// \param I A load or store instruction.
+/// @return The address space of the pointer operand of load or store \p I.
 inline unsigned getLoadStoreAddressSpace(const Value *I) {
   assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
          "Expected Load or Store instruction");
@@ -5293,7 +7826,9 @@ inline unsigned getLoadStoreAddressSpace(const Value *I) {
   return cast<StoreInst>(I)->getPointerAddressSpace();
 }
 
-/// A helper function that returns the type of a load or store instruction.
+/// Return the value type accessed by load or store instruction \p I.
+/// \param I A load or store instruction.
+/// @return The value type accessed by load or store instruction \p I.
 inline Type *getLoadStoreType(const Value *I) {
   assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
          "Expected Load or Store instruction");
@@ -5302,8 +7837,9 @@ inline Type *getLoadStoreType(const Value *I) {
   return cast<StoreInst>(I)->getValueOperand()->getType();
 }
 
-/// A helper function that returns an atomic operation's sync scope; returns
-/// std::nullopt if it is not an atomic operation.
+/// Return the sync scope of atomic instruction \p I, or nullopt if not atomic.
+/// \param I The instruction to query.
+/// @return The sync scope of atomic instruction \p I, or nullopt if not atomic.
 inline std::optional<SyncScope::ID> getAtomicSyncScopeID(const Instruction *I) {
   if (!I->isAtomic())
     return std::nullopt;
@@ -5320,7 +7856,9 @@ inline std::optional<SyncScope::ID> getAtomicSyncScopeID(const Instruction *I) {
   llvm_unreachable("unhandled atomic operation");
 }
 
-/// A helper function that sets an atomic operation's sync scope.
+/// Set the sync scope of atomic instruction \p I.
+/// \param I An atomic instruction.
+/// \param SSID The synchronization scope to set.
 inline void setAtomicSyncScopeID(Instruction *I, SyncScope::ID SSID) {
   assert(I->isAtomic());
   if (auto *AI = dyn_cast<LoadInst>(I))
@@ -5341,24 +7879,33 @@ inline void setAtomicSyncScopeID(Instruction *I, SyncScope::ID SSID) {
 //                              FreezeInst Class
 //===----------------------------------------------------------------------===//
 
-/// This class represents a freeze function that returns random concrete
-/// value if an operand is either a poison value or an undef value
+/// Instruction that replaces undef or poison operands with a concrete value.
 class FreezeInst : public UnaryInstruction {
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
 
-  /// Clone an identical FreezeInst
+  /// Create a copy of this freeze without inserting it into a block.
+  /// @return A clone of this instruction.
   LLVM_ABI FreezeInst *cloneImpl() const;
 
 public:
+  /// Construct a freeze of value \p S.
+  /// \param S The value to freeze.
+  /// \param NameStr Name of the new instruction.
+  /// \param InsertBefore Insertion position for the new instruction.
   LLVM_ABI explicit FreezeInst(Value *S, const Twine &NameStr = "",
                                InsertPosition InsertBefore = nullptr);
 
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param I The instruction to test.
+  /// @return True if \p I is a \c FreezeInst.
   static inline bool classof(const Instruction *I) {
     return I->getOpcode() == Freeze;
   }
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// \param V The value to test.
+  /// @return True if \p V is a \c FreezeInst.
   static inline bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }

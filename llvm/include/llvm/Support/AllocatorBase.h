@@ -42,6 +42,10 @@ template <typename DerivedT> class AllocatorBase {
 public:
   /// Allocate \a Size bytes of \a Alignment aligned memory. This method
   /// must be implemented by \c DerivedT.
+  ///
+  /// \param Size Number of bytes to allocate.
+  /// \param Alignment Required alignment of the allocated memory in bytes.
+  /// \return A pointer to the allocated memory.
   void *Allocate(size_t Size, size_t Alignment) {
 #ifdef __clang__
     static_assert(static_cast<void *(AllocatorBase::*)(size_t, size_t)>(
@@ -56,6 +60,10 @@ public:
 
   /// Deallocate \a Ptr to \a Size bytes of memory allocated by this
   /// allocator.
+  ///
+  /// \param Ptr Memory previously returned by Allocate.
+  /// \param Size Size in bytes of the allocation being freed.
+  /// \param Alignment Alignment of the allocation being freed.
   void Deallocate(const void *Ptr, size_t Size, size_t Alignment) {
 #ifdef __clang__
     static_assert(
@@ -73,11 +81,17 @@ public:
   // core methods.
 
   /// Allocate space for a sequence of objects without constructing them.
+  ///
+  /// \param Num Number of objects of type \c T to allocate space for.
+  /// \return A pointer to uninitialized storage for \p Num objects of type \c T.
   template <typename T> T *Allocate(size_t Num = 1) {
     return static_cast<T *>(Allocate(Num * sizeof(T), alignof(T)));
   }
 
   /// Deallocate space for a sequence of objects without constructing them.
+  ///
+  /// \param Ptr Pointer to memory previously allocated for \c T objects.
+  /// \param Num Number of objects of type \c T that were allocated.
   template <typename T>
   std::enable_if_t<!std::is_same_v<std::remove_cv_t<T>, void>, void>
   Deallocate(T *Ptr, size_t Num = 1) {
@@ -92,6 +106,10 @@ public:
   void Reset() {}
 
   /// Allocate \p Size bytes with at least \p Alignment using malloc.
+  ///
+  /// \param Size Number of bytes to allocate.
+  /// \param Alignment Required alignment of the allocated memory in bytes.
+  /// \return A non-null pointer to the allocated memory.
   LLVM_ATTRIBUTE_RETURNS_NONNULL void *Allocate(size_t Size, size_t Alignment) {
     return allocate_buffer(Size, Alignment);
   }
@@ -101,6 +119,10 @@ public:
   using AllocatorBase<MallocAllocator>::Allocate;
 
   /// Free memory previously obtained from Allocate.
+  ///
+  /// \param Ptr Memory previously returned by Allocate.
+  /// \param Size Size in bytes of the allocation being freed.
+  /// \param Alignment Alignment of the allocation being freed.
   void Deallocate(const void *Ptr, size_t Size, size_t Alignment) {
     deallocate_buffer(const_cast<void *>(Ptr), Size, Alignment);
   }

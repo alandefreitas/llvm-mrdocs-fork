@@ -26,6 +26,10 @@ class Function;
 /// iterations.
 struct LoopLoadEliminationPass
     : public OptionalPassInfoMixin<LoopLoadEliminationPass> {
+  /// Run loop load elimination over the function.
+  /// @param F Function whose loops may have loads forwarded across backedges.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

@@ -82,19 +82,24 @@ template <class Option> struct is_valid_option : std::false_type {};
 /// Look through \p Options for the \a ilist_sentinel_tracking option, with the
 /// default depending on LLVM_ENABLE_ABI_BREAKING_CHECKS.
 template <class... Options> struct extract_sentinel_tracking;
+/// Partial specialization that captures an explicit sentinel-tracking option.
 template <bool EnableSentinelTracking, class... Options>
 struct extract_sentinel_tracking<
     ilist_sentinel_tracking<EnableSentinelTracking>, Options...>
     : std::bool_constant<EnableSentinelTracking>, is_explicit {};
+/// Partial specialization that skips a non-matching option and continues.
 template <class Option1, class... Options>
 struct extract_sentinel_tracking<Option1, Options...>
     : extract_sentinel_tracking<Options...> {};
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
+/// Default specialization enabling sentinel tracking when ABI checks are on.
 template <> struct extract_sentinel_tracking<> : std::true_type, is_implicit {};
 #else
+/// Default specialization disabling sentinel tracking when ABI checks are off.
 template <>
 struct extract_sentinel_tracking<> : std::false_type, is_implicit {};
 #endif
+/// Specialize \a is_valid_option for \a ilist_sentinel_tracking.
 template <bool EnableSentinelTracking>
 struct is_valid_option<ilist_sentinel_tracking<EnableSentinelTracking>>
     : std::true_type {};
@@ -104,15 +109,21 @@ struct is_valid_option<ilist_sentinel_tracking<EnableSentinelTracking>>
 /// Look through \p Options for the \a ilist_tag option, pulling out the
 /// custom tag type, using void as a default.
 template <class... Options> struct extract_tag;
+/// Partial specialization that captures an explicit \a ilist_tag option.
 template <class Tag, class... Options>
 struct extract_tag<ilist_tag<Tag>, Options...> {
+  /// Tag type extracted from the matching \a ilist_tag option.
   using type = Tag;
 };
+/// Partial specialization that skips a non-matching option and continues.
 template <class Option1, class... Options>
 struct extract_tag<Option1, Options...> : extract_tag<Options...> {};
+/// Default specialization when no \a ilist_tag option was provided.
 template <> struct extract_tag<> {
+  /// Default tag type when none was specified.
   using type = void;
 };
+/// Specialize \a is_valid_option for \a ilist_tag.
 template <class Tag> struct is_valid_option<ilist_tag<Tag>> : std::true_type {};
 
 /// Extract iterator bits option.
@@ -120,13 +131,17 @@ template <class Tag> struct is_valid_option<ilist_tag<Tag>> : std::true_type {};
 /// Look through \p Options for the \a ilist_iterator_bits option. Defaults
 /// to false.
 template <class... Options> struct extract_iterator_bits;
+/// Partial specialization that captures an explicit iterator-bits option.
 template <bool IteratorBits, class... Options>
 struct extract_iterator_bits<ilist_iterator_bits<IteratorBits>, Options...>
     : std::bool_constant<IteratorBits> {};
+/// Partial specialization that skips a non-matching option and continues.
 template <class Option1, class... Options>
 struct extract_iterator_bits<Option1, Options...>
     : extract_iterator_bits<Options...> {};
+/// Default specialization when no \a ilist_iterator_bits option was provided.
 template <> struct extract_iterator_bits<> : std::false_type, is_implicit {};
+/// Specialize \a is_valid_option for \a ilist_iterator_bits.
 template <bool IteratorBits>
 struct is_valid_option<ilist_iterator_bits<IteratorBits>> : std::true_type {};
 
@@ -135,15 +150,21 @@ struct is_valid_option<ilist_iterator_bits<IteratorBits>> : std::true_type {};
 /// Look through \p Options for the \a ilist_parent option, pulling out the
 /// custom parent type, using void as a default.
 template <class... Options> struct extract_parent;
+/// Partial specialization that captures an explicit \a ilist_parent option.
 template <class ParentTy, class... Options>
 struct extract_parent<ilist_parent<ParentTy>, Options...> {
+  /// Parent type extracted from the matching \a ilist_parent option.
   using type = ParentTy;
 };
+/// Partial specialization that skips a non-matching option and continues.
 template <class Option1, class... Options>
 struct extract_parent<Option1, Options...> : extract_parent<Options...> {};
+/// Default specialization when no \a ilist_parent option was provided.
 template <> struct extract_parent<> {
+  /// Default parent type when none was specified.
   using type = void;
 };
+/// Specialize \a is_valid_option for \a ilist_parent.
 template <class ParentTy>
 struct is_valid_option<ilist_parent<ParentTy>> : std::true_type {};
 

@@ -68,16 +68,23 @@ template <typename NodeTy> struct ilist_noalloc_traits {
 /// membership.
 template <typename NodeTy> struct ilist_callback_traits {
   /// Called when a node is inserted into the list (default: no-op).
-  void addNodeToList(NodeTy *) {}
+  /// @param N Node that was added to the list.
+  void addNodeToList(NodeTy *N) {}
   /// Called when a node is removed from the list (default: no-op).
-  void removeNodeFromList(NodeTy *) {}
+  /// @param N Node that was removed from the list.
+  void removeNodeFromList(NodeTy *N) {}
 
   /// Callback before transferring nodes to this list. The nodes may already be
   /// in this same list.
+  /// @param OldList Traits of the list the nodes are coming from.
+  /// @param first Start of the transferred node range.
+  /// @param last End of the transferred node range.
   template <class Iterator>
-  void transferNodesFromList(ilist_callback_traits &OldList, Iterator /*first*/,
-                             Iterator /*last*/) {
+  void transferNodesFromList(ilist_callback_traits &OldList, Iterator first,
+                             Iterator last) {
     (void)OldList;
+    (void)first;
+    (void)last;
   }
 };
 
@@ -150,15 +157,20 @@ public:
   iplist_impl() = default;
 
   /// Copy construction is deleted; nodes have unique list membership.
-  iplist_impl(const iplist_impl &) = delete;
+  /// @param X Unused; copy construction is deleted.
+  iplist_impl(const iplist_impl &X) = delete;
   /// Copy assignment is deleted; nodes have unique list membership.
-  iplist_impl &operator=(const iplist_impl &) = delete;
+  /// @param X Unused; copy assignment is deleted.
+  iplist_impl &operator=(const iplist_impl &X) = delete;
 
   /// Move-construct by transferring traits and node links from \p X.
+  /// @param X Source list (left empty).
   iplist_impl(iplist_impl &&X)
       : TraitsT(std::move(static_cast<TraitsT &>(X))),
         IntrusiveListT(std::move(static_cast<IntrusiveListT &>(X))) {}
   /// Move-assign by transferring traits and node links from \p X.
+  /// @param X Source list (left empty).
+  /// @return Reference to this list.
   iplist_impl &operator=(iplist_impl &&X) {
     *static_cast<TraitsT *>(this) = std::move(static_cast<TraitsT &>(X));
     *static_cast<IntrusiveListT *>(this) =
@@ -170,34 +182,52 @@ public:
   ~iplist_impl() { clear(); }
 
   /// Return the theoretical maximum number of elements.
+  /// @return The theoretical maximum number of elements.
   size_type max_size() const { return size_type(-1); }
 
+  /// Return an iterator to the first element.
   using base_list_type::begin;
+  /// Return an iterator to the past-the-end sentinel.
   using base_list_type::end;
+  /// Return a reverse iterator to the last element.
   using base_list_type::rbegin;
+  /// Return a reverse iterator to the past-the-rend sentinel.
   using base_list_type::rend;
+  /// Return true if the list contains no elements.
   using base_list_type::empty;
+  /// Return a reference to the first element.
   using base_list_type::front;
+  /// Return a reference to the last element.
   using base_list_type::back;
 
   /// Exchange contents with \p RHS (currently asserts; traits-unsafe).
+  /// @param RHS Other list to swap with.
   void swap(iplist_impl &RHS) {
     assert(0 && "Swap does not use list traits callback correctly yet!");
     base_list_type::swap(RHS);
   }
 
   /// Insert owned node \p New before \p where and notify traits.
+  /// @param where Insertion position.
+  /// @param New Node to insert (list takes ownership).
+  /// @return Iterator to the inserted node.
   iterator insert(iterator where, pointer New) {
     this->addNodeToList(New); // Notify traits that we added a node...
     return base_list_type::insert(where, *New);
   }
 
   /// Copy-construct a node from \p New and insert it before \p where.
+  /// @param where Insertion position.
+  /// @param New Value to copy-construct from.
+  /// @return Iterator to the inserted node.
   iterator insert(iterator where, const_reference New) {
     return this->insert(where, new value_type(New));
   }
 
   /// Insert \p New immediately after \p where (or at begin if empty).
+  /// @param where Position after which to insert.
+  /// @param New Node to insert (list takes ownership).
+  /// @return Iterator to the inserted node.
   iterator insertAfter(iterator where, pointer New) {
     if (empty())
       return insert(begin(), New);
@@ -206,6 +236,8 @@ public:
   }
 
   /// Clone another list.
+  /// @param L2 Source list to clone from.
+  /// @param clone Callable that clones each element of \p L2.
   template <class Cloner> void cloneFrom(const iplist_impl &L2, Cloner clone) {
     clear();
     for (const_reference V : L2)
@@ -213,6 +245,8 @@ public:
   }
 
   /// Unlink the node at \p IT without deleting it; advance \p IT past it.
+  /// @param IT Iterator to the node to unlink (advanced past it).
+  /// @return Pointer to the unlinked node.
   pointer remove(iterator &IT) {
     pointer Node = &*IT++;
     this->removeNodeFromList(Node); // Notify traits that we removed a node...
@@ -221,23 +255,33 @@ public:
   }
 
   /// Unlink the node at const iterator \p IT without deleting it.
+  /// @param IT Const iterator to the node to unlink.
+  /// @return Pointer to the unlinked node.
   pointer remove(const iterator &IT) {
     iterator MutIt = IT;
     return remove(MutIt);
   }
 
   /// Unlink node pointed to by \p IT without deleting it.
+  /// @param IT Pointer to the node to unlink.
+  /// @return Pointer to the unlinked node.
   pointer remove(pointer IT) { return remove(iterator(IT)); }
   /// Unlink node referred to by \p IT without deleting it.
+  /// @param IT Reference to the node to unlink.
+  /// @return Pointer to the unlinked node.
   pointer remove(reference IT) { return remove(iterator(IT)); }
 
   /// Remove the node at \p where and delete it via traits.
+  /// @param where Iterator to the node to erase.
+  /// @return An iterator to the node after the erased element.
   iterator erase(iterator where) {
     this->deleteNode(remove(where));
     return where;
   }
 
   /// Erase and delete the node pointed to by \p IT.
+  /// @param IT Pointer to the node to erase.
+  /// @return An iterator to the node after \p IT.
   iterator erase(pointer IT) { return erase(iterator(IT)); }
   /// Erase and delete the node referred to by \p IT.
   ///
@@ -271,9 +315,13 @@ public:
   // Functionality derived from other functions defined above...
   //
 
+  /// Return the number of elements (may be linear time).
   using base_list_type::size;
 
   /// Erase and delete every node in [\p first, \p last).
+  /// @param first Start of the range to erase.
+  /// @param last End of the range to erase.
+  /// @return Iterator \p last.
   iterator erase(iterator first, iterator last) {
     while (first != last)
       first = erase(first);
@@ -284,8 +332,10 @@ public:
   void clear() { erase(begin(), end()); }
 
   /// Insert \p val at the front of the list.
+  /// @param val Node to insert at the front.
   void push_front(pointer val) { insert(begin(), val); }
   /// Insert \p val at the back of the list.
+  /// @param val Node to insert at the back.
   void push_back(pointer val) { insert(end(), val); }
   /// Erase and delete the first node.
   void pop_front() {
@@ -299,35 +349,55 @@ public:
   }
 
   /// Insert copies of [\p first, \p last) before \p where.
+  /// @param where Insertion position in this list.
+  /// @param first Start of the source range.
+  /// @param last End of the source range.
   template<class InIt> void insert(iterator where, InIt first, InIt last) {
     for (; first != last; ++first) insert(where, *first);
   }
 
   /// Move all nodes from \p L2 to before \p where.
+  /// @param where Insertion position in this list.
+  /// @param L2 Source list (emptied).
   void splice(iterator where, iplist_impl &L2) {
     if (!L2.empty())
       transfer(where, L2, L2.begin(), L2.end());
   }
   /// Move the single node at \p first from \p L2 to before \p where.
+  /// @param where Insertion position in this list.
+  /// @param L2 Source list.
+  /// @param first Iterator to the node to move.
   void splice(iterator where, iplist_impl &L2, iterator first) {
     iterator last = first; ++last;
     if (where == first || where == last) return; // No change
     transfer(where, L2, first, last);
   }
   /// Move [\p first, \p last) from \p L2 to before \p where.
+  /// @param where Insertion position in this list.
+  /// @param L2 Source list.
+  /// @param first Start of the range to move.
+  /// @param last End of the range to move.
   void splice(iterator where, iplist_impl &L2, iterator first, iterator last) {
     if (first != last) transfer(where, L2, first, last);
   }
   /// Move the single node \p N from \p L2 to before \p where.
+  /// @param where Insertion position in this list.
+  /// @param L2 Source list.
+  /// @param N Node to move.
   void splice(iterator where, iplist_impl &L2, reference N) {
     splice(where, L2, iterator(N));
   }
   /// Move the single node \p N from \p L2 to before \p where.
+  /// @param where Insertion position in this list.
+  /// @param L2 Source list.
+  /// @param N Node to move.
   void splice(iterator where, iplist_impl &L2, pointer N) {
     splice(where, L2, iterator(N));
   }
 
   /// Merge sorted list \p Right into this list using comparator \p comp.
+  /// @param Right Sorted list to merge from.
+  /// @param comp Ordering predicate.
   template <class Compare>
   void merge(iplist_impl &Right, Compare comp) {
     if (this == &Right)
@@ -339,9 +409,12 @@ public:
   /// @param Right Sorted list to merge from.
   void merge(iplist_impl &Right) { return merge(Right, op_less); }
 
+  /// Sort the list using operator< or a provided comparator.
   using base_list_type::sort;
 
   /// Get the previous node, or \c nullptr for the list head.
+  /// @param N Node whose predecessor is requested.
+  /// @return Pointer to the previous node, or \c nullptr for the list head.
   pointer getPrevNode(reference N) const {
     auto I = N.getIterator();
     if (I == begin())
@@ -349,11 +422,15 @@ public:
     return &*std::prev(I);
   }
   /// Get the previous node, or \c nullptr for the list head.
+  /// @param N Node whose predecessor is requested.
+  /// @return Const pointer to the previous node, or \c nullptr for the list head.
   const_pointer getPrevNode(const_reference N) const {
     return getPrevNode(const_cast<reference >(N));
   }
 
   /// Get the next node, or \c nullptr for the list tail.
+  /// @param N Node whose successor is requested.
+  /// @return Pointer to the next node, or \c nullptr for the list tail.
   pointer getNextNode(reference N) const {
     auto Next = std::next(N.getIterator());
     if (Next == end())
@@ -361,6 +438,8 @@ public:
     return &*Next;
   }
   /// Get the next node, or \c nullptr for the list tail.
+  /// @param N Node whose successor is requested.
+  /// @return Const pointer to the next node, or \c nullptr for the list tail.
   const_pointer getNextNode(const_reference N) const {
     return getNextNode(const_cast<reference >(N));
   }
@@ -381,13 +460,18 @@ public:
   iplist() = default;
 
   /// Copy construction is deleted; nodes have unique list membership.
+  /// @param X Unused; copy construction is deleted.
   iplist(const iplist &X) = delete;
   /// Copy assignment is deleted; nodes have unique list membership.
+  /// @param X Unused; copy assignment is deleted.
   iplist &operator=(const iplist &X) = delete;
 
   /// Move-construct by taking ownership of nodes from \p X.
+  /// @param X Source list (left empty).
   iplist(iplist &&X) : iplist_impl_type(std::move(X)) {}
   /// Move-assign by transferring nodes from \p X.
+  /// @param X Source list (left empty).
+  /// @return Reference to this list.
   iplist &operator=(iplist &&X) {
     *static_cast<iplist_impl_type *>(this) = std::move(X);
     return *this;

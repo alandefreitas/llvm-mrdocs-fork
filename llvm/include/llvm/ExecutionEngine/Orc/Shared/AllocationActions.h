@@ -34,7 +34,9 @@ namespace shared {
 /// For unpaired operations one or the other member can be left unused, as
 /// AllocationActionCalls with an FnAddr of zero will be skipped.
 struct AllocActionCallPair {
+  /// Wrapper function call to run at finalization time.
   WrapperFunctionCall Finalize;
+  /// Wrapper function call to run at deallocation time.
   WrapperFunctionCall Dealloc;
 };
 
@@ -48,6 +50,8 @@ using AllocActions = std::vector<AllocActionCallPair>;
 ///
 /// This can be useful if clients want to pre-allocate room for deallocation
 /// actions with the rest of their memory.
+/// @param AAs Allocation actions to inspect for non-empty dealloc calls.
+/// @return Number of allocation actions with a non-empty dealloc call.
 inline size_t numDeallocActions(const AllocActions &AAs) {
   return llvm::count_if(
       AAs, [](const AllocActionCallPair &P) { return !!P.Dealloc; });
@@ -63,32 +67,51 @@ inline size_t numDeallocActions(const AllocActions &AAs) {
 /// be returned. The dealloc actions should be run by calling
 /// runDeallocationActions. If this function succeeds then the AA argument will
 /// be cleared before the function returns.
+/// @param AAs Allocation actions whose finalize calls should be run.
+/// @return Deallocation actions on success, or an error if a finalize action
+/// fails.
 LLVM_ABI Expected<std::vector<WrapperFunctionCall>>
 runFinalizeActions(AllocActions &AAs);
 
 /// Run deallocation actions.
 /// Dealloc actions will be run in reverse order (from last element of DAs to
 /// first).
+/// @param DAs Deallocation wrapper function calls to run in reverse order.
+/// @return Success, or the first error encountered while running dealloc
+/// actions.
 LLVM_ABI Error runDeallocActions(ArrayRef<WrapperFunctionCall> DAs);
 
+/// SPS tag type for AllocActionCallPair.
 using SPSAllocActionCallPair =
     SPSTuple<SPSWrapperFunctionCall, SPSWrapperFunctionCall>;
 
+/// SPS serializer for AllocActionCallPair.
 template <>
 class SPSSerializationTraits<SPSAllocActionCallPair,
                              AllocActionCallPair> {
   using AL = SPSAllocActionCallPair::AsArgList;
 
 public:
+  /// Return the serialized size of \p AAP.
+  /// @param AAP Allocation action call pair to measure.
+  /// @return Number of bytes needed to serialize \p AAP.
   static size_t size(const AllocActionCallPair &AAP) {
     return AL::size(AAP.Finalize, AAP.Dealloc);
   }
 
+  /// Serialize \p AAP into \p OB.
+  /// @param OB Output buffer.
+  /// @param AAP Allocation action call pair to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB,
                         const AllocActionCallPair &AAP) {
     return AL::serialize(OB, AAP.Finalize, AAP.Dealloc);
   }
 
+  /// Deserialize an AllocActionCallPair from \p IB into \p AAP.
+  /// @param IB Input buffer.
+  /// @param AAP Destination allocation action call pair.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB,
                           AllocActionCallPair &AAP) {
     return AL::deserialize(IB, AAP.Finalize, AAP.Dealloc);

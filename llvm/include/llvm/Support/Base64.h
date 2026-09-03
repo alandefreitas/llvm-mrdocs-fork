@@ -21,6 +21,10 @@
 
 namespace llvm {
 
+/// Encode a byte sequence as a Base64 string.
+///
+/// \param Bytes Input bytes to encode.
+/// \return The Base64-encoded representation of \p Bytes.
 template <class InputBytes> std::string encodeBase64(InputBytes const &Bytes) {
   static const char Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                               "abcdefghijklmnopqrstuvwxyz"
@@ -55,6 +59,11 @@ template <class InputBytes> std::string encodeBase64(InputBytes const &Bytes) {
   return Buffer;
 }
 
+/// Decode a Base64 string into raw bytes.
+///
+/// \param Input Base64-encoded text to decode. Length must be a multiple of 4.
+/// \param Output Cleared, then filled with the decoded bytes on success.
+/// \return Success, or an error if \p Input is not valid Base64.
 LLVM_ABI llvm::Error decodeBase64(llvm::StringRef Input,
                                   std::vector<char> &Output);
 

@@ -142,15 +142,22 @@ public:
   /// Construct an empty list with a default-constructed allocator.
   AllocatorList() = default;
   /// Move-construct from \p X, taking ownership of its nodes and allocator.
+  ///
+  /// \param X Source list to move from.
   AllocatorList(AllocatorList &&X)
       : AllocatorT(std::move(X.getAlloc())), List(std::move(X.List)) {}
 
   /// Copy-construct by cloning nodes from \p X into a fresh allocator.
+  ///
+  /// \param X Source list to clone from.
   AllocatorList(const AllocatorList &X) {
     List.cloneFrom(X.List, Cloner(*this), Disposer(*this));
   }
 
   /// Move-assign from \p X after disposing of this list's nodes.
+  ///
+  /// \param X Source list to move from.
+  /// \return Reference to this list.
   AllocatorList &operator=(AllocatorList &&X) {
     clear(); // Dispose of current nodes explicitly.
     List = std::move(X.List);
@@ -159,6 +166,9 @@ public:
   }
 
   /// Copy-assign by replacing this list's nodes with clones of \p X.
+  ///
+  /// \param X Source list to clone from.
+  /// \return Reference to this list.
   AllocatorList &operator=(const AllocatorList &X) {
     List.cloneFrom(X.List, Cloner(*this), Disposer(*this));
     return *this;
@@ -168,44 +178,74 @@ public:
   ~AllocatorList() { clear(); }
 
   /// Exchange nodes and allocators with \p RHS.
+  ///
+  /// \param RHS Other list to swap with.
   void swap(AllocatorList &RHS) {
     List.swap(RHS.List);
     std::swap(getAlloc(), RHS.getAlloc());
   }
 
   /// Return true if the list contains no elements.
+  ///
+  /// \return True if the list is empty.
   [[nodiscard]] bool empty() const { return List.empty(); }
   /// Return the number of elements in the list.
+  ///
+  /// \return The number of elements.
   [[nodiscard]] size_t size() const { return List.size(); }
 
   /// Return an iterator to the first element.
+  ///
+  /// \return Iterator to the first element.
   iterator begin() { return iterator(List.begin()); }
   /// Return an iterator past the last element.
+  ///
+  /// \return Iterator past the last element.
   iterator end() { return iterator(List.end()); }
   /// Return a const iterator to the first element.
+  ///
+  /// \return Const iterator to the first element.
   const_iterator begin() const { return const_iterator(List.begin()); }
   /// Return a const iterator past the last element.
+  ///
+  /// \return Const iterator past the last element.
   const_iterator end() const { return const_iterator(List.end()); }
   /// Return a reverse iterator to the last element.
+  ///
+  /// \return Reverse iterator to the last element.
   reverse_iterator rbegin() { return reverse_iterator(List.rbegin()); }
   /// Return a reverse iterator past the first element.
+  ///
+  /// \return Reverse iterator past the first element.
   reverse_iterator rend() { return reverse_iterator(List.rend()); }
   /// Return a const reverse iterator to the last element.
+  ///
+  /// \return Const reverse iterator to the last element.
   const_reverse_iterator rbegin() const {
     return const_reverse_iterator(List.rbegin());
   }
   /// Return a const reverse iterator past the first element.
+  ///
+  /// \return Const reverse iterator past the first element.
   const_reverse_iterator rend() const {
     return const_reverse_iterator(List.rend());
   }
 
   /// Return a mutable reference to the last element.
+  ///
+  /// \return Mutable reference to the last element.
   T &back() { return List.back().V; }
   /// Return a mutable reference to the first element.
+  ///
+  /// \return Mutable reference to the first element.
   T &front() { return List.front().V; }
   /// Return a const reference to the last element.
+  ///
+  /// \return Const reference to the last element.
   const T &back() const { return List.back().V; }
   /// Return a const reference to the first element.
+  ///
+  /// \return Const reference to the first element.
   const T &front() const { return List.front().V; }
 
   /// Emplace a new element constructed from \p Vs before iterator \p I.
@@ -248,6 +288,7 @@ public:
   /// Erase the element at \p I and return the following iterator.
   ///
   /// \param I Element to erase.
+  /// \return Iterator following the erased element.
   iterator erase(iterator I) {
     return iterator(List.eraseAndDispose(I.wrapped(), Disposer(*this)));
   }
@@ -256,6 +297,7 @@ public:
   ///
   /// \param First Start of the range to erase.
   /// \param Last End of the range to erase.
+  /// \return Iterator \p Last after the erasure.
   iterator erase(iterator First, iterator Last) {
     return iterator(
         List.eraseAndDispose(First.wrapped(), Last.wrapped(), Disposer(*this)));
@@ -268,18 +310,30 @@ public:
   /// Remove and dispose of the first element.
   void pop_front() { List.eraseAndDispose(List.begin(), Disposer(*this)); }
   /// Append a moved-from value \p V.
+  ///
+  /// \param V Value to append.
   void push_back(T &&V) { insert(end(), std::move(V)); }
   /// Prepend a moved-from value \p V.
+  ///
+  /// \param V Value to prepend.
   void push_front(T &&V) { insert(begin(), std::move(V)); }
   /// Append a copy of \p V.
+  ///
+  /// \param V Value to append.
   void push_back(const T &V) { insert(end(), V); }
   /// Prepend a copy of \p V.
+  ///
+  /// \param V Value to prepend.
   void push_front(const T &V) { insert(begin(), V); }
   /// Emplace a new element at the end, constructed from \p Vs.
+  ///
+  /// \param Vs Constructor arguments forwarded to \c T.
   template <class... Ts> void emplace_back(Ts &&... Vs) {
     emplace(end(), std::forward<Ts>(Vs)...);
   }
   /// Emplace a new element at the front, constructed from \p Vs.
+  ///
+  /// \param Vs Constructor arguments forwarded to \c T.
   template <class... Ts> void emplace_front(Ts &&... Vs) {
     emplace(begin(), std::forward<Ts>(Vs)...);
   }

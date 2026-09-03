@@ -22,10 +22,21 @@
 #include <system_error>
 
 namespace llvm {
+/// Utilities for converting between EBCDIC-1047 and UTF-8.
 namespace ConverterEBCDIC {
+/// Converts a UTF-8 string to EBCDIC-1047.
+///
+/// \param Source UTF-8 input text to convert.
+/// \param Result Empty buffer that receives the EBCDIC-1047 output.
+/// \return An error code if \p Source contains an illegal or truncated
+/// UTF-8 sequence; a default-constructed error code on success.
 LLVM_ABI std::error_code convertToEBCDIC(StringRef Source,
                                          SmallVectorImpl<char> &Result);
 
+/// Converts an EBCDIC-1047 string to UTF-8.
+///
+/// \param Source EBCDIC-1047 input text to convert.
+/// \param Result Empty buffer that receives the UTF-8 output.
 LLVM_ABI void convertToUTF8(StringRef Source, SmallVectorImpl<char> &Result);
 
 } // namespace ConverterEBCDIC

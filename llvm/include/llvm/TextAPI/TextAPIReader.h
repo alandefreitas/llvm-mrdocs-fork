@@ -21,12 +21,14 @@ namespace MachO {
 class InterfaceFile;
 enum FileType : unsigned;
 
+/// Reads TAPI text API files into InterfaceFile representations.
 class TextAPIReader {
 public:
-  ///  Determine whether input can be interpreted as TAPI text file.
-  ///  This allows one to exit early when file is not recognized as TAPI file
-  ///  as opposed to `get` which attempts to full parse and load of library
-  ///  attributes.
+  /// Determine whether input can be interpreted as a TAPI text file.
+  ///
+  /// This allows one to exit early when file is not recognized as TAPI file
+  /// as opposed to `get` which attempts to full parse and load of library
+  /// attributes.
   ///
   /// \param InputBuffer Buffer holding contents of TAPI text file.
   /// \return The file format version of TAPI text file.
@@ -37,9 +39,11 @@ public:
   ///
   /// \param InputBuffer Buffer holding contents of TAPI text file.
   /// \param SkipUnknownTriples Whether to ignore unknown or invalid triples.
+  /// \return An InterfaceFile for the library, or an error on failure.
   LLVM_ABI static Expected<std::unique_ptr<InterfaceFile>>
   get(MemoryBufferRef InputBuffer, bool SkipUnknownTriples = false);
 
+  /// Deleted default constructor; use static methods only.
   TextAPIReader() = delete;
 };
 

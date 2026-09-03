@@ -31,11 +31,13 @@ namespace orc {
 /// Bootstraps the vc runtime within jitdylibs.
 class COFFVCRuntimeBootstrapper {
 public:
-  /// Try to create a COFFVCRuntimeBootstrapper instance. An optional
-  /// RuntimePath can be given to specify the location of directory that
-  /// contains all vc runtime library files such as ucrt.lib and msvcrt.lib. If
-  /// no path was given, it will try to search the MSVC toolchain and Windows
-  /// SDK installation and use the found library files automatically.
+  /// Try to create a COFFVCRuntimeBootstrapper instance.
+  ///
+  /// An optional RuntimePath can be given to specify the location of directory
+  /// that contains all vc runtime library files such as ucrt.lib and
+  /// msvcrt.lib. If no path was given, it will try to search the MSVC toolchain
+  /// and Windows SDK installation and use the found library files
+  /// automatically.
   ///
   /// Note that depending on the build setting, a different library
   /// file must be used. In general, if vc runtime was statically linked to the
@@ -46,22 +48,36 @@ public:
   ///
   /// More information is on:
   /// https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features
+  /// @param ES Execution session for the bootstrapper.
+  /// @param ObjLinkingLayer Object linking layer used to load runtime objects.
+  /// @param RuntimePath Optional directory containing vc runtime library files;
+  ///                    if null, search the MSVC toolchain and Windows SDK.
+  /// @return A new COFFVCRuntimeBootstrapper, or an error if creation fails.
   LLVM_ABI static Expected<std::unique_ptr<COFFVCRuntimeBootstrapper>>
   Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
          const char *RuntimePath = nullptr);
 
   /// Adds symbol definitions of static version of msvc runtime libraries.
+  /// @param JD JITDylib to add the static vc runtime symbols to.
+  /// @param DebugVersion Whether to load the debug version of the libraries.
+  /// @return Names of imported dynamic libraries, or an error on failure.
   LLVM_ABI Expected<std::vector<std::string>>
   loadStaticVCRuntime(JITDylib &JD, bool DebugVersion = false);
 
   /// Runs the initializer of static version of msvc runtime libraries.
+  ///
   /// This must be called before calling any functions requiring c runtime (e.g.
   /// printf) within the jit session. Note that proper initialization of vc
   /// runtime requires ability of running static initializers. Cosider setting
   /// up COFFPlatform.
+  /// @param JD JITDylib whose static vc runtime should be initialized.
+  /// @return Success, or an error if initialization fails.
   LLVM_ABI Error initializeStaticVCRuntime(JITDylib &JD);
 
   /// Adds symbol definitions of dynamic version of msvc runtime libraries.
+  /// @param JD JITDylib to add the dynamic vc runtime symbols to.
+  /// @param DebugVersion Whether to load the debug version of the libraries.
+  /// @return Names of imported dynamic libraries, or an error on failure.
   LLVM_ABI Expected<std::vector<std::string>>
   loadDynamicVCRuntime(JITDylib &JD, bool DebugVersion = false);
 

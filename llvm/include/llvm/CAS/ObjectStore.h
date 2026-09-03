@@ -217,6 +217,8 @@ protected:
                         SmallVectorImpl<ObjectRef> &Refs) const;
 
   /// Allow ObjectStore implementations to create internal handles.
+  ///
+  /// \param HandleKind Handle type name to generate a constructor for.
 #define MAKE_CAS_HANDLE_CONSTRUCTOR(HandleKind)                                \
   HandleKind make##HandleKind(uint64_t InternalRef) const {                    \
     return HandleKind(*this, InternalRef);                                     \
@@ -322,19 +324,35 @@ private:
 class ObjectProxy {
 public:
   /// Return the ObjectStore that owns this proxy.
+  ///
+  /// \returns The \c ObjectStore that owns this proxy.
   ObjectStore &getCAS() const { return *CAS; }
   /// Return the CASID of the referenced object.
+  ///
+  /// \returns The \c CASID of the referenced object.
   CASID getID() const { return CAS->getID(Ref); }
   /// Return the object reference for this proxy.
+  ///
+  /// \returns The \c ObjectRef for this proxy.
   ObjectRef getRef() const { return Ref; }
   /// Return how many object references this node stores.
+  ///
+  /// \returns The number of object references stored by this node.
   size_t getNumReferences() const { return CAS->getNumRefs(H); }
   /// Return the referenced object at index \p I.
+  ///
+  /// \param I Zero-based index of the reference to read.
+  /// \returns The \c ObjectRef at index \p I.
   ObjectRef getReference(size_t I) const { return CAS->readRef(H, I); }
 
   /// Implicitly convert this proxy to its CASID.
+  ///
+  /// \returns The \c CASID of the referenced object.
   operator CASID() const { return getID(); }
   /// Return the CASID of the referenced object at index \p I.
+  ///
+  /// \param I Zero-based index of the reference whose ID is returned.
+  /// \returns The \c CASID of the referenced object at index \p I.
   CASID getReferenceID(size_t I) const {
     std::optional<CASID> ID = getCAS().getID(getReference(I));
     assert(ID && "Expected reference to be first-class object");
@@ -343,41 +361,74 @@ public:
 
   /// Visit each reference in order, returning an error from \p Callback to
   /// stop early.
+  ///
+  /// \param Callback Invoked for each reference; returning an error stops
+  /// iteration.
+  /// \returns Success, or the first error returned by \p Callback.
   Error forEachReference(function_ref<Error(ObjectRef)> Callback) const {
     return CAS->forEachRef(H, Callback);
   }
 
   /// Return a MemoryBuffer view of this object's data, optionally named \p Name.
+  ///
+  /// \param Name Optional buffer name for diagnostics.
+  /// \param RequiresNullTerminator Whether the buffer must be null-terminated.
+  /// \returns A \c MemoryBuffer view of this object's data.
   LLVM_ABI std::unique_ptr<MemoryBuffer>
   getMemoryBuffer(StringRef Name = "",
                   bool RequiresNullTerminator = true) const;
 
   /// Get a MemoryBuffer that stays valid after the CAS is destroyed.
+  ///
+  /// \param Name Optional buffer name for diagnostics.
+  /// \param RequiresNullTerminator Whether the buffer must be null-terminated.
+  /// \returns A \c MemoryBuffer whose lifetime is independent of the CAS.
   LLVM_ABI std::unique_ptr<MemoryBuffer>
   getStandaloneMemoryBuffer(StringRef Name = "",
                             bool RequiresNullTerminator = true) const;
 
   /// Get the content of the node. Valid as long as the CAS is valid.
+  ///
+  /// \returns The object's data as a \c StringRef valid for the CAS lifetime.
   StringRef getData() const { return CAS->getDataString(H); }
 
   /// Exports the data of an object to a file path.
+  ///
+  /// \param Path Destination file path for the exported data.
+  /// \returns Success, or an error if the export fails.
   Error exportDataToFile(StringRef Path) const {
     return CAS->exportDataToFile(H, Path);
   }
 
   /// Return true if \p Proxy and \p Ref identify the same object.
+  ///
+  /// \param Proxy Object proxy on the left-hand side.
+  /// \param Ref Object reference on the right-hand side.
+  /// \returns True if \p Proxy and \p Ref identify the same object.
   friend bool operator==(const ObjectProxy &Proxy, ObjectRef Ref) {
     return Proxy.getRef() == Ref;
   }
   /// Return true if \p Ref identifies the same object as \p Proxy.
+  ///
+  /// \param Ref Object reference on the left-hand side.
+  /// \param Proxy Object proxy on the right-hand side.
+  /// \returns True if \p Ref identifies the same object as \p Proxy.
   friend bool operator==(ObjectRef Ref, const ObjectProxy &Proxy) {
     return Proxy.getRef() == Ref;
   }
   /// Return true if \p Proxy and \p Ref identify different objects.
+  ///
+  /// \param Proxy Object proxy on the left-hand side.
+  /// \param Ref Object reference on the right-hand side.
+  /// \returns True if \p Proxy and \p Ref identify different objects.
   friend bool operator!=(const ObjectProxy &Proxy, ObjectRef Ref) {
     return !(Proxy.getRef() == Ref);
   }
   /// Return true if \p Ref and \p Proxy identify different objects.
+  ///
+  /// \param Ref Object reference on the left-hand side.
+  /// \param Proxy Object proxy on the right-hand side.
+  /// \returns True if \p Ref and \p Proxy identify different objects.
   friend bool operator!=(ObjectRef Ref, const ObjectProxy &Proxy) {
     return !(Proxy.getRef() == Ref);
   }
@@ -387,6 +438,11 @@ public:
   ObjectProxy() = delete;
 
   /// Build a proxy for \p Ref backed by loaded handle \p Node in \p CAS.
+  ///
+  /// \param CAS Object store that owns the object.
+  /// \param Ref Reference identifying the object.
+  /// \param Node Loaded handle for the object in \p CAS.
+  /// \returns An \c ObjectProxy for \p Ref in \p CAS.
   static ObjectProxy load(ObjectStore &CAS, ObjectRef Ref, ObjectHandle Node) {
     return ObjectProxy(CAS, Ref, Node);
   }
@@ -401,12 +457,19 @@ private:
 };
 
 /// Create an in memory CAS.
+///
+/// \returns An owned in-memory \c ObjectStore.
 LLVM_ABI std::unique_ptr<ObjectStore> createInMemoryCAS();
 
+/// Return whether on-disk CAS support was enabled at build time.
+///
 /// \returns true if \c LLVM_ENABLE_ONDISK_CAS configuration was enabled.
 LLVM_ABI bool isOnDiskCASEnabled();
 
-/// Create a persistent on-disk path at \p Path.
+/// Create a persistent on-disk CAS at \p Path.
+///
+/// \param Path Directory path for the on-disk CAS storage.
+/// \returns An owned on-disk \c ObjectStore, or an error on failure.
 LLVM_ABI Expected<std::unique_ptr<ObjectStore>>
 createOnDiskCAS(const Twine &Path);
 
@@ -418,6 +481,8 @@ createOnDiskCAS(const Twine &Path);
 /// resources/caches.
 /// \param PluginArgs name/value pairs passed to the plugin as custom options;
 /// they are opaque to the client.
+/// \returns A pair of plugin-backed \c ObjectStore and \c ActionCache, or an
+/// error on failure.
 LLVM_ABI Expected<
     std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createPluginCASDatabases(

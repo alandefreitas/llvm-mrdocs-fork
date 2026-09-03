@@ -25,6 +25,9 @@ class StringRef;
 /// Parse cl::opts from a fuzz target commandline.
 ///
 /// This handles all arguments after -ignore_remaining_args=1 as cl::opts.
+///
+/// \param ArgC Argument count from the process command line.
+/// \param ArgV Argument vector from the process command line.
 LLVM_ABI void parseFuzzerCLOpts(int ArgC, char *ArgV[]);
 
 /// Handle backend options that are encoded in the executable name.
@@ -36,19 +39,33 @@ LLVM_ABI void parseFuzzerCLOpts(int ArgC, char *ArgV[]);
 ///
 /// This is meant to be used for environments like OSS-Fuzz that aren't capable
 /// of passing in command line arguments in the normal way.
+///
+/// \param ExecName Executable name (typically argv[0]) encoding backend opts.
 LLVM_ABI void handleExecNameEncodedBEOpts(StringRef ExecName);
 
 /// Handle optimizer options which are encoded in the executable name.
 /// Same semantics as in 'handleExecNameEncodedBEOpts'.
+///
+/// \param ExecName Executable name (typically argv[0]) encoding optimizer opts.
 LLVM_ABI void handleExecNameEncodedOptimizerOpts(StringRef ExecName);
 
+/// Callback type for testing a single fuzzer input.
 using FuzzerTestFun = int (*)(const uint8_t *Data, size_t Size);
+
+/// Callback type for initializing a fuzzer before running inputs.
 using FuzzerInitFun = int (*)(int *argc, char ***argv);
 
 /// Runs a fuzz target on the inputs specified on the command line.
 ///
 /// Useful for testing fuzz targets without linking to libFuzzer. Finds inputs
 /// in the argument list in a libFuzzer compatible way.
+///
+/// \param ArgC Argument count from the process command line.
+/// \param ArgV Argument vector from the process command line.
+/// \param TestOne Callback invoked once per input file with its contents.
+/// \param Init Optional initialization callback, run before any inputs.
+/// \return Zero on success, or a non-zero exit code on initialization or I/O
+/// failure.
 LLVM_ABI int runFuzzerOnInputs(
     int ArgC, char *ArgV[], FuzzerTestFun TestOne,
     FuzzerInitFun Init = [](int *, char ***) { return 0; });

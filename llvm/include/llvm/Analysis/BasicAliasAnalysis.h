@@ -33,6 +33,8 @@ class SelectInst;
 class TargetLibraryInfo;
 class Value;
 
+/// AA result for basic, local, and stateless alias analysis.
+///
 /// This is the AA result object for the basic, local, and stateless alias
 /// analysis. It implements the AA query interface in an entirely stateless
 /// manner. As one consequence, it is never invalidated due to IR changes.
@@ -53,37 +55,74 @@ class BasicAAResult : public AAResultBase {
   }
 
 public:
+  /// Construct a BasicAAResult for function \p F.
+  /// @param DL Data layout for the module.
+  /// @param F Function being analyzed.
+  /// @param TLI Target library info used by queries.
+  /// @param AC Assumption cache for the function.
+  /// @param DT Optional dominator tree for the function.
   BasicAAResult(const DataLayout &DL, const Function &F,
                 const TargetLibraryInfo &TLI, AssumptionCache &AC,
                 DominatorTree *DT = nullptr)
       : DL(DL), F(F), TLI(TLI), AC(AC), DT_(DT) {}
 
+  /// Copy-construct a BasicAAResult from \p Arg.
+  /// @param Arg BasicAAResult to copy from.
   BasicAAResult(const BasicAAResult &Arg)
       : AAResultBase(Arg), DL(Arg.DL), F(Arg.F), TLI(Arg.TLI), AC(Arg.AC),
         DT_(Arg.DT_) {}
+  /// Move-construct a BasicAAResult from \p Arg.
+  /// @param Arg BasicAAResult to move from.
   BasicAAResult(BasicAAResult &&Arg)
       : AAResultBase(std::move(Arg)), DL(Arg.DL), F(Arg.F), TLI(Arg.TLI),
         AC(Arg.AC), DT_(Arg.DT_) {}
 
   /// Handle invalidation events in the new pass manager.
+  /// @param Fn Function whose analyses may have been invalidated.
+  /// @param PA Set of analyses preserved by the invalidating transform.
+  /// @param Inv Invalidator used to check dependent analyses.
+  /// @return True if this result should be invalidated.
   LLVM_ABI bool invalidate(Function &Fn, const PreservedAnalyses &PA,
                            FunctionAnalysisManager::Invalidator &Inv);
 
+  /// Query whether two memory locations may alias using query state \p AAQI.
+  /// @param LocA First memory location.
+  /// @param LocB Second memory location.
+  /// @param AAQI Query state and caches for this alias query.
+  /// @param CtxI Optional context instruction for the query.
+  /// @return An AliasResult indicating whether the locations alias.
   LLVM_ABI AliasResult alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI,
                              const Instruction *CtxI);
 
+  /// Return whether \p Loc may alias errno at context \p CtxI.
+  /// @param Loc Memory location that may alias errno.
+  /// @param CtxI Context instruction for the errno query.
+  /// @return An AliasResult indicating whether \p Loc may alias errno.
   LLVM_ABI AliasResult aliasErrno(const MemoryLocation &Loc,
                                   const Instruction *CtxI);
 
+  /// Inherit getModRefInfo overloads from AAResultBase.
   using AAResultBase::getModRefInfo;
+  /// Return ModRef info for call \p Call against location \p Loc.
+  /// @param Call Call site whose ModRef behavior is queried.
+  /// @param Loc Memory location to check against the call.
+  /// @param AAQI Query state and caches for this query.
+  /// @return ModRef info describing how the call may access \p Loc.
   LLVM_ABI ModRefInfo getModRefInfo(const CallBase *Call,
                                     const MemoryLocation &Loc,
                                     AAQueryInfo &AAQI);
 
+  /// Return ModRef info between two call sites.
+  /// @param Call1 First call site.
+  /// @param Call2 Second call site.
+  /// @param AAQI Query state and caches for this query.
+  /// @return ModRef info describing shared memory access between the call sites.
   LLVM_ABI ModRefInfo getModRefInfo(const CallBase *Call1,
                                     const CallBase *Call2, AAQueryInfo &AAQI);
 
+  /// Return a ModRef bitmask for a memory location.
+  ///
   /// Returns a bitmask that should be unconditionally applied to the ModRef
   /// info of a memory location. This allows us to eliminate Mod and/or Ref
   /// from the ModRef info based on the knowledge that the memory location
@@ -91,19 +130,31 @@ public:
   ///
   /// If IgnoreLocals is true, then this method returns NoModRef for memory
   /// that points to a local alloca.
+  /// @param Loc Memory location whose ModRef mask is requested.
+  /// @param AAQI Query state and caches for this query.
+  /// @param IgnoreLocals When true, treat local allocas as NoModRef.
+  /// @return A ModRef bitmask that can be applied to ModRef info for \p Loc.
   LLVM_ABI ModRefInfo getModRefInfoMask(const MemoryLocation &Loc,
                                         AAQueryInfo &AAQI,
                                         bool IgnoreLocals = false);
 
   /// Get the location associated with a pointer argument of a callsite.
+  /// @param Call Call whose argument ModRef info is queried.
+  /// @param ArgIdx Zero-based index of the pointer argument.
+  /// @return ModRef info describing how the argument may be accessed.
   LLVM_ABI ModRefInfo getArgModRefInfo(const CallBase *Call, unsigned ArgIdx);
 
   /// Returns the behavior when calling the given call site.
+  /// @param Call Call site whose memory effects are queried.
+  /// @param AAQI Query state and caches for this query.
+  /// @return Memory effects of the call site.
   LLVM_ABI MemoryEffects getMemoryEffects(const CallBase *Call,
                                           AAQueryInfo &AAQI);
 
   /// Returns the behavior when calling the given function. For use when the
   /// call site is not known.
+  /// @param Fn Function whose memory effects are queried.
+  /// @return Memory effects when calling the function.
   LLVM_ABI MemoryEffects getMemoryEffects(const Function *Fn);
 
 private:
@@ -179,8 +230,13 @@ class BasicAA : public AnalysisInfoMixin<BasicAA> {
   LLVM_ABI static AnalysisKey Key;
 
 public:
+  /// Analysis result type produced by this pass.
   using Result = BasicAAResult;
 
+  /// Run basic alias analysis on function \p F.
+  /// @param F Function to analyze.
+  /// @param AM Function analysis manager providing dependencies.
+  /// @return A BasicAAResult for \p F.
   LLVM_ABI BasicAAResult run(Function &F, FunctionAnalysisManager &AM);
 };
 
@@ -191,17 +247,30 @@ class LLVM_ABI BasicAAWrapperPass : public FunctionPass {
   virtual void anchor();
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct a BasicAAWrapperPass.
   BasicAAWrapperPass();
 
+  /// Return the BasicAAResult computed for the last function.
+  /// @return The BasicAAResult computed for the last function.
   BasicAAResult &getResult() { return *Result; }
+  /// Return the BasicAAResult computed for the last function.
+  /// @return The BasicAAResult computed for the last function.
   const BasicAAResult &getResult() const { return *Result; }
 
+  /// Compute BasicAAResult for function \p F.
+  /// @param F Function to analyze.
+  /// @return False; this analysis pass does not modify the function.
   bool runOnFunction(Function &F) override;
+  /// Declare the analyses required and preserved by this pass.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 
+/// Creates an instance of \c BasicAAWrapperPass.
+/// @return A FunctionPass that provides BasicAAResult.
 LLVM_ABI FunctionPass *createBasicAAWrapperPass();
 
 } // end namespace llvm

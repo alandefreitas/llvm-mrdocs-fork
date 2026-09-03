@@ -21,6 +21,7 @@ namespace llvm {
 
 class TargetTransformInfo;
 
+/// Vectorizes IR using a configurable SandboxIR function-pass pipeline.
 class SandboxVectorizerPass
     : public OptionalPassInfoMixin<SandboxVectorizerPass> {
   TargetTransformInfo *TTI = nullptr;
@@ -51,10 +52,18 @@ public:
   // Vectorizer component can't find the vtable for classes like
   // sandboxir::Pass. This way we don't have to make LLVMPasses add a direct
   // dependency on SandboxIR.
+  /// Construct a sandbox vectorizer pass.
   LLVM_ABI SandboxVectorizerPass();
-  LLVM_ABI SandboxVectorizerPass(SandboxVectorizerPass &&);
+  /// Move-construct a sandbox vectorizer pass.
+  /// @param Arg Pass instance to move from.
+  LLVM_ABI SandboxVectorizerPass(SandboxVectorizerPass &&Arg);
+  /// Destroy a sandbox vectorizer pass.
   LLVM_ABI ~SandboxVectorizerPass();
 
+  /// Run the sandbox vectorizer over the function.
+  /// @param F Function that may be vectorized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

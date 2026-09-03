@@ -13,9 +13,18 @@
 
 namespace llvm {
 
+/// Performs straight-line strength reduction on arithmetic expressions.
+///
+/// Unlike loop strength reduction, this pass reduces arithmetic redundancy in
+/// straight-line code (typically from unrolled loops) by rewriting dominated
+/// Add/Mul/GEP candidates relative to an earlier basis.
 class StraightLineStrengthReducePass
     : public OptionalPassInfoMixin<StraightLineStrengthReducePass> {
 public:
+  /// Run straight-line strength reduction over the function.
+  /// @param F Function whose straight-line arithmetic may be strength-reduced.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

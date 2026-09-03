@@ -22,29 +22,42 @@ namespace llvm {
 
 namespace orc {
 
-// Provides common code.
+/// Base class providing shared helpers for speculation analyses.
 class SpeculateQuery {
 protected:
-  LLVM_ABI void findCalles(const BasicBlock *, DenseSet<StringRef> &);
+  /// Collect names of functions called directly from \p BB into \p CallesNames.
+  /// @param BB Basic block to scan for direct calls and invokes.
+  /// @param CallesNames Set receiving the names of directly called functions.
+  LLVM_ABI void findCalles(const BasicBlock *BB,
+                           DenseSet<StringRef> &CallesNames);
+  /// Return true if every basic block in \p F has exactly one successor.
+  /// @param F Function whose CFG shape is tested.
+  /// @return True if \p F is a straight-line CFG; false otherwise.
   LLVM_ABI bool isStraightLine(const Function &F);
 
 public:
+  /// Optional map from a caller function name to the set of likely callee names.
   using ResultTy = std::optional<DenseMap<StringRef, DenseSet<StringRef>>>;
 };
 
-// Direct calls in high frequency basic blocks are extracted.
+/// Speculative query that ranks callees by basic-block frequency.
+///
+/// Direct calls in high frequency basic blocks are extracted.
 class BlockFreqQuery : public SpeculateQuery {
   size_t numBBToGet(size_t);
 
 public:
-  // Find likely next executables based on IR Block Frequency
+  /// Find likely next executables based on IR block frequency.
+  /// @param F Function to analyze for high-frequency call sites.
+  /// @return Optional map from caller name to likely callee names, or nullopt.
   LLVM_ABI ResultTy operator()(Function &F);
 };
 
-// This Query generates a sequence of basic blocks which follows the order of
-// execution.
-// A handful of BB with higher block frequencies are taken, then path to entry
-// and end BB are discovered by traversing up & down the CFG.
+/// Speculative query that walks a CFG sequence of hot basic blocks.
+///
+/// This query generates a sequence of basic blocks which follows the order of
+/// execution. A handful of BB with higher block frequencies are taken, then
+/// path to entry and end BB are discovered by traversing up & down the CFG.
 class SequenceBBQuery : public SpeculateQuery {
   struct WalkDirection {
     bool Upward = true, Downward = true;
@@ -53,10 +66,14 @@ class SequenceBBQuery : public SpeculateQuery {
   };
 
 public:
+  /// Map from a basic block to the directions still open while walking the CFG.
   using VisitedBlocksInfoTy = DenseMap<const BasicBlock *, WalkDirection>;
+  /// Ordered list of basic blocks discovered by a sequence query.
   using BlockListTy = SmallVector<const BasicBlock *, 8>;
+  /// List of CFG back-edges as (source, destination) basic-block pairs.
   using BackEdgesInfoTy =
       SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 8>;
+  /// List of basic blocks paired with their block-frequency values.
   using BlockFreqInfoTy =
       SmallVector<std::pair<const BasicBlock *, uint64_t>, 8>;
 
@@ -74,6 +91,9 @@ private:
                            VisitedBlocksInfoTy &);
 
 public:
+  /// Analyze \p F and return likely callee names along hot CFG sequences.
+  /// @param F Function whose hot call paths are sequenced for speculation.
+  /// @return Optional map from caller name to likely callee names, or nullopt.
   LLVM_ABI ResultTy operator()(Function &F);
 };
 

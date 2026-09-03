@@ -18,8 +18,15 @@
 
 namespace llvm {
 
+/// Pass that lowers @llvm.experimental.guard to a conditional deoptimize call.
+///
+/// Once lowered, the guard can no longer be widened.
 struct LowerGuardIntrinsicPass
     : OptionalPassInfoMixin<LowerGuardIntrinsicPass> {
+  /// Run guard intrinsic lowering over the function.
+  /// @param F Function whose guard intrinsics may be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

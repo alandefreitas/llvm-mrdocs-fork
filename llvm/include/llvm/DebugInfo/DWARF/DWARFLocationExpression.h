@@ -20,25 +20,45 @@ class raw_ostream;
 /// Typically used in DW_AT_location attributes to describe the location of
 /// objects.
 struct DWARFLocationExpression {
-  /// The address range in which this expression is valid. std::nullopt denotes a
-  /// default entry which is valid in addresses not covered by other location
-  /// expressions, or everywhere if there are no other expressions.
+  /// Address range where this expression is valid.
+  ///
+  /// std::nullopt denotes a default entry which is valid in addresses not
+  /// covered by other location expressions, or everywhere if there are no
+  /// other expressions.
   std::optional<DWARFAddressRange> Range;
 
   /// The expression itself.
   SmallVector<uint8_t, 4> Expr;
 };
 
+/// True if both location expressions have the same range and expression bytes.
+///
+/// \param L First location expression to compare.
+/// \param R Second location expression to compare.
+///
+/// \returns true if \p L and \p R are equal.
 inline bool operator==(const DWARFLocationExpression &L,
                        const DWARFLocationExpression &R) {
   return L.Range == R.Range && L.Expr == R.Expr;
 }
 
+/// True if the location expressions differ in range or expression bytes.
+///
+/// \param L First location expression to compare.
+/// \param R Second location expression to compare.
+///
+/// \returns true if \p L and \p R differ.
 inline bool operator!=(const DWARFLocationExpression &L,
                        const DWARFLocationExpression &R) {
   return !(L == R);
 }
 
+/// Print location expression \p Loc to \p OS.
+///
+/// \param OS Output stream to write to.
+/// \param Loc Location expression to print.
+///
+/// \returns \p OS after printing \p Loc.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const DWARFLocationExpression &Loc);
 

@@ -33,7 +33,8 @@ namespace cas {
 namespace ondisk {
 class OnDiskCASLogger;
 } // namespace ondisk
-/// OnDiskTrieRawHashMap is a persistent trie data structure used as hash maps.
+/// Persistent on-disk trie used as a fixed-length hash map.
+///
 /// The keys are fixed length, and are expected to be binary hashes with a
 /// normal distribution.
 ///
@@ -56,6 +57,10 @@ public:
   /// Dump a textual representation of the trie to the debug stream.
   LLVM_DUMP_METHOD LLVM_ABI void dump() const;
   /// Print a textual representation of the trie to \p OS.
+  ///
+  /// \param OS Stream to write the textual dump to.
+  /// \param PrintRecordData Optional callback that prints each record's data
+  /// bytes; if null, record data is omitted or printed in a default form.
   LLVM_ABI void
   print(raw_ostream &OS,
         function_ref<void(ArrayRef<char>)> PrintRecordData = nullptr) const;
@@ -66,9 +71,15 @@ public:
     /// Construct an empty const value proxy.
     ConstValueProxy() = default;
     /// Construct a const value proxy from \p Hash and byte array \p Data.
+    ///
+    /// \param Hash Hash key for the stored record.
+    /// \param Data Contents of the stored record.
     ConstValueProxy(ArrayRef<uint8_t> Hash, ArrayRef<char> Data)
         : Hash(Hash), Data(Data) {}
     /// Construct a const value proxy from \p Hash and string \p Data.
+    ///
+    /// \param Hash Hash key for the stored record.
+    /// \param Data Contents of the stored record as a string view.
     ConstValueProxy(ArrayRef<uint8_t> Hash, StringRef Data)
         : Hash(Hash), Data(Data.begin(), Data.size()) {}
 
@@ -81,11 +92,16 @@ public:
   /// Value proxy to access the records stored in TrieRawHashMap.
   struct ValueProxy {
     /// Convert this mutable value proxy to a const view.
+    ///
+    /// \returns a const value proxy over the same hash and data.
     operator ConstValueProxy() const { return ConstValueProxy(Hash, Data); }
 
     /// Construct an empty value proxy.
     ValueProxy() = default;
     /// Construct a value proxy from \p Hash and mutable \p Data.
+    ///
+    /// \param Hash Hash key for the stored record.
+    /// \param Data Mutable contents of the stored record.
     ValueProxy(ArrayRef<uint8_t> Hash, MutableArrayRef<char> Data)
         : Hash(Hash), Data(Data) {}
 
@@ -98,10 +114,19 @@ public:
   /// Validate the trie data structure.
   ///
   /// Callback receives the file offset to the data entry and the data stored.
+  ///
+  /// \param RecordVerifier Callback invoked for each data record; return an
+  /// error to fail validation for that entry.
+  ///
+  /// \returns success if the trie is valid, or an error describing the problem.
   LLVM_ABI Error validate(
       function_ref<Error(FileOffset, ConstValueProxy)> RecordVerifier) const;
 
   /// Check the valid range of file offset for OnDiskTrieRawHashMap.
+  ///
+  /// \param Offset File offset to test against the supported range.
+  ///
+  /// \returns true if \p Offset is within the supported range.
   static bool validOffset(FileOffset Offset) {
     return Offset.get() < (1LL << 48);
   }
@@ -114,20 +139,28 @@ public:
   /// used to pack additional information if needed.
   template <class ProxyT> class PointerImpl {
   public:
+    /// Return the file offset of the referenced value within the mapped file.
+    ///
     /// \returns the file offset of the referenced value within the mapped file.
     FileOffset getOffset() const {
       return FileOffset(OffsetLow32 | (uint64_t)OffsetHigh16 << 32);
     }
 
     /// Return true if this pointer refers to a value.
+    ///
+    /// \returns true if this pointer refers to a value.
     explicit operator bool() const { return IsValue; }
 
     /// Return a const reference to the referenced value proxy.
+    ///
+    /// \returns a const reference to the referenced value proxy.
     const ProxyT &operator*() const {
       assert(IsValue);
       return Value;
     }
     /// Access members of the referenced value proxy.
+    ///
+    /// \returns a pointer to the referenced value proxy.
     const ProxyT *operator->() const {
       assert(IsValue);
       return &Value;
@@ -141,6 +174,10 @@ public:
     ///
     /// If \p IsValue is false, the pointer is null even when \p Offset is
     /// zero (a valid on-disk offset).
+    ///
+    /// \param Value Value proxy for the referenced record.
+    /// \param Offset File offset of the record in the mapped file.
+    /// \param IsValue Whether this pointer refers to a live value.
     PointerImpl(ProxyT Value, FileOffset Offset, bool IsValue = true)
         : Value(Value), OffsetLow32(Offset.get()),
           OffsetHigh16(Offset.get() >> 32), IsValue(IsValue) {
@@ -177,6 +214,8 @@ public:
   class OnDiskPtr : public PointerImpl<ValueProxy> {
   public:
     /// Convert to a const on-disk pointer referring to the same value.
+    ///
+    /// \returns a const on-disk pointer referring to the same value.
     operator ConstOnDiskPtr() const {
       return ConstOnDiskPtr(Value, getOffset(), IsValue);
     }
@@ -191,11 +230,18 @@ public:
 
   /// Find the value from hash.
   ///
+  /// \param Hash Hash key to look up in the trie.
+  ///
   /// \returns pointer to the value if exists, otherwise returns a non-value
   /// pointer that evaluates to `false` when convert to boolean.
   LLVM_ABI ConstOnDiskPtr find(ArrayRef<uint8_t> Hash) const;
 
   /// Helper function to recover a pointer into the trie from file offset.
+  ///
+  /// \param Offset File offset previously obtained from a trie pointer.
+  ///
+  /// \returns a const pointer to the value at \p Offset, or an error if the
+  /// offset is invalid.
   LLVM_ABI Expected<ConstOnDiskPtr>
   recoverFromFileOffset(FileOffset Offset) const;
 
@@ -221,12 +267,24 @@ public:
   /// The in-memory \a TrieRawHashMap uses LazyAtomicPointer to synchronize
   /// simultaneous writes, but that seems dangerous to use in a memory-mapped
   /// file in case a process crashes in the busy state.
+  ///
+  /// \param Hash Hash key for the value to insert.
+  /// \param OnConstruct Optional callback to initialize the tentatively
+  /// allocated record before it is published.
+  /// \param OnLeak Optional callback invoked if a race abandons the tentative
+  /// allocation after \p OnConstruct has run.
+  ///
+  /// \returns a pointer to the inserted or existing value, or an error.
   LLVM_ABI Expected<OnDiskPtr>
   insertLazy(ArrayRef<uint8_t> Hash,
              LazyInsertOnConstructCB OnConstruct = nullptr,
              LazyInsertOnLeakCB OnLeak = nullptr);
 
   /// Insert \p Value by copying its data into a newly allocated record.
+  ///
+  /// \param Value Const proxy whose hash and data are copied into the trie.
+  ///
+  /// \returns a pointer to the inserted or existing value, or an error.
   Expected<OnDiskPtr> insert(const ConstValueProxy &Value) {
     return insertLazy(Value.Hash, [&](FileOffset, ValueProxy Allocated) {
       assert(Allocated.Hash == Value.Hash);
@@ -235,11 +293,17 @@ public:
     });
   }
 
+  /// Return the number of records currently stored in the trie.
+  ///
   /// \returns the number of records currently stored in the trie.
   LLVM_ABI size_t size() const;
   /// Return the size of the mapped file region in bytes.
+  ///
+  /// \returns the size of the mapped file region in bytes.
   LLVM_ABI size_t capacity() const;
 
+  /// Get or create an on-disk hash-mapped trie at \p Path.
+  ///
   /// Gets or creates a file at \p Path with a hash-mapped trie named \p
   /// TrieName. The hash size is \p NumHashBits (in bits) and the records store
   /// data of size \p DataSize (in bytes).
@@ -252,6 +316,18 @@ public:
   /// configure the trie, if it doesn't already exist.
   ///
   /// \pre NumHashBits is a multiple of 8 (byte-aligned).
+  ///
+  /// \param Path Directory path for the on-disk store.
+  /// \param TrieName Name of the hash-mapped trie within the store.
+  /// \param NumHashBits Size of each hash key in bits (must be byte-aligned).
+  /// \param DataSize Size in bytes of each stored record's data.
+  /// \param MaxFileSize Maximum mapped file size to support.
+  /// \param NewFileInitialSize Starting file size when creating a new store.
+  /// \param Logger Optional logger for CAS on-disk operations.
+  /// \param NewTableNumRootBits Optional hint for root trie fanout bits.
+  /// \param NewTableNumSubtrieBits Optional hint for subtrie fanout bits.
+  ///
+  /// \returns the opened or newly created trie, or an error on failure.
   LLVM_ABI static Expected<OnDiskTrieRawHashMap>
   create(const Twine &Path, const Twine &TrieName, size_t NumHashBits,
          uint64_t DataSize, uint64_t MaxFileSize,
@@ -261,8 +337,14 @@ public:
          std::optional<size_t> NewTableNumSubtrieBits = std::nullopt);
 
   /// Move-construct a map from \p RHS.
+  ///
+  /// \param RHS Map to move from.
   LLVM_ABI OnDiskTrieRawHashMap(OnDiskTrieRawHashMap &&RHS);
   /// Move-assign this map from \p RHS.
+  ///
+  /// \param RHS Map to move from.
+  ///
+  /// \returns a reference to this map.
   LLVM_ABI OnDiskTrieRawHashMap &operator=(OnDiskTrieRawHashMap &&RHS);
   /// Destroy the map and release resources.
   LLVM_ABI ~OnDiskTrieRawHashMap();

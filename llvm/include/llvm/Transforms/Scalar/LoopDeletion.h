@@ -21,10 +21,18 @@ namespace llvm {
 class Loop;
 class LPMUpdater;
 
+/// Pass that deletes loops that are provably dead.
 class LoopDeletionPass : public OptionalPassInfoMixin<LoopDeletionPass> {
 public:
+  /// Construct a LoopDeletion pass.
   LoopDeletionPass() = default;
 
+  /// Run loop deletion over the loop.
+  /// @param L Loop that may be deleted if dead.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

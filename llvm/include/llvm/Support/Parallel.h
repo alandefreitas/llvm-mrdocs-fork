@@ -35,9 +35,13 @@ LLVM_ABI extern ThreadPoolStrategy strategy;
 
 #if LLVM_ENABLE_THREADS
 /// Return the number of worker threads used by the parallel executor.
+///
+/// \return The number of worker threads in the parallel executor.
 LLVM_ABI size_t getThreadCount();
 #else
 /// Return 1 when LLVM is built without thread support.
+///
+/// \return Always 1 when threading is disabled.
 inline size_t getThreadCount() { return 1; }
 #endif
 
@@ -88,6 +92,8 @@ public:
   LLVM_ABI void spawn(std::function<void()> f);
 
   /// Return true if this group is actually dispatching work in parallel.
+  ///
+  /// \return True when tasks are dispatched to the parallel executor.
   bool isParallel() const { return Parallel; }
 };
 
@@ -242,6 +248,7 @@ void parallelForEach(IterTy Begin, IterTy End, FuncTy Fn) {
 /// \param Init Initial value for the reduction.
 /// \param Reduce Binary reducer combining partial results.
 /// \param Transform Unary transform applied to each input element.
+/// \return The reduced result of transforming every element in the range.
 template <class IterTy, class ResultTy, class ReduceFuncTy,
           class TransformFuncTy>
 ResultTy parallelTransformReduce(IterTy Begin, IterTy End, ResultTy Init,
@@ -284,6 +291,7 @@ void parallelForEach(RangeTy &&R, FuncTy Fn) {
 /// \param Init Initial value for the reduction.
 /// \param Reduce Binary reducer combining partial results.
 /// \param Transform Unary transform applied to each input element.
+/// \return The reduced result of transforming every element of \p R.
 template <class RangeTy, class ResultTy, class ReduceFuncTy,
           class TransformFuncTy>
 ResultTy parallelTransformReduce(RangeTy &&R, ResultTy Init,
@@ -297,6 +305,7 @@ ResultTy parallelTransformReduce(RangeTy &&R, ResultTy Init,
 ///
 /// \param R Range whose elements are visited.
 /// \param Fn Callable that returns an \c Error for each element.
+/// \return Success, or the joined \c Error from all failing invocations of \p Fn.
 template <class RangeTy, class FuncTy>
 Error parallelForEachError(RangeTy &&R, FuncTy Fn) {
   // The transform_reduce algorithm requires that the initial value be copyable.

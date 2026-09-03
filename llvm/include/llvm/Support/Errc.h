@@ -32,50 +32,61 @@
 #include <system_error>
 
 namespace llvm {
+/// Portable error conditions corresponding to the supported subset of \c std::errc.
 enum class errc {
-  argument_list_too_long =
-      int(std::errc::argument_list_too_long), ///< Argument list too long.
+  /// Argument list too long.
+  argument_list_too_long = int(std::errc::argument_list_too_long),
   argument_out_of_domain = int(std::errc::argument_out_of_domain),
-  bad_address = int(std::errc::bad_address),
-  bad_file_descriptor = int(std::errc::bad_file_descriptor),
-  broken_pipe = int(std::errc::broken_pipe),
+  bad_address = int(std::errc::bad_address), ///< Bad address.
+  bad_file_descriptor = int(std::errc::bad_file_descriptor), ///< Bad file descriptor.
+  broken_pipe = int(std::errc::broken_pipe), ///< Broken pipe.
   // There is no delete_pending in std::errc; this error code is negative to
   // avoid conflicts. This error roughly corresponds with Windows'
   // STATUS_DELETE_PENDING 0xC0000056.
   delete_pending = -56, ///< File is pending deletion.
+  /// Device or resource is busy.
   device_or_resource_busy = int(std::errc::device_or_resource_busy),
   directory_not_empty = int(std::errc::directory_not_empty),
   executable_format_error = int(std::errc::executable_format_error),
-  file_exists = int(std::errc::file_exists),
+  file_exists = int(std::errc::file_exists), ///< File already exists.
   file_too_large = int(std::errc::file_too_large), ///< File too large.
-  filename_too_long = int(std::errc::filename_too_long),
+  filename_too_long = int(std::errc::filename_too_long), ///< Filename too long.
+  /// Function not supported.
   function_not_supported = int(std::errc::function_not_supported),
-  illegal_byte_sequence =
-      int(std::errc::illegal_byte_sequence), ///< Illegal byte sequence.
+  /// Illegal byte sequence.
+  illegal_byte_sequence = int(std::errc::illegal_byte_sequence),
   inappropriate_io_control_operation =
       int(std::errc::inappropriate_io_control_operation),
   interrupted = int(std::errc::interrupted),
   invalid_argument = int(std::errc::invalid_argument),
   invalid_seek = int(std::errc::invalid_seek),
   io_error = int(std::errc::io_error),
-  is_a_directory = int(std::errc::is_a_directory),
+  is_a_directory = int(std::errc::is_a_directory), ///< Path is a directory.
+  /// No child process.
   no_child_process = int(std::errc::no_child_process),
   no_lock_available = int(std::errc::no_lock_available),
+  /// No space left on the device.
   no_space_on_device = int(std::errc::no_space_on_device),
   no_such_device_or_address = int(std::errc::no_such_device_or_address),
   no_such_device = int(std::errc::no_such_device),
+  /// No such file or directory.
   no_such_file_or_directory = int(std::errc::no_such_file_or_directory),
   no_such_process = int(std::errc::no_such_process),
-  not_a_directory = int(std::errc::not_a_directory),
+  not_a_directory = int(std::errc::not_a_directory), ///< Path is not a directory.
   not_enough_memory = int(std::errc::not_enough_memory), ///< Not enough memory.
   not_supported = int(std::errc::not_supported), ///< Operation not supported.
+  /// Operation not permitted.
   operation_not_permitted = int(std::errc::operation_not_permitted),
+  /// Permission denied.
   permission_denied = int(std::errc::permission_denied),
   read_only_file_system = int(std::errc::read_only_file_system),
+  /// Would cause a resource deadlock.
   resource_deadlock_would_occur =
-      int(std::errc::resource_deadlock_would_occur), ///< Would cause deadlock.
+      int(std::errc::resource_deadlock_would_occur),
+  /// Resource temporarily unavailable; try again.
   resource_unavailable_try_again =
       int(std::errc::resource_unavailable_try_again),
+  /// Numeric result out of representable range.
   result_out_of_range = int(std::errc::result_out_of_range),
   too_many_files_open_in_system = int(std::errc::too_many_files_open_in_system),
   too_many_files_open = int(std::errc::too_many_files_open),
@@ -83,6 +94,9 @@ enum class errc {
 };
 
 /// Convert an \c errc value to a \c std::error_code.
+///
+/// \param E Error condition to convert.
+/// \return A \c std::error_code in the generic category for \p E.
 inline std::error_code make_error_code(errc E) {
   return std::error_code(static_cast<int>(E), std::generic_category());
 }

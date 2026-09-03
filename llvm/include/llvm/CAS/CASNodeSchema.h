@@ -28,10 +28,14 @@ public:
   /// Check if \a Node is a root (entry node) for the schema. This is a strong
   /// check, since it requires that the first reference matches a complete
   /// type-id DAG.
+  /// \param Node Object proxy to test as a schema root.
+  /// \returns True if \p Node is a root entry node for this schema.
   virtual bool isRootNode(const cas::ObjectProxy &Node) const = 0;
 
   /// Check if \a Node is a node for the schema. This can be any node that
   /// belongs to the schema.
+  /// \param Node Object proxy to test for membership in this schema.
+  /// \returns True if \p Node belongs to this schema.
   virtual bool isNode(const cas::ObjectProxy &Node) const = 0;
 
   /// Object store that owns nodes interpreted by this schema.
@@ -39,6 +43,7 @@ public:
 
 protected:
   /// Construct a schema bound to object store \p CAS.
+  /// \param CAS Object store that owns nodes interpreted by this schema.
   NodeSchema(cas::ObjectStore &CAS) : CAS(CAS) {}
 
 public:

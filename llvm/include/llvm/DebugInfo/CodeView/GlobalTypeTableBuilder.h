@@ -27,6 +27,7 @@ namespace codeview {
 
 class ContinuationRecordBuilder;
 
+/// Builds a CodeView type table that merges records by globally unique hash.
 class LLVM_ABI GlobalTypeTableBuilder : public TypeCollection {
   /// Storage for records.  These need to outlive the TypeTableBuilder.
   BumpPtrAllocator &RecordStorage;
@@ -46,28 +47,89 @@ class LLVM_ABI GlobalTypeTableBuilder : public TypeCollection {
   SmallVector<GloballyHashedType, 2> SeenHashes;
 
 public:
+  /// Construct a builder that stores serialized records in \p Storage.
+  ///
+  /// \param Storage Allocator that owns stable copies of merged records.
   explicit GlobalTypeTableBuilder(BumpPtrAllocator &Storage);
+  /// Destroy the global type table builder.
   ~GlobalTypeTableBuilder() override;
 
   // TypeCollection overrides
+  /// Return the first non-simple type index, or \c std::nullopt if empty.
+  ///
+  /// \returns The first non-simple type index, or \c std::nullopt if empty.
   std::optional<TypeIndex> getFirst() override;
+  /// Return the type index after \p Prev, or \c std::nullopt at the end.
+  ///
+  /// \param Prev The preceding type index in iteration order.
+  /// \returns The next type index, or \c std::nullopt at the end.
   std::optional<TypeIndex> getNext(TypeIndex Prev) override;
+  /// Return the CodeView type record at \p Index.
+  ///
+  /// \param Index Type index of the record to retrieve.
+  /// \returns The CodeView type record at \p Index.
   CVType getType(TypeIndex Index) override;
+  /// Return the name of the type at \p Index.
+  ///
+  /// \param Index Type index whose name is requested.
+  /// \returns The name of the type at \p Index.
   StringRef getTypeName(TypeIndex Index) override;
+  /// Return true if \p Index refers to a record stored in this table.
+  ///
+  /// \param Index Type index to test for membership.
+  /// \returns True if \p Index refers to a record in this table.
   bool contains(TypeIndex Index) override;
+  /// Return the number of type records currently stored.
+  ///
+  /// \returns The number of type records currently stored.
   uint32_t size() override;
+  /// Return the number of type records the table can hold without growing.
+  ///
+  /// \returns The number of type records the table can hold without growing.
   uint32_t capacity() override;
+  /// Replace the record at \p Index with \p Data.
+  ///
+  /// \param Index Type index of the record to replace; must already exist.
+  /// \param Data New record bytes to store at \p Index.
+  /// \param Stabilize If true, copy \p Data into the builder's allocator.
+  /// \returns True if the replacement was stored; false if a matching hash
+  ///     already mapped \p Index to another location.
   bool replaceType(TypeIndex &Index, CVType Data, bool Stabilize) override;
 
   // public interface
+  /// Remove all records and hashes from the table.
   void reset();
+  /// Return the type index that will be assigned to the next inserted record.
+  ///
+  /// \returns The type index that will be assigned to the next inserted record.
   TypeIndex nextTypeIndex() const;
 
+  /// Return the allocator used to store stable record bytes.
+  ///
+  /// \returns The allocator used to store stable record bytes.
   BumpPtrAllocator &getAllocator() { return RecordStorage; }
 
+  /// Return the serialized bytes of every record in type-index order.
+  ///
+  /// \returns The serialized bytes of every record in type-index order.
   ArrayRef<ArrayRef<uint8_t>> records() const;
+  /// Return the globally unique hash of every record in type-index order.
+  ///
+  /// \returns The globally unique hash of every record in type-index order.
   ArrayRef<GloballyHashedType> hashes() const;
 
+  /// Insert or reuse a record identified by \p Hash, creating bytes via \p Create.
+  ///
+  /// If \p Hash is new (or was previously deferred as NotTranslated), allocates
+  /// \p RecordSize bytes and invokes \p Create to fill them. An empty result
+  /// from \p Create defers insertion for a later pass.
+  ///
+  /// \param Hash Globally unique hash that keys the record for merging.
+  /// \param RecordSize Size in bytes of the record buffer to allocate; must be
+  ///     a multiple of 4 and less than UINT32_MAX.
+  /// \param Create Callable that writes the record into a mutable buffer and
+  ///     returns the stable bytes to store, or an empty array to defer.
+  /// \returns The type index of the existing or newly inserted record.
   template <typename CreateFunc>
   TypeIndex insertRecordAs(GloballyHashedType Hash, size_t RecordSize,
                            CreateFunc Create) {
@@ -105,9 +167,21 @@ public:
     return Result.first->second;
   }
 
+  /// Insert a pre-serialized type record by global hash and return its index.
+  ///
+  /// \param Data Serialized type record bytes to insert or merge.
+  /// \returns The type index of the existing or newly inserted record.
   TypeIndex insertRecordBytes(ArrayRef<uint8_t> Data);
+  /// Insert the continuation fragments from \p Builder and return the last index.
+  ///
+  /// \param Builder Continuation record builder whose fragments are inserted.
+  /// \returns The type index of the last inserted continuation fragment.
   TypeIndex insertRecord(ContinuationRecordBuilder &Builder);
 
+  /// Serialize leaf type \p Record and insert it into the table.
+  ///
+  /// \param Record Leaf type record to serialize and insert.
+  /// \returns The type index of the existing or newly inserted record.
   template <typename T> TypeIndex writeLeafType(T &Record) {
     ArrayRef<uint8_t> Data = SimpleSerializer.serialize(Record);
     return insertRecordBytes(Data);

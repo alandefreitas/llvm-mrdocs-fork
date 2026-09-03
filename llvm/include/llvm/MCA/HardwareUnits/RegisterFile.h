@@ -45,35 +45,78 @@ class WriteRef {
   LLVM_ABI static const unsigned INVALID_IID;
 
 public:
+  /// Construct an invalid write reference.
   WriteRef()
       : IID(INVALID_IID), WriteBackCycle(), WriteResID(), RegisterID(),
         Write() {}
+  /// Construct a write reference for instruction \p SourceIndex and state \p WS.
+  ///
+  /// \param SourceIndex Source index of the defining instruction.
+  /// \param WS          Write state describing this register definition.
   LLVM_ABI WriteRef(unsigned SourceIndex, WriteState *WS);
 
+  /// Return the source index of the defining instruction.
+  ///
+  /// \return Source index of the defining instruction.
   unsigned getSourceIndex() const { return IID; }
+  /// Return the cycle in which this write was written back.
+  ///
+  /// \return Cycle in which this write was written back.
   LLVM_ABI unsigned getWriteBackCycle() const;
 
+  /// Return a const pointer to the underlying write state.
+  ///
+  /// \return Const pointer to the underlying write state, or null if none.
   const WriteState *getWriteState() const { return Write; }
+  /// Return a mutable pointer to the underlying write state.
+  ///
+  /// \return Mutable pointer to the underlying write state, or null if none.
   WriteState *getWriteState() { return Write; }
+  /// Return the write resource identifier associated with this write.
+  ///
+  /// \return Write resource identifier for this write.
   LLVM_ABI unsigned getWriteResourceID() const;
+  /// Return the physical register written by this reference.
+  ///
+  /// \return Physical register written by this reference.
   LLVM_ABI MCPhysReg getRegisterID() const;
 
+  /// Mark this write as committed and clear the write-state pointer.
   LLVM_ABI void commit();
+  /// Record that the defining instruction executed in cycle \p Cycle.
+  ///
+  /// \param Cycle Cycle in which the instruction finished execution.
   LLVM_ABI void notifyExecuted(unsigned Cycle);
 
+  /// Return true if the write-back cycle for this write is known.
+  ///
+  /// \return True if the write-back cycle for this write is known.
   LLVM_ABI bool hasKnownWriteBackCycle() const;
+  /// Return true if this write produces a known-zero register value.
+  ///
+  /// \return True if this write produces a known-zero register value.
   LLVM_ABI bool isWriteZero() const;
+  /// Return true if this write reference refers to a valid definition.
+  ///
+  /// \return True if this write reference refers to a valid definition.
   bool isValid() const { return getSourceIndex() != INVALID_IID; }
 
   /// Returns true if this register write has been executed, and the new
   /// register value is therefore available to users.
+  ///
+  /// \return True if the new register value is available to users.
   bool isAvailable() const { return hasKnownWriteBackCycle(); }
 
+  /// Return true if both references point to the same write state.
+  ///
+  /// \param Other Write reference to compare against.
+  /// \return True if both references point to the same write state.
   bool operator==(const WriteRef &Other) const {
     return Write && Other.Write && Write == Other.Write;
   }
 
 #ifndef NDEBUG
+  /// Dump this write reference for debugging.
   void dump() const;
 #endif
 };
@@ -229,81 +272,149 @@ class RegisterFile : public HardwareUnit {
   void initialize(const MCSchedModel &SM, unsigned NumRegs);
 
 public:
+  /// Construct a register file for scheduling model \p SM.
+  ///
+  /// \param SM      Scheduling model that declares register files.
+  /// \param mri     Target register information.
+  /// \param NumRegs Optional size limit for the unbounded register file #0;
+  ///                zero means unbounded.
   LLVM_ABI RegisterFile(const MCSchedModel &SM, const MCRegisterInfo &mri,
                         unsigned NumRegs = 0);
 
-  // Collects writes that are in a RAW dependency with RS.
+  /// Collect writes that are in a RAW dependency with \p RS.
+  ///
+  /// \param STI             Subtarget information used for register queries.
+  /// \param RS              Register read whose RAW producers to collect.
+  /// \param Writes          Output vector filled with in-flight producer writes.
+  /// \param CommittedWrites Output vector filled with already-committed
+  ///                        producer writes.
   LLVM_ABI void collectWrites(const MCSubtargetInfo &STI, const ReadState &RS,
                               SmallVectorImpl<WriteRef> &Writes,
                               SmallVectorImpl<WriteRef> &CommittedWrites) const;
+  /// Describes a read-after-write hazard on a physical register.
   struct RAWHazard {
+    /// Physical register that carries the RAW dependency.
     MCPhysReg RegisterID = 0;
+    /// Cycles remaining until the producer write becomes available.
+    ///
+    /// A negative value means the remaining latency is still unknown.
     int CyclesLeft = 0;
 
+    /// Construct an invalid RAW hazard.
     RAWHazard() = default;
+    /// Return true if this hazard identifies a valid register.
+    ///
+    /// \return True if this hazard identifies a valid register.
     bool isValid() const { return RegisterID; }
+    /// Return true if the remaining stall cycles are not yet known.
+    ///
+    /// \return True if the remaining stall cycles are not yet known.
     bool hasUnknownCycles() const { return CyclesLeft < 0; }
   };
 
+  /// Check for RAW hazards affecting register read \p RS.
+  ///
+  /// \param STI Subtarget information used for register queries.
+  /// \param RS  Register read to check for outstanding RAW producers.
+  /// \return A RAWHazard describing the critical producer, if any.
   LLVM_ABI RAWHazard checkRAWHazards(const MCSubtargetInfo &STI,
                                      const ReadState &RS) const;
 
-  // This method updates the register mappings inserting a new register
-  // definition. This method is also responsible for updating the number of
-  // allocated physical registers in each register file modified by the write.
-  // No physical regiser is allocated if this write is from a zero-idiom.
+  /// Insert a new register definition into the register mappings.
+  ///
+  /// This method is also responsible for updating the number of allocated
+  /// physical registers in each register file modified by the write. No
+  /// physical register is allocated if this write is from a zero-idiom.
+  ///
+  /// \param Write         Write reference describing the new definition.
+  /// \param UsedPhysRegs  Per-register-file counts of newly allocated physical
+  ///                      registers.
   LLVM_ABI void addRegisterWrite(WriteRef Write,
                                  MutableArrayRef<unsigned> UsedPhysRegs);
 
-  // Collect writes that are in a data dependency with RS, and update RS
-  // internal state.
+  /// Collect writes that are in a data dependency with \p RS, and update \p RS.
+  ///
+  /// \param RS  Register read whose producers and readiness should be updated.
+  /// \param STI Subtarget information used for register queries.
   LLVM_ABI void addRegisterRead(ReadState &RS,
                                 const MCSubtargetInfo &STI) const;
 
-  // Removes write \param WS from the register mappings.
-  // Physical registers may be released to reflect this update.
-  // No registers are released if this write is from a zero-idiom.
+  /// Remove write \p WS from the register mappings.
+  ///
+  /// Physical registers may be released to reflect this update. No registers
+  /// are released if this write is from a zero-idiom.
+  ///
+  /// \param WS            Write state to remove from the mappings.
+  /// \param FreedPhysRegs Per-register-file counts of released physical
+  ///                      registers.
   LLVM_ABI void removeRegisterWrite(const WriteState &WS,
                                     MutableArrayRef<unsigned> FreedPhysRegs);
 
-  // Returns true if the PRF at index `PRFIndex` can eliminate a move from RS to
-  // WS.
+  /// Return true if the PRF at index \p PRFIndex can eliminate a move from \p RS
+  /// to \p WS.
+  ///
+  /// \param WS       Destination write of the candidate move.
+  /// \param RS       Source read of the candidate move.
+  /// \param PRFIndex Index of the physical register file to query.
+  /// \return True if the PRF can eliminate the move from \p RS to \p WS.
   LLVM_ABI bool canEliminateMove(const WriteState &WS, const ReadState &RS,
                                  unsigned PRFIndex) const;
 
-  // Returns true if this instruction can be fully eliminated at register
-  // renaming stage. On success, this method updates the internal state of each
-  // WriteState by setting flag `WS.isEliminated`, and by propagating the zero
-  // flag for known zero registers. It internally uses `canEliminateMove` to
-  // determine if a read/write pair can be eliminated. By default, it assumes a
-  // register swap if there is more than one register definition.
+  /// Try to eliminate a register move or swap at register renaming.
+  ///
+  /// Returns true if this instruction can be fully eliminated at register
+  /// renaming stage. On success, this method updates the internal state of each
+  /// WriteState by setting flag `WS.isEliminated`, and by propagating the zero
+  /// flag for known zero registers. It internally uses `canEliminateMove` to
+  /// determine if a read/write pair can be eliminated. By default, it assumes a
+  /// register swap if there is more than one register definition.
+  ///
+  /// \param Writes Write operands of the candidate move or swap.
+  /// \param Reads  Read operands of the candidate move or swap.
+  /// \return True if the instruction can be fully eliminated at renaming.
   LLVM_ABI bool tryEliminateMoveOrSwap(MutableArrayRef<WriteState> Writes,
                                        MutableArrayRef<ReadState> Reads);
 
-  // Checks if there are enough physical registers in the register files.
-  // Returns a "response mask" where each bit represents the response from a
-  // different register file.  A mask of all zeroes means that all register
-  // files are available.  Otherwise, the mask can be used to identify which
-  // register file was busy.  This sematic allows us to classify dispatch
-  // stalls caused by the lack of register file resources.
-  //
-  // Current implementation can simulate up to 32 register files (including the
-  // special register file at index #0).
+  /// Check whether there are enough physical registers for \p Regs.
+  ///
+  /// Returns a "response mask" where each bit represents the response from a
+  /// different register file. A mask of all zeroes means that all register
+  /// files are available. Otherwise, the mask can be used to identify which
+  /// register file was busy. This semantic allows us to classify dispatch
+  /// stalls caused by the lack of register file resources.
+  ///
+  /// Current implementation can simulate up to 32 register files (including the
+  /// special register file at index #0).
+  ///
+  /// \param Regs Logical registers that would be allocated on dispatch.
+  /// \return Zero if all register files can allocate \p Regs; otherwise a busy
+  ///         mask.
   LLVM_ABI unsigned isAvailable(ArrayRef<MCPhysReg> Regs) const;
 
-  // Returns the number of PRFs implemented by this processor.
+  /// Return the number of PRFs implemented by this processor.
+  ///
+  /// \return Number of physical register files implemented by this processor.
   unsigned getNumRegisterFiles() const { return RegisterFiles.size(); }
 
+  /// Return how many cycles have elapsed since write \p WR was written back.
+  ///
+  /// \param WR Write reference whose write-back cycle is known.
+  /// \return Cycles elapsed since \p WR was written back.
   LLVM_ABI unsigned getElapsedCyclesFromWriteBack(const WriteRef &WR) const;
 
+  /// Update register mappings when instruction \p IS finishes execution.
+  ///
+  /// \param IS Instruction that has just been executed.
   LLVM_ABI void onInstructionExecuted(Instruction *IS);
 
-  // Notify each PRF that a new cycle just started.
+  /// Notify each PRF that a new cycle just started.
   LLVM_ABI void cycleStart();
 
+  /// Advance the register file to the next cycle.
   void cycleEnd() { ++CurrentCycle; }
 
 #ifndef NDEBUG
+  /// Dump register file state for debugging.
   void dump() const;
 #endif
 };

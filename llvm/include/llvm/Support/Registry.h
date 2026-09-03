@@ -30,11 +30,26 @@ template <typename T, typename... CtorParamTypes> class SimpleRegistryEntry {
   FactoryFnRef Ctor;
 
 public:
+  /// Construct an entry with name \p N, description \p D, and factory \p C.
+  ///
+  /// \param N Short identifier for the registered component.
+  /// \param D Human-readable description of the component.
+  /// \param C Factory that constructs an instance of \c T.
   SimpleRegistryEntry(StringRef N, StringRef D, FactoryFnRef C)
       : Name(N), Desc(D), Ctor(C) {}
 
+  /// Return the short name of this entry.
+  ///
+  /// \return Short identifier for the registered component.
   StringRef getName() const { return Name; }
+  /// Return the human-readable description of this entry.
+  ///
+  /// \return Human-readable description of the component.
   StringRef getDesc() const { return Desc; }
+  /// Construct a new instance of \c T using this entry's factory.
+  ///
+  /// \param Params Arguments forwarded to the registered constructor.
+  /// \return Newly constructed instance of \c T.
   std::unique_ptr<T> instantiate(CtorParamTypes &&...Params) const {
     return Ctor(std::forward<CtorParamTypes>(Params)...);
   }
@@ -80,6 +95,8 @@ template <typename R>
 struct RegistryLinkListDeclarationMarker : std::false_type {};
 } // namespace detail
 
+/// A linker-supported registry of pluggable component factories.
+///
 /// A global registry used in conjunction with static constructors to make
 /// pluggable components (like targets or garbage collectors) "just work" when
 /// linked with an executable.
@@ -119,8 +136,11 @@ template <typename T, typename... CtorParamTypes> class Registry {
       "Trying to instantiate a wrong specialization 'Registry<Registry<...>>'");
 
 public:
+  /// The plugin interface type stored in this registry.
   using type = T;
+  /// Registry entry type holding a name, description, and factory.
   using entry = SimpleRegistryEntry<T, CtorParamTypes...>;
+  /// True when the registry entry factory takes extra constructor parameters.
   static constexpr bool HasCtorParamTypes = sizeof...(CtorParamTypes) != 0;
 
   class node;
@@ -142,12 +162,16 @@ public:
     const entry &Val;
 
   public:
+    /// Construct a node referring to registry entry \p V.
+    ///
+    /// \param V Entry this node will hold in the linked list.
     node(const entry &V) : Next(nullptr), Val(V) {}
   };
 
   /// Add a node to the Registry: this is the interface between the plugin and
   /// the executable.
   ///
+  /// \param N Node to append to the registry linked list.
   static void add_node(node *N) {
     auto &[Head, Tail] = detail::getRegistryLinkListInstance<Registry>();
     if (Tail)
@@ -165,21 +189,43 @@ public:
     const node *Cur;
 
   public:
+    /// Construct an iterator referring to node \p N.
+    ///
+    /// \param N Current node, or nullptr for a past-the-end iterator.
     explicit iterator(const node *N) : Cur(N) {}
 
+    /// Return true if this iterator and \p That refer to the same node.
+    ///
+    /// \param That Iterator to compare against.
+    /// \return True if both iterators refer to the same node.
     bool operator==(const iterator &That) const { return Cur == That.Cur; }
+    /// Advance to the next registry entry.
+    ///
+    /// \return Reference to this iterator after advancing.
     iterator &operator++() {
       Cur = Cur->Next;
       return *this;
     }
+    /// Return the registry entry at this position.
+    ///
+    /// \return The registry entry at this iterator position.
     const entry &operator*() const { return Cur->Val; }
   };
 
+  /// Return an iterator to the first registered entry.
+  ///
+  /// \return Iterator to the first registered entry.
   static iterator begin() {
     return iterator(detail::getRegistryLinkListInstance<Registry>().Head);
   }
+  /// Return an iterator past the last registered entry.
+  ///
+  /// \return Past-the-end iterator for the registry.
   static iterator end() { return iterator(nullptr); }
 
+  /// Return the range of all registered entries.
+  ///
+  /// \return Range spanning every registered entry.
   static iterator_range<iterator> entries() {
     return make_range(begin(), end());
   }
@@ -199,6 +245,10 @@ public:
     }
 
   public:
+    /// Register type \c V under \p Name with description \p Desc.
+    ///
+    /// \param Name Short identifier for the registered component.
+    /// \param Desc Human-readable description of the component.
     Add(StringRef Name, StringRef Desc)
         : Entry(Name, Desc, CtorFn), Node(Entry) {
       add_node(&Node);
@@ -218,6 +268,8 @@ public:
 /// declared with dllexport, just like non-imported symbols. The dllimport
 /// attribute is not eligible here, since the specialization may or may not be
 /// defined in the same object, a static library, or an import library.
+///
+/// \param REGISTRY_CLASS Registry type alias or specialization to declare.
 #define LLVM_DECLARE_REGISTRY(REGISTRY_CLASS)                                  \
   namespace llvm::detail {                                                     \
   template <>                                                                  \
@@ -235,6 +287,8 @@ public:
 /// proper declarations/definitions by compilers or linkers. If you forget to
 /// place `LLVM_DEFINE_REGISTRY`, your linker will complain about a missing
 /// `getRegistryLinkListInstance` definiton.
+///
+/// \param REGISTRY_CLASS Registry type alias or specialization to define.
 #define LLVM_DEFINE_REGISTRY(REGISTRY_CLASS)                                   \
   namespace llvm::detail {                                                     \
   static_assert(RegistryLinkListDeclarationMarker<REGISTRY_CLASS>::value,      \
@@ -270,6 +324,8 @@ public:
   LLVM_DETAIL_INSTANTIATE_REGISTRY_1(, REGISTRY_CLASS)
 #endif
 
+/// Helper macro to declare a registry class with an explicit export annotation.
+///
 /// Variants of the registration macros that take an explicit export annotation
 /// (EXPORT_ABI) in place of the hard-coded `LLVM_ABI_EXPORT`. Use these when a
 /// registry is owned by a component that is NOT part of the LLVM dylib. For
@@ -284,6 +340,10 @@ public:
 /// `LLVM_ABI_EXPORT` is used here rather than `LLVM_ABI`: the definition may be
 /// in the same object, a static library, or an import library.
 /// `CLANG_ABI_EXPORT` satisfies this (it is empty under `CLANG_BUILD_STATIC`).
+///
+/// \param EXPORT_ABI Export annotation applied to the accessor declaration
+///                   (export-or-empty, never dllimport).
+/// \param REGISTRY_CLASS Registry type alias or specialization to declare.
 #define LLVM_DECLARE_REGISTRY_EX(EXPORT_ABI, REGISTRY_CLASS)                   \
   namespace llvm::detail {                                                     \
   template <>                                                                  \

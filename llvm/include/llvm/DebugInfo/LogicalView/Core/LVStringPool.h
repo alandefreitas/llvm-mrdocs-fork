@@ -25,6 +25,7 @@
 namespace llvm {
 namespace logicalview {
 
+/// Interned string table that maps unique strings to stable indices.
 class LVStringPool {
   static constexpr size_t BadIndex = std::numeric_limits<size_t>::max();
   using TableType = StringMap<size_t, BumpPtrAllocator>;
@@ -34,19 +35,31 @@ class LVStringPool {
   std::vector<ValueType *> Entries;
 
 public:
+  /// Construct an empty string pool with the empty string at index zero.
   LVStringPool() { getIndex(""); }
+  /// Copy construction is not allowed.
   LVStringPool(LVStringPool const &other) = delete;
+  /// Move construction is not allowed.
   LVStringPool(LVStringPool &&other) = delete;
+  /// Destroy the string pool.
   ~LVStringPool() = default;
 
+  /// Return whether \p Index is a valid pool index.
+  /// \param Index Candidate index to validate.
+  /// \returns True when \p Index is not the sentinel bad index.
   bool isValidIndex(size_t Index) const { return Index != BadIndex; }
 
-  // Return number of strings in the pool. The empty string is allocated
-  // at the slot zero. We substract 1 to indicate the number of non empty
-  // strings.
+  /// Return the number of non-empty strings in the pool.
+  ///
+  /// The empty string is allocated at slot zero. One is subtracted so the
+  /// count excludes that empty entry.
+  /// \returns Count of interned strings, excluding the empty string at index
+  /// zero.
   size_t getSize() const { return Entries.size() - 1; }
 
-  // Return the index for the specified key, otherwise 'BadIndex'.
+  /// Return the index of \p Key if it is already in the pool.
+  /// \param Key String to look up.
+  /// \returns Existing index, or the sentinel bad index when absent.
   size_t findIndex(StringRef Key) const {
     TableType::const_iterator Iter = StringTable.find(Key);
     if (Iter != StringTable.end())
@@ -54,7 +67,9 @@ public:
     return BadIndex;
   }
 
-  // Return an index for the specified key.
+  /// Return the index for \p Key, inserting it when not already present.
+  /// \param Key String to look up or intern.
+  /// \returns Stable index for \p Key in the pool.
   size_t getIndex(StringRef Key) {
     size_t Index = findIndex(Key);
     if (isValidIndex(Index))
@@ -66,11 +81,15 @@ public:
     return Value;
   }
 
-  // Given the index, return its corresponding string.
+  /// Return the string stored at \p Index.
+  /// \param Index Pool index previously returned by getIndex or findIndex.
+  /// \returns Corresponding string, or an empty StringRef when out of range.
   StringRef getString(size_t Index) const {
     return (Index >= Entries.size()) ? StringRef() : Entries[Index]->getKey();
   }
 
+  /// Print the contents of the string pool to \p OS.
+  /// \param OS Stream that receives the printed pool entries.
   void print(raw_ostream &OS) const {
     if (!Entries.empty()) {
       OS << "\nString Pool:\n";
@@ -81,6 +100,7 @@ public:
   }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump this string pool to the debug stream.
   void dump() const { print(dbgs()); }
 #endif
 };

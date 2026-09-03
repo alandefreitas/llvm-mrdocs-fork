@@ -25,10 +25,16 @@
 
 namespace llvm::orc::sps {
 
+/// Spec that implements a Proxy's dispatch via SPS and a controller interface.
 template <typename ProxyT, typename CI,
           typename FnType = typename ProxyT::FnType>
 class ProxySpec;
 
+/// Spec that implements ProxyT's dispatch for signature RetT(ArgTs...) via SPS.
+///
+/// Pairs a Proxy with a controller-interface descriptor from Shared/SPSCI,
+/// which supplies the wrapper name and wire signature. Invokes the
+/// executor-side wrapper through callSPSWrapperAsync.
 template <typename ProxyT, typename CI, typename RetT, typename... ArgTs>
 class ProxySpec<ProxyT, CI, RetT(ArgTs...)> {
 
@@ -45,8 +51,15 @@ class ProxySpec<ProxyT, CI, RetT(ArgTs...)> {
   }
 
 public:
+  /// Name of the executor-side wrapper function from the controller interface.
   static constexpr const char *Name = CI::Name;
 
+  /// Asynchronously dispatch a call to CalleeAddr via SPS, delivering the
+  /// result (or an error) to OnComplete.
+  /// \param OnComplete Continuation invoked with the result or an error.
+  /// \param ES Execution session used for the call.
+  /// \param CalleeAddr Address of the executor-side wrapper to invoke.
+  /// \param Args Arguments forwarded to the executor-side operation.
   static void dispatch(unique_function<void(ErrorRetT)> OnComplete,
                        ExecutionSession &ES, ExecutorAddr CalleeAddr,
                        const ArgTs &...Args) {

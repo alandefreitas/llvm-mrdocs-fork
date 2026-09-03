@@ -24,14 +24,20 @@
 namespace llvm {
 namespace MachO {
 
-// Define collection of records for a library that are tied to a darwin target
-// triple.
+/// Collection of records for a library that are tied to a Darwin target triple.
 class RecordsSlice {
 public:
+  /// Construct a records slice for the given target triple.
+  ///
+  /// \param T The target triple that this slice represents.
   RecordsSlice(const llvm::Triple &T) : TargetTriple(T), TAPITarget(T) {}
   /// Get target triple.
+  ///
+  /// \return The target triple for this slice.
   const llvm::Triple &getTriple() const { return TargetTriple; }
   /// Get TAPI converted target.
+  ///
+  /// \return The TAPI target for this slice.
   const Target &getTarget() const { return TAPITarget; }
 
   /// Add unspecified record to slice.
@@ -133,40 +139,66 @@ public:
   findGlobal(StringRef Name,
              GlobalRecord::Kind GV = GlobalRecord::Kind::Unknown) const;
 
-  // Determine if library attributes were assigned.
+  /// Determine if library attributes were assigned.
+  ///
+  /// \return True if binary attributes have been assigned to this slice.
   bool hasBinaryAttrs() const { return BA.get(); }
 
-  // Determine if record slice is unassigned.
+  /// Determine if record slice is unassigned.
+  ///
+  /// \return True if the slice has no binary attributes and no records.
   bool empty() const {
     return !hasBinaryAttrs() && Globals.empty() && Classes.empty() &&
            Categories.empty();
   }
 
-  // Visit all records known to RecordsSlice.
+  /// Visit all records known to RecordsSlice.
+  ///
+  /// \param V The visitor to apply to each record.
   LLVM_ABI void visit(RecordVisitor &V) const;
 
+  /// Library attributes extracted from or assigned to a binary.
   struct BinaryAttrs {
+    /// Allowable clients that may link against this library.
     std::vector<StringRef> AllowableClients;
+    /// Libraries re-exported by this library.
     std::vector<StringRef> RexportedLibraries;
+    /// Runpath search paths.
     std::vector<StringRef> RPaths;
+    /// Parent umbrella framework name.
     StringRef ParentUmbrella;
+    /// Install name of the library.
     StringRef InstallName;
+    /// Unique identifier of the binary.
     StringRef UUID;
+    /// Path to the source binary or stub file.
     StringRef Path;
+    /// File type of the binary interface.
     FileType File = FileType::Invalid;
+    /// Current version of the library.
     llvm::MachO::PackedVersion CurrentVersion;
+    /// Compatibility version of the library.
     llvm::MachO::PackedVersion CompatVersion;
+    /// Swift ABI version of the library.
     uint8_t SwiftABI = 0;
+    /// Whether the library uses two-level namespace.
     bool TwoLevelNamespace = false;
+    /// Whether the library is application extension safe.
     bool AppExtensionSafe = false;
+    /// Whether this OS library is not eligible for the shared cache.
     bool OSLibNotForSharedCache = false;
   };
 
   /// Return reference to BinaryAttrs.
+  ///
+  /// \return A reference to the library's binary attributes.
   LLVM_ABI BinaryAttrs &getBinaryAttrs();
 
   /// Store any strings owned by RecordSlice into allocator and return back
   /// reference to that.
+  ///
+  /// \param String The string to copy into the slice's allocator.
+  /// \return A reference to the string stored in the allocator.
   LLVM_ABI StringRef copyString(StringRef String);
 
 private:
@@ -199,8 +231,13 @@ private:
   std::unique_ptr<BinaryAttrs> BA{nullptr};
 };
 
+/// Collection of shared record slices across targets.
 using Records = llvm::SmallVector<std::shared_ptr<RecordsSlice>, 4>;
 class InterfaceFile;
+/// Convert a collection of record slices into an interface file.
+///
+/// \param Slices The record slices to convert.
+/// \return A unique pointer to the resulting interface file.
 LLVM_ABI std::unique_ptr<InterfaceFile>
 convertToInterfaceFile(const Records &Slices);
 

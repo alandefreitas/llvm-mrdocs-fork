@@ -42,6 +42,7 @@ class LVSymbol;
 class LVType;
 struct LVSourceLanguage;
 
+/// Reader that builds a logical view from LLVM IR debug metadata.
 class LLVM_ABI LVIRReader final : public LVReader {
   PointerUnion<object::IRObjectFile *, MemoryBufferRef *> InputFile;
 
@@ -262,38 +263,72 @@ class LLVM_ABI LVIRReader final : public LVReader {
   void checkScopes(LVScope *Scope);
 
 protected:
+  /// Build the logical scopes tree from the LLVM IR input.
+  /// \returns Success or an error if scopes could not be built.
   Error createScopes() override;
+  /// Sort the root scope after scopes have been created.
   void sortScopes() override;
 
 public:
+  /// Deleted; an IR reader requires an input IR object or memory buffer.
   LVIRReader() = delete;
+  /// Construct a reader for an IR object file with debug metadata.
+  ///
+  /// \param Filename Path of the input file being read.
+  /// \param FileFormatName Human-readable object format name.
+  /// \param Obj IR object file that supplies debug metadata.
+  /// \param W Printer used for diagnostic and dump output.
   LVIRReader(StringRef Filename, StringRef FileFormatName,
              object::IRObjectFile *Obj, ScopedPrinter &W)
       : LVReader(Filename, FileFormatName, W, LVBinaryType::ELF),
         InputFile(Obj), DbgValueRanges(new DbgValueRangeTable()) {}
+  /// Construct a reader for an IR module held in a memory buffer.
+  ///
+  /// \param Filename Path of the input file being read.
+  /// \param FileFormatName Human-readable object format name.
+  /// \param Obj Memory buffer that supplies the IR module.
+  /// \param W Printer used for diagnostic and dump output.
   LVIRReader(StringRef Filename, StringRef FileFormatName, MemoryBufferRef *Obj,
              ScopedPrinter &W)
       : LVReader(Filename, FileFormatName, W, LVBinaryType::ELF),
         InputFile(Obj), DbgValueRanges(new DbgValueRangeTable()) {}
-  LVIRReader(const LVIRReader &) = delete;
-  LVIRReader &operator=(const LVIRReader &) = delete;
+  /// Deleted; IR readers are not copyable.
+  /// \param Other Unused source reader.
+  LVIRReader(const LVIRReader &Other) = delete;
+  /// Deleted; IR readers are not copy-assignable.
+  /// \param Other Unused source reader.
+  LVIRReader &operator=(const LVIRReader &Other) = delete;
+  /// Destroy the IR reader.
   ~LVIRReader() = default;
 
+  /// Return the symbols that have location information in the current CU.
+  /// \returns Symbols that have location information in the current CU.
   const LVSymbols &GetSymbolsWithLocations() const {
     return SymbolsWithLocations;
   }
 
+  /// Return the register name for an IR location opcode and operands.
+  /// \param Opcode Location operation code selecting the register encoding.
+  /// \param Operands Operand list used to resolve the register name.
+  /// \returns Formatted register name for the given opcode and operands.
   std::string getRegisterName(LVSmall Opcode,
                               ArrayRef<uint64_t> Operands) override;
 
+  /// Print a debug summary of this reader to \p OS.
+  /// \param OS Output stream to write to.
   void print(raw_ostream &OS) const;
 #ifdef LLVM_DEBUG
+  /// Print all instructions in basic block \p BB (debug builds only).
+  /// \param BB Basic block whose instructions are printed.
   void printAllInstructions(BasicBlock *BB);
 #else
+  /// Print all instructions in basic block \p BB (debug builds only).
+  /// \param BB Basic block whose instructions are printed.
   void printAllInstructions(BasicBlock *BB) {};
 #endif
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump this reader to the debug stream.
   void dump() const { print(dbgs()); }
 #endif
 };

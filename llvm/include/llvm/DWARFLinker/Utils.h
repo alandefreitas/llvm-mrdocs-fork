@@ -21,26 +21,40 @@
 namespace llvm {
 namespace dwarf_linker {
 
-/// Build a map from an input DW_AT_LLVM_stmt_sequence byte offset to
-/// the first-row index (in \p LT.Rows) of the corresponding line-table
-/// sequence. Seeds the map from \p LT.Sequences (the DWARF parser's
-/// discovered sequences), then augments it by walking row boundaries
+/// Map each DW_AT_LLVM_stmt_sequence offset to its first line-table row.
+///
+/// Seeds the map from \p LT.Sequences (the DWARF parser's discovered
+/// sequences), then augments it by walking row boundaries
 /// (DW_LNE_end_sequence markers) and matching them against the sorted
 /// input offsets in \p SortedStmtSeqOffsets, using the parser's results
 /// as ground-truth anchors. This recovers sequences the parser may not
 /// have registered and keeps the classic and parallel DWARFLinkers in
-/// lockstep. Caller passes \p SortedStmtSeqOffsets sorted ascending
-/// and deduplicated.
+/// lockstep. Caller passes \p SortedStmtSeqOffsets sorted ascending and
+/// deduplicated.
+///
+/// \param LT Line table whose sequences and rows are consulted.
+/// \param SortedStmtSeqOffsets Ascending, deduplicated stmt_sequence byte
+///        offsets from the input.
+/// \param SeqOffToFirstRow Output map from stmt_sequence offset to the
+///        first-row index in \p LT.Rows.
 LLVM_ABI void buildStmtSeqOffsetToFirstRowIndex(
     const DWARFDebugLine::LineTable &LT,
     ArrayRef<uint64_t> SortedStmtSeqOffsets,
     DenseMap<uint64_t, uint64_t> &SeqOffToFirstRow);
 
-/// This function calls \p Iteration() until it returns false.
-/// If number of iterations exceeds \p MaxCounter then an Error is returned.
-/// This function should be used for loops which assumed to have number of
-/// iterations significantly smaller than \p MaxCounter to avoid infinite
-/// looping in error cases.
+/// Call \p Iteration until it returns false, or fail if the limit is hit.
+///
+/// If the number of iterations exceeds \p MaxCounter then an Error is
+/// returned. This function should be used for loops which are assumed to
+/// have a number of iterations significantly smaller than \p MaxCounter to
+/// avoid infinite looping in error cases.
+///
+/// \param Iteration Callback that returns true to continue, false to stop,
+///        or an Error on failure.
+/// \param MaxCounter Maximum allowed iterations before treating the loop as
+///        infinite.
+/// \return Success when \p Iteration returns false, or an Error if
+///         \p Iteration fails or \p MaxCounter is exceeded.
 inline Error finiteLoop(function_ref<Expected<bool>()> Iteration,
                         size_t MaxCounter = 100000) {
   size_t iterationsCounter = 0;
@@ -56,6 +70,9 @@ inline Error finiteLoop(function_ref<Expected<bool>()> Iteration,
 
 /// Make a best effort to guess the
 /// Xcode.app/Contents/Developer path from an SDK path.
+///
+/// \param SysRoot SDK or sysroot path to inspect.
+/// \return The inferred Developer directory, or an empty string on failure.
 inline StringRef guessDeveloperDir(StringRef SysRoot) {
   // Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   auto it = sys::path::rbegin(SysRoot);
@@ -91,7 +108,10 @@ inline StringRef guessDeveloperDir(StringRef SysRoot) {
   return {};
 }
 
-/// Make a best effort to determine whether Path is inside a toolchain.
+/// Make a best effort to determine whether \p Path is inside a toolchain.
+///
+/// \param Path Path string to inspect.
+/// \return True if \p Path appears to lie under a toolchain directory.
 inline bool isInToolchainDir(StringRef Path) {
   // Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2024-05-15-a.xctoolchain/usr/lib/swift/macosx/_StringProcessing.swiftmodule/arm64-apple-macos.private.swiftinterface
   for (auto it = sys::path::rbegin(Path), end = sys::path::rend(Path);

@@ -18,8 +18,9 @@
 
 namespace llvm {
 
-/// A MLModelRunner that asks for advice from an external agent, or host. It
-/// uses 2 files - ideally named pipes - one to send data to that agent, and
+/// MLModelRunner that requests advice from an external agent over two files.
+///
+/// It uses 2 files - ideally named pipes - one to send data to that agent, and
 /// one to receive advice.
 /// The data exchange uses the training logger (Utils/TrainingLogger.h) format.
 /// Specifically, the compiler will send the log header, set the context, and
@@ -38,19 +39,31 @@ namespace llvm {
 /// (which will hang until there's a writer on the other end).
 class LLVM_ABI InteractiveModelRunner : public MLModelRunner {
 public:
+  /// Construct an interactive runner that exchanges tensors with a host agent.
+  /// @param Ctx LLVM context used for diagnostics.
+  /// @param Inputs Tensor specifications describing the features to send.
+  /// @param Advice Tensor specification describing the advice to receive.
+  /// @param OutboundName Path of the file or pipe used to send data to the host.
+  /// @param InboundName Path of the file or pipe used to receive advice.
   InteractiveModelRunner(LLVMContext &Ctx,
                          const std::vector<TensorSpec> &Inputs,
                          const TensorSpec &Advice, StringRef OutboundName,
                          StringRef InboundName);
 
+  /// Return true if \p R is an InteractiveModelRunner.
+  /// @param R Model runner to test.
+  /// @return True if \p R is an InteractiveModelRunner.
   static bool classof(const MLModelRunner *R) {
     return R->getKind() == MLModelRunner::Kind::Interactive;
   }
+  /// Switch the logging context to \p Name and flush pending output.
+  /// @param Name New context name to switch to.
   void switchContext(StringRef Name) override {
     Log->switchContext(Name);
     Log->flush();
   }
 
+  /// Destroy this InteractiveModelRunner.
   ~InteractiveModelRunner() override;
 
 private:

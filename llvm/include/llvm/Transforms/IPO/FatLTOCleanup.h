@@ -24,9 +24,22 @@ namespace llvm {
 class Module;
 class ModuleSummaryIndex;
 
+/// Pass that cleans up IR for the FatLTO pipeline.
+///
+/// Instrumentation beneficial for bitcode sections used in LTO may need to be
+/// cleaned up to finish non-LTO compilation. For example, llvm.checked.load
+/// should be preserved for LTO but must not be left unchanged during per-TU
+/// compilation in FatLTO.
 class FatLtoCleanup : public RequiredPassInfoMixin<FatLtoCleanup> {
 public:
+  /// Construct a FatLTO cleanup pass.
   FatLtoCleanup() = default;
+
+  /// Clean up FatLTO-incompatible IR in module \p M.
+  ///
+  /// \param M Module whose IR is cleaned up for non-LTO FatLTO compilation.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

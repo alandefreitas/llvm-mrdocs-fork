@@ -17,26 +17,49 @@
 #include <string>
 
 namespace llvm {
+/// Virtual file system that records accessed paths in a FileCollector.
 class FileCollectorFileSystem;
 class Twine;
 
+/// Base class for collecting unique file and directory paths.
 class LLVM_ABI FileCollectorBase {
 public:
+  /// Construct an empty file collector base.
   FileCollectorBase();
+  /// Destroy the file collector base.
   virtual ~FileCollectorBase();
 
+  /// Record \p file if it has not already been seen.
+  ///
+  /// \param file Path of the file to collect.
   void addFile(const Twine &file);
+  /// Record \p Dir and the files it contains.
+  ///
+  /// \param Dir Path of the directory to collect.
   void addDirectory(const Twine &Dir);
 
 protected:
+  /// Record \p Path so later lookups can skip it.
+  ///
+  /// \param Path Path to record as already processed.
+  /// \return True if \p Path was newly recorded; false if empty or already seen.
   bool markAsSeen(StringRef Path) {
     if (Path.empty())
       return false;
     return Seen.insert(Path).second;
   }
 
+  /// Collect a newly seen file at \p SrcPath.
+  ///
+  /// \param SrcPath Path of the file to collect.
   virtual void addFileImpl(StringRef SrcPath) = 0;
 
+  /// Collect files in \p Dir using \p FS and return a directory iterator.
+  ///
+  /// \param Dir Directory whose entries should be collected.
+  /// \param FS File system used to iterate the directory.
+  /// \param EC Set if directory iteration fails.
+  /// \return A directory iterator positioned at the first entry of \p Dir.
   virtual llvm::vfs::directory_iterator
   addDirectoryImpl(const llvm::Twine &Dir,
                    IntrusiveRefCntPtr<vfs::FileSystem> FS,
@@ -73,17 +96,29 @@ public:
   /// path and a path to copy from.
   class PathCanonicalizer {
   public:
+    /// Pair of a real source path and its canonical virtual path.
     struct PathStorage {
+      /// Real path used as the copy source.
       SmallString<256> CopyFrom;
+      /// Canonical virtual path used in the VFS overlay.
       SmallString<256> VirtualPath;
     };
 
     /// Canonicalize a pair of virtual and real paths.
+    ///
+    /// \param SrcPath Path to convert into overlay and copy-from forms.
+    /// \return The virtual path and corresponding real copy-from path.
     LLVM_ABI PathStorage canonicalize(StringRef SrcPath);
 
     /// Return the underlying file system.
+    ///
+    /// \return The file system used to resolve paths.
     vfs::FileSystem &getFileSystem() const { return *VFS; };
 
+    /// Construct a canonicalizer that resolves paths through \p VFS.
+    ///
+    /// \param VFS File system used to make paths absolute and resolve
+    ///        directories.
     explicit PathCanonicalizer(IntrusiveRefCntPtr<vfs::FileSystem> VFS)
         : VFS(std::move(VFS)) {}
 
@@ -98,13 +133,20 @@ public:
     StringMap<std::string> CachedDirs;
   };
 
-  /// \p Root is the directory where collected files are will be stored.
-  /// \p OverlayRoot is VFS mapping root.
-  /// \p Root directory gets created in copyFiles unless it already exists.
+  /// Construct a collector that copies accessed files into a replayable overlay.
+  ///
+  /// The root directory is created in copyFiles unless it already exists.
+  ///
+  /// \param Root Directory where collected files will be stored.
+  /// \param OverlayRoot VFS mapping root used when writing the overlay.
+  /// \param VFS File system used to canonicalize collected paths.
   FileCollector(std::string Root, std::string OverlayRoot,
                 IntrusiveRefCntPtr<vfs::FileSystem> VFS);
 
   /// Write the yaml mapping (for the VFS) to the given file.
+  ///
+  /// \param MappingFile Path of the YAML file to write.
+  /// \return An error code if writing fails; a success code otherwise.
   std::error_code writeMapping(StringRef MappingFile);
 
   /// Copy the files into the root directory.
@@ -112,10 +154,17 @@ public:
   /// When StopOnError is true (the default) we abort as soon as one file
   /// cannot be copied. This is relatively common, for example when a file was
   /// removed after it was added to the mapping.
+  ///
+  /// \param StopOnError If true, return on the first copy failure.
+  /// \return An error code if copying fails; a success code otherwise.
   std::error_code copyFiles(bool StopOnError = true);
 
   /// Create a VFS that uses \p Collector to collect files accessed via \p
   /// BaseFS.
+  ///
+  /// \param BaseFS Underlying file system whose accesses are recorded.
+  /// \param Collector Collector that records each accessed path.
+  /// \return A VFS that records accesses through \p Collector.
   static IntrusiveRefCntPtr<vfs::FileSystem>
   createCollectorVFS(IntrusiveRefCntPtr<vfs::FileSystem> BaseFS,
                      std::shared_ptr<FileCollector> Collector);
@@ -131,8 +180,17 @@ private:
   }
 
 protected:
+  /// Add a VFS overlay mapping for the canonicalized \p SrcPath.
+  ///
+  /// \param SrcPath Accessed path to record in the overlay mapping.
   void addFileImpl(StringRef SrcPath) override;
 
+  /// Collect \p Dir and its entries from \p FS, returning a directory iterator.
+  ///
+  /// \param Dir Directory to collect.
+  /// \param FS File system used to iterate \p Dir.
+  /// \param EC Set if directory iteration fails.
+  /// \return A directory iterator positioned at the first entry of \p Dir.
   llvm::vfs::directory_iterator
   addDirectoryImpl(const llvm::Twine &Dir,
                    IntrusiveRefCntPtr<vfs::FileSystem> FS,

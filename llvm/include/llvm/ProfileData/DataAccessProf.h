@@ -38,10 +38,13 @@ namespace memprof {
 
 /// The location of data in the source code. Used by profile lookup API.
 struct SourceLocation {
+  /// Construct a source location from a filename and line number.
+  /// @param FileNameRef Path of the source file that owns the data.
+  /// @param Line One-based line number in that file.
   SourceLocation(StringRef FileNameRef, uint32_t Line)
       : FileName(FileNameRef.str()), Line(Line) {}
 
-  // Empty constructor is used in yaml conversion.
+  /// Construct an empty source location for YAML conversion.
   SourceLocation() = default;
   /// The filename where the data is located.
   std::string FileName;
@@ -92,18 +95,27 @@ struct DataAccessProfRecordRef {
 };
 } // namespace internal
 
-// SymbolID is either a string representing symbol name if the symbol has
-// stable mangled name relative to source code, or a uint64_t representing the
-// content hash of a string literal (with unstable name patterns like
-// `.str.N[.llvm.hash]`). The StringRef is owned by the class's saver object.
+/// Non-owning handle identifying a profiled data symbol.
+///
+/// Either a string representing the symbol name when the symbol has a stable
+/// mangled name relative to source code, or a uint64_t representing the content
+/// hash of a string literal (with unstable name patterns like
+/// `.str.N[.llvm.hash]`). The StringRef is owned by the class's saver object.
 using SymbolHandleRef = std::variant<StringRef, uint64_t>;
 
-// The senamtic is the same as `SymbolHandleRef` above. The strings are owned.
+/// Owning handle identifying a profiled data symbol.
+///
+/// Same semantic as \c SymbolHandleRef, except string names are owned by the
+/// variant.
 using SymbolHandle = std::variant<std::string, uint64_t>;
 
 /// The data access profiles for a symbol.
 struct DataAccessProfRecord {
 public:
+  /// Construct a record from a symbol handle, access count, and locations.
+  /// @param SymHandleRef Symbol name or string-literal content hash.
+  /// @param AccessCount Number of profiled accesses to the symbol.
+  /// @param LocRefs Source locations where the symbol appears.
   DataAccessProfRecord(SymbolHandleRef SymHandleRef, uint64_t AccessCount,
                        ArrayRef<internal::SourceLocationRef> LocRefs)
       : AccessCount(AccessCount) {
@@ -115,11 +127,13 @@ public:
     for (auto Loc : LocRefs)
       Locations.emplace_back(Loc.FileName, Loc.Line);
   }
-  // Empty constructor is used in yaml conversion.
+  /// Construct an empty record for YAML conversion.
   DataAccessProfRecord() = default;
+  /// Symbol name or string-literal content hash for this record.
   SymbolHandle SymHandle;
+  /// Number of profiled accesses to the symbol.
   uint64_t AccessCount = 0;
-  // The locations of data in the source code. Optional.
+  /// Optional source locations where the data symbol appears.
   SmallVector<SourceLocation> Locations;
 };
 
@@ -128,63 +142,96 @@ public:
 /// deserialization.
 class DataAccessProfData {
 public:
-  // Use MapVector to keep input order of strings for serialization and
-  // deserialization.
+  /// Map from owned symbol/filename strings to dense serialization indices.
+  ///
+  /// Uses MapVector so string order is preserved for serialization and
+  /// deserialization.
   using StringToIndexMap = llvm::MapVector<StringRef, uint64_t>;
 
+  /// Construct an empty data access profile.
   DataAccessProfData() : Saver(Allocator) {}
 
   /// Serialize profile data to the output stream.
+  ///
   /// Storage layout:
   /// - Serialized strings.
   /// - The encoded hashes.
   /// - Records.
+  /// @param OS Profile output stream that receives the serialized bytes.
+  /// @return Success, or an error if serialization fails.
   LLVM_ABI Error serialize(ProfOStream &OS) const;
 
   /// Deserialize this class from the given buffer.
+  /// @param Ptr Cursor into the serialized buffer; advanced past the payload.
+  /// @return Success, or an error if deserialization fails.
   LLVM_ABI Error deserialize(const unsigned char *&Ptr);
 
-  /// Returns a profile record for \p SymbolID, or std::nullopt if there
+  /// Returns a profile record for \p SymID, or std::nullopt if there
   /// isn't a record. Internally, this function will canonicalize the symbol
   /// name before the lookup.
+  /// @param SymID Symbol name or string-literal content hash to look up.
+  /// @return The matching profile record, or std::nullopt if none exists.
   LLVM_ABI std::optional<DataAccessProfRecord>
   getProfileRecord(const SymbolHandleRef SymID) const;
 
   /// Returns true if \p SymID is seen in profiled binaries and cold.
+  /// @param SymID Symbol name or string-literal content hash to test.
+  /// @return True if \p SymID is a known cold symbol.
   LLVM_ABI bool isKnownColdSymbol(const SymbolHandleRef SymID) const;
 
-  /// Methods to set symbolized data access profile. Returns error if
-  /// duplicated symbol names or content hashes are seen. The user of this
-  /// class should aggregate counters that correspond to the same symbol name
-  /// or with the same string literal hash before calling 'set*' methods.
+  /// Set the symbolized data access profile for a symbol.
+  ///
+  /// Returns error if duplicated symbol names or content hashes are seen. The
+  /// user of this class should aggregate counters that correspond to the same
+  /// symbol name or with the same string literal hash before calling 'set*'
+  /// methods.
+  /// @param SymbolID Symbol name or string-literal content hash.
+  /// @param AccessCount Aggregated number of profiled accesses.
+  /// @return Success, or an error if a duplicate symbol or hash is seen.
   LLVM_ABI Error setDataAccessProfile(SymbolHandleRef SymbolID,
                                       uint64_t AccessCount);
-  /// Similar to the method above, for records with \p Locations representing
-  /// the `filename:line` where this symbol shows up. Note because of linker's
-  /// merge of identical symbols (e.g., unnamed_addr string literals), one
-  /// symbol is likely to have multiple locations.
+  /// Set the symbolized data access profile with source locations.
+  ///
+  /// \p Locations holds the `filename:line` entries where this symbol shows up.
+  /// Because of linker's merge of identical symbols (e.g., unnamed_addr string
+  /// literals), one symbol is likely to have multiple locations.
+  /// @param SymbolID Symbol name or string-literal content hash.
+  /// @param AccessCount Aggregated number of profiled accesses.
+  /// @param Locations Source locations associated with the symbol.
+  /// @return Success, or an error if a duplicate symbol or hash is seen.
   LLVM_ABI Error setDataAccessProfile(SymbolHandleRef SymbolID,
                                       uint64_t AccessCount,
                                       ArrayRef<SourceLocation> Locations);
   /// Add a symbol that's seen in the profiled binary without samples.
+  /// @param SymbolID Symbol name or string-literal content hash to record.
+  /// @return Success, or an error if the symbol cannot be recorded.
   LLVM_ABI Error addKnownSymbolWithoutSamples(SymbolHandleRef SymbolID);
 
   /// The following methods return array reference for various internal data
   /// structures.
+  /// @return Array reference to the string-to-index map entries.
   ArrayRef<StringToIndexMap::value_type> getStrToIndexMapRef() const {
     return StrToIndexMap.getArrayRef();
   }
+  /// Return the ordered map of symbol handles to internal profile records.
+  /// @return Array reference to the symbol-handle-to-record map entries.
   ArrayRef<
       MapVector<SymbolHandleRef, internal::DataAccessProfRecordRef>::value_type>
   getRecords() const {
     return Records.getArrayRef();
   }
+  /// Return the known-cold symbol names observed without hot samples.
+  /// @return Array reference to the known-cold symbol names.
   ArrayRef<StringRef> getKnownColdSymbols() const {
     return KnownColdSymbols.getArrayRef();
   }
+  /// Return the known-cold string-literal content hashes.
+  /// @return Array reference to the known-cold string-literal content hashes.
   ArrayRef<uint64_t> getKnownColdHashes() const {
     return KnownColdHashes.getArrayRef();
   }
+  /// Return true if there are no records or known-cold symbols/hashes.
+  /// @return True if there are no records or known-cold symbols/hashes.
   [[nodiscard]] bool empty() const {
     return Records.empty() && KnownColdSymbols.empty() &&
            KnownColdHashes.empty();

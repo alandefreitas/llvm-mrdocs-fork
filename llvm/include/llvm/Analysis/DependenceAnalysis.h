@@ -54,14 +54,14 @@ class LoopInfo;
 class SCEVConstant;
 class raw_ostream;
 
-/// Dependence - This class represents a dependence between two memory
-/// memory references in a function. It contains minimal information and
-/// is used in the very common situation where the compiler is unable to
-/// determine anything beyond the existence of a dependence; that is, it
-/// represents a confused dependence (see also FullDependence). In most
-/// cases (for output, flow, and anti dependences), the dependence implies
-/// an ordering, where the source must precede the destination; in contrast,
-/// input dependences are unordered.
+/// Minimal dependence between two memory references in a function.
+///
+/// It contains minimal information and is used in the very common situation
+/// where the compiler is unable to determine anything beyond the existence of
+/// a dependence; that is, it represents a confused dependence (see also
+/// FullDependence). In most cases (for output, flow, and anti dependences),
+/// the dependence implies an ordering, where the source must precede the
+/// destination; in contrast, input dependences are unordered.
 ///
 /// When a dependence graph is built, each Dependence will be a member of
 /// the set of predecessor edges for its destination instruction and a set
@@ -70,21 +70,32 @@ class raw_ostream;
 /// itelf.
 class LLVM_ABI Dependence {
 protected:
-  Dependence(Dependence &&) = default;
-  Dependence &operator=(Dependence &&) = default;
+  /// Move-construct this dependence, transferring ownership of linked state.
+  /// @param Other Dependence to move from.
+  Dependence(Dependence &&Other) = default;
+  /// Move-assign this dependence, transferring ownership of linked state.
+  /// @param Other Dependence to move from.
+  /// @return A reference to this dependence.
+  Dependence &operator=(Dependence &&Other) = default;
 
 public:
+  /// Construct a dependence from \p Source to \p Destination under \p A.
+  /// @param Source Source memory instruction.
+  /// @param Destination Destination memory instruction.
+  /// @param A Runtime assumptions under which this dependence is valid.
   Dependence(Instruction *Source, Instruction *Destination,
              const SCEVUnionPredicate &A)
       : Src(Source), Dst(Destination), Assumptions(A) {}
+  /// Destroy this dependence.
   virtual ~Dependence() = default;
 
-  /// Dependence::DVEntry - Each level in the distance/direction vector
-  /// has a direction (or perhaps a union of several directions), and
-  /// perhaps a distance.
-  /// The dependency information could be across a single loop level or across
-  /// two separate levels that have the same trip count and nesting depth,
-  /// which helps to provide information for loop fusion candidation.
+  /// One level of a dependence distance/direction vector.
+  ///
+  /// Each level has a direction (or a union of several directions), and
+  /// perhaps a distance. The dependency information could be across a single
+  /// loop level or across two separate levels that have the same trip count
+  /// and nesting depth, which helps to provide information for loop fusion
+  /// candidation.
   /// For example, loops b and c have the same iteration count and depth:
   ///    for (a = ...) {
   ///      for (b = 0; b < 10; b++) {
@@ -93,124 +104,169 @@ public:
   ///      }
   ///    }
   struct DVEntry {
+    /// Direction bit flags for a vector entry (values may be OR-combined).
     enum : unsigned char {
-      NONE = 0,
-      LT = 1,
-      EQ = 2,
-      LE = 3,
-      GT = 4,
-      NE = 5,
-      GE = 6,
-      ALL = 7
+      NONE = 0, ///< No direction information.
+      LT = 1,   ///< Less-than direction (<).
+      EQ = 2,   ///< Equal direction (=).
+      LE = 3,   ///< Less-than or equal (<=); LT | EQ.
+      GT = 4,   ///< Greater-than direction (>).
+      NE = 5,   ///< Not-equal direction (<>); LT | GT.
+      GE = 6,   ///< Greater-than or equal (>=); GT | EQ.
+      ALL = 7   ///< All directions possible; LT | EQ | GT.
     };
-    unsigned char Direction : 3; // Init to ALL, then refine.
-    bool Scalar : 1;             // Init to true.
-    const SCEV *Distance = nullptr; // NULL implies no distance available.
+    /// Direction flags for this level; initialized to ALL, then refined.
+    unsigned char Direction : 3;
+    /// True when this level is scalar (no induction variable in subscripts).
+    bool Scalar : 1;
+    /// Dependence distance at this level, or null if unavailable.
+    const SCEV *Distance = nullptr;
+    /// Construct a DVEntry with direction ALL and Scalar true.
     DVEntry() : Direction(ALL), Scalar(true) {}
   };
 
   /// getSrc - Returns the source instruction for this dependence.
+  /// @return The source instruction.
   Instruction *getSrc() const { return Src; }
 
   /// getDst - Returns the destination instruction for this dependence.
+  /// @return The destination instruction.
   Instruction *getDst() const { return Dst; }
 
   /// isInput - Returns true if this is an input dependence.
+  /// @return True if this is an input dependence.
   bool isInput() const;
 
   /// isOutput - Returns true if this is an output dependence.
+  /// @return True if this is an output dependence.
   bool isOutput() const;
 
   /// isFlow - Returns true if this is a flow (aka true) dependence.
+  /// @return True if this is a flow dependence.
   bool isFlow() const;
 
   /// isAnti - Returns true if this is an anti dependence.
+  /// @return True if this is an anti dependence.
   bool isAnti() const;
 
   /// isOrdered - Returns true if dependence is Output, Flow, or Anti
+  /// @return True if this is an ordered dependence.
   bool isOrdered() const { return isOutput() || isFlow() || isAnti(); }
 
   /// isUnordered - Returns true if dependence is Input
+  /// @return True if this is an input (unordered) dependence.
   bool isUnordered() const { return isInput(); }
 
   /// isLoopIndependent - Returns true if this is a loop-independent
   /// dependence.
+  /// @return True if this is a loop-independent dependence.
   virtual bool isLoopIndependent() const { return true; }
 
   /// isConfused - Returns true if this dependence is confused
   /// (the compiler understands nothing and makes worst-case assumptions).
+  /// @return True if this dependence is confused.
   virtual bool isConfused() const { return true; }
 
   /// getLevels - Returns the number of common loops surrounding the
   /// source and destination of the dependence.
+  /// @return The number of common loop levels.
   virtual unsigned getLevels() const { return 0; }
 
   /// getSameSDLevels - Returns the number of separate SameSD loops surrounding
   /// the source and destination of the dependence.
+  /// @return The number of SameSD loop levels.
   virtual unsigned getSameSDLevels() const { return 0; }
 
   /// getDirection - Returns the direction associated with a particular
   /// common or SameSD level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param SameSD When true, interpret \p Level as a SameSD level.
+  /// @return Direction flags for \p Level.
   virtual unsigned getDirection(unsigned Level, bool SameSD = false) const {
     return DVEntry::ALL;
   }
 
   /// getDistance - Returns the distance (or NULL) associated with a
   /// particular common or SameSD level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param SameSD When true, interpret \p Level as a SameSD level.
+  /// @return The dependence distance at \p Level, or null if unavailable.
   virtual const SCEV *getDistance(unsigned Level, bool SameSD = false) const {
     return nullptr;
   }
 
   /// Check if the direction vector is negative. A negative direction
   /// vector means Src and Dst are reversed in the actual program.
+  /// @return True if the direction vector is negative.
   virtual bool isDirectionNegative() const { return false; }
 
-  /// Negate the dependence by swapping the source and destination, and
-  /// reversing the direction and distance information.
+  /// Negate the dependence by swapping the source and destination.
+  ///
+  /// Also reverses the direction and distance information.
+  /// @param SE ScalarEvolution used when reversing distances.
   virtual void negate(ScalarEvolution &SE) {}
 
-  /// If the direction vector is negative, normalize the direction
-  /// vector to make it non-negative. Normalization is done by reversing
-  /// Src and Dst, plus reversing the dependence directions and distances
-  /// in the vector.
+  /// Normalize a negative direction vector to make it non-negative.
+  ///
+  /// Normalization is done by reversing Src and Dst, plus reversing the
+  /// dependence directions and distances in the vector.
+  /// @param SE ScalarEvolution used when reversing distances.
+  /// @return True if the dependence was normalized.
   virtual bool normalize(ScalarEvolution *SE) { return false; }
 
   /// inSameSDLoops - Returns true if this level is an SameSD level, i.e.,
   /// performed across two separate loop nests that have the Same Iteration and
   /// Depth.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @return True if \p Level is a SameSD level.
   virtual bool inSameSDLoops(unsigned Level) const { return false; }
 
-  /// isScalar - Returns true if a particular regular or SameSD level is
-  /// scalar; that is, if no subscript in the source or destination mention
-  /// the induction variable associated with the loop at this level.
+  /// Return true if a particular regular or SameSD level is scalar.
+  ///
+  /// A level is scalar when no subscript in the source or destination
+  /// mentions the induction variable associated with the loop at this level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param SameSD When true, interpret \p Level as a SameSD level.
+  /// @return True if the level is scalar.
   virtual bool isScalar(unsigned Level, bool SameSD = false) const;
 
   /// getNextPredecessor - Returns the value of the NextPredecessor field.
+  /// @return The next predecessor dependence in the list, or null.
   const Dependence *getNextPredecessor() const { return NextPredecessor; }
 
   /// getNextSuccessor - Returns the value of the NextSuccessor field.
+  /// @return The next successor dependence in the list, or null.
   const Dependence *getNextSuccessor() const { return NextSuccessor; }
 
   /// setNextPredecessor - Sets the value of the NextPredecessor
   /// field.
+  /// @param pred Dependence to become the next predecessor in the list.
   void setNextPredecessor(const Dependence *pred) { NextPredecessor = pred; }
 
   /// setNextSuccessor - Sets the value of the NextSuccessor field.
+  /// @param succ Dependence to become the next successor in the list.
   void setNextSuccessor(const Dependence *succ) { NextSuccessor = succ; }
 
   /// getRuntimeAssumptions - Returns the runtime assumptions under which this
   /// Dependence relation is valid.
+  /// @return The runtime assumptions for this dependence.
   SCEVUnionPredicate getRuntimeAssumptions() const { return Assumptions; }
 
   /// dump - For debugging purposes, dumps a dependence to OS.
+  /// @param OS Stream to write the dependence dump to.
   void dump(raw_ostream &OS) const;
 
   /// dumpImp - For debugging purposes. Dumps a dependence to OS with or
   /// without considering the SameSD levels.
+  /// @param OS Stream to write the dependence dump to.
+  /// @param IsSameSD When true, include SameSD levels in the dump.
   void dumpImp(raw_ostream &OS, bool IsSameSD = false) const;
 
 protected:
-  Instruction *Src, *Dst;
+  /// Source instruction of this dependence.
+  Instruction *Src;
+  /// Destination instruction of this dependence.
+  Instruction *Dst;
 
 private:
   SCEVUnionPredicate Assumptions;
@@ -218,39 +274,53 @@ private:
   friend class DependenceInfo;
 };
 
-/// FullDependence - This class represents a dependence between two memory
-/// references in a function. It contains detailed information about the
-/// dependence (direction vectors, etc.) and is used when the compiler is
-/// able to accurately analyze the interaction of the references; that is,
-/// it is not a confused dependence (see Dependence). In most cases
-/// (for output, flow, and anti dependences), the dependence implies an
-/// ordering, where the source must precede the destination; in contrast,
-/// input dependences are unordered.
+/// Detailed dependence between two memory references in a function.
+///
+/// It contains detailed information about the dependence (direction vectors,
+/// etc.) and is used when the compiler is able to accurately analyze the
+/// interaction of the references; that is, it is not a confused dependence
+/// (see Dependence). In most cases (for output, flow, and anti dependences),
+/// the dependence implies an ordering, where the source must precede the
+/// destination; in contrast, input dependences are unordered.
 class LLVM_ABI FullDependence final : public Dependence {
 public:
+  /// Construct a full dependence from \p Source to \p Destination.
+  /// @param Source Source memory instruction.
+  /// @param Destination Destination memory instruction.
+  /// @param Assumes Runtime assumptions under which this dependence is valid.
+  /// @param PossiblyLoopIndependent Whether the dependence may be
+  ///        loop-independent.
+  /// @param Levels Number of common loop levels in the direction vector.
   FullDependence(Instruction *Source, Instruction *Destination,
                  const SCEVUnionPredicate &Assumes,
                  bool PossiblyLoopIndependent, unsigned Levels);
 
   /// isLoopIndependent - Returns true if this is a loop-independent
   /// dependence.
+  /// @return True if this is a loop-independent dependence.
   bool isLoopIndependent() const override { return LoopIndependent; }
 
   /// isConfused - Returns true if this dependence is confused
   /// (the compiler understands nothing and makes worst-case
   /// assumptions).
+  /// @return True if this dependence is confused.
   bool isConfused() const override { return false; }
 
   /// getLevels - Returns the number of common loops surrounding the
   /// source and destination of the dependence.
+  /// @return The number of common loop levels.
   unsigned getLevels() const override { return Levels; }
 
   /// getSameSDLevels - Returns the number of separate SameSD loops surrounding
   /// the source and destination of the dependence.
+  /// @return The number of SameSD loop levels.
   unsigned getSameSDLevels() const override { return SameSDLevels; }
 
   /// getDVEntry - Returns the DV entry associated with a regular or a
   /// SameSD level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param IsSameSD When true, interpret \p Level as a SameSD level.
+  /// @return The DVEntry for \p Level.
   DVEntry getDVEntry(unsigned Level, bool IsSameSD) const {
     if (!IsSameSD) {
       assert(0 < Level && Level <= Levels && "Level out of range");
@@ -265,32 +335,51 @@ public:
 
   /// getDirection - Returns the direction associated with a particular
   /// common or SameSD level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param SameSD When true, interpret \p Level as a SameSD level.
+  /// @return Direction flags for \p Level.
   unsigned getDirection(unsigned Level, bool SameSD = false) const override;
 
   /// getDistance - Returns the distance (or NULL) associated with a
   /// particular common or SameSD level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param SameSD When true, interpret \p Level as a SameSD level.
+  /// @return The dependence distance at \p Level, or null if unavailable.
   const SCEV *getDistance(unsigned Level, bool SameSD = false) const override;
 
   /// Check if the direction vector is negative. A negative direction
   /// vector means Src and Dst are reversed in the actual program.
+  /// @return True if the direction vector is negative.
   bool isDirectionNegative() const override;
 
+  /// Negate the dependence by swapping the source and destination.
+  ///
+  /// Also reverses the direction and distance information.
+  /// @param SE ScalarEvolution used when reversing distances.
   void negate(ScalarEvolution &SE) override;
 
-  /// If the direction vector is negative, normalize the direction
-  /// vector to make it non-negative. Normalization is done by reversing
-  /// Src and Dst, plus reversing the dependence directions and distances
-  /// in the vector.
+  /// Normalize a negative direction vector to make it non-negative.
+  ///
+  /// Normalization is done by reversing Src and Dst, plus reversing the
+  /// dependence directions and distances in the vector.
+  /// @param SE ScalarEvolution used when reversing distances.
+  /// @return True if the dependence was normalized.
   bool normalize(ScalarEvolution *SE) override;
 
   /// inSameSDLoops - Returns true if this level is an SameSD level, i.e.,
   /// performed across two separate loop nests that have the Same Iteration and
   /// Depth.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @return True if \p Level is a SameSD level.
   bool inSameSDLoops(unsigned Level) const override;
 
-  /// isScalar - Returns true if a particular regular or SameSD level is
-  /// scalar; that is, if no subscript in the source or destination mention
-  /// the induction variable associated with the loop at this level.
+  /// Return true if a particular regular or SameSD level is scalar.
+  ///
+  /// A level is scalar when no subscript in the source or destination
+  /// mentions the induction variable associated with the loop at this level.
+  /// @param Level Loop nesting level to query (1-based).
+  /// @param SameSD When true, interpret \p Level as a SameSD level.
+  /// @return True if the level is scalar.
   bool isScalar(unsigned Level, bool SameSD = false) const override;
 
 private:
@@ -305,24 +394,41 @@ private:
 /// DependenceInfo - This class is the main dependence-analysis driver.
 class DependenceInfo {
 public:
+  /// Construct dependence analysis for function \p F.
+  /// @param F Function to analyze.
+  /// @param AA Alias analysis results to use.
+  /// @param SE ScalarEvolution analysis to use.
+  /// @param LI Loop information to use.
   DependenceInfo(Function *F, AAResults *AA, ScalarEvolution *SE, LoopInfo *LI)
       : AA(AA), SE(SE), LI(LI), F(F) {}
 
   /// Handle transitive invalidation when the cached analysis results go away.
+  /// @param F Function whose analyses may be invalidated.
+  /// @param PA Set of analyses preserved by the invalidating transform.
+  /// @param Inv Invalidator used to invalidate dependent analyses.
+  /// @return True if this analysis result should be invalidated.
   LLVM_ABI bool invalidate(Function &F, const PreservedAnalyses &PA,
                            FunctionAnalysisManager::Invalidator &Inv);
 
-  /// depends - Tests for a dependence between the Src and Dst instructions.
+  /// Test for a dependence between the Src and Dst instructions.
+  ///
   /// Returns NULL if no dependence; otherwise, returns a Dependence (or a
   /// FullDependence) with as much information as can be gleaned. By default,
   /// the dependence test collects a set of runtime assumptions that cannot be
   /// solved at compilation time. By default UnderRuntimeAssumptions is false
   /// for a safe approximation of the dependence relation that does not
   /// require runtime checks.
+  /// @param Src Source memory instruction.
+  /// @param Dst Destination memory instruction.
+  /// @param UnderRuntimeAssumptions When true, allow dependences that are
+  ///        valid only under collected runtime assumptions.
+  /// @return A Dependence describing the relation, or null if none exists.
   LLVM_ABI std::unique_ptr<Dependence>
   depends(Instruction *Src, Instruction *Dst,
           bool UnderRuntimeAssumptions = false);
 
+  /// Return the function being analyzed.
+  /// @return The function being analyzed.
   Function *getFunction() const { return F; }
 
 private:
@@ -704,7 +810,12 @@ private:
 /// AnalysisPass to compute dependence information in a function
 class DependenceAnalysis : public AnalysisInfoMixin<DependenceAnalysis> {
 public:
+  /// Result type produced by this analysis.
   typedef DependenceInfo Result;
+  /// Run dependence analysis on function \p F.
+  /// @param F Function to analyze.
+  /// @param FAM Function analysis manager providing required analyses.
+  /// @return Dependence information for \p F.
   LLVM_ABI Result run(Function &F, FunctionAnalysisManager &FAM);
 
 private:
@@ -715,9 +826,17 @@ private:
 /// Printer pass to dump DA results.
 struct DependenceAnalysisPrinterPass
     : public RequiredPassInfoMixin<DependenceAnalysisPrinterPass> {
+  /// Construct a printer that writes dependence results to \p OS.
+  /// @param OS Stream to write the printed results to.
+  /// @param NormalizeResults When true, normalize dependence directions
+  ///        before printing.
   DependenceAnalysisPrinterPass(raw_ostream &OS, bool NormalizeResults = false)
       : OS(OS), NormalizeResults(NormalizeResults) {}
 
+  /// Print dependence analysis results for \p F.
+  /// @param F Function whose dependence results are printed.
+  /// @param FAM Function analysis manager providing DependenceAnalysis.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 
 private:
@@ -728,13 +847,26 @@ private:
 /// Legacy pass manager pass to access dependence information
 class LLVM_ABI DependenceAnalysisWrapperPass : public FunctionPass {
 public:
-  static char ID; // Class identification, replacement for typeinfo
+  /// Pass identification, replacement for typeid.
+  static char ID;
+  /// Construct the legacy dependence analysis wrapper pass.
   DependenceAnalysisWrapperPass();
 
+  /// Compute dependence information for function \p F.
+  /// @param F Function to analyze.
+  /// @return False; this analysis does not modify the function.
   bool runOnFunction(Function &F) override;
+  /// Release the cached DependenceInfo between runs.
   void releaseMemory() override;
-  void getAnalysisUsage(AnalysisUsage &) const override;
-  void print(raw_ostream &, const Module * = nullptr) const override;
+  /// Declare required and preserved analyses for this pass.
+  /// @param AU Analysis usage object to update.
+  void getAnalysisUsage(AnalysisUsage &AU) const override;
+  /// Print the cached dependence information.
+  /// @param OS Stream to write the printed results to.
+  /// @param M Optional module context; unused by this pass.
+  void print(raw_ostream &OS, const Module *M = nullptr) const override;
+  /// Return the cached DependenceInfo for the last analyzed function.
+  /// @return The cached DependenceInfo.
   DependenceInfo &getDI() const;
 
 private:
@@ -743,6 +875,7 @@ private:
 
 /// createDependenceAnalysisPass - This creates an instance of the
 /// DependenceAnalysis wrapper pass.
+/// @return A new DependenceAnalysisWrapperPass instance.
 LLVM_ABI FunctionPass *createDependenceAnalysisWrapperPass();
 
 } // namespace llvm

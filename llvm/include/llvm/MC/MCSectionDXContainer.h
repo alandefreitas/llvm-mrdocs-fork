@@ -20,6 +20,7 @@ namespace llvm {
 
 class MCSymbol;
 
+/// This represents a section in a DXContainer (DXBC) object file.
 class MCSectionDXContainer final : public MCSection {
   friend class MCContext;
 

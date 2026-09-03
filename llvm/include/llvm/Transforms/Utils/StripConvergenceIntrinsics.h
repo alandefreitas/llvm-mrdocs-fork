@@ -18,10 +18,19 @@
 
 namespace llvm {
 
+/// Pass that strips convergence intrinsics and operand bundles.
+///
+/// Convergence intrinsics and operand bundles are only useful when modifying
+/// the CFG during IR passes, so this pass removes them afterward.
 class StripConvergenceIntrinsicsPass
     : public OptionalPassInfoMixin<StripConvergenceIntrinsicsPass> {
 public:
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// Run the strip-convergence-intrinsics pass over the function.
+  /// @param F Function whose convergence intrinsics and operand bundles are
+  /// stripped.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 } // namespace llvm

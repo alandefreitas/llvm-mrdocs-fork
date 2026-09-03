@@ -22,13 +22,22 @@ namespace memprof {
 struct Frame;
 
 /// Return the allocation type for a given set of memory profile values.
+/// @param TotalLifetimeAccessDensity Sum of lifetime access densities (scaled
+///        by 100 for two decimal places of precision).
+/// @param AllocCount Number of allocations in the profile.
+/// @param TotalLifetime Sum of allocation lifetimes, in milliseconds.
+/// @return Hot, Cold, or NotCold based on average density and lifetime.
 LLVM_ABI AllocationType getAllocType(uint64_t TotalLifetimeAccessDensity,
                                      uint64_t AllocCount,
                                      uint64_t TotalLifetime);
 
-/// Helper to generate a single hash id for a given callstack, used for emitting
-/// matching statistics and useful for uniquing such statistics across modules.
-/// Also used to dedup contexts when computing the summary.
+/// Generate a single hash id for a given callstack.
+///
+/// Used for emitting matching statistics and useful for uniquing such
+/// statistics across modules. Also used to dedup contexts when computing the
+/// summary.
+/// @param CallStack Frames that form the callstack to hash.
+/// @return 64-bit hash uniquely identifying the callstack.
 LLVM_ABI uint64_t computeFullStackId(ArrayRef<Frame> CallStack);
 
 } // namespace memprof

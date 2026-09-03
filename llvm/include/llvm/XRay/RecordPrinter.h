@@ -19,28 +19,73 @@
 
 namespace llvm::xray {
 
+/// RecordVisitor that prints an individual FDR record for human inspection.
+///
+/// Formats a single FDR record's data in an adhoc text form, writing to a
+/// raw_ostream and optionally separating successive prints with a delimiter.
 class LLVM_ABI RecordPrinter : public RecordVisitor {
   raw_ostream &OS;
   std::string Delim;
 
 public:
+  /// Construct a record printer writing to \p O with delimiter \p D.
+  /// \param O Output stream that receives formatted record text.
+  /// \param D Delimiter appended after each printed record.
   explicit RecordPrinter(raw_ostream &O, std::string D)
       : OS(O), Delim(std::move(D)) {}
 
+  /// Construct a record printer writing to \p O with an empty delimiter.
+  /// \param O Output stream that receives formatted record text.
   explicit RecordPrinter(raw_ostream &O) : RecordPrinter(O, ""){};
 
-  Error visit(BufferExtents &) override;
-  Error visit(WallclockRecord &) override;
-  Error visit(NewCPUIDRecord &) override;
-  Error visit(TSCWrapRecord &) override;
-  Error visit(CustomEventRecord &) override;
-  Error visit(CallArgRecord &) override;
-  Error visit(PIDRecord &) override;
-  Error visit(NewBufferRecord &) override;
-  Error visit(EndBufferRecord &) override;
-  Error visit(FunctionRecord &) override;
-  Error visit(CustomEventRecordV5 &) override;
-  Error visit(TypedEventRecord &) override;
+  /// Print a buffer-extents record to the output stream.
+  /// \param R Buffer extents record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(BufferExtents &R) override;
+  /// Print a wall-clock record to the output stream.
+  /// \param R Wall-clock record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(WallclockRecord &R) override;
+  /// Print a new-CPU-ID record to the output stream.
+  /// \param R New CPU ID record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(NewCPUIDRecord &R) override;
+  /// Print a TSC-wrap record to the output stream.
+  /// \param R TSC wrap record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(TSCWrapRecord &R) override;
+  /// Print a custom-event record to the output stream.
+  /// \param R Custom event record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(CustomEventRecord &R) override;
+  /// Print a call-argument record to the output stream.
+  /// \param R Call argument record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(CallArgRecord &R) override;
+  /// Print a PID record to the output stream.
+  /// \param R PID record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(PIDRecord &R) override;
+  /// Print a new-buffer record to the output stream.
+  /// \param R New buffer record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(NewBufferRecord &R) override;
+  /// Print an end-of-buffer record to the output stream.
+  /// \param R End-of-buffer record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(EndBufferRecord &R) override;
+  /// Print a function record to the output stream.
+  /// \param R Function record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(FunctionRecord &R) override;
+  /// Print a v5 custom-event record to the output stream.
+  /// \param R V5 custom event record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(CustomEventRecordV5 &R) override;
+  /// Print a typed-event record to the output stream.
+  /// \param R Typed event record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(TypedEventRecord &R) override;
 };
 
 } // namespace llvm::xray

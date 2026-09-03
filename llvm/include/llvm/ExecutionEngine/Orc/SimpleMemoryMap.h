@@ -32,6 +32,8 @@
 
 namespace llvm::orc {
 
+/// Controller-side bindings to an executor-side memory manager.
+///
 /// The resolved controller-side handle to an executor-side memory manager: the
 /// address of the manager instance, which is passed as the first argument to
 /// each call, plus the proxies for its operations.
@@ -56,10 +58,15 @@ struct SimpleMemoryMapBindings {
   /// Release the reservations with the given base addresses.
   using ReleaseProxy = Proxy<Error(ExecutorAddr, ArrayRef<ExecutorAddr>)>;
 
+  /// Address of the executor-side memory manager instance.
   ExecutorAddr Instance;
+  /// Proxy for the executor-side reserve operation.
   ReserveProxy Reserve;
+  /// Proxy for the executor-side initialize operation.
   InitializeProxy Initialize;
+  /// Proxy for the executor-side deinitialize operation.
   DeinitializeProxy Deinitialize;
+  /// Proxy for the executor-side release operation.
   ReleaseProxy Release;
 };
 

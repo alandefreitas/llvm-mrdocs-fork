@@ -29,18 +29,46 @@ namespace codeview {
 class TypeIndex;
 struct GUID;
 
+/// Abstract interface for emitting CodeView record bytes to an assembly stream.
 class CodeViewRecordStreamer {
 public:
+  /// Emit the raw bytes in \p Data to the output stream.
+  ///
+  /// \param Data Bytes to emit.
   virtual void emitBytes(StringRef Data) = 0;
+  /// Emit integer \p Value occupying \p Size bytes.
+  ///
+  /// \param Value Integer value to emit.
+  /// \param Size Number of bytes to write for \p Value.
   virtual void emitIntValue(uint64_t Value, unsigned Size) = 0;
+  /// Emit \p Data as binary data in the assembly output.
+  ///
+  /// \param Data Bytes to emit as binary data.
   virtual void emitBinaryData(StringRef Data) = 0;
+  /// Attach an assembly comment built from \p T.
+  ///
+  /// \param T Comment text to add.
   virtual void AddComment(const Twine &T) = 0;
+  /// Attach a raw (unformatted) assembly comment built from \p T.
+  ///
+  /// \param T Raw comment text to add.
   virtual void AddRawComment(const Twine &T) = 0;
+  /// Return true if the streamer is producing verbose assembly comments.
+  ///
+  /// \returns True if verbose assembly comments are enabled.
   virtual bool isVerboseAsm() = 0;
+  /// Return a human-readable name for type index \p TI.
+  ///
+  /// \param TI Type index whose name should be resolved.
+  ///
+  /// \returns Human-readable name for \p TI.
   virtual std::string getTypeName(TypeIndex TI) = 0;
+  /// Destroy the streamer.
   virtual ~CodeViewRecordStreamer() = default;
 };
 
+/// Reads, writes, or streams CodeView records through a shared field-mapping
+/// interface.
 class CodeViewRecordIO {
   uint32_t getCurrentOffset() const {
     if (isWriting())
@@ -52,33 +80,75 @@ class CodeViewRecordIO {
   }
 
 public:
-  // deserializes records to structures
+  /// Construct a record I/O object that deserializes records from \p Reader.
+  ///
+  /// \param Reader Binary stream reader supplying record bytes.
   explicit CodeViewRecordIO(BinaryStreamReader &Reader) : Reader(&Reader) {}
 
-  // serializes records to buffer
+  /// Construct a record I/O object that serializes records into \p Writer.
+  ///
+  /// \param Writer Binary stream writer receiving record bytes.
   explicit CodeViewRecordIO(BinaryStreamWriter &Writer) : Writer(&Writer) {}
 
-  // writes records to assembly file using MC library interface
+  /// Construct a record I/O object that streams records via \p Streamer.
+  ///
+  /// \param Streamer Assembly streamer used to emit record bytes and comments.
   explicit CodeViewRecordIO(CodeViewRecordStreamer &Streamer)
       : Streamer(&Streamer) {}
 
+  /// Begin a record with an optional maximum payload length.
+  ///
+  /// \param MaxLength Optional hard limit on the number of bytes in this
+  /// record; when set, nested field reads/writes are bounded by it.
+  ///
+  /// \returns Success, or an Error if the record cannot be started.
   LLVM_ABI Error beginRecord(std::optional<uint32_t> MaxLength);
+  /// Finish the current record and restore the previous length limit.
+  ///
+  /// When streaming, also emits LF_PAD padding so the record ends on a 4-byte
+  /// boundary.
+  ///
+  /// \returns Success, or an Error if finishing the record fails.
   LLVM_ABI Error endRecord();
 
+  /// Map a CodeView type index field, optionally emitting \p Comment.
+  ///
+  /// \param TypeInd Type index value to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the field cannot be mapped.
   LLVM_ABI Error mapInteger(TypeIndex &TypeInd, const Twine &Comment = "");
 
+  /// Return true if this I/O object is streaming records to an assembler.
+  ///
+  /// \returns True if streaming to an assembly streamer.
   bool isStreaming() const {
     return (Streamer != nullptr) && (Reader == nullptr) && (Writer == nullptr);
   }
+  /// Return true if this I/O object is reading records from a binary stream.
+  ///
+  /// \returns True if reading from a binary stream reader.
   bool isReading() const {
     return (Reader != nullptr) && (Streamer == nullptr) && (Writer == nullptr);
   }
+  /// Return true if this I/O object is writing records to a binary stream.
+  ///
+  /// \returns True if writing through a binary stream writer.
   bool isWriting() const {
     return (Writer != nullptr) && (Streamer == nullptr) && (Reader == nullptr);
   }
 
+  /// Return the maximum number of bytes the next field may occupy.
+  ///
+  /// \returns Maximum length in bytes available for the next field.
   LLVM_ABI uint32_t maxFieldLength() const;
 
+  /// Map a trivially copyable object by reading, writing, or streaming its
+  /// bytes.
+  ///
+  /// \param Value Object whose representation is mapped.
+  ///
+  /// \returns Success, or an Error if the object cannot be mapped.
   template <typename T> Error mapObject(T &Value) {
     if (isStreaming()) {
       StringRef BytesSR =
@@ -98,6 +168,12 @@ public:
     return Error::success();
   }
 
+  /// Map an integer field of type \c T, optionally emitting \p Comment.
+  ///
+  /// \param Value Integer value to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the field cannot be mapped.
   template <typename T> Error mapInteger(T &Value, const Twine &Comment = "") {
     if (isStreaming()) {
       emitComment(Comment);
@@ -112,6 +188,12 @@ public:
     return Reader->readInteger(Value);
   }
 
+  /// Map an enumeration field via its underlying integer type.
+  ///
+  /// \param Value Enumeration value to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the field cannot be mapped.
   template <typename T> Error mapEnum(T &Value, const Twine &Comment = "") {
     if (!isStreaming() && sizeof(Value) > maxFieldLength())
       return make_error<CodeViewError>(cv_error_code::insufficient_buffer);
@@ -131,15 +213,61 @@ public:
     return Error::success();
   }
 
+  /// Map a signed integer encoded in CodeView's variable-length form.
+  ///
+  /// \param Value Signed integer to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the encoded integer cannot be mapped.
   LLVM_ABI Error mapEncodedInteger(int64_t &Value, const Twine &Comment = "");
+  /// Map an unsigned integer encoded in CodeView's variable-length form.
+  ///
+  /// \param Value Unsigned integer to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the encoded integer cannot be mapped.
   LLVM_ABI Error mapEncodedInteger(uint64_t &Value, const Twine &Comment = "");
+  /// Map an arbitrary-precision integer encoded in CodeView's variable-length
+  /// form.
+  ///
+  /// \param Value Arbitrary-precision integer to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the encoded integer cannot be mapped.
   LLVM_ABI Error mapEncodedInteger(APSInt &Value, const Twine &Comment = "");
+  /// Map a null-terminated string field.
+  ///
+  /// \param Value Null-terminated string to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the string cannot be mapped.
   LLVM_ABI Error mapStringZ(StringRef &Value, const Twine &Comment = "");
+  /// Map a 16-byte GUID field.
+  ///
+  /// \param Guid GUID value to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the GUID cannot be mapped.
   LLVM_ABI Error mapGuid(GUID &Guid, const Twine &Comment = "");
 
+  /// Map a sequence of null-terminated strings ended by an empty string.
+  ///
+  /// \param Value Vector of strings to read, write, or stream.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the string vector cannot be mapped.
   LLVM_ABI Error mapStringZVectorZ(std::vector<StringRef> &Value,
                                    const Twine &Comment = "");
 
+  /// Map a length-prefixed vector of \p Items using \p Mapper for each element.
+  ///
+  /// The element count is serialized as \c SizeType before the elements.
+  ///
+  /// \param Items Container of elements to read, write, or stream.
+  /// \param Mapper Callable that maps one element given this I/O object.
+  /// \param Comment Optional assembly comment describing the vector.
+  ///
+  /// \returns Success, or an Error if the vector cannot be mapped.
   template <typename SizeType, typename T, typename ElementMapper>
   Error mapVectorN(T &Items, const ElementMapper &Mapper,
                    const Twine &Comment = "") {
@@ -177,6 +305,16 @@ public:
     return Error::success();
   }
 
+  /// Map a trailing vector of \p Items with no explicit length prefix.
+  ///
+  /// When reading, elements are consumed until the stream ends or padding
+  /// bytes are reached.
+  ///
+  /// \param Items Container of elements to read, write, or stream.
+  /// \param Mapper Callable that maps one element given this I/O object.
+  /// \param Comment Optional assembly comment describing the vector.
+  ///
+  /// \returns Success, or an Error if the vector cannot be mapped.
   template <typename T, typename ElementMapper>
   Error mapVectorTail(T &Items, const ElementMapper &Mapper,
                       const Twine &Comment = "") {
@@ -198,20 +336,48 @@ public:
     return Error::success();
   }
 
+  /// Map the remaining record bytes as a byte vector into \p Bytes.
+  ///
+  /// \param Bytes Byte span filled when reading, or sourced when writing or
+  /// streaming.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the byte vector cannot be mapped.
   LLVM_ABI Error mapByteVectorTail(ArrayRef<uint8_t> &Bytes,
                                    const Twine &Comment = "");
+  /// Map the remaining record bytes as a byte vector into \p Bytes.
+  ///
+  /// \param Bytes Byte vector filled when reading, or sourced when writing or
+  /// streaming.
+  /// \param Comment Optional assembly comment describing the field.
+  ///
+  /// \returns Success, or an Error if the byte vector cannot be mapped.
   LLVM_ABI Error mapByteVectorTail(std::vector<uint8_t> &Bytes,
                                    const Twine &Comment = "");
 
+  /// Pad the current offset forward to the next multiple of \p Align.
+  ///
+  /// \param Align Alignment boundary in bytes.
+  ///
+  /// \returns Success, or an Error if padding fails.
   LLVM_ABI Error padToAlignment(uint32_t Align);
+  /// Skip trailing CodeView LF_PAD padding bytes when reading.
+  ///
+  /// \returns Success, or an Error if padding bytes cannot be skipped.
   LLVM_ABI Error skipPadding();
 
+  /// Return the number of bytes streamed so far, or zero when not streaming.
+  ///
+  /// \returns Bytes streamed so far, or zero when not streaming.
   uint64_t getStreamedLen() {
     if (isStreaming())
       return StreamedLen;
     return 0;
   }
 
+  /// Emit raw comment \p T when streaming verbose assembly.
+  ///
+  /// \param T Raw comment text to emit.
   void emitRawComment(const Twine &T) {
     if (isStreaming() && Streamer->isVerboseAsm())
       Streamer->AddRawComment(T);

@@ -18,6 +18,7 @@
 
 namespace llvm {
 namespace jitlink {
+/// RISC-V fixup edge kinds and related JITLink utilities.
 namespace riscv {
 
 /// Represents riscv fixups. Ordered in the same way as the relocations in
@@ -237,6 +238,8 @@ enum EdgeKind_riscv : Edge::Kind {
 
 /// Returns a string name for the given riscv edge. For debugging purposes
 /// only
+/// \param K Edge kind to name.
+/// \return A human-readable name for \p K.
 LLVM_ABI const char *getEdgeKindName(Edge::Kind K);
 } // namespace riscv
 } // namespace jitlink

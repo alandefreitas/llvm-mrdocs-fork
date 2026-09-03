@@ -21,22 +21,29 @@ namespace llvm {
 class raw_ostream;
 
 namespace yaml {
+/// YAML root mapping for call-site data loaded from a YAML file.
 struct FunctionsYAML;
 } // namespace yaml
 
+/// Namespace for the GSYM debug info format.
 namespace gsym {
 class FileWriter;
 class GsymCreator;
 class GsymDataExtractor;
 struct FunctionInfo;
+
+/// Call site information for a function in a GSYM file.
+///
+/// Encodes the return offset of a call, optional regex patterns that match
+/// called function names, and flags describing the call target scope.
 struct CallSiteInfo {
+  /// Bit flags describing constraints on the call site target.
   enum Flags : uint8_t {
+    /// No call site flags set.
     None = 0,
-    // This flag specifies that the call site can only call a function within
-    // the same link unit as the call site.
+    /// The call site can only call a function within the same link unit.
     InternalCall = 1 << 0,
-    // This flag specifies that the call site can only call a function outside
-    // the link unit that the call site is in.
+    /// The call site can only call a function outside its link unit.
     ExternalCall = 1 << 1,
 
     LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue*/ ExternalCall),
@@ -52,12 +59,18 @@ struct CallSiteInfo {
   uint8_t Flags = CallSiteInfo::Flags::None;
 
   /// Equality comparison operator for CallSiteInfo.
+  ///
+  /// \param RHS The CallSiteInfo to compare against.
+  /// \returns True if both CallSiteInfo objects are equal.
   bool operator==(const CallSiteInfo &RHS) const {
     return ReturnOffset == RHS.ReturnOffset && MatchRegex == RHS.MatchRegex &&
            Flags == RHS.Flags;
   }
 
   /// Inequality comparison operator for CallSiteInfo.
+  ///
+  /// \param RHS The CallSiteInfo to compare against.
+  /// \returns True if the CallSiteInfo objects are not equal.
   bool operator!=(const CallSiteInfo &RHS) const { return !(*this == RHS); }
 
   /// Decode a CallSiteInfo object from a binary data stream.
@@ -75,12 +88,22 @@ struct CallSiteInfo {
   LLVM_ABI llvm::Error encode(FileWriter &O) const;
 };
 
+/// Collection of CallSiteInfo entries for a single function.
 struct CallSiteInfoCollection {
+  /// Call sites belonging to this function.
   std::vector<CallSiteInfo> CallSites;
 
+  /// Equality comparison operator for CallSiteInfoCollection.
+  ///
+  /// \param RHS The CallSiteInfoCollection to compare against.
+  /// \returns True if both CallSiteInfoCollection objects are equal.
   bool operator==(const CallSiteInfoCollection &RHS) const {
     return CallSites == RHS.CallSites;
   }
+  /// Inequality comparison operator for CallSiteInfoCollection.
+  ///
+  /// \param RHS The CallSiteInfoCollection to compare against.
+  /// \returns True if the CallSiteInfoCollection objects are not equal.
   bool operator!=(const CallSiteInfoCollection &RHS) const {
     return !(*this == RHS);
   }
@@ -99,22 +122,26 @@ struct CallSiteInfoCollection {
   LLVM_ABI llvm::Error encode(FileWriter &O) const;
 };
 
+/// Loads call site information from YAML and attaches it to FunctionInfo
+/// objects.
 class CallSiteInfoLoader {
 public:
   /// Constructor that initializes the CallSiteInfoLoader with necessary data
   /// structures.
   ///
   /// \param GCreator A reference to the GsymCreator.
+  /// \param Funcs A reference to the FunctionInfo vector to update with call
+  /// site data.
   CallSiteInfoLoader(GsymCreator &GCreator, std::vector<FunctionInfo> &Funcs)
       : GCreator(GCreator), Funcs(Funcs) {}
 
-  /// This method reads the specified YAML file, parses its content, and updates
-  /// the `Funcs` vector with call site information based on the YAML data.
+  /// Reads the specified YAML file and updates call site information.
   ///
-  /// \param Funcs A reference to a vector of FunctionInfo objects to be
-  /// populated.
-  /// \param YAMLFile A StringRef representing the path to the YAML
-  /// file to be loaded.
+  /// Parses the YAML content and updates the `Funcs` vector with call site
+  /// information based on the YAML data.
+  ///
+  /// \param YAMLFile A StringRef representing the path to the YAML file to be
+  /// loaded.
   /// \returns An `llvm::Error` indicating success or describing any issues
   /// encountered during the loading process.
   LLVM_ABI llvm::Error loadYAML(StringRef YAMLFile);
@@ -146,7 +173,17 @@ private:
   std::vector<FunctionInfo> &Funcs;
 };
 
+/// Stream a human-readable representation of \p CSI to \p OS.
+///
+/// \param OS Destination stream.
+/// \param CSI Call site info to print.
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const CallSiteInfo &CSI);
+/// Stream a human-readable representation of \p CSIC to \p OS.
+///
+/// \param OS Destination stream.
+/// \param CSIC Call site info collection to print.
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const CallSiteInfoCollection &CSIC);
 

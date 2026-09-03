@@ -15,6 +15,7 @@
 
 namespace llvm {
 
+/// Symbol attributes corresponding to target-specific assembler directives.
 enum MCSymbolAttr {
   MCSA_Invalid = 0, ///< Not a valid directive.
 
@@ -26,7 +27,7 @@ enum MCSymbolAttr {
   MCSA_ELF_TypeTLS,             ///< .type _foo, STT_TLS     # aka @tls_object
   MCSA_ELF_TypeCommon,          ///< .type _foo, STT_COMMON  # aka @common
   MCSA_ELF_TypeNoType,          ///< .type _foo, STT_NOTYPE  # aka @notype
-  MCSA_ELF_TypeGnuUniqueObject, /// .type _foo, @gnu_unique_object
+  MCSA_ELF_TypeGnuUniqueObject, ///< .type _foo, @gnu_unique_object
   MCSA_Global,                  ///< .globl
   MCSA_LGlobal,                 ///< .lglobl (XCOFF)
   MCSA_Extern,                  ///< .extern (XCOFF)
@@ -52,6 +53,7 @@ enum MCSymbolAttr {
   MCSA_XPLinkage,               ///< symbol uses XP linkage (GOFF)
 };
 
+/// Kinds of Mach-O `.data_region` / `.end_data_region` directives.
 enum MCDataRegionType {
   MCDR_DataRegion,            ///< .data_region
   MCDR_DataRegionJT8,         ///< .data_region jt8
@@ -60,6 +62,7 @@ enum MCDataRegionType {
   MCDR_DataRegionEnd          ///< .end_data_region
 };
 
+/// Kinds of Darwin minimum-OS-version directives.
 enum MCVersionMinType {
   MCVM_IOSVersionMin,         ///< .ios_version_min
   MCVM_OSXVersionMin,         ///< .macosx_version_min

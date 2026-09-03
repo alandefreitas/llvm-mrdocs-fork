@@ -62,9 +62,13 @@ enum class InfoKind : uint8_t {
 
 /// Per-function flags packed into INFO_FLAGS entries.
 enum class FuncInfoFlags : uint32_t {
+  /// Function uses the VCC condition-code register.
   FUNC_USES_VCC = 1U << 0,
+  /// Function uses flat scratch (private memory via flat addressing).
   FUNC_USES_FLAT_SCRATCH = 1U << 1,
+  /// Function has a dynamically sized stack.
   FUNC_HAS_DYN_STACK = 1U << 2,
+  /// Sentinel equal to the largest individual enumerator value.
   LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/FUNC_HAS_DYN_STACK),
 };
 

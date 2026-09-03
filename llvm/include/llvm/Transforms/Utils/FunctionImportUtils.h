@@ -104,15 +104,32 @@ class FunctionImportGlobalProcessing {
   DenseSet<GlobalValue::GUID> SymbolsToMove;
 
 public:
+  /// Construct a processor for ThinLTO global value import/export handling.
+  ///
+  /// \param M Module being prepared for ThinLTO importing or exporting.
+  /// \param Index Module summary index used for import/export decisions.
+  /// \param GlobalsToImport Set of globals to import as definitions, or
+  ///        nullptr when processing the primary module for export.
+  /// \param ClearDSOLocalOnDeclarations If true, clear \c dso_local on
+  ///        declarations (ELF -fpic only).
   LLVM_ABI
   FunctionImportGlobalProcessing(Module &M, const ModuleSummaryIndex &Index,
                                  SetVector<GlobalValue *> *GlobalsToImport,
                                  bool ClearDSOLocalOnDeclarations);
+
+  /// Process all globals in the module for ThinLTO import/export.
   LLVM_ABI void run();
 };
 
 /// Perform in-place global value handling on the given Module for
 /// exported local functions renamed and promoted for ThinLTO.
+///
+/// \param M Module whose globals are renamed and linkage-adjusted.
+/// \param Index Module summary index used for import/export decisions.
+/// \param ClearDSOLocalOnDeclarations If true, clear \c dso_local on
+///        declarations (ELF -fpic only).
+/// \param GlobalsToImport Optional set of globals to import as definitions;
+///        nullptr processes \p M as the primary export module.
 LLVM_ABI void
 renameModuleForThinLTO(Module &M, const ModuleSummaryIndex &Index,
                        bool ClearDSOLocalOnDeclarations,

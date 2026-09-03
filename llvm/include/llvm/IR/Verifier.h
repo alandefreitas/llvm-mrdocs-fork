@@ -34,6 +34,8 @@ class Instruction;
 class MDNode;
 class Module;
 class raw_ostream;
+
+/// Shared diagnostic and module state used by the IR verifier.
 struct VerifierSupport;
 
 /// Verify that the TBAA Metadatas are valid.
@@ -74,10 +76,16 @@ class TBAAVerifier {
   /// @}
 
 public:
+  /// Construct a TBAA verifier that reports through \p Diagnostic.
+  /// @param Diagnostic Optional verifier support used to emit diagnostics.
   TBAAVerifier(VerifierSupport *Diagnostic = nullptr)
       : Diagnostic(Diagnostic) {}
   /// Visit an instruction, or a TBAA node itself as part of a metadata, and
   /// return true if it is valid, return false if an invalid TBAA is attached.
+  /// @param I Instruction whose TBAA metadata is checked, or the context
+  ///        instruction when validating a TBAA node.
+  /// @param MD TBAA metadata node to validate, or null if none is attached.
+  /// @return True if the TBAA metadata is valid; false otherwise.
   LLVM_ABI bool visitTBAAMetadata(const Instruction *I, const MDNode *MD);
 };
 
@@ -87,6 +95,9 @@ public:
 /// If there are no errors, the function returns false. If an error is found,
 /// a message describing the error is written to OS (if non-null) and true is
 /// returned.
+/// @param F Function whose IR is verified.
+/// @param OS Optional stream that receives a description of any error found.
+/// @return True if the function is broken; false otherwise.
 LLVM_ABI bool verifyFunction(const Function &F, raw_ostream *OS = nullptr);
 
 /// Check a module for errors.
@@ -99,26 +110,12 @@ LLVM_ABI bool verifyFunction(const Function &F, raw_ostream *OS = nullptr);
 /// supplied, DebugInfo verification failures won't be considered as
 /// error and instead *BrokenDebugInfo will be set to true. Debug
 /// info errors can be "recovered" from by stripping the debug info.
+/// @param M Module whose IR is verified.
+/// @param OS Optional stream that receives a description of any error found.
+/// @param BrokenDebugInfo Optional flag set to true when only debug info is
+///        broken and IR is otherwise valid.
 LLVM_ABI bool verifyModule(const Module &M, raw_ostream *OS = nullptr,
                            bool *BrokenDebugInfo = nullptr);
-
-LLVM_ABI FunctionPass *createVerifierPass(bool FatalErrors = true);
-
-/// Check a module for errors, and report separate error states for IR
-/// and debug info errors.
-class VerifierAnalysis : public AnalysisInfoMixin<VerifierAnalysis> {
-  friend AnalysisInfoMixin<VerifierAnalysis>;
-
-  LLVM_ABI static AnalysisKey Key;
-
-public:
-  struct Result {
-    bool IRBroken, DebugInfoBroken;
-  };
-
-  LLVM_ABI Result run(Module &M, ModuleAnalysisManager &);
-  LLVM_ABI Result run(Function &F, FunctionAnalysisManager &);
-};
 
 /// Create a verifier pass.
 ///
@@ -130,13 +127,56 @@ public:
 ///
 /// Note that this creates a pass suitable for the legacy pass manager. It has
 /// nothing to do with \c VerifierPass.
+/// @param FatalErrors If true, verification failures abort compilation.
+/// @return A new verifier FunctionPass for the legacy pass manager.
+LLVM_ABI FunctionPass *createVerifierPass(bool FatalErrors = true);
+
+/// Check a module for errors, and report separate error states for IR
+/// and debug info errors.
+class VerifierAnalysis : public AnalysisInfoMixin<VerifierAnalysis> {
+  friend AnalysisInfoMixin<VerifierAnalysis>;
+
+  LLVM_ABI static AnalysisKey Key;
+
+public:
+  /// Result of verifying a module or function.
+  struct Result {
+    /// True when the IR itself failed verification.
+    bool IRBroken;
+    /// True when debug info failed verification.
+    bool DebugInfoBroken;
+  };
+
+  /// Run the verifier over module \p M.
+  /// @param M Module to verify.
+  /// @param AM Module analysis manager (unused).
+  /// @return Whether IR and debug info verification failed.
+  LLVM_ABI Result run(Module &M, ModuleAnalysisManager &AM);
+  /// Run the verifier over function \p F.
+  /// @param F Function to verify.
+  /// @param AM Function analysis manager (unused).
+  /// @return Whether IR and debug info verification failed.
+  LLVM_ABI Result run(Function &F, FunctionAnalysisManager &AM);
+};
+
+/// New pass manager pass that verifies IR and optionally aborts on failure.
 class VerifierPass : public RequiredPassInfoMixin<VerifierPass> {
   bool FatalErrors;
 
 public:
+  /// Construct a verifier pass.
+  /// @param FatalErrors If true, verification failures abort compilation.
   explicit VerifierPass(bool FatalErrors = true) : FatalErrors(FatalErrors) {}
 
+  /// Verify module \p M and return all analyses preserved.
+  /// @param M Module to verify.
+  /// @param AM Module analysis manager providing VerifierAnalysis.
+  /// @return All analyses preserved.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  /// Verify function \p F and return all analyses preserved.
+  /// @param F Function to verify.
+  /// @param AM Function analysis manager providing VerifierAnalysis.
+  /// @return All analyses preserved.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

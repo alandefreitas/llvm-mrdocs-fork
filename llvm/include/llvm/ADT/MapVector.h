@@ -54,56 +54,73 @@ public:
   using const_reverse_iterator = typename VectorType::const_reverse_iterator;
 
   /// Clear the MapVector and return the underlying vector.
+  /// @return The underlying vector after clearing the MapVector.
   [[nodiscard]] VectorType takeVector() {
     Map.clear();
     return std::move(Vector);
   }
 
   /// Returns an array reference of the underlying vector.
+  /// @return Array reference of the underlying vector.
   [[nodiscard]] ArrayRef<value_type> getArrayRef() const { return Vector; }
 
   /// Return the number of key/value pairs.
+  /// @return The number of key/value pairs.
   [[nodiscard]] size_type size() const { return Vector.size(); }
 
   /// Grow the MapVector so that it can contain at least \p NumEntries items
   /// before resizing again.
+  /// @param NumEntries Minimum capacity to reserve.
   void reserve(size_type NumEntries) {
     Map.reserve(NumEntries);
     Vector.reserve(NumEntries);
   }
 
   /// Return an iterator to the first inserted pair.
+  /// @return Iterator to the first inserted pair.
   [[nodiscard]] iterator begin() { return Vector.begin(); }
   /// Return a const iterator to the first inserted pair.
+  /// @return Const iterator to the first inserted pair.
   [[nodiscard]] const_iterator begin() const { return Vector.begin(); }
   /// Return a past-the-end iterator.
+  /// @return Past-the-end iterator.
   [[nodiscard]] iterator end() { return Vector.end(); }
   /// Return a const past-the-end iterator.
+  /// @return Const past-the-end iterator.
   [[nodiscard]] const_iterator end() const { return Vector.end(); }
 
   /// Return a reverse iterator to the last inserted pair.
+  /// @return Reverse iterator to the last inserted pair.
   [[nodiscard]] reverse_iterator rbegin() { return Vector.rbegin(); }
   /// Return a const reverse iterator to the last inserted pair.
+  /// @return Const reverse iterator to the last inserted pair.
   [[nodiscard]] const_reverse_iterator rbegin() const {
     return Vector.rbegin();
   }
   /// Return a reverse past-the-end iterator.
+  /// @return Reverse past-the-end iterator.
   [[nodiscard]] reverse_iterator rend() { return Vector.rend(); }
   /// Return a const reverse past-the-end iterator.
+  /// @return Const reverse past-the-end iterator.
   [[nodiscard]] const_reverse_iterator rend() const { return Vector.rend(); }
 
   /// Return true if the MapVector contains no elements.
+  /// @return True if the MapVector contains no elements.
   [[nodiscard]] bool empty() const { return Vector.empty(); }
 
   /// Return a reference to the first inserted key/value pair.
+  /// @return Reference to the first inserted key/value pair.
   [[nodiscard]] std::pair<KeyT, ValueT> &front() { return Vector.front(); }
   /// Return a const reference to the first inserted key/value pair.
+  /// @return Const reference to the first inserted key/value pair.
   [[nodiscard]] const std::pair<KeyT, ValueT> &front() const {
     return Vector.front();
   }
   /// Return a reference to the last inserted key/value pair.
+  /// @return Reference to the last inserted key/value pair.
   [[nodiscard]] std::pair<KeyT, ValueT> &back() { return Vector.back(); }
   /// Return a const reference to the last inserted key/value pair.
+  /// @return Const reference to the last inserted key/value pair.
   [[nodiscard]] const std::pair<KeyT, ValueT> &back() const {
     return Vector.back();
   }
@@ -123,23 +140,29 @@ public:
 
   /// Return a reference to the value for \p Key, default-inserting if absent.
   /// @param Key Key to look up or insert.
+  /// @return Reference to the value for \p Key.
   ValueT &operator[](const KeyT &Key) {
     return try_emplace_impl(Key).first->second;
   }
 
   /// Return a range over keys in insertion order.
+  /// @return Range over keys in insertion order.
   [[nodiscard]] auto keys() { return make_first_range(Vector); }
   /// Return a const range over keys in insertion order.
+  /// @return Const range over keys in insertion order.
   [[nodiscard]] auto keys() const { return make_first_range(Vector); }
   /// Return a range over values in insertion order.
+  /// @return Range over values in insertion order.
   [[nodiscard]] auto values() { return make_second_range(Vector); }
   /// Return a const range over values in insertion order.
+  /// @return Const range over values in insertion order.
   [[nodiscard]] auto values() const { return make_second_range(Vector); }
 
   /// Return a copy of the value for \p Key, or a default-constructed value.
   ///
   /// Only allowed if ValueT is copyable.
   /// @param Key Key to look up.
+  /// @return Copy of the value for \p Key, or a default-constructed value.
   [[nodiscard]] ValueT lookup(const KeyT &Key) const {
     static_assert(std::is_copy_constructible_v<ValueT>,
                   "Cannot call lookup() if ValueT is not copyable.");
@@ -203,18 +226,21 @@ public:
 
   /// Return true if \p Key is present.
   /// @param Key Key to look up.
+  /// @return True if \p Key is present.
   [[nodiscard]] bool contains(const KeyT &Key) const {
     return find(Key) != end();
   }
 
   /// Return 1 if \p Key is present, otherwise 0.
   /// @param Key Key to look up.
+  /// @return 1 if \p Key is present, otherwise 0.
   [[nodiscard]] size_type count(const KeyT &Key) const {
     return contains(Key) ? 1 : 0;
   }
 
   /// Return an iterator to \p Key, or end() if absent.
   /// @param Key Key to look up.
+  /// @return Iterator to \p Key, or end() if absent.
   [[nodiscard]] iterator find(const KeyT &Key) {
     if constexpr (canBeSmall())
       if (isSmall())
@@ -226,6 +252,7 @@ public:
 
   /// Return a const iterator to \p Key, or end() if absent.
   /// @param Key Key to look up.
+  /// @return Const iterator to \p Key, or end() if absent.
   [[nodiscard]] const_iterator find(const KeyT &Key) const {
     if constexpr (canBeSmall())
       if (isSmall())
@@ -237,6 +264,8 @@ public:
 
   /// at - Return the entry for the specified key, or abort if no such
   /// entry exists.
+  /// @param Key Key to look up.
+  /// @return Reference to the value for \p Key.
   [[nodiscard]] ValueT &at(const KeyT &Key) {
     auto I = find(Key);
     assert(I != end() && "MapVector::at failed due to a missing key");
@@ -245,6 +274,8 @@ public:
 
   /// at - Return the entry for the specified key, or abort if no such
   /// entry exists.
+  /// @param Key Key to look up.
+  /// @return Const reference to the value for \p Key.
   [[nodiscard]] const ValueT &at(const KeyT &Key) const {
     auto I = find(Key);
     assert(I != end() && "MapVector::at failed due to a missing key");
@@ -266,11 +297,10 @@ public:
 
   /// Remove the element given by Iterator.
   ///
-  /// Returns an iterator to the element following the one which was removed,
-  /// which may be end().
-  ///
   /// \note This is a deceivingly expensive operation (linear time).  It's
   /// usually better to use \a remove_if() if possible.
+  /// @param Iterator Iterator to the element to remove.
+  /// @return Iterator to the element following the removed one, or end().
   typename VectorType::iterator erase(typename VectorType::iterator Iterator) {
     if constexpr (canBeSmall())
       if (isSmall())
@@ -292,8 +322,8 @@ public:
   }
 
   /// Remove all elements with the key value Key.
-  ///
-  /// Returns the number of elements removed.
+  /// @param Key Key of the element to remove.
+  /// @return The number of elements removed.
   size_type erase(const KeyT &Key) {
     auto Iterator = find(Key);
     if (Iterator == end())
@@ -306,12 +336,14 @@ public:
   ///
   /// Erase all elements that match \c Pred in a single pass.  Takes linear
   /// time.
+  /// @param Pred Predicate invoked with each key/value pair; true means erase.
   template <class Predicate> void remove_if(Predicate Pred);
 
-  /// Return the approximate size (in bytes) of the data structure.
-  /// This is just the raw memory used by MapVector.
-  /// If entries are pointers to objects, the size of the referenced objects
-  /// are not included.
+  /// Return the approximate size in bytes of this MapVector's storage.
+  ///
+  /// This is just the raw memory used by MapVector. If entries are pointers to
+  /// objects, the size of the referenced objects are not included.
+  /// @return Approximate size in bytes of this MapVector's storage.
   [[nodiscard]] size_t getMemorySize() const {
     return capacity_in_bytes(Map) + capacity_in_bytes(Vector);
   }
@@ -408,6 +440,7 @@ struct SmallMapVector : MapVector<KeyT, ValueT, DenseMap<KeyT, unsigned>,
 
 /// Return the approximate size in bytes of the MapVector \p X.
 /// @param X MapVector whose storage size is queried.
+/// @return Approximate size in bytes of \p X's storage.
 template <typename KeyT, typename ValueT,
           typename MapType = DenseMap<KeyT, unsigned>,
           typename VectorType = SmallVector<std::pair<KeyT, ValueT>, 0>,

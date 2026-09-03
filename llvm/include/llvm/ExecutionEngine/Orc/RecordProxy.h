@@ -25,6 +25,12 @@ namespace llvm::orc {
 /// Builds P over the symbol with the given name, dispatching through Dispatch.
 ///
 /// If the symbol is weakly referenced and not found then P is left null.
+/// @param P Destination updated with the resolved proxy, or left null if a
+///          weak reference is not found.
+/// @param Dispatch Dispatch function used to call through the proxy.
+/// @param Name Symbol name to look up and bind into the proxy.
+/// @param LF Lookup flags for the contributed symbol.
+/// @return A prepare function that records the resolved proxy into *P.
 template <typename FnT>
 LookupPrepareFn
 recordProxy(Proxy<FnT> *P, typename Proxy<FnT>::DispatchFn Dispatch,
@@ -44,6 +50,10 @@ recordProxy(Proxy<FnT> *P, typename Proxy<FnT>::DispatchFn Dispatch,
 
 /// Builds P from the given spec, using the spec's default controller-interface
 /// name.
+/// @param P Destination updated with the resolved proxy, or left null if a
+///          weak reference is not found.
+/// @param LF Lookup flags for the contributed symbol.
+/// @return A prepare function that records the resolved proxy into *P.
 template <typename ProxySpecT, typename FnT>
 LookupPrepareFn
 recordProxy(Proxy<FnT> *P,
@@ -53,6 +63,11 @@ recordProxy(Proxy<FnT> *P,
 
 /// Builds P from the given spec, but resolves it under Name rather than the
 /// spec's default controller-interface name.
+/// @param P Destination updated with the resolved proxy, or left null if a
+///          weak reference is not found.
+/// @param Name Symbol name to look up instead of the spec's default name.
+/// @param LF Lookup flags for the contributed symbol.
+/// @return A prepare function that records the resolved proxy into *P.
 template <typename ProxySpecT, typename FnT>
 LookupPrepareFn
 recordProxy(Proxy<FnT> *P, StringRef Name,

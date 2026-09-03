@@ -39,18 +39,32 @@ public:
 
 } // end namespace detail
 
+/// Adapt a GUID string for use with formatv.
+///
+/// \param Item GUID bytes encoded as a string.
+/// \returns A GuidAdapter suitable for use with formatv.
 inline detail::GuidAdapter fmt_guid(StringRef Item) {
   return detail::GuidAdapter(Item);
 }
 
+/// Adapt a GUID byte sequence for use with formatv.
+///
+/// \param Item Sixteen GUID bytes to format.
+/// \returns A GuidAdapter suitable for use with formatv.
 inline detail::GuidAdapter fmt_guid(ArrayRef<uint8_t> Item) {
   return detail::GuidAdapter(Item);
 }
 
 } // end namespace codeview
 
+/// Format provider that prints a CodeView TypeIndex for formatv.
 template <> struct format_provider<codeview::TypeIndex> {
 public:
+  /// Write \p V to \p Stream as hex, with a simple-type name when applicable.
+  ///
+  /// \param V TypeIndex to print.
+  /// \param Stream Destination stream.
+  /// \param Style Unused format-style specifier.
   static void format(const codeview::TypeIndex &V, raw_ostream &Stream,
                      StringRef Style) {
     if (V.isNoneType())
@@ -63,7 +77,13 @@ public:
   }
 };
 
+/// Format provider that prints a CodeView GUID for formatv.
 template <> struct format_provider<codeview::GUID> {
+  /// Write \p V to \p Stream using the GUID stream inserter.
+  ///
+  /// \param V GUID to print.
+  /// \param Stream Destination stream.
+  /// \param Style Unused format-style specifier.
   static void format(const codeview::GUID &V, llvm::raw_ostream &Stream,
                      StringRef Style) {
     Stream << V;

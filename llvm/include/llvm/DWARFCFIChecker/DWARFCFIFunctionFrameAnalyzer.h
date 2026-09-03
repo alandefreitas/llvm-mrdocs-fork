@@ -22,6 +22,8 @@
 
 namespace llvm {
 
+/// Validates Call Frame Information across a stream of function frames.
+///
 /// This class implements the `CFIFunctionFrameReceiver` interface to validate
 /// Call Frame Information in a stream of function frames. For validation, it
 /// instantiates a `DWARFCFIAnalysis` for each frame. The errors/warnings are
@@ -30,15 +32,26 @@ namespace llvm {
 /// this classes is destructed, the program fails through an assertion.
 class LLVM_ABI CFIFunctionFrameAnalyzer : public CFIFunctionFrameReceiver {
 public:
+  /// Construct an analyzer that reports CFI issues through \p Context.
+  /// \param Context Context used to emit validation errors and warnings.
+  /// \param MCII Instruction info used when analyzing each frame.
   CFIFunctionFrameAnalyzer(MCContext &Context, const MCInstrInfo &MCII)
       : CFIFunctionFrameReceiver(Context), MCII(MCII) {}
+  /// Destroy the analyzer; asserts that every started frame was finished.
   ~CFIFunctionFrameAnalyzer() override;
 
+  /// Begin analyzing a new function frame with the given prologue CFI.
+  /// \param IsEH True when the frame uses EH CFI conventions.
+  /// \param Prologue Prologue CFI directives that initialize frame analysis.
   void startFunctionFrame(bool IsEH,
                           ArrayRef<MCCFIInstruction> Prologue) override;
+  /// Update the current frame analysis with an instruction and its CFI.
+  /// \param Inst Machine instruction to analyze.
+  /// \param Directives CFI directives associated with \p Inst.
   void
   emitInstructionAndDirectives(const MCInst &Inst,
                                ArrayRef<MCCFIInstruction> Directives) override;
+  /// Finish analyzing the current function frame and pop its analysis state.
   void finishFunctionFrame() override;
 
 private:

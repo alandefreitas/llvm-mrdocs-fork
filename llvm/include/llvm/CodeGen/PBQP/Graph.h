@@ -23,17 +23,22 @@
 namespace llvm {
 namespace PBQP {
 
+  /// Base class providing shared node and edge identifier types for PBQP graphs.
   class GraphBase {
   public:
+    /// Identifier type for nodes in a PBQP graph.
     using NodeId = unsigned;
+    /// Identifier type for edges in a PBQP graph.
     using EdgeId = unsigned;
 
     /// Returns a value representing an invalid (non-existent) node.
+    /// @return An invalid node id.
     static NodeId invalidNodeId() {
       return std::numeric_limits<NodeId>::max();
     }
 
     /// Returns a value representing an invalid (non-existent) edge.
+    /// @return An invalid edge id.
     static EdgeId invalidEdgeId() {
       return std::numeric_limits<EdgeId>::max();
     }
@@ -48,14 +53,23 @@ namespace PBQP {
     using CostAllocator = typename SolverT::CostAllocator;
 
   public:
+    /// Unallocated cost vector type from the solver.
     using RawVector = typename SolverT::RawVector;
+    /// Unallocated cost matrix type from the solver.
     using RawMatrix = typename SolverT::RawMatrix;
+    /// Allocated cost vector type from the solver.
     using Vector = typename SolverT::Vector;
+    /// Allocated cost matrix type from the solver.
     using Matrix = typename SolverT::Matrix;
+    /// Shared pointer type for cost vectors from the cost allocator.
     using VectorPtr = typename CostAllocator::VectorPtr;
+    /// Shared pointer type for cost matrices from the cost allocator.
     using MatrixPtr = typename CostAllocator::MatrixPtr;
+    /// Per-node metadata type from the solver.
     using NodeMetadata = typename SolverT::NodeMetadata;
+    /// Per-edge metadata type from the solver.
     using EdgeMetadata = typename SolverT::EdgeMetadata;
+    /// Graph-level metadata type from the solver.
     using GraphMetadata = typename SolverT::GraphMetadata;
 
   private:
@@ -225,24 +239,44 @@ namespace PBQP {
     void operator=(const Graph &Other) {}
 
   public:
+    /// Iterator over edge ids adjacent to a node.
     using AdjEdgeItr = typename NodeEntry::AdjEdgeItr;
 
+    /// Forward iterator over in-use node ids in the graph.
     class NodeItr {
     public:
+      /// Iterator category tag for this forward iterator.
       using iterator_category = std::forward_iterator_tag;
+      /// Type of the value obtained by dereferencing this iterator.
       using value_type = NodeId;
+      /// Type used to represent distances between iterators.
       using difference_type = int;
+      /// Pointer type for the iterated value.
       using pointer = NodeId *;
+      /// Reference type for the iterated value.
       using reference = NodeId &;
 
+      /// Construct an iterator starting at \p CurNId within graph \p G.
+      /// @param CurNId Candidate starting node id (advanced to the next in-use id).
+      /// @param G Graph whose nodes are iterated.
       NodeItr(NodeId CurNId, const Graph &G)
         : CurNId(CurNId), EndNId(G.Nodes.size()), FreeNodeIds(G.FreeNodeIds) {
         this->CurNId = findNextInUse(CurNId); // Move to first in-use node id
       }
 
+      /// Return true if this iterator refers to the same node as \p O.
+      /// @param O Other iterator to compare.
+      /// @return True if both iterators refer to the same node.
       bool operator==(const NodeItr &O) const { return CurNId == O.CurNId; }
+      /// Return true if this iterator does not refer to the same node as \p O.
+      /// @param O Other iterator to compare.
+      /// @return True if the iterators refer to different nodes.
       bool operator!=(const NodeItr &O) const { return !(*this == O); }
+      /// Advance to the next in-use node id.
+      /// @return Reference to this iterator after advancing.
       NodeItr& operator++() { CurNId = findNextInUse(++CurNId); return *this; }
+      /// Return the current node id.
+      /// @return The node id currently referred to by this iterator.
       NodeId operator*() const { return CurNId; }
 
     private:
@@ -257,16 +291,30 @@ namespace PBQP {
       const FreeNodeVector &FreeNodeIds;
     };
 
+    /// Forward iterator over in-use edge ids in the graph.
     class EdgeItr {
     public:
+      /// Construct an iterator starting at \p CurEId within graph \p G.
+      /// @param CurEId Candidate starting edge id (advanced to the next in-use id).
+      /// @param G Graph whose edges are iterated.
       EdgeItr(EdgeId CurEId, const Graph &G)
         : CurEId(CurEId), EndEId(G.Edges.size()), FreeEdgeIds(G.FreeEdgeIds) {
         this->CurEId = findNextInUse(CurEId); // Move to first in-use edge id
       }
 
+      /// Return true if this iterator refers to the same edge as \p O.
+      /// @param O Other iterator to compare.
+      /// @return True if both iterators refer to the same edge.
       bool operator==(const EdgeItr &O) const { return CurEId == O.CurEId; }
+      /// Return true if this iterator does not refer to the same edge as \p O.
+      /// @param O Other iterator to compare.
+      /// @return True if the iterators refer to different edges.
       bool operator!=(const EdgeItr &O) const { return !(*this == O); }
+      /// Advance to the next in-use edge id.
+      /// @return Reference to this iterator after advancing.
       EdgeItr& operator++() { CurEId = findNextInUse(++CurEId); return *this; }
+      /// Return the current edge id.
+      /// @return The edge id currently referred to by this iterator.
       EdgeId operator*() const { return CurEId; }
 
     private:
@@ -281,15 +329,26 @@ namespace PBQP {
       const FreeEdgeVector &FreeEdgeIds;
     };
 
+    /// Range of in-use node ids in a graph.
     class NodeIdSet {
     public:
+      /// Construct a node-id set view over graph \p G.
+      /// @param G Graph whose node ids are exposed.
       NodeIdSet(const Graph &G) : G(G) {}
 
+      /// Return an iterator to the first in-use node id.
+      /// @return Iterator to the first in-use node id.
       NodeItr begin() const { return NodeItr(0, G); }
+      /// Return an iterator past the last node id.
+      /// @return Iterator past the last node id.
       NodeItr end() const { return NodeItr(G.Nodes.size(), G); }
 
+      /// Return true if the graph has no nodes.
+      /// @return True if the graph has no nodes.
       bool empty() const { return G.Nodes.empty(); }
 
+      /// Return the number of in-use nodes.
+      /// @return Number of in-use nodes in the graph.
       typename NodeVector::size_type size() const {
         return G.Nodes.size() - G.FreeNodeIds.size();
       }
@@ -298,15 +357,26 @@ namespace PBQP {
       const Graph& G;
     };
 
+    /// Range of in-use edge ids in a graph.
     class EdgeIdSet {
     public:
+      /// Construct an edge-id set view over graph \p G.
+      /// @param G Graph whose edge ids are exposed.
       EdgeIdSet(const Graph &G) : G(G) {}
 
+      /// Return an iterator to the first in-use edge id.
+      /// @return Iterator to the first in-use edge id.
       EdgeItr begin() const { return EdgeItr(0, G); }
+      /// Return an iterator past the last edge id.
+      /// @return Iterator past the last edge id.
       EdgeItr end() const { return EdgeItr(G.Edges.size(), G); }
 
+      /// Return true if the graph has no edges.
+      /// @return True if the graph has no edges.
       bool empty() const { return G.Edges.empty(); }
 
+      /// Return the number of in-use edges.
+      /// @return Number of in-use edges in the graph.
       typename NodeVector::size_type size() const {
         return G.Edges.size() - G.FreeEdgeIds.size();
       }
@@ -315,20 +385,31 @@ namespace PBQP {
       const Graph& G;
     };
 
+    /// Range of edge ids adjacent to a single node.
     class AdjEdgeIdSet {
     public:
+      /// Construct an adjacent-edge set view for node entry \p NE.
+      /// @param NE Node whose adjacent edge ids are exposed.
       AdjEdgeIdSet(const NodeEntry &NE) : NE(NE) {}
 
+      /// Return an iterator to the first adjacent edge id.
+      /// @return Iterator to the first adjacent edge id.
       typename NodeEntry::AdjEdgeItr begin() const {
         return NE.getAdjEdgeIds().begin();
       }
 
+      /// Return an iterator past the last adjacent edge id.
+      /// @return Iterator past the last adjacent edge id.
       typename NodeEntry::AdjEdgeItr end() const {
         return NE.getAdjEdgeIds().end();
       }
 
+      /// Return true if the node has no adjacent edges.
+      /// @return True if the node has no adjacent edges.
       bool empty() const { return NE.getAdjEdgeIds().empty(); }
 
+      /// Return the number of adjacent edges.
+      /// @return Number of edges adjacent to the node.
       typename NodeEntry::AdjEdgeList::size_type size() const {
         return NE.getAdjEdgeIds().size();
       }
@@ -341,18 +422,23 @@ namespace PBQP {
     Graph() = default;
 
     /// Construct an empty PBQP graph with the given graph metadata.
+    /// @param Metadata Graph-level metadata to store.
     Graph(GraphMetadata Metadata) : Metadata(std::move(Metadata)) {}
 
     /// Get a reference to the graph metadata.
+    /// @return Mutable reference to the graph metadata.
     GraphMetadata& getMetadata() { return Metadata; }
 
     /// Get a const-reference to the graph metadata.
+    /// @return Const reference to the graph metadata.
     const GraphMetadata& getMetadata() const { return Metadata; }
 
-    /// Lock this graph to the given solver instance in preparation
-    /// for running the solver. This method will call solver.handleAddNode for
-    /// each node in the graph, and handleAddEdge for each edge, to give the
-    /// solver an opportunity to set up any requried metadata.
+    /// Lock this graph to the given solver instance.
+    ///
+    /// This method will call solver.handleAddNode for each node in the graph,
+    /// and handleAddEdge for each edge, to give the solver an opportunity to
+    /// set up any requried metadata.
+    /// @param S Solver instance to attach to this graph.
     void setSolver(SolverT &S) {
       assert(!Solver && "Solver already set. Call unsetSolver().");
       Solver = &S;
@@ -444,11 +530,19 @@ namespace PBQP {
     }
 
     /// Returns true if the graph is empty.
+    /// @return True if the graph has no nodes.
     bool empty() const { return NodeIdSet(*this).empty(); }
 
+    /// Return the set of in-use node ids in this graph.
+    /// @return Set of in-use node ids.
     NodeIdSet nodeIds() const { return NodeIdSet(*this); }
+    /// Return the set of in-use edge ids in this graph.
+    /// @return Set of in-use edge ids.
     EdgeIdSet edgeIds() const { return EdgeIdSet(*this); }
 
+    /// Return the set of edge ids adjacent to node \p NId.
+    /// @param NId Node whose adjacent edges are requested.
+    /// @return Set of edge ids adjacent to \p NId.
     AdjEdgeIdSet adjEdgeIds(NodeId NId) { return AdjEdgeIdSet(getNode(NId)); }
 
     /// Get the number of nodes in the graph.
@@ -489,14 +583,23 @@ namespace PBQP {
       return *getNodeCostsPtr(NId);
     }
 
+    /// Get a mutable reference to a node's metadata.
+    /// @param NId Node id.
+    /// @return Reference to the node's metadata.
     NodeMetadata& getNodeMetadata(NodeId NId) {
       return getNode(NId).Metadata;
     }
 
+    /// Get a const reference to a node's metadata.
+    /// @param NId Node id.
+    /// @return Const reference to the node's metadata.
     const NodeMetadata& getNodeMetadata(NodeId NId) const {
       return getNode(NId).Metadata;
     }
 
+    /// Get the number of edges adjacent to a node.
+    /// @param NId Node id.
+    /// @return Degree of the node.
     typename NodeEntry::AdjEdgeList::size_type getNodeDegree(NodeId NId) const {
       return getNode(NId).getAdjEdgeIds().size();
     }
@@ -531,10 +634,16 @@ namespace PBQP {
       return *getEdge(EId).Costs;
     }
 
+    /// Get a mutable reference to an edge's metadata.
+    /// @param EId Edge id.
+    /// @return Reference to the edge's metadata.
     EdgeMetadata& getEdgeMetadata(EdgeId EId) {
       return getEdge(EId).Metadata;
     }
 
+    /// Get a const reference to an edge's metadata.
+    /// @param EId Edge id.
+    /// @return Const reference to the edge's metadata.
     const EdgeMetadata& getEdgeMetadata(EdgeId EId) const {
       return getEdge(EId).Metadata;
     }
@@ -622,6 +731,8 @@ namespace PBQP {
     ///
     /// A disconnected edge can be reconnected by calling the reconnectEdge
     /// method.
+    /// @param EId Edge to disconnect.
+    /// @param NId Node from whose adjacency list the edge is removed.
     void disconnectEdge(EdgeId EId, NodeId NId) {
       if (Solver)
         Solver->handleDisconnectEdge(EId, NId);
@@ -632,6 +743,7 @@ namespace PBQP {
 
     /// Convenience method to disconnect all neighbours from the given
     ///        node.
+    /// @param NId Node whose neighbours should be disconnected.
     void disconnectAllNeighborsFromNode(NodeId NId) {
       for (auto AEId : adjEdgeIds(NId))
         disconnectEdge(AEId, getEdgeOtherNodeId(AEId, NId));
@@ -641,6 +753,8 @@ namespace PBQP {
     ///
     /// Adds an edge that had been previously disconnected back into the
     /// adjacency set of the nodes that the edge connects.
+    /// @param EId Edge to reconnect.
+    /// @param NId Node whose adjacency list should regain the edge.
     void reconnectEdge(EdgeId EId, NodeId NId) {
       EdgeEntry &E = getEdge(EId);
       E.connectTo(*this, EId, NId);

@@ -18,9 +18,19 @@
 
 namespace llvm {
 
+/// Pass that lowers @llvm.global_dtors via wrappers registered in
+/// @llvm.global_ctors.
+///
+/// Creates wrapper functions that are registered in @llvm.global_ctors and
+/// which contain a call to `__cxa_atexit` to register their destructor
+/// functions.
 class LowerGlobalDtorsPass
     : public OptionalPassInfoMixin<LowerGlobalDtorsPass> {
 public:
+  /// Run the lower-global-dtors pass over the module.
+  /// @param M Module whose @llvm.global_dtors entries are lowered.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

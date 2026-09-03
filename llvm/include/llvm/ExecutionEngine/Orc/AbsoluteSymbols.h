@@ -16,7 +16,11 @@
 #include "llvm/ExecutionEngine/Orc/MaterializationUnit.h"
 #include "llvm/Support/Compiler.h"
 
-namespace llvm::orc {
+namespace llvm {
+/// On-Request Compilation (ORC) JIT APIs.
+///
+/// ProxySpec types and factories that implement ORC Proxies via SPS.
+namespace orc {
 
 /// A MaterializationUnit implementation for pre-existing absolute symbols.
 ///
@@ -24,8 +28,12 @@ namespace llvm::orc {
 /// materialized.
 class LLVM_ABI AbsoluteSymbolsMaterializationUnit : public MaterializationUnit {
 public:
+  /// Construct a materialization unit for the given absolute symbols.
+  /// @param Symbols Map of symbol names to absolute definitions.
   AbsoluteSymbolsMaterializationUnit(SymbolMap Symbols);
 
+  /// Return the name of this materialization unit.
+  /// @return The name of this materialization unit.
   StringRef getName() const override;
 
 private:
@@ -48,13 +56,15 @@ private:
 ///       })))
 ///     return Err;
 /// \endcode
-///
+/// @param Symbols Map of symbol names to absolute definitions.
+/// @return An AbsoluteSymbolsMaterializationUnit for the given symbols.
 inline std::unique_ptr<AbsoluteSymbolsMaterializationUnit>
 absoluteSymbols(SymbolMap Symbols) {
   return std::make_unique<AbsoluteSymbolsMaterializationUnit>(
       std::move(Symbols));
 }
 
-} // namespace llvm::orc
+} // namespace orc
+} // namespace llvm
 
 #endif // LLVM_EXECUTIONENGINE_ORC_ABSOLUTESYMBOLS_H

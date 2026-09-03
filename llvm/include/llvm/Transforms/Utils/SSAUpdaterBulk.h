@@ -50,22 +50,43 @@ class SSAUpdaterBulk {
   PredIteratorCache PredCache;
 
 public:
+  /// Construct an empty SSA updater.
   explicit SSAUpdaterBulk() = default;
-  SSAUpdaterBulk(const SSAUpdaterBulk &) = delete;
-  SSAUpdaterBulk &operator=(const SSAUpdaterBulk &) = delete;
+  /// Deleted copy constructor; SSAUpdaterBulk is not copyable.
+  ///
+  /// \param Other Unused; copy construction is not allowed.
+  SSAUpdaterBulk(const SSAUpdaterBulk &Other) = delete;
+  /// Deleted copy assignment; SSAUpdaterBulk cannot be copy-assigned.
+  ///
+  /// \param Other Unused; copy assignment is not allowed.
+  SSAUpdaterBulk &operator=(const SSAUpdaterBulk &Other) = delete;
+  /// Destroy the SSA updater.
   ~SSAUpdaterBulk() = default;
 
-  /// Add a new variable to the SSA rewriter. This needs to be called before
-  /// AddAvailableValue or AddUse calls. The return value is the variable ID,
-  /// which needs to be passed to AddAvailableValue and AddUse.
+  /// Add a new variable to the SSA rewriter.
+  ///
+  /// This needs to be called before AddAvailableValue or AddUse calls. The
+  /// return value is the variable ID, which needs to be passed to
+  /// AddAvailableValue and AddUse.
+  ///
+  /// \param Name Name used when creating PHI nodes for this variable.
+  /// \param Ty Type of the values being rewritten for this variable.
+  /// \returns Variable ID to pass to AddAvailableValue and AddUse.
   LLVM_ABI unsigned AddVariable(StringRef Name, Type *Ty);
 
   /// Indicate that a rewritten value is available in the specified block with
   /// the specified value.
+  ///
+  /// \param Var Variable ID returned by AddVariable.
+  /// \param BB Block in which the rewritten value is available.
+  /// \param V Value available in \p BB.
   LLVM_ABI void AddAvailableValue(unsigned Var, BasicBlock *BB, Value *V);
 
   /// Record a use of the symbolic value. This use will be updated with a
   /// rewritten value when RewriteAllUses is called.
+  ///
+  /// \param Var Variable ID returned by AddVariable.
+  /// \param U Use to rewrite when RewriteAllUses is called.
   LLVM_ABI void AddUse(unsigned Var, Use *U);
 
   /// Perform all the necessary updates, including new PHI-nodes insertion and
@@ -75,15 +96,30 @@ public:
   /// locations for new phi-nodes insertions. If a nonnull pointer to a vector
   /// InsertedPHIs is passed, all the new phi-nodes will be added to this
   /// vector.
+  ///
+  /// \param DT Dominator tree used to place newly inserted PHI nodes.
+  /// \param InsertedPHIs Optional list that receives newly inserted PHI nodes.
   LLVM_ABI void
   RewriteAllUses(DominatorTree *DT,
                  SmallVectorImpl<PHINode *> *InsertedPHIs = nullptr);
 
   /// Rewrite all uses and simplify the inserted PHI nodes.
+  ///
   /// Use this method to preserve behavior when replacing SSAUpdater.
+  ///
+  /// \param DT Dominator tree used while rewriting uses.
   LLVM_ABI void RewriteAndOptimizeAllUses(DominatorTree &DT);
 };
 
+/// Eliminate newly inserted PHI nodes in \p BB that duplicate earlier ones.
+///
+/// New PHI nodes are those before \p FirstExistingPN in the block's PHI list;
+/// existing ones start at that iterator. Identical new PHIs are first
+/// deduplicated among themselves, then against existing PHIs.
+///
+/// \param BB Block whose PHI nodes are considered.
+/// \param FirstExistingPN Iterator to the first PHI that already existed.
+/// \returns True if any duplicate PHI was eliminated.
 LLVM_ABI bool
 EliminateNewDuplicatePHINodes(BasicBlock *BB,
                               BasicBlock::phi_iterator FirstExistingPN);

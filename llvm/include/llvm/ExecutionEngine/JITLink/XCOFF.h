@@ -23,11 +23,17 @@ namespace jitlink {
 /// Note: The graph does not take ownership of the underlying buffer, nor copy
 /// its contents. The caller is responsible for ensuring that the object buffer
 /// outlives the graph.
+/// \param ObjectBuffer Buffer containing the XCOFF relocatable object.
+/// \param SSP Symbol string pool used to intern symbol names in the graph.
+/// \return A LinkGraph for the object, or an error if parsing fails.
 LLVM_ABI Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromXCOFFObject(MemoryBufferRef ObjectBuffer,
                                std::shared_ptr<orc::SymbolStringPool> SSP);
 
 /// Link the given graph.
+///
+/// \param G Link graph to link.
+/// \param Ctx JITLink context providing memory management and callbacks.
 LLVM_ABI void link_XCOFF(std::unique_ptr<LinkGraph> G,
                          std::unique_ptr<JITLinkContext> Ctx);
 

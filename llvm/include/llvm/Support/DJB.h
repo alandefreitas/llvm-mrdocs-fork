@@ -19,6 +19,10 @@
 namespace llvm {
 
 /// The Bernstein hash function used by the DWARF accelerator tables.
+///
+/// \param Buffer Input bytes to hash.
+/// \param H Initial hash value (defaults to 5381).
+/// \return The Bernstein hash of the input.
 inline uint32_t djbHash(StringRef Buffer, uint32_t H = 5381) {
   for (unsigned char C : Buffer.bytes())
     H = (H << 5) + H + C;
@@ -27,6 +31,10 @@ inline uint32_t djbHash(StringRef Buffer, uint32_t H = 5381) {
 
 /// Computes the Bernstein hash after folding the input according to the Dwarf 5
 /// standard case folding rules.
+///
+/// \param Buffer Input string to case-fold and hash.
+/// \param H Initial hash value (defaults to 5381).
+/// \return The Bernstein hash of the case-folded input.
 LLVM_ABI uint32_t caseFoldingDjbHash(StringRef Buffer, uint32_t H = 5381);
 } // namespace llvm
 

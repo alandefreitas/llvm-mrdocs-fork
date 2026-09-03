@@ -40,13 +40,13 @@ class TargetRegisterInfo;
 /// Holds all the information related to register banks.
 class LLVM_ABI RegisterBankInfo {
 public:
-  /// Helper struct that represents how a value is partially mapped
-  /// into a register.
-  /// The StartIdx and Length represent what region of the orginal
-  /// value this partial mapping covers.
-  /// This can be represented as a Mask of contiguous bit starting
-  /// at StartIdx bit and spanning Length bits.
-  /// StartIdx is the number of bits from the less significant bits.
+  /// Helper struct that represents how a value is partially mapped into a
+  /// register.
+  ///
+  /// The StartIdx and Length represent what region of the orginal value this
+  /// partial mapping covers. This can be represented as a Mask of contiguous
+  /// bit starting at StartIdx bit and spanning Length bits. StartIdx is the
+  /// number of bits from the less significant bits.
   struct PartialMapping {
     /// Number of bits at which this partial mapping starts in the
     /// original value.  The bits are counted from less significant
@@ -61,29 +61,39 @@ public:
     /// Register bank where the partial value lives.
     const RegisterBank *RegBank;
 
+    /// Default-construct an uninitialized partial mapping.
     PartialMapping() = default;
 
     /// Provide a shortcut for quickly building PartialMapping.
+    /// \param StartIdx Bit index where this partial mapping starts.
+    /// \param Length Number of bits this partial mapping covers.
+    /// \param RegBank Register bank where the partial value lives.
     constexpr PartialMapping(unsigned StartIdx, unsigned Length,
                              const RegisterBank &RegBank)
         : StartIdx(StartIdx), Length(Length), RegBank(&RegBank) {}
 
-    /// \return the index of in the original value of the most
-    /// significant bit that this partial mapping covers.
+    /// Return the index of the most significant bit this partial mapping
+    /// covers.
+    ///
+    /// \return The index in the original value of the most significant bit that
+    /// this partial mapping covers.
     unsigned getHighBitIdx() const { return StartIdx + Length - 1; }
 
     /// Print this partial mapping on dbgs() stream.
     LLVM_ABI void dump() const;
 
     /// Print this partial mapping on \p OS;
+    /// \param OS Output stream to print to.
     LLVM_ABI void print(raw_ostream &OS) const;
 
     /// Check that the Mask is compatible with the RegBank.
+    ///
     /// Indeed, if the RegBank cannot accomadate the "active bits" of the mask,
     /// there is no way this mapping is valid.
     ///
     /// \note This method does not check anything when assertions are disabled.
     ///
+    /// \param RBI Register bank info used to validate this mapping.
     /// \return True is the check was successful.
     LLVM_ABI bool verify(const RegisterBankInfo &RBI) const;
   };
@@ -158,25 +168,36 @@ public:
     /// Initialize a ValueMapping with the given parameter.
     /// \p BreakDown needs to have a life time at least as long
     /// as this instance.
+    /// \param BreakDown Partial mappings that break down this value.
+    /// \param NumBreakDowns Number of partial mappings in \p BreakDown.
     constexpr ValueMapping(const PartialMapping *BreakDown,
                            unsigned NumBreakDowns)
         : BreakDown(BreakDown), NumBreakDowns(NumBreakDowns) {}
 
-    /// Iterators through the PartialMappings.
+    /// Return an iterator to the first partial mapping.
+    /// \return An iterator to the first partial mapping.
     const PartialMapping *begin() const { return BreakDown; }
+    /// Return an iterator past the last partial mapping.
+    /// \return An iterator past the last partial mapping.
     const PartialMapping *end() const { return BreakDown + NumBreakDowns; }
 
-    /// \return true if all partial mappings are the same size and register
+    /// Return true if all partial mappings have the same size and register
     /// bank.
+    /// \return True if all partial mappings have the same size and register
+    ///         bank.
     LLVM_ABI bool partsAllUniform() const;
 
     /// Check if this ValueMapping is valid.
+    /// \return True if this value mapping is valid.
     bool isValid() const { return BreakDown && NumBreakDowns; }
 
     /// Verify that this mapping makes sense for a value of
     /// \p MeaningfulBitWidth.
     /// \note This method does not check anything when assertions are disabled.
     ///
+    /// \param RBI Register bank info used to validate this mapping.
+    /// \param MeaningfulBitWidth Bit width the mapped value is expected to
+    ///        use.
     /// \return True is the check was successful.
     LLVM_ABI bool verify(const RegisterBankInfo &RBI,
                          TypeSize MeaningfulBitWidth) const;
@@ -185,6 +206,7 @@ public:
     LLVM_ABI void dump() const;
 
     /// Print this on \p OS;
+    /// \param OS Output stream to print to.
     LLVM_ABI void print(raw_ostream &OS) const;
   };
 
@@ -211,12 +233,18 @@ public:
     }
 
   public:
-    /// Constructor for the mapping of an instruction.
-    /// \p NumOperands must be equal to number of all the operands of
-    /// the related instruction.
-    /// The rationale is that it is more efficient for the optimizers
-    /// to be able to assume that the mapping of the ith operand is
+    /// Construct a mapping for an instruction.
+    ///
+    /// \p NumOperands must be equal to number of all the operands of the
+    /// related instruction. The rationale is that it is more efficient for the
+    /// optimizers to be able to assume that the mapping of the ith operand is
     /// at the index i.
+    ///
+    /// \param ID Identifier used to communicate which mapping was chosen.
+    /// \param Cost Cost of this mapping.
+    /// \param OperandsMapping Value mappings for each operand.
+    /// \param NumOperands Number of operands; must match the related
+    ///        instruction.
     InstructionMapping(unsigned ID, unsigned Cost,
                        const ValueMapping *OperandsMapping,
                        unsigned NumOperands)
@@ -228,17 +256,22 @@ public:
     InstructionMapping() = default;
 
     /// Get the cost.
+    /// \return The cost of this mapping.
     unsigned getCost() const { return Cost; }
 
     /// Get the ID.
+    /// \return The identifier of this mapping.
     unsigned getID() const { return ID; }
 
     /// Get the number of operands.
+    /// \return The number of operands.
     unsigned getNumOperands() const { return NumOperands; }
 
     /// Get the value mapping of the ith operand.
     /// \pre The mapping for the ith operand has been set.
     /// \pre The ith operand is a register.
+    /// \param i Operand index whose value mapping is requested.
+    /// \return The value mapping of the \p i-th operand.
     const ValueMapping &getOperandMapping(unsigned i) const {
       const ValueMapping &ValMapping =
           const_cast<InstructionMapping *>(this)->getOperandMapping(i);
@@ -248,12 +281,14 @@ public:
     /// Set the mapping for all the operands.
     /// In other words, OpdsMapping should hold at least getNumOperands
     /// ValueMapping.
+    /// \param OpdsMapping Array of value mappings, one per operand.
     void setOperandsMapping(const ValueMapping *OpdsMapping) {
       OperandsMapping = OpdsMapping;
     }
 
     /// Check whether this object is valid.
     /// This is a lightweight check for obvious wrong instance.
+    /// \return True if this instruction mapping is valid.
     bool isValid() const {
       return getID() != InvalidMappingID && OperandsMapping;
     }
@@ -263,6 +298,7 @@ public:
     ///
     /// \note This method does not check anything when assertions are disabled.
     ///
+    /// \param MI Instruction this mapping is checked against.
     /// \return True is the check was successful.
     LLVM_ABI bool verify(const MachineInstr &MI) const;
 
@@ -270,6 +306,7 @@ public:
     LLVM_ABI void dump() const;
 
     /// Print this on \p OS;
+    /// \param OS Output stream to print to.
     LLVM_ABI void print(raw_ostream &OS) const;
   };
 
@@ -323,6 +360,9 @@ public:
     /// Create an OperandsMapper that will hold the information to apply \p
     /// InstrMapping to \p MI.
     /// \pre InstrMapping.verify(MI)
+    /// \param MI Instruction being remapped.
+    /// \param InstrMapping Mapping to apply to \p MI.
+    /// \param MRI Register info used to create new virtual registers.
     LLVM_ABI OperandsMapper(MachineInstr &MI,
                             const InstructionMapping &InstrMapping,
                             MachineRegisterInfo &MRI);
@@ -330,27 +370,33 @@ public:
     /// \name Getters.
     /// @{
     /// The MachineInstr being remapped.
+    /// \return The MachineInstr being remapped.
     MachineInstr &getMI() const { return MI; }
 
     /// The final mapping of the instruction.
+    /// \return The final mapping of the instruction.
     const InstructionMapping &getInstrMapping() const { return InstrMapping; }
 
     /// The MachineRegisterInfo we used to realize the mapping.
+    /// \return The MachineRegisterInfo used to realize the mapping.
     MachineRegisterInfo &getMRI() const { return MRI; }
     /// @}
 
-    /// Create as many new virtual registers as needed for the mapping of the \p
-    /// OpIdx-th operand.
-    /// The number of registers is determined by the number of breakdown for the
-    /// related operand in the instruction mapping.
-    /// The type of the new registers is a plain scalar of the right size.
-    /// The proper type is expected to be set when the mapping is applied to
-    /// the instruction(s) that realizes the mapping.
+    /// Create as many new virtual registers as needed for the mapping of the
+    /// \p OpIdx-th operand.
+    ///
+    /// The number of registers is determined by the number of breakdown for
+    /// the related operand in the instruction mapping. The type of the new
+    /// registers is a plain scalar of the right size. The proper type is
+    /// expected to be set when the mapping is applied to the instruction(s)
+    /// that realizes the mapping.
     ///
     /// \pre getMI().getOperand(OpIdx).isReg()
     ///
     /// \post All the partial mapping of the \p OpIdx-th operand have been
     /// assigned a new virtual register.
+    ///
+    /// \param OpIdx Operand index for which virtual registers are created.
     LLVM_ABI void createVRegs(unsigned OpIdx);
 
     /// Set the virtual register of the \p PartialMapIdx-th partial mapping of
@@ -363,6 +409,10 @@ public:
     ///
     /// \post the \p PartialMapIdx-th register of the value mapping of the \p
     /// OpIdx-th operand has been set.
+    ///
+    /// \param OpIdx Operand index whose partial mapping is updated.
+    /// \param PartialMapIdx Index of the partial mapping within the operand.
+    /// \param NewVReg Virtual register assigned to that partial mapping.
     LLVM_ABI void setVRegs(unsigned OpIdx, unsigned PartialMapIdx,
                            Register NewVReg);
 
@@ -378,6 +428,10 @@ public:
     ///
     /// \pre getMI().getOperand(OpIdx).isReg()
     /// \pre ForDebug || All partial mappings have been set a register
+    ///
+    /// \param OpIdx Operand index whose virtual registers are requested.
+    /// \param ForDebug When true, skip checks for uninitialized registers.
+    /// \return The virtual registers required to map the \p OpIdx-th operand.
     LLVM_ABI iterator_range<SmallVectorImpl<Register>::const_iterator>
     getVRegs(unsigned OpIdx, bool ForDebug = false) const;
 
@@ -385,6 +439,8 @@ public:
     LLVM_ABI void dump() const;
 
     /// Print this operands mapper on \p OS stream.
+    /// \param OS Output stream to print to.
+    /// \param ForDebug When true, include debug-oriented details.
     LLVM_ABI void print(raw_ostream &OS, bool ForDebug = false) const;
   };
 
@@ -427,23 +483,36 @@ protected:
 
   /// Create a RegisterBankInfo that can accommodate up to \p NumRegBanks
   /// RegisterBank instances.
+  /// \param RegBanks Table of supported register banks.
+  /// \param NumRegBanks Number of entries in \p RegBanks.
+  /// \param Sizes Per-HwMode maximum sizes for each register bank.
+  /// \param HwMode Current hardware mode selecting size entries.
   RegisterBankInfo(const RegisterBank **RegBanks, unsigned NumRegBanks,
                    const unsigned *Sizes, unsigned HwMode);
 
-  /// This constructor is meaningless.
-  /// It just provides a default constructor that can be used at link time
-  /// when GlobalISel is not built.
-  /// That way, targets can still inherit from this class without doing
-  /// crazy gymnastic to avoid link time failures.
+  /// Provide a default constructor usable when GlobalISel is not built.
+  ///
+  /// This constructor is meaningless. It just provides a default constructor
+  /// that can be used at link time when GlobalISel is not built. That way,
+  /// targets can still inherit from this class without doing crazy gymnastic
+  /// to avoid link time failures.
   /// \note That works because the constructor is inlined.
   RegisterBankInfo() {
     llvm_unreachable("This constructor should not be executed");
   }
 
-  RegisterBankInfo(const RegisterBankInfo &) = delete;
-  RegisterBankInfo &operator=(const RegisterBankInfo &) = delete;
+  /// Copy construction is deleted; RegisterBankInfo is not copyable.
+  ///
+  /// \param RHS Unused; copy construction is deleted.
+  RegisterBankInfo(const RegisterBankInfo &RHS) = delete;
+  /// Copy assignment is deleted; RegisterBankInfo is not copyable.
+  ///
+  /// \param RHS Unused; copy assignment is deleted.
+  RegisterBankInfo &operator=(const RegisterBankInfo &RHS) = delete;
 
   /// Get the register bank identified by \p ID.
+  /// \param ID Register bank identifier.
+  /// \return The register bank identified by \p ID.
   const RegisterBank &getRegBank(unsigned ID) {
     assert(ID < getNumRegBanks() && "Accessing an unknown register bank");
     return *RegBanks[ID];
@@ -451,6 +520,9 @@ protected:
 
   /// Get the MinimalPhysRegClass for Reg.
   /// \pre Reg is a physical register.
+  /// \param Reg Physical register whose minimal class is requested.
+  /// \param TRI Target register info used to query register classes.
+  /// \return The minimal physical register class for \p Reg.
   const TargetRegisterClass *
   getMinimalPhysRegClass(MCRegister Reg, const TargetRegisterInfo &TRI) const;
 
@@ -471,10 +543,17 @@ protected:
   ///   register, a register class, or a register bank.
   /// In other words, this method will likely fail to find a mapping for
   /// any generic opcode that has not been lowered by target specific code.
+  ///
+  /// \param MI Instruction whose mapping is requested.
+  /// \return The instruction mapping for \p MI, which may be invalid.
   const InstructionMapping &getInstrMappingImpl(const MachineInstr &MI) const;
 
   /// Get the uniquely generated PartialMapping for the
   /// given arguments.
+  /// \param StartIdx Bit index where the partial mapping starts.
+  /// \param Length Number of bits the partial mapping covers.
+  /// \param RegBank Register bank for the partial mapping.
+  /// \return A uniquely generated partial mapping for the given arguments.
   const PartialMapping &getPartialMapping(unsigned StartIdx, unsigned Length,
                                           const RegisterBank &RegBank) const;
 
@@ -483,10 +562,17 @@ protected:
 
   /// The most common ValueMapping consists of a single PartialMapping.
   /// Feature a method for that.
+  /// \param StartIdx Bit index where the partial mapping starts.
+  /// \param Length Number of bits the partial mapping covers.
+  /// \param RegBank Register bank for the partial mapping.
+  /// \return A uniquely generated value mapping with a single partial mapping.
   const ValueMapping &getValueMapping(unsigned StartIdx, unsigned Length,
                                       const RegisterBank &RegBank) const;
 
   /// Get the ValueMapping for the given arguments.
+  /// \param BreakDown Partial mappings that break down the value.
+  /// \param NumBreakDowns Number of partial mappings in \p BreakDown.
+  /// \return A uniquely generated value mapping for the given arguments.
   const ValueMapping &getValueMapping(const PartialMapping *BreakDown,
                                       unsigned NumBreakDowns) const;
   /// @}
@@ -504,6 +590,10 @@ protected:
   /// must uniquely identify a ValueMapping. Otherwise, there is no
   /// guarantee that the return instance will be unique, i.e., another
   /// OperandsMapping could have the same content.
+  ///
+  /// \param Begin Begin iterator over operand value mappings.
+  /// \param End End iterator over operand value mappings.
+  /// \return A uniquely generated array of value mappings.
   template <typename Iterator>
   const ValueMapping *getOperandsMapping(Iterator Begin, Iterator End) const;
 
@@ -512,6 +602,9 @@ protected:
   ///
   /// Elements of \p OpdsMapping that are nullptr will be replaced by
   /// invalid ValueMapping (ValueMapping::isValid == false).
+  ///
+  /// \param OpdsMapping Operand value mappings to uniquify.
+  /// \return A uniquely generated array of value mappings.
   const ValueMapping *getOperandsMapping(
       const SmallVectorImpl<const ValueMapping *> &OpdsMapping) const;
 
@@ -520,6 +613,9 @@ protected:
   ///
   /// Arguments that are nullptr will be replaced by invalid
   /// ValueMapping (ValueMapping::isValid == false).
+  ///
+  /// \param OpdsMapping Operand value mappings to uniquify.
+  /// \return A uniquely generated array of value mappings.
   const ValueMapping *getOperandsMapping(
       std::initializer_list<const ValueMapping *> OpdsMapping) const;
   /// @}
@@ -537,6 +633,11 @@ private:
 
 public:
   /// Method to get a uniquely generated InstructionMapping.
+  /// \param ID Identifier used to communicate which mapping was chosen.
+  /// \param Cost Cost of this mapping.
+  /// \param OperandsMapping Value mappings for each operand.
+  /// \param NumOperands Number of operands covered by \p OperandsMapping.
+  /// \return A uniquely generated instruction mapping for the given arguments.
   const InstructionMapping &
   getInstructionMapping(unsigned ID, unsigned Cost,
                         const ValueMapping *OperandsMapping,
@@ -546,6 +647,7 @@ public:
   }
 
   /// Method to get a uniquely generated invalid InstructionMapping.
+  /// \return A uniquely generated invalid instruction mapping.
   const InstructionMapping &getInvalidInstructionMapping() const {
     return getInstructionMappingImpl(/*IsInvalid*/ true);
   }
@@ -557,15 +659,20 @@ public:
   /// \return A register bank that covers the register class of the
   /// related encoding constraints or nullptr if \p MI did not provide
   /// enough information to deduce it.
+  ///
+  /// \param MI Instruction whose operand constraints are inspected.
+  /// \param OpIdx Operand index within \p MI.
+  /// \param TII Target instruction info providing encoding constraints.
+  /// \param MRI Register info used to inspect operand registers.
   const RegisterBank *
   getRegBankFromConstraints(const MachineInstr &MI, unsigned OpIdx,
                             const TargetInstrInfo &TII,
                             const MachineRegisterInfo &MRI) const;
 
-  /// Helper method to apply something that is like the default mapping.
-  /// Basically, that means that \p OpdMapper.getMI() is left untouched
-  /// aside from the reassignment of the register operand that have been
-  /// remapped.
+  /// Apply a default-like mapping to \p OpdMapper.
+  ///
+  /// Basically, that means that \p OpdMapper.getMI() is left untouched aside
+  /// from the reassignment of the register operand that have been remapped.
   ///
   /// The type of all the new registers that have been created by the
   /// mapper are properly remapped to the type of the original registers
@@ -577,23 +684,32 @@ public:
   ///
   /// \pre For OpIdx in {0..\p OpdMapper.getMI().getNumOperands())
   ///        the range OpdMapper.getVRegs(OpIdx) is empty or of size 1.
+  ///
+  /// \param OpdMapper Mapper describing the default-like remapping to apply.
   static void applyDefaultMapping(const OperandsMapper &OpdMapper);
 
   /// See ::applyMapping.
+  /// \param Builder Builder used when expanding or rewriting instructions.
+  /// \param OpdMapper Mapper describing the chosen operand remapping.
   virtual void applyMappingImpl(MachineIRBuilder &Builder,
                                 const OperandsMapper &OpdMapper) const {
     llvm_unreachable("The target has to implement this");
   }
 
 public:
+  /// Destroy a register bank info.
   virtual ~RegisterBankInfo() = default;
 
   /// Get the register bank identified by \p ID.
+  /// \param ID Register bank identifier.
+  /// \return The register bank identified by \p ID.
   const RegisterBank &getRegBank(unsigned ID) const {
     return const_cast<RegisterBankInfo *>(this)->getRegBank(ID);
   }
 
   /// Get the maximum size in bits that fits in the given register bank.
+  /// \param RegBankID Identifier of the register bank.
+  /// \return The maximum size in bits that fits in that register bank.
   unsigned getMaximumSize(unsigned RegBankID) const {
     return Sizes[RegBankID + HwMode * NumRegBanks];
   }
@@ -603,13 +719,21 @@ public:
   /// or a register bank, then this returns nullptr.
   ///
   /// \pre Reg != 0 (NoRegister)
+  ///
+  /// \param Reg Register whose bank is requested.
+  /// \param MRI Register info used to look up register attributes.
+  /// \param TRI Target register info used for physical registers.
+  /// \return The register bank of \p Reg, or nullptr if none is assigned.
   const RegisterBank *getRegBank(Register Reg, const MachineRegisterInfo &MRI,
                                  const TargetRegisterInfo &TRI) const;
 
   /// Get the total number of register banks.
+  /// \return The total number of register banks.
   unsigned getNumRegBanks() const { return NumRegBanks; }
 
   /// Returns true if the register bank is considered divergent.
+  /// \param RB Register bank to test for divergence.
+  /// \return True if \p RB is considered divergent.
   virtual bool isDivergentRegBank(const RegisterBank *RB) const {
     return false;
   }
@@ -626,17 +750,27 @@ public:
   /// there are just a handful of them and we do not want to waste space.
   ///
   /// \todo This should be TableGen'ed.
+  ///
+  /// \param RC Register class to cover.
+  /// \param Ty Type associated with the register class query.
+  /// \return A register bank that covers \p RC.
   virtual const RegisterBank &
   getRegBankFromRegClass(const TargetRegisterClass &RC, LLT Ty) const {
     llvm_unreachable("The target must override this method");
   }
 
-  /// Get the cost of a copy from \p B to \p A, or put differently,
-  /// get the cost of A = COPY B. Since register banks may cover
-  /// different size, \p Size specifies what will be the size in bits
+  /// Get the cost of a copy from \p B to \p A.
+  ///
+  /// Put differently, get the cost of A = COPY B. Since register banks may
+  /// cover different size, \p Size specifies what will be the size in bits
   /// that will be copied around.
   ///
   /// \note Since this is a copy, both registers have the same size.
+  ///
+  /// \param A Destination register bank.
+  /// \param B Source register bank.
+  /// \param Size Size in bits of the value being copied.
+  /// \return The cost of copying \p Size bits from \p B to \p A.
   virtual unsigned copyCost(const RegisterBank &A, const RegisterBank &B,
                             TypeSize Size) const {
     // Optimistically assume that copies are coalesced. I.e., when
@@ -646,16 +780,26 @@ public:
     return &A != &B;
   }
 
-  /// \returns true if emitting a copy from \p Src to \p Dst is impossible.
+  /// Return true if emitting a copy from \p Src to \p Dst is impossible.
+  /// \param Dst Destination register bank.
+  /// \param Src Source register bank.
+  /// \param Size Size in bits of the value being copied.
+  /// \return True if a copy from \p Src to \p Dst is impossible.
   bool cannotCopy(const RegisterBank &Dst, const RegisterBank &Src,
                   TypeSize Size) const {
     return copyCost(Dst, Src, Size) == std::numeric_limits<unsigned>::max();
   }
 
-  /// Get the cost of using \p ValMapping to decompose a register. This is
-  /// similar to ::copyCost, except for cases where multiple copy-like
+  /// Get the cost of using \p ValMapping to decompose a register.
+  ///
+  /// This is similar to ::copyCost, except for cases where multiple copy-like
   /// operations need to be inserted. If the register is used as a source
   /// operand and already has a bank assigned, \p CurBank is non-null.
+  ///
+  /// \param ValMapping Mapping that decomposes the register.
+  /// \param CurBank Current bank of the register, or nullptr if unknown.
+  /// \return The cost of using \p ValMapping, or the maximum unsigned value if
+  ///         unsupported.
   virtual unsigned
   getBreakDownCost(const ValueMapping &ValMapping,
                    const RegisterBank *CurBank = nullptr) const {
@@ -669,12 +813,16 @@ public:
   /// \note This is a generic variant of MachineRegisterInfo::constrainRegClass
   /// \note Use MachineRegisterInfo::constrainRegAttrs instead for any non-isel
   /// purpose, including non-select passes of GlobalISel
+  ///
+  /// \param Reg Virtual register to constrain.
+  /// \param RC Register class to constrain \p Reg to.
+  /// \param MRI Register info used to update register attributes.
   static const TargetRegisterClass *
   constrainGenericRegister(Register Reg, const TargetRegisterClass &RC,
                            MachineRegisterInfo &MRI);
 
-  /// Identifier used when the related instruction mapping instance
-  /// is generated by target independent code.
+  /// Identifier for instruction mappings generated by target-independent code.
+  ///
   /// Make sure not to use that identifier to avoid possible collision.
   static const unsigned DefaultMappingID;
 
@@ -683,13 +831,12 @@ public:
   /// Make sure not to use that identifier.
   static const unsigned InvalidMappingID;
 
-  /// Get the mapping of the different operands of \p MI
-  /// on the register bank.
-  /// This mapping should be the direct translation of \p MI.
-  /// In other words, when \p MI is mapped with the returned mapping,
-  /// only the register banks of the operands of \p MI need to be updated.
-  /// In particular, neither the opcode nor the type of \p MI needs to be
-  /// updated for this direct mapping.
+  /// Get the mapping of the different operands of \p MI on the register bank.
+  ///
+  /// This mapping should be the direct translation of \p MI. In other words,
+  /// when \p MI is mapped with the returned mapping, only the register banks of
+  /// the operands of \p MI need to be updated. In particular, neither the
+  /// opcode nor the type of \p MI needs to be updated for this direct mapping.
   ///
   /// The target independent implementation gives a mapping based on
   /// the register classes for the target specific opcode.
@@ -705,15 +852,21 @@ public:
   ///
   /// \note If returnedVal does not verify MI, this would probably mean
   /// that the target does not support that instruction.
+  ///
+  /// \param MI Instruction whose operand mapping is requested.
+  /// \return The direct instruction mapping for \p MI.
   virtual const InstructionMapping &
   getInstrMapping(const MachineInstr &MI) const;
 
   /// Get the alternative mappings for \p MI.
   /// Alternative in the sense different from getInstrMapping.
+  /// \param MI Instruction whose alternative mappings are requested.
+  /// \return The alternative instruction mappings for \p MI.
   virtual InstructionMappings
   getInstrAlternativeMappings(const MachineInstr &MI) const;
 
-  /// Get the possible mapping for \p MI.
+  /// Get the possible mappings for \p MI.
+  ///
   /// A mapping defines where the different operands may live and at what cost.
   /// For instance, let us consider:
   /// v0(16) = G_ADD <2 x i8> v1, v2
@@ -729,16 +882,22 @@ public:
   /// direct translation of \p MI current form.
   ///
   /// \post !returnedVal.empty().
+  ///
+  /// \param MI Instruction whose possible mappings are requested.
+  /// \return The possible instruction mappings for \p MI.
   InstructionMappings getInstrPossibleMappings(const MachineInstr &MI) const;
 
   /// Apply \p OpdMapper.getInstrMapping() to \p OpdMapper.getMI().
-  /// After this call \p OpdMapper.getMI() may not be valid anymore.
-  /// \p OpdMapper.getInstrMapping().getID() carries the information of
-  /// what has been chosen to map \p OpdMapper.getMI(). This ID is set
-  /// by the various getInstrXXXMapping method.
   ///
-  /// Therefore, getting the mapping and applying it should be kept in
-  /// sync.
+  /// After this call \p OpdMapper.getMI() may not be valid anymore.
+  /// \p OpdMapper.getInstrMapping().getID() carries the information of what
+  /// has been chosen to map \p OpdMapper.getMI(). This ID is set by the various
+  /// getInstrXXXMapping method.
+  ///
+  /// Therefore, getting the mapping and applying it should be kept in sync.
+  ///
+  /// \param Builder Builder used when expanding or rewriting instructions.
+  /// \param OpdMapper Mapper describing the chosen operand remapping.
   void applyMapping(MachineIRBuilder &Builder,
                     const OperandsMapper &OpdMapper) const {
     // The only mapping we know how to handle is the default mapping.
@@ -751,11 +910,17 @@ public:
   }
 
   /// Get the size in bits of \p Reg.
+  ///
   /// Utility method to get the size of any registers. Unlike
   /// MachineRegisterInfo::getSize, the register does not need to be a
   /// virtual register.
   ///
   /// \pre \p Reg != 0 (NoRegister).
+  ///
+  /// \param Reg Register whose size is requested.
+  /// \param MRI Register info used for virtual registers.
+  /// \param TRI Target register info used for physical registers.
+  /// \return The size in bits of \p Reg.
   TypeSize getSizeInBits(Register Reg, const MachineRegisterInfo &MRI,
                          const TargetRegisterInfo &TRI) const;
 
@@ -764,10 +929,15 @@ public:
   ///
   /// \note This method does not check anything when assertions are disabled.
   ///
+  /// \param TRI Target register info used to validate this instance.
   /// \return True is the check was successful.
   bool verify(const TargetRegisterInfo &TRI) const;
 };
 
+/// Write \p PartMapping to \p OS.
+/// \param OS Output stream.
+/// \param PartMapping Partial mapping to print.
+/// \return The output stream \p OS.
 inline raw_ostream &
 operator<<(raw_ostream &OS,
            const RegisterBankInfo::PartialMapping &PartMapping) {
@@ -775,12 +945,20 @@ operator<<(raw_ostream &OS,
   return OS;
 }
 
+/// Write \p ValMapping to \p OS.
+/// \param OS Output stream.
+/// \param ValMapping Value mapping to print.
+/// \return The output stream \p OS.
 inline raw_ostream &
 operator<<(raw_ostream &OS, const RegisterBankInfo::ValueMapping &ValMapping) {
   ValMapping.print(OS);
   return OS;
 }
 
+/// Write \p InstrMapping to \p OS.
+/// \param OS Output stream.
+/// \param InstrMapping Instruction mapping to print.
+/// \return The output stream \p OS.
 inline raw_ostream &
 operator<<(raw_ostream &OS,
            const RegisterBankInfo::InstructionMapping &InstrMapping) {
@@ -788,6 +966,10 @@ operator<<(raw_ostream &OS,
   return OS;
 }
 
+/// Write \p OpdMapper to \p OS.
+/// \param OS Output stream.
+/// \param OpdMapper Operands mapper to print.
+/// \return The output stream \p OS.
 inline raw_ostream &
 operator<<(raw_ostream &OS, const RegisterBankInfo::OperandsMapper &OpdMapper) {
   OpdMapper.print(OS, /*ForDebug*/ false);
@@ -796,6 +978,8 @@ operator<<(raw_ostream &OS, const RegisterBankInfo::OperandsMapper &OpdMapper) {
 
 /// Hashing function for PartialMapping.
 /// It is required for the hashing of ValueMapping.
+/// \param PartMapping Partial mapping to hash.
+/// \return A hash code for \p PartMapping.
 LLVM_ABI hash_code
 hash_value(const RegisterBankInfo::PartialMapping &PartMapping);
 

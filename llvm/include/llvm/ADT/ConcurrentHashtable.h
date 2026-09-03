@@ -33,6 +33,7 @@ class ConcurrentHashTableInfoByPtr {
 public:
   /// Compute the hash of \p Key.
   ///
+  /// \param Key Value whose hash code is computed.
   /// \returns Hash value for the specified \p Key.
   static inline uint64_t getHashValue(const KeyTy &Key) {
     return xxh3_64bits(Key);
@@ -40,6 +41,8 @@ public:
 
   /// Return whether \p LHS and \p RHS compare equal.
   ///
+  /// \param LHS Left-hand key to compare.
+  /// \param RHS Right-hand key to compare.
   /// \returns true if both \p LHS and \p RHS are equal.
   static inline bool isEqual(const KeyTy &LHS, const KeyTy &RHS) {
     return LHS == RHS;
@@ -47,6 +50,7 @@ public:
 
   /// Extract the lookup key from stored value \p KeyData.
   ///
+  /// \param KeyData Stored table value from which the key is taken.
   /// \returns key for the specified \p KeyData.
   static inline const KeyTy &getKey(const KeyDataTy &KeyData) {
     return KeyData.getKey();
@@ -54,6 +58,8 @@ public:
 
   /// Allocate a new \c KeyDataTy for \p Key using \p Allocator.
   ///
+  /// \param Key Key used to construct the new value.
+  /// \param Allocator Allocator that owns the new \c KeyDataTy.
   /// \returns newly created object of KeyDataTy type.
   static inline KeyDataTy *create(const KeyTy &Key, AllocatorTy &Allocator) {
     return KeyDataTy::create(Key, Allocator);
@@ -154,6 +160,7 @@ public:
 
   /// Insert new value \p NewValue or return already existing entry.
   ///
+  /// \param NewValue Key to insert or look up in the table.
   /// \returns entry and "true" if an entry is just inserted or
   /// "false" if an entry already exists.
   std::pair<KeyDataTy *, bool> insert(const KeyTy &NewValue) {
@@ -203,6 +210,8 @@ public:
   }
 
   /// Print information about current state of hash table structures.
+  ///
+  /// \param OS Stream that receives the statistics dump.
   void printStatistic(raw_ostream &OS) {
     OS << "\n--- HashTable statistic:\n";
     OS << "\nNumber of buckets = " << NumberOfBuckets;

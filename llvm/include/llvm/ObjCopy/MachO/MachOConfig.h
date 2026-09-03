@@ -18,26 +18,31 @@
 namespace llvm {
 namespace objcopy {
 
-// Mach-O specific configuration for copying/stripping a single file.
+/// Mach-O specific configuration for copying/stripping a single file.
 struct MachOConfig {
-  // Repeated options
+  /// RPath entries to append to the binary.
   std::vector<StringRef> RPathToAdd;
+  /// RPath entries to prepend to the binary.
   std::vector<StringRef> RPathToPrepend;
+  /// Mapping from old RPath entries to their replacements.
   DenseMap<StringRef, StringRef> RPathsToUpdate;
+  /// Mapping from old install names to their replacements.
   DenseMap<StringRef, StringRef> InstallNamesToUpdate;
+  /// RPath entries to remove from the binary.
   DenseSet<StringRef> RPathsToRemove;
 
-  // install-name-tool's id option
+  /// Shared library install name set by install-name-tool's -id option.
   std::optional<StringRef> SharedLibId;
 
-  // Segments to remove if they are empty
+  /// Segment names to remove when those segments are empty.
   DenseSet<StringRef> EmptySegmentsToRemove;
 
-  // Boolean options
+  /// Whether to strip Swift symbols from the binary.
   bool StripSwiftSymbols = false;
+  /// Whether to keep undefined symbols.
   bool KeepUndefined = false;
 
-  // install-name-tool's --delete_all_rpaths
+  /// Whether to remove all RPath entries (--delete_all_rpaths).
   bool RemoveAllRpaths = false;
 };
 

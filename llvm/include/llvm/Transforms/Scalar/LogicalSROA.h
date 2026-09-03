@@ -22,11 +22,19 @@ namespace llvm {
 
 class Function;
 
+/// Logical Scalar Replacement of Aggregates pass.
+///
+/// Provides aggregate splitting and the primary SSA formation used in the
+/// compiler when used with structured GEP and allocas.
 class LogicalSROAPass : public OptionalPassInfoMixin<LogicalSROAPass> {
 public:
+  /// Construct a LogicalSROA pass.
   LogicalSROAPass();
 
   /// Run the pass over the function.
+  /// @param F Function to run LogicalSROA on.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

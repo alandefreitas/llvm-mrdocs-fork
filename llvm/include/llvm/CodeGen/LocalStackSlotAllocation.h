@@ -13,11 +13,20 @@
 
 namespace llvm {
 
+/// New PM pass that pre-allocates local frame indices to stack slots.
+///
+/// Assigns local frame indices relative to one another and allocates base
+/// registers to access them when the target estimates they are out of range of
+/// normal frame-pointer or stack-pointer addressing.
 class LocalStackSlotAllocationPass
     : public RequiredPassInfoMixin<LocalStackSlotAllocationPass> {
 public:
+  /// Allocate local stack slots in \p MF.
+  /// \param MF Machine function whose local frame indices are allocated.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after allocating local stack slots.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
-                                 MachineFunctionAnalysisManager &);
+                                 MachineFunctionAnalysisManager &MFAM);
 };
 
 } // namespace llvm

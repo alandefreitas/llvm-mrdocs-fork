@@ -40,12 +40,29 @@ template <typename ListEntryType> class DWARFListType {
   using ListEntries = std::vector<EntryType>;
 
 protected:
+  /// The entries that make up this list.
   ListEntries Entries;
 
 public:
+  /// Return the entries that make up this list.
+  ///
+  /// \returns Const reference to the entries that make up this list.
   const ListEntries &getEntries() const { return Entries; }
+  /// Return true if this list has no entries.
+  ///
+  /// \returns True if this list has no entries.
   bool empty() const { return Entries.empty(); }
+  /// Clear all entries from this list.
   void clear() { Entries.clear(); }
+  /// Extract a list from \p Data starting at \p *OffsetPtr.
+  ///
+  /// \param Data Section contents to parse from.
+  /// \param HeaderOffset Offset of the enclosing table header within the
+  ///        section.
+  /// \param OffsetPtr Byte offset into \p Data; advanced past the parsed list.
+  /// \param SectionName Name of the section being parsed (for diagnostics).
+  /// \param ListStringName Characterization of the list type (for diagnostics).
+  /// \returns Success, or an error if the list could not be parsed.
   Error extract(DWARFDataExtractor Data, uint64_t HeaderOffset,
                 uint64_t *OffsetPtr, StringRef SectionName,
                 StringRef ListStringName);
@@ -84,23 +101,54 @@ class DWARFListTableHeader {
   StringRef ListTypeString;
 
 public:
+  /// Construct a list table header for the given section and list type.
+  ///
+  /// \param SectionName Name of the section the table is located in.
+  /// \param ListTypeString Characterization of the list for dumping purposes.
   DWARFListTableHeader(StringRef SectionName, StringRef ListTypeString)
       : SectionName(SectionName), ListTypeString(ListTypeString) {}
 
+  /// Reset the header data to its default state.
   void clear() {
     HeaderData = {};
   }
+  /// Return the offset of this header within its section.
+  ///
+  /// \returns The offset of this header within its section.
   uint64_t getHeaderOffset() const { return HeaderOffset; }
+  /// Return the address size recorded in this header.
+  ///
+  /// \returns The address size recorded in this header.
   uint8_t getAddrSize() const { return HeaderData.AddrSize; }
+  /// Return the length field recorded in this header.
+  ///
+  /// \returns The length field recorded in this header.
   uint64_t getLength() const { return HeaderData.Length; }
+  /// Return the DWARF version recorded in this header.
+  ///
+  /// \returns The DWARF version recorded in this header.
   uint16_t getVersion() const { return HeaderData.Version; }
+  /// Return the number of offset entries that follow this header.
+  ///
+  /// \returns The number of offset entries that follow this header.
   uint32_t getOffsetEntryCount() const { return HeaderData.OffsetEntryCount; }
+  /// Return the name of the section this table is located in.
+  ///
+  /// \returns The name of the section this table is located in.
   StringRef getSectionName() const { return SectionName; }
+  /// Return the list type string used for dumping.
+  ///
+  /// \returns The list type string used for dumping.
   StringRef getListTypeString() const { return ListTypeString; }
+  /// Return the DWARF format of this table.
+  ///
+  /// \returns The DWARF format of this table.
   dwarf::DwarfFormat getFormat() const { return Format; }
 
-  /// Return the size of the table header including the length but not including
-  /// the offsets.
+  /// Return the size of the table header excluding the offset array.
+  ///
+  /// \param Format DWARF32 or DWARF64 format of the table.
+  /// \returns Size in bytes of the table header excluding the offset array.
   static uint8_t getHeaderSize(dwarf::DwarfFormat Format) {
     switch (Format) {
     case dwarf::DwarfFormat::DWARF32:
@@ -111,8 +159,18 @@ public:
     llvm_unreachable("Invalid DWARF format (expected DWARF32 or DWARF64");
   }
 
+  /// Dump this table header to \p OS.
+  ///
+  /// \param Data Section contents used when dumping offset entries.
+  /// \param OS Output stream to write the dump to.
+  /// \param DumpOpts Options controlling what and how to dump.
   LLVM_ABI void dump(DataExtractor Data, raw_ostream &OS,
                      DIDumpOptions DumpOpts = {}) const;
+  /// Return the contents of the offset entry at \p Index.
+  ///
+  /// \param Data Section contents containing the offset array.
+  /// \param Index Zero-based index into the offset entry array.
+  /// \returns The offset entry at \p Index, or std::nullopt if out of range.
   std::optional<uint64_t> getOffsetEntry(DataExtractor Data,
                                          uint32_t Index) const {
     if (Index >= HeaderData.OffsetEntryCount)
@@ -121,6 +179,14 @@ public:
     return getOffsetEntry(Data, getHeaderOffset() + getHeaderSize(Format), Format, Index);
   }
 
+  /// Return the offset entry at \p Index from an offset table at a given
+  /// location.
+  ///
+  /// \param Data Section contents containing the offset array.
+  /// \param OffsetTableOffset Byte offset of the offset array within \p Data.
+  /// \param Format DWARF32 or DWARF64 format controlling entry width.
+  /// \param Index Zero-based index into the offset entry array.
+  /// \returns The offset entry at \p Index from the given offset table.
   static std::optional<uint64_t> getOffsetEntry(DataExtractor Data,
                                                 uint64_t OffsetTableOffset,
                                                 dwarf::DwarfFormat Format,
@@ -132,19 +198,27 @@ public:
   }
 
   /// Extract the table header and the array of offsets.
+  ///
+  /// \param Data Section contents to parse from.
+  /// \param OffsetPtr Byte offset into \p Data; advanced past the header and
+  ///        offset array.
+  /// \returns Success, or an error if the header could not be parsed.
   LLVM_ABI Error extract(DWARFDataExtractor Data, uint64_t *OffsetPtr);
 
-  /// Returns the length of the table, including the length field, or 0 if the
-  /// length has not been determined (e.g. because the table has not yet been
-  /// parsed, or there was a problem in parsing).
+  /// Return the full length of the table, including the length field.
+  ///
+  /// Returns 0 if the length has not been determined (e.g. because the table
+  /// has not yet been parsed, or there was a problem in parsing).
+  ///
+  /// \returns Full table length including the length field, or 0 if unknown.
   LLVM_ABI uint64_t length() const;
 };
 
-/// A class representing a table of lists as specified in the DWARF v5
-/// standard for location lists and range lists. The table consists of a header
-/// followed by an array of offsets into a DWARF section, followed by zero or
-/// more list entries. The list entries are kept in a map where the keys are
-/// the lists' section offsets.
+/// A class representing a DWARF v5 table of location or range lists.
+///
+/// The table consists of a header followed by an array of offsets into a DWARF
+/// section, followed by zero or more list entries. The list entries are kept
+/// in a map where the keys are the lists' section offsets.
 template <typename DWARFListType> class DWARFListTableBase {
   DWARFListTableHeader Header;
   /// A mapping between file offsets and lists. It is used to find a particular
@@ -155,31 +229,68 @@ template <typename DWARFListType> class DWARFListTableBase {
   StringRef HeaderString;
 
 protected:
+  /// Construct a list table for the given section and dump labels.
+  ///
+  /// \param SectionName Name of the section the table is located in.
+  /// \param HeaderString Heading displayed before the list is dumped.
+  /// \param ListTypeString Characterization of the list for dumping purposes.
   DWARFListTableBase(StringRef SectionName, StringRef HeaderString,
                      StringRef ListTypeString)
       : Header(SectionName, ListTypeString), HeaderString(HeaderString) {}
 
 public:
+  /// Clear the table header and all extracted lists.
   void clear() {
     Header.clear();
     ListMap.clear();
   }
   /// Extract the table header and the array of offsets.
+  ///
+  /// \param Data Section contents to parse from.
+  /// \param OffsetPtr Byte offset into \p Data; advanced past the header and
+  ///        offset array.
+  /// \returns Success, or an error if the header could not be parsed.
   Error extractHeaderAndOffsets(DWARFDataExtractor Data, uint64_t *OffsetPtr) {
     return Header.extract(Data, OffsetPtr);
   }
   /// Extract an entire table, including all list entries.
+  ///
+  /// \param Data Section contents to parse from.
+  /// \param OffsetPtr Byte offset into \p Data; advanced past the parsed table.
+  /// \returns Success, or an error if the table could not be parsed.
   Error extract(DWARFDataExtractor Data, uint64_t *OffsetPtr);
   /// Look up a list based on a given offset. Extract it and enter it into the
   /// list map if necessary.
+  ///
+  /// \param Data Section contents to parse from.
+  /// \param Offset Byte offset of the list within the section.
+  /// \returns The list at \p Offset, or an error if extraction fails.
   Expected<DWARFListType> findList(DWARFDataExtractor Data,
                                    uint64_t Offset) const;
 
+  /// Return the offset of the table header within its section.
+  ///
+  /// \returns The offset of the table header within its section.
   uint64_t getHeaderOffset() const { return Header.getHeaderOffset(); }
+  /// Return the address size recorded in the table header.
+  ///
+  /// \returns The address size recorded in the table header.
   uint8_t getAddrSize() const { return Header.getAddrSize(); }
+  /// Return the number of offset entries in the table header.
+  ///
+  /// \returns The number of offset entries in the table header.
   uint32_t getOffsetEntryCount() const { return Header.getOffsetEntryCount(); }
+  /// Return the DWARF format of this table.
+  ///
+  /// \returns The DWARF format of this table.
   dwarf::DwarfFormat getFormat() const { return Header.getFormat(); }
 
+  /// Dump this list table to \p OS.
+  ///
+  /// \param Data Section contents used when dumping list entries.
+  /// \param OS Output stream to write the dump to.
+  /// \param LookupPooledAddress Callback to resolve pooled addresses by index.
+  /// \param DumpOpts Options controlling what and how to dump.
   void
   dump(DWARFDataExtractor Data, raw_ostream &OS,
        llvm::function_ref<std::optional<object::SectionedAddress>(uint32_t)>
@@ -187,17 +298,27 @@ public:
        DIDumpOptions DumpOpts = {}) const;
 
   /// Return the contents of the offset entry designated by a given index.
+  ///
+  /// \param Data Section contents containing the offset array.
+  /// \param Index Zero-based index into the offset entry array.
+  /// \returns The offset entry at \p Index, or std::nullopt if out of range.
   std::optional<uint64_t> getOffsetEntry(DataExtractor Data,
                                          uint32_t Index) const {
     return Header.getOffsetEntry(Data, Index);
   }
-  /// Return the size of the table header including the length but not including
-  /// the offsets. This is dependent on the table format, which is unambiguously
-  /// derived from parsing the table.
+  /// Return the size of the table header excluding the offset array.
+  ///
+  /// This is dependent on the table format, which is unambiguously derived
+  /// from parsing the table.
+  ///
+  /// \returns Size in bytes of the table header excluding the offset array.
   uint8_t getHeaderSize() const {
     return DWARFListTableHeader::getHeaderSize(getFormat());
   }
 
+  /// Return the full length of the table, including the length field.
+  ///
+  /// \returns Full table length including the length field, or 0 if unknown.
   uint64_t length() { return Header.length(); }
 };
 

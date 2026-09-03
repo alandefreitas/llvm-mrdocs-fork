@@ -16,13 +16,19 @@ namespace llvm {
 class Pass;
 class Function;
 
+/// Merges consecutive loads and stores into vector loads and stores.
 class LoadStoreVectorizerPass
     : public OptionalPassInfoMixin<LoadStoreVectorizerPass> {
 public:
+  /// Run the load/store vectorizer pass over the function.
+  /// @param F Function whose consecutive loads and stores may be vectorized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
-/// Create a legacy pass manager instance of the LoadStoreVectorizer pass
+/// Create a legacy pass manager instance of the LoadStoreVectorizer pass.
+/// @return A new LoadStoreVectorizer pass for the legacy pass manager.
 LLVM_ABI Pass *createLoadStoreVectorizerPass();
 }
 

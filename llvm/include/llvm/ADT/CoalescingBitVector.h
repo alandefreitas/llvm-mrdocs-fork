@@ -55,6 +55,7 @@ public:
 
   /// Construct by passing in a CoalescingBitVector<IndexT>::Allocator
   /// reference.
+  /// @param Alloc Allocator used by the underlying IntervalMap.
   CoalescingBitVector(Allocator &Alloc)
       : Alloc(&Alloc), Intervals(Alloc) {}
 
@@ -62,12 +63,15 @@ public:
   /// @{
 
   /// Copy-construct from another coalescing bitvector.
+  /// @param Other Bit vector to copy.
   CoalescingBitVector(const ThisT &Other)
       : Alloc(Other.Alloc), Intervals(*Other.Alloc) {
     set(Other);
   }
 
   /// Copy-assign from another coalescing bitvector.
+  /// @param Other Bit vector to copy.
+  /// @return Reference to this bitvector after assignment.
   ThisT &operator=(const ThisT &Other) {
     clear();
     set(Other);
@@ -75,8 +79,10 @@ public:
   }
 
   /// Move construction is deleted; the IntervalMap allocator is non-movable.
+  /// @param Other Unused; this constructor is deleted.
   CoalescingBitVector(ThisT &&Other) = delete;
   /// Move assignment is deleted; the IntervalMap allocator is non-movable.
+  /// @param Other Unused; this assignment is deleted.
   ThisT &operator=(ThisT &&Other) = delete;
 
   /// @}
@@ -85,9 +91,11 @@ public:
   void clear() { Intervals.clear(); }
 
   /// Check whether no bits are set.
+  /// @return True if no bits are set.
   bool empty() const { return Intervals.empty(); }
 
   /// Count the number of set bits.
+  /// @return Number of set bits in this bitvector.
   unsigned count() const {
     unsigned Bits = 0;
     for (auto It = Intervals.begin(), End = Intervals.end(); It != End; ++It)
@@ -100,6 +108,7 @@ public:
   /// This method does /not/ support setting a bit that has already been set,
   /// for efficiency reasons. If possible, restructure your code to not set the
   /// same bit multiple times, or use \ref test_and_set.
+  /// @param Index Bit index to set.
   void set(IndexT Index) {
     assert(!test(Index) && "Setting already-set bits not supported/efficient, "
                            "IntervalMap will assert");
@@ -110,6 +119,7 @@ public:
   ///
   /// This method does /not/ support setting already-set bits, see \ref set
   /// for the rationale. For a safe set union operation, use \ref operator|=.
+  /// @param Other Bit vector whose set bits are copied into this one.
   void set(const ThisT &Other) {
     for (auto It = Other.Intervals.begin(), End = Other.Intervals.end();
          It != End; ++It)
@@ -117,12 +127,15 @@ public:
   }
 
   /// Set the bits at \p Indices. Used for testing, primarily.
+  /// @param Indices Bit indices to set.
   void set(std::initializer_list<IndexT> Indices) {
     for (IndexT Index : Indices)
       set(Index);
   }
 
   /// Check whether the bit at \p Index is set.
+  /// @param Index Bit index to test.
+  /// @return True if the bit at Index is set.
   bool test(IndexT Index) const {
     const auto It = Intervals.find(Index);
     if (It == Intervals.end())
@@ -132,12 +145,14 @@ public:
   }
 
   /// Set the bit at \p Index. Supports setting an already-set bit.
+  /// @param Index Bit index to set.
   void test_and_set(IndexT Index) {
     if (!test(Index))
       set(Index);
   }
 
   /// Reset the bit at \p Index. Supports resetting an already-unset bit.
+  /// @param Index Bit index to clear.
   void reset(IndexT Index) {
     auto It = Intervals.find(Index);
     if (It == Intervals.end())
@@ -162,6 +177,7 @@ public:
 
   /// Set union. If \p RHS is guaranteed to not overlap with this, \ref set may
   /// be a faster alternative.
+  /// @param RHS Bit vector whose bits are added to this one.
   void operator|=(const ThisT &RHS) {
     // Get the overlaps between the two interval maps.
     SmallVector<IntervalT, 8> Overlaps;
@@ -180,6 +196,7 @@ public:
   }
 
   /// Set intersection.
+  /// @param RHS Bit vector to intersect with.
   void operator&=(const ThisT &RHS) {
     // Get the overlaps between the two interval maps (i.e. the intersection).
     SmallVector<IntervalT, 8> Overlaps;
@@ -191,6 +208,7 @@ public:
   }
 
   /// Reset all bits present in \p Other.
+  /// @param Other Bit vector whose set bits are cleared from this one.
   void intersectWithComplement(const ThisT &Other) {
     SmallVector<IntervalT, 8> Overlaps;
     if (!getOverlaps(Other, Overlaps)) {
@@ -220,6 +238,8 @@ public:
   }
 
   /// Return true if this bitvector has the same set bits as \p RHS.
+  /// @param RHS Bit vector to compare against.
+  /// @return True if this bitvector has the same set bits as RHS.
   bool operator==(const ThisT &RHS) const {
     // We cannot just use std::equal because it checks the dereferenced values
     // of an iterator pair for equality, not the iterators themselves. In our
@@ -235,6 +255,8 @@ public:
   }
 
   /// Return true if this bitvector differs from \p RHS.
+  /// @param RHS Bit vector to compare against.
+  /// @return True if this bitvector differs from RHS.
   bool operator!=(const ThisT &RHS) const { return !operator==(RHS); }
 
   /// Forward iterator over the set bit indices in ascending order.
@@ -304,6 +326,8 @@ public:
     const_iterator() { setToEnd(); }
 
     /// Return true if both iterators point to the same set bit.
+    /// @param RHS Iterator to compare against.
+    /// @return True if both iterators point to the same set bit.
     bool operator==(const const_iterator &RHS) const {
       // Do /not/ compare MapIterator for equality, as this is very expensive.
       // The cached start/stop values make that check unnecessary.
@@ -313,14 +337,18 @@ public:
     }
 
     /// Return true if the iterators point to different set bits.
+    /// @param RHS Iterator to compare against.
+    /// @return True if the iterators point to different set bits.
     bool operator!=(const const_iterator &RHS) const {
       return !operator==(RHS);
     }
 
     /// Return the current set-bit index.
+    /// @return Index of the current set bit.
     IndexT operator*() const { return CachedStart + OffsetIntoMapIterator; }
 
     /// Advance to the next set bit and return this iterator.
+    /// @return Reference to this iterator after advancing.
     const_iterator &operator++() { // Pre-increment (++It).
       if (CachedStart + OffsetIntoMapIterator < CachedStop) {
         // Keep going within the current interval.
@@ -334,16 +362,21 @@ public:
     }
 
     /// Advance to the next set bit and return the previous iterator value.
-    const_iterator operator++(int) { // Post-increment (It++).
+    /// @param Unused Unused postfix-discriminator parameter.
+    /// @return Copy of the iterator before advancing.
+    const_iterator operator++(int Unused) { // Post-increment (It++).
       const_iterator tmp = *this;
       operator++();
       return tmp;
     }
 
-    /// Advance the iterator to the first set bit AT, OR AFTER, \p Index. If
-    /// no such set bit exists, advance to end(). This is like std::lower_bound.
-    /// This is useful if \p Index is close to the current iterator position.
-    /// However, unlike \ref find(), this has worst-case O(n) performance.
+    /// Advance to the first set bit at or after \p Index.
+    ///
+    /// If no such set bit exists, advance to end(). This is like
+    /// std::lower_bound. This is useful if \p Index is close to the current
+    /// iterator position. However, unlike \ref find(), this has worst-case
+    /// O(n) performance.
+    /// @param Index Bit index to search from.
     void advanceToLowerBound(IndexT Index) {
       if (OffsetIntoMapIterator == kIteratorAtTheEndOffset)
         return;
@@ -361,15 +394,20 @@ public:
   };
 
   /// Return an iterator to the first set bit.
+  /// @return Iterator to the first set bit, or end() if none are set.
   const_iterator begin() const { return const_iterator(Intervals.begin()); }
 
   /// Return an end iterator past the last set bit.
+  /// @return End iterator past the last set bit.
   const_iterator end() const { return const_iterator(); }
 
-  /// Return an iterator pointing to the first set bit AT, OR AFTER, \p Index.
+  /// Return an iterator to the first set bit at or after \p Index.
+  ///
   /// If no such set bit exists, return end(). This is like std::lower_bound.
   /// This has worst-case logarithmic performance (roughly O(log(gaps between
   /// contiguous ranges))).
+  /// @param Index Bit index to search from.
+  /// @return Iterator to the first set bit at or after Index, or end().
   const_iterator find(IndexT Index) const {
     auto UnderlyingIt = Intervals.find(Index);
     if (UnderlyingIt == Intervals.end())
@@ -381,6 +419,9 @@ public:
 
   /// Return a range iterator which iterates over all of the set bits in the
   /// half-open range [Start, End).
+  /// @param Start Inclusive start of the range.
+  /// @param End Exclusive end of the range.
+  /// @return Iterator range covering set bits in [Start, End).
   iterator_range<const_iterator> half_open_range(IndexT Start,
                                                  IndexT End) const {
     assert(Start < End && "Not a valid range");
@@ -393,6 +434,7 @@ public:
   }
 
   /// Print the coalesced intervals to \p OS.
+  /// @param OS Output stream.
   void print(raw_ostream &OS) const {
     OS << "{";
     for (auto It = Intervals.begin(), End = Intervals.end(); It != End;

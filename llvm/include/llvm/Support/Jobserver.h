@@ -77,10 +77,16 @@ public:
   /// Default constructor creates an invalid instance.
   JobSlot() = default;
 
-  // Move operations are allowed.
+  /// Move-constructs a JobSlot, transferring ownership from \p Other.
+  ///
+  /// \param Other JobSlot to move from; left in an invalid state.
   JobSlot(JobSlot &&Other) noexcept : Value(Other.Value) {
     Other.Value = kInvalidValue;
   }
+  /// Move-assigns from \p Other, transferring ownership.
+  ///
+  /// \param Other JobSlot to move from; left in an invalid state.
+  /// \return A reference to this JobSlot.
   JobSlot &operator=(JobSlot &&Other) noexcept {
     if (this != &Other) {
       this->Value = Other.Value;
@@ -89,27 +95,50 @@ public:
     return *this;
   }
 
-  // Copy operations are disallowed.
-  JobSlot(const JobSlot &) = delete;
-  JobSlot &operator=(const JobSlot &) = delete;
+  /// Copy construction is deleted; JobSlot is move-only.
+  ///
+  /// \param Other Unused; copy construction is deleted.
+  JobSlot(const JobSlot &Other) = delete;
+  /// Copy assignment is deleted; JobSlot is move-only.
+  ///
+  /// \param Other Unused; copy assignment is deleted.
+  JobSlot &operator=(const JobSlot &Other) = delete;
 
   /// Returns true if this instance is valid (either implicit or explicit).
+  ///
+  /// \return True if this instance is valid.
   bool isValid() const { return Value >= 0; }
 
   /// Returns true if this instance represents the implicit job slot.
+  ///
+  /// \return True if this instance is the implicit slot.
   bool isImplicit() const { return Value == kImplicitValue; }
 
+  /// Creates a JobSlot from an explicit jobserver token.
+  ///
+  /// \param V Explicit token value (0–255) read from the jobserver pipe.
+  /// \return A JobSlot holding the explicit token \p V.
   static JobSlot createExplicit(uint8_t V) {
     return JobSlot(static_cast<int16_t>(V));
   }
 
+  /// Creates a JobSlot representing the implicit slot granted at startup.
+  ///
+  /// \return A JobSlot representing the implicit slot.
   static JobSlot createImplicit() { return JobSlot(kImplicitValue); }
 
+  /// Returns the explicit token value held by this slot.
+  ///
+  /// \return The explicit token value (0–255).
   LLVM_ABI uint8_t getExplicitValue() const;
+  /// Returns true if this instance represents an explicit job slot.
+  ///
+  /// \return True if this instance is an explicit slot.
   bool isExplicit() const { return isValid() && !isImplicit(); }
 
 private:
   friend class JobserverClient;
+  /// Concrete platform-specific implementation of JobserverClient.
   friend class JobserverClientImpl;
 
   JobSlot(int16_t V) : Value(V) {}
@@ -132,23 +161,34 @@ private:
 /// This client is a lazy-initialized singleton that is created on first use.
 class LLVM_ABI JobserverClient {
 public:
+  /// Destroys the jobserver client.
   virtual ~JobserverClient();
 
-  /// Tries to acquire a job slot from the pool. On failure (e.g., if the pool
-  /// is empty), this returns an invalid JobSlot instance. The first successful
-  /// call will always return the implicit slot.
+  /// Tries to acquire a job slot from the pool.
+  ///
+  /// On failure (e.g., if the pool is empty), this returns an invalid JobSlot
+  /// instance. The first successful call will always return the implicit slot.
+  ///
+  /// \return An acquired JobSlot, or an invalid JobSlot on failure.
   virtual JobSlot tryAcquire() = 0;
 
   /// Releases a job slot back to the pool.
+  ///
+  /// \param Slot Job slot to return; the implicit slot must not be released.
   virtual void release(JobSlot Slot) = 0;
 
   /// Returns the number of job slots available, as determined on first use.
   /// This value is cached. Returns 0 if no jobserver is active.
+  ///
+  /// \return The cached job slot count, or 0 if no jobserver is active.
   virtual unsigned getNumJobs() const = 0;
 
   /// Returns the singleton instance of the JobserverClient.
+  ///
   /// The instance is created on the first call to this function.
   /// Returns a nullptr if no jobserver is configured or an error occurs.
+  ///
+  /// \return The singleton client, or nullptr if unavailable.
   static JobserverClient *getInstance();
 
   /// Resets the singleton instance. For testing purposes only.

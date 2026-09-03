@@ -73,25 +73,37 @@ public:
     explicit Capacity(uint8_t idx) : Index(idx) {}
 
   public:
+    /// Construct a capacity representing a single-element array (index 0).
     Capacity() : Index(0) {}
 
     /// Get the capacity of an array that can hold at least N elements.
+    ///
+    /// \param N Minimum number of elements the array must be able to hold.
+    /// \return A Capacity large enough to hold at least N elements.
     static Capacity get(size_t N) {
       return Capacity(N ? Log2_64_Ceil(N) : 0);
     }
 
     /// Get the number of elements in an array with this capacity.
+    ///
+    /// \return The number of elements this capacity can hold.
     size_t getSize() const { return size_t(1u) << Index; }
 
     /// Get the bucket number for this capacity.
+    ///
+    /// \return The free-list bucket index for this capacity.
     unsigned getBucket() const { return Index; }
 
-    /// Get the next larger capacity. Large capacities grow exponentially, so
-    /// this function can be used to reallocate incrementally growing vectors
-    /// in amortized linear time.
+    /// Get the next larger capacity.
+    ///
+    /// Large capacities grow exponentially, so this function can be used to
+    /// reallocate incrementally growing vectors in amortized linear time.
+    ///
+    /// \return The next larger Capacity.
     Capacity getNext() const { return Capacity(Index + 1); }
   };
 
+  /// Destroy the recycler; call clear() first so recycled arrays are returned.
   ~ArrayRecycler() {
     // The client should always call clear() so recycled arrays can be returned
     // to the allocator.
@@ -100,6 +112,8 @@ public:
 
   /// Release all the tracked allocations to the allocator. The recycler must
   /// be free of any tracked allocations before being deleted.
+  ///
+  /// \param Allocator Allocator that originally provided the recycled arrays.
   template<class AllocatorType>
   void clear(AllocatorType &Allocator) {
     for (; !Bucket.empty(); Bucket.pop_back())
@@ -112,7 +126,9 @@ public:
   ///
   /// There is no need to traverse the free lists, pulling all the objects into
   /// cache.
-  void clear(BumpPtrAllocator&) {
+  ///
+  /// \param Allocator Unused; BumpPtrAllocator deallocation is a no-op.
+  void clear(BumpPtrAllocator &Allocator) {
     Bucket.clear();
   }
 
@@ -121,6 +137,9 @@ public:
   /// Return an existing recycled array, or allocate one from Allocator if
   /// none are available for recycling.
   ///
+  /// \param Cap Minimum capacity of the array to allocate.
+  /// \param Allocator Allocator used when no recycled array is available.
+  /// \return A pointer to an array of at least Cap elements.
   template<class AllocatorType>
   T *allocate(Capacity Cap, AllocatorType &Allocator) {
     // Try to recycle an existing array.
@@ -134,6 +153,8 @@ public:
   ///
   /// Cap must be the same capacity that was given to allocate().
   ///
+  /// \param Cap Capacity that was passed to allocate() for this array.
+  /// \param Ptr Array pointer previously returned by allocate().
   void deallocate(Capacity Cap, T *Ptr) {
     push(Cap.getBucket(), Ptr);
   }

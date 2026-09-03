@@ -120,25 +120,30 @@ private:
 public:
   /// Construct a breadth-first iterator at the entry node of \p G.
   /// @param G Graph to traverse.
+  /// @return Breadth-first iterator positioned at the entry node.
   static bf_iterator begin(const GraphT &G) {
     return bf_iterator(GT::getEntryNode(G));
   }
 
   /// Construct a past-the-end breadth-first iterator for \p G.
   /// @param G Graph being traversed (unused; end is empty).
+  /// @return Past-the-end breadth-first iterator.
   static bf_iterator end(const GraphT &G) { return bf_iterator(); }
 
   /// Return true if both iterators have the same visit-queue state.
   /// @param RHS Iterator to compare with.
+  /// @return True if both iterators have the same visit-queue state.
   bool operator==(const bf_iterator &RHS) const {
     return VisitQueue == RHS.VisitQueue;
   }
 
   /// Return true if the iterators differ in visit-queue state.
   /// @param RHS Iterator to compare with.
+  /// @return True if the iterators differ in visit-queue state.
   bool operator!=(const bf_iterator &RHS) const { return !(*this == RHS); }
 
   /// Return a reference to the current node.
+  /// @return Const reference to the current node.
   reference operator*() const { return VisitQueue.front()->first; }
 
   /// Return the current node so methods can be called through the iterator.
@@ -146,39 +151,47 @@ public:
   /// This is a nonstandard operator-> that dereferences the pointer an extra
   /// time so that you can actually call methods on the node, because the
   /// contained type is a pointer.
+  /// @return The current node reference.
   NodeRef operator->() const { return **this; }
 
   /// Advance to the next node in breadth-first order and return this iterator.
+  /// @return Reference to this iterator after advancing.
   bf_iterator &operator++() {
     toNext();
     return *this;
   }
 
   /// Advance to the next node and return the prior iterator position.
-  bf_iterator operator++(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before advancing.
+  bf_iterator operator++(int Unused) {
     bf_iterator ItCopy = *this;
     ++*this;
     return ItCopy;
   }
 
   /// Return the BFS depth of the current node from the entry.
+  /// @return Zero-based BFS depth of the current node from the entry.
   unsigned getLevel() const { return Level; }
 };
 
 /// Return a breadth-first iterator at the entry of \p G.
 /// @param G Graph to traverse.
+/// @return Breadth-first iterator positioned at the entry of \p G.
 template <class T> bf_iterator<T> bf_begin(const T &G) {
   return bf_iterator<T>::begin(G);
 }
 
 /// Return a past-the-end breadth-first iterator for \p G.
 /// @param G Graph being traversed.
+/// @return Past-the-end breadth-first iterator for \p G.
 template <class T> bf_iterator<T> bf_end(const T &G) {
   return bf_iterator<T>::end(G);
 }
 
 /// Return a range that visits \p G in breadth-first order.
 /// @param G Graph to traverse.
+/// @return Iterator range covering a breadth-first walk of \p G.
 template <class T> iterator_range<bf_iterator<T>> breadth_first(const T &G) {
   return make_range(bf_begin(G), bf_end(G));
 }

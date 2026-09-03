@@ -23,12 +23,23 @@ class DominatorTree;
 class Function;
 class TargetLibraryInfo;
 
+/// Lower remaining objectsize and is.constant intrinsic calls in a function.
+///
+/// Even when the argument has no known size or is not a constant respectively,
+/// these intrinsics are folded to constants. The resulting constants are
+/// propagated and conditional branches are resolved where possible.
+/// @param F Function whose constant intrinsics may be lowered.
+/// @param TLI Target library info used when lowering objectsize.
+/// @param DT Optional dominator tree to keep updated, or nullptr.
+/// @return True if any intrinsic was lowered.
 LLVM_ABI bool lowerConstantIntrinsics(Function &F, const TargetLibraryInfo &TLI,
                                       DominatorTree *DT);
 
+/// Pass that lowers remaining objectsize and is.constant intrinsics.
 struct LowerConstantIntrinsicsPass
     : OptionalPassInfoMixin<LowerConstantIntrinsicsPass> {
 public:
+  /// Construct a pass that lowers constant intrinsics.
   explicit LowerConstantIntrinsicsPass() = default;
 
   /// Run the pass over the function.
@@ -39,7 +50,10 @@ public:
   /// propagated and conditional branches are resolved where possible.
   /// This complements the Instruction Simplification and
   /// Instruction Combination passes of the optimized pass chain.
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// @param F Function whose constant intrinsics may be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }
 

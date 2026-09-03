@@ -24,13 +24,17 @@ namespace llvm::orc {
 
 class SymbolLookupSet;
 
+/// Manages real (non-JIT) dynamic libraries in the executor process.
 class LLVM_ABI DylibManager {
 public:
+  /// Destroy the dylib manager.
   virtual ~DylibManager();
 
   /// Load the dynamic library at the given path and return a handle to it.
-  /// If LibraryPath is null this function will return the global handle for
+  /// If DylibPath is null this function will return the global handle for
   /// the target process.
+  /// @param DylibPath Path to the dylib to load, or null for the global handle.
+  /// @return A handle to the loaded dylib, or an error on failure.
   virtual Expected<tpctypes::DylibHandle> loadDylib(const char *DylibPath) = 0;
 
   /// Search for symbols in the target process.
@@ -39,6 +43,10 @@ public:
   /// to the lookup order. If a required symbol is not found then this method
   /// will return an error. If a weakly referenced symbol is not found then it
   /// will be assigned a '0' value.
+  /// @param H Handle to the dylib to search.
+  /// @param Symbols Set of symbols to look up.
+  /// @return Target addresses for the looked-up symbols, or an error if a
+  /// required symbol is not found.
   Expected<tpctypes::LookupResult>
   lookupSymbols(tpctypes::DylibHandle H, const SymbolLookupSet &Symbols) {
     std::promise<MSVCPExpected<tpctypes::LookupResult>> RP;
@@ -48,6 +56,7 @@ public:
     return RF.get();
   }
 
+  /// Callback invoked when an asynchronous symbol lookup completes.
   using SymbolLookupCompleteFn =
       unique_function<void(Expected<tpctypes::LookupResult>)>;
 
@@ -57,6 +66,9 @@ public:
   /// to the lookup order. If a required symbol is not found then this method
   /// will return an error. If a weakly referenced symbol is not found then it
   /// will be assigned a '0' value.
+  /// @param H Handle to the dylib to search.
+  /// @param Symbols Set of symbols to look up.
+  /// @param F Callback invoked with the lookup result.
   virtual void lookupSymbolsAsync(tpctypes::DylibHandle H,
                                   const SymbolLookupSet &Symbols,
                                   SymbolLookupCompleteFn F) = 0;

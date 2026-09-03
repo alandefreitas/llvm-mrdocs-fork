@@ -25,6 +25,7 @@ enum class WaitForUnlockResult {
 };
 
 /// A synchronization primitive with weak mutual exclusion guarantees.
+///
 /// Implementations of this interface may allow multiple threads/processes to
 /// acquire the ownership of the lock simultaneously.
 /// Typically, threads/processes waiting for the lock to be unlocked will
@@ -42,12 +43,17 @@ public:
   /// For a lock owned by someone else, wait until it is unlocked.
   ///
   /// \param MaxSeconds the maximum total wait time in seconds.
+  /// \returns the result of waiting, such as success, owner death, or timeout.
   virtual WaitForUnlockResult
   waitForUnlockFor(std::chrono::seconds MaxSeconds) = 0;
 
-  /// For a lock owned by someone else, unlock it. A permitted side-effect is
-  /// that another thread/process may acquire ownership of the lock before the
-  /// existing owner unlocks it. This is an unsafe operation.
+  /// For a lock owned by someone else, unlock it.
+  ///
+  /// A permitted side-effect is that another thread/process may acquire
+  /// ownership of the lock before the existing owner unlocks it. This is an
+  /// unsafe operation.
+  ///
+  /// \returns an error code describing the outcome of the unlock attempt.
   virtual std::error_code unsafeUnlock() = 0;
 
   /// Unlocks the lock if its ownership was previously acquired by \c tryLock().

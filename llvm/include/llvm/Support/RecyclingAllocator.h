@@ -40,6 +40,8 @@ public:
   /// Allocate - Return a pointer to storage for an object of type
   /// SubClass. The storage may be either newly allocated or recycled.
   ///
+  /// @return A pointer to storage for a \c SubClass, either recycled or newly
+  ///         allocated.
   template<class SubClass>
   SubClass *Allocate() { return Base.template Allocate<SubClass>(Allocator); }
 
@@ -52,6 +54,7 @@ public:
   /// Deallocate - Release storage for the pointed-to object. The
   /// storage will be kept track of and may be recycled.
   ///
+  /// @param E The object whose storage should be recycled.
   template<class SubClass>
   void Deallocate(SubClass* E) { return Base.Deallocate(Allocator, E); }
 

@@ -24,44 +24,131 @@ class raw_ostream;
 
 // FIXME: We should have pretty printers per language. Currently we print
 // everything as if it was C++ and fall back to the TAG type name.
+/// Pretty-printer for DWARF type DIEs, formatting names in a C++-like style.
+///
+/// \tparam DieType DIE type used for traversal and type resolution.
 template <typename DieType> struct DWARFTypePrinter {
+  /// Output stream that receives the formatted type name.
   raw_ostream &OS;
+  /// True if the next token should be preceded by a space when needed.
   bool Word = true;
+  /// True if the last printed token ended with a template argument list.
   bool EndedWithTemplate = false;
 
+  /// Construct a type printer that writes to \p OS.
+  ///
+  /// \param OS Output stream that receives the formatted type name.
   DWARFTypePrinter(raw_ostream &OS) : OS(OS) {}
 
   /// Dump the name encoded in the type tag.
+  ///
+  /// \param T DWARF type tag whose readable name should be appended.
   void appendTypeTagName(dwarf::Tag T);
 
+  /// Append array dimension bounds for the array type DIE \p D.
+  ///
+  /// \param D Array type DIE whose subrange children describe the dimensions.
   void appendArrayType(const DieType &D);
 
+  /// Skip const and volatile qualifier DIEs wrapping \p D.
+  ///
+  /// \param D Type DIE that may be wrapped in const/volatile qualifiers.
+  /// \returns The first non-qualifier type DIE reached from \p D.
   DieType skipQualifiers(DieType D);
 
+  /// True if printing a pointer/reference to \p D requires parentheses.
+  ///
+  /// \param D Inner type DIE that may need parentheses when nested.
+  /// \returns True if \p D is (after skipping qualifiers) a subroutine or
+  /// array type.
   bool needsParens(DieType D);
 
+  /// Append the prefix of a pointer-like type using the operator string \p Ptr.
+  ///
+  /// \param D Pointer-like type DIE being printed.
+  /// \param Inner Referenced pointee type DIE.
+  /// \param Ptr Operator text such as "*", "&", or "&&".
   void appendPointerLikeTypeBefore(DieType D, DieType Inner, StringRef Ptr);
 
+  /// Append the leading portion of an unqualified type name for \p D.
+  ///
+  /// \param D Type DIE whose unqualified name prefix should be printed.
+  /// \param OriginalFullName If non-null, may be set to the original full
+  /// spelling.
+  /// \returns The inner/referenced type DIE used for the trailing portion, if
+  /// any.
   DieType appendUnqualifiedNameBefore(DieType D,
                                       std::string *OriginalFullName = nullptr);
 
+  /// Append the trailing portion of an unqualified type name for \p D.
+  ///
+  /// \param D Type DIE whose unqualified name suffix should be printed.
+  /// \param Inner Inner type DIE returned by appendUnqualifiedNameBefore.
+  /// \param SkipFirstParamIfArtificial If true, skip an artificial first
+  /// parameter.
   void appendUnqualifiedNameAfter(DieType D, DieType Inner,
                                   bool SkipFirstParamIfArtificial = false);
+  /// Append the fully qualified name of type DIE \p D.
+  ///
+  /// \param D Type DIE whose scoped qualified name should be printed.
   void appendQualifiedName(DieType D);
+  /// Append scopes and the leading portion of the qualified name for \p D.
+  ///
+  /// \param D Type DIE whose qualified name prefix should be printed.
+  /// \returns The inner/referenced type DIE used for the trailing portion, if
+  /// any.
   DieType appendQualifiedNameBefore(DieType D);
+  /// Append template parameter list contents for template DIE \p D.
+  ///
+  /// \param D DIE that may contain template parameter children.
+  /// \param FirstParameter If non-null, tracks whether the next parameter is
+  /// first.
+  /// \returns True if \p D had template parameters to print.
   bool appendTemplateParameters(DieType D, bool *FirstParameter = nullptr);
+  /// Append template parameters for \p D and close the argument list with '>'.
+  ///
+  /// \param D DIE whose template parameter list should be printed and
+  /// terminated.
   void appendAndTerminateTemplateParameters(DieType D);
+  /// Split const/volatile wrappers from \p N into \p T, \p C, and \p V.
+  ///
+  /// \param N Const and/or volatile type DIE to decompose.
+  /// \param T Set to the underlying non-qualifier type.
+  /// \param C Set to the const_type DIE if present.
+  /// \param V Set to the volatile_type DIE if present.
   void decomposeConstVolatile(DieType &N, DieType &T, DieType &C, DieType &V);
+  /// Append the trailing name for a const and/or volatile qualified type \p N.
+  ///
+  /// \param N Const and/or volatile type DIE whose suffix should be printed.
   void appendConstVolatileQualifierAfter(DieType N);
+  /// Append the leading name for a const and/or volatile qualified type \p N.
+  ///
+  /// \param N Const and/or volatile type DIE whose prefix should be printed.
   void appendConstVolatileQualifierBefore(DieType N);
 
   /// Recursively append the DIE type name when applicable.
+  ///
+  /// \param D Type DIE whose unqualified name should be printed.
+  /// \param OriginalFullName If non-null, may be set to the original full
+  /// spelling.
   void appendUnqualifiedName(DieType D,
                              std::string *OriginalFullName = nullptr);
 
+  /// Append the parameter list and trailing qualifiers of a subroutine type.
+  ///
+  /// \param D Subroutine type DIE being printed.
+  /// \param Inner Return type DIE for the subroutine.
+  /// \param SkipFirstParamIfArtificial If true, skip an artificial first
+  /// parameter.
+  /// \param Const If true, append the const qualifier after the parameter list.
+  /// \param Volatile If true, append the volatile qualifier after the parameter
+  /// list.
   void appendSubroutineNameAfter(DieType D, DieType Inner,
                                  bool SkipFirstParamIfArtificial, bool Const,
                                  bool Volatile);
+  /// Append enclosing scope names for \p D, each followed by "::".
+  ///
+  /// \param D Parent DIE chain to walk for enclosing scopes.
   void appendScopes(DieType D);
 
 private:

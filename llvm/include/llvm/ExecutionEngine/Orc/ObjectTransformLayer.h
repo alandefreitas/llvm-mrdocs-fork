@@ -22,21 +22,35 @@
 namespace llvm {
 namespace orc {
 
+/// A layer that applies a transform to emitted object files.
 class LLVM_ABI ObjectTransformLayer
     : public RTTIExtends<ObjectTransformLayer, ObjectLayer> {
 public:
+  /// RTTI identifier for this ObjectTransformLayer type.
   static char ID;
 
+  /// Functor that transforms an object buffer before it is emitted.
   using TransformFunction =
       std::function<Expected<std::unique_ptr<MemoryBuffer>>(
           std::unique_ptr<MemoryBuffer>)>;
 
+  /// Construct an ObjectTransformLayer that transforms objects before emitting
+  /// them to a base layer.
+  /// \param ES Execution session for this layer.
+  /// \param BaseLayer Object layer to emit transformed objects into.
+  /// \param Transform Transform applied to each object; defaults to null
+  ///        (pass-through).
   ObjectTransformLayer(ExecutionSession &ES, ObjectLayer &BaseLayer,
                        TransformFunction Transform = TransformFunction());
 
+  /// Apply the configured transform and emit the result to the base layer.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \param O Object buffer to transform and emit.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             std::unique_ptr<MemoryBuffer> O) override;
 
+  /// Replace the transform applied to objects before emission.
+  /// \param Transform New transform function to use.
   void setTransform(TransformFunction Transform) {
     this->Transform = std::move(Transform);
   }

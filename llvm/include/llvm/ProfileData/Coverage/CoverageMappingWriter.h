@@ -31,10 +31,14 @@ class CoverageFilenamesSectionWriter {
   ArrayRef<std::string> Filenames;
 
 public:
+  /// Construct a filenames-section writer for \p Filenames.
+  /// @param Filenames Translation-unit filenames to encode.
   LLVM_ABI CoverageFilenamesSectionWriter(ArrayRef<std::string> Filenames);
 
   /// Write encoded filenames to the given output stream. If \p Compress is
   /// true, attempt to compress the filenames.
+  /// @param OS Output stream that receives the encoded filenames section.
+  /// @param Compress Whether to attempt compression of the filenames.
   LLVM_ABI void write(raw_ostream &OS, bool Compress = true);
 };
 
@@ -45,6 +49,10 @@ class CoverageMappingWriter {
   MutableArrayRef<CounterMappingRegion> MappingRegions;
 
 public:
+  /// Construct a coverage mapping writer for the given inputs.
+  /// @param VirtualFileMapping Mapping from local file IDs to filenames.
+  /// @param Expressions Counter expressions referenced by the mapping regions.
+  /// @param MappingRegions Coverage mapping regions to encode.
   CoverageMappingWriter(ArrayRef<unsigned> VirtualFileMapping,
                         ArrayRef<CounterExpression> Expressions,
                         MutableArrayRef<CounterMappingRegion> MappingRegions)
@@ -52,6 +60,7 @@ public:
         MappingRegions(MappingRegions) {}
 
   /// Write encoded coverage mapping data to the given output stream.
+  /// @param OS Output stream that receives the encoded coverage mapping.
   LLVM_ABI void write(raw_ostream &OS);
 };
 
@@ -63,6 +72,11 @@ class TestingFormatWriter {
   StringRef CoverageRecordsData;
 
 public:
+  /// Construct a testing-format writer from the given coverage payloads.
+  /// @param ProfileNamesAddr Address of the profile names data.
+  /// @param ProfileNamesData Raw profile names payload.
+  /// @param CoverageMappingData Raw coverage mapping payload.
+  /// @param CoverageRecordsData Raw coverage records payload.
   TestingFormatWriter(uint64_t ProfileNamesAddr, StringRef ProfileNamesData,
                       StringRef CoverageMappingData,
                       StringRef CoverageRecordsData)
@@ -71,6 +85,8 @@ public:
         CoverageRecordsData(CoverageRecordsData) {}
 
   /// Encode to the given output stream.
+  /// @param OS Output stream that receives the testing-format encoding.
+  /// @param Version Testing-format version to emit.
   LLVM_ABI void
   write(raw_ostream &OS,
         TestingFormatVersion Version = TestingFormatVersion::CurrentVersion);

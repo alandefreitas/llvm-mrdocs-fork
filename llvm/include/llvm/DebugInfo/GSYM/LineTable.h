@@ -136,6 +136,8 @@ public:
   /// This will be the FunctionInfo's start address and will be used to
   /// initialize the line table row prior to parsing any opcodes.
   ///
+  /// \param Addr The address to search for within the line table.
+  ///
   /// \returns An LineEntry object if a match is found, error otherwise.
   LLVM_ABI static Expected<LineEntry> lookup(GsymDataExtractor &Data,
                                              uint64_t BaseAddr, uint64_t Addr);
@@ -165,7 +167,11 @@ public:
   /// \returns An error object that indicates success or failure or the
   /// encoding process.
   LLVM_ABI llvm::Error encode(FileWriter &O, uint64_t BaseAddr) const;
+  /// Return true if the line table has no entries.
+  ///
+  /// \returns True if the line table has no entries.
   bool empty() const { return Lines.empty(); }
+  /// Clear all line entries from the line table.
   void clear() { Lines.clear(); }
   /// Return the first line entry if the line table isn't empty.
   ///
@@ -185,35 +191,75 @@ public:
       return std::nullopt;
     return Lines.back();
   }
+  /// Append a line entry to the end of the line table.
+  ///
+  /// \param LE The line entry to append.
   void push(const LineEntry &LE) {
     Lines.push_back(LE);
   }
+  /// Return a non-zero value if the line table contains at least one entry.
+  ///
+  /// \returns A non-zero value if the line table is non-empty, zero otherwise.
   size_t isValid() const {
     return !Lines.empty();
   }
+  /// Return the number of line entries in the line table.
+  ///
+  /// \returns The number of line entries.
   size_t size() const {
     return Lines.size();
   }
+  /// Access the line entry at the specified index.
+  ///
+  /// \param i Zero-based index of the line entry to access.
+  /// \returns A mutable reference to the line entry at \p i.
   LineEntry &get(size_t i) {
     assert(i < Lines.size());
     return Lines[i];
   }
+  /// Access the line entry at the specified index.
+  ///
+  /// \param i Zero-based index of the line entry to access.
+  /// \returns A const reference to the line entry at \p i.
   const LineEntry &get(size_t i) const {
     assert(i < Lines.size());
     return Lines[i];
   }
+  /// Access the line entry at the specified index.
+  ///
+  /// \param i Zero-based index of the line entry to access.
+  /// \returns A mutable reference to the line entry at \p i.
   LineEntry &operator[](size_t i) {
     return get(i);
   }
+  /// Access the line entry at the specified index.
+  ///
+  /// \param i Zero-based index of the line entry to access.
+  /// \returns A const reference to the line entry at \p i.
   const LineEntry &operator[](size_t i) const {
     return get(i);
   }
+  /// Equality comparison operator for LineTable.
+  ///
+  /// \param RHS The right-hand LineTable to compare.
+  /// \returns True if both line tables contain the same entries.
   bool operator==(const LineTable &RHS) const {
     return Lines == RHS.Lines;
   }
+  /// Inequality comparison operator for LineTable.
+  ///
+  /// \param RHS The right-hand LineTable to compare.
+  /// \returns True if the line tables differ.
   bool operator!=(const LineTable &RHS) const {
     return Lines != RHS.Lines;
   }
+  /// Less-than comparison operator for LineTable.
+  ///
+  /// Compares by size first; when sizes are equal, compares the entry
+  /// sequences lexicographically.
+  ///
+  /// \param RHS The right-hand LineTable to compare.
+  /// \returns True if this line table is ordered before \p RHS.
   bool operator<(const LineTable &RHS) const {
     const auto LHSSize = Lines.size();
     const auto RHSSize = RHS.Lines.size();
@@ -221,11 +267,22 @@ public:
       return Lines < RHS.Lines;
     return LHSSize < RHSSize;
   }
+  /// Return a const iterator to the beginning of the line entries.
+  ///
+  /// \returns A const iterator to the first line entry.
   Collection::const_iterator begin() const { return Lines.begin(); }
+  /// Return a const iterator to the end of the line entries.
+  ///
+  /// \returns A const iterator one past the last line entry.
   Collection::const_iterator end() const { return Lines.end(); }
 
 };
 
+/// Stream a human-readable representation of \p LT to \p OS.
+///
+/// \param OS Destination stream.
+/// \param LT Line table to print.
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const gsym::LineTable &LT);
 
 } // namespace gsym

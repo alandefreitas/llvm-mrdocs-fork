@@ -26,7 +26,9 @@
 
 namespace llvm {
 
+/// A pair of an IndexPair and the stable hash of the skipped operand.
 using IndexPairHash = std::pair<IndexPair, stable_hash>;
+/// A vector of skipped operand IndexPair/hash pairs.
 using IndexOperandHashVecType = SmallVector<IndexPairHash>;
 
 /// A stable function is a function with a stable hash while tracking the
@@ -43,15 +45,24 @@ struct StableFunction {
   /// A vector of pairs of IndexPair and operand hash which was skipped.
   IndexOperandHashVecType IndexOperandHashes;
 
+  /// Construct a stable function with the given hash and metadata.
+  ///
+  /// \param Hash Combined stable hash of the function.
+  /// \param FunctionName Name of the function.
+  /// \param ModuleName Name of the module containing the function.
+  /// \param InstCount Number of instructions in the function.
+  /// \param IndexOperandHashes Skipped operand locations and their hashes.
   StableFunction(stable_hash Hash, const std::string FunctionName,
                  const std::string ModuleName, unsigned InstCount,
                  IndexOperandHashVecType &&IndexOperandHashes)
       : Hash(Hash), FunctionName(FunctionName), ModuleName(ModuleName),
         InstCount(InstCount),
         IndexOperandHashes(std::move(IndexOperandHashes)) {}
+  /// Construct an empty stable function.
   StableFunction() = default;
 };
 
+/// Maps stable function hashes to their corresponding metadata entries.
 struct StableFunctionMap {
   /// An efficient form of StableFunction for fast look-up
   struct StableFunctionEntry {
@@ -66,6 +77,13 @@ struct StableFunctionMap {
     /// A map from an IndexPair to a stable_hash which was skipped.
     std::unique_ptr<IndexOperandHashMapType> IndexOperandHashMap;
 
+    /// Construct a stable function entry with the given ids and metadata.
+    ///
+    /// \param Hash Combined stable hash of the function.
+    /// \param FunctionNameId Id of the function name.
+    /// \param ModuleNameId Id of the module name.
+    /// \param InstCount Number of instructions in the function.
+    /// \param IndexOperandHashMap Map of skipped operand locations to hashes.
     StableFunctionEntry(
         stable_hash Hash, unsigned FunctionNameId, unsigned ModuleNameId,
         unsigned InstCount,
@@ -75,16 +93,20 @@ struct StableFunctionMap {
           IndexOperandHashMap(std::move(IndexOperandHashMap)) {}
   };
 
+  /// A vector of unique pointers to StableFunctionEntry objects.
   using StableFunctionEntries =
       SmallVector<std::unique_ptr<StableFunctionEntry>>;
 
+  /// Storage for stable function entries with lazy-loading support.
+  ///
   /// In addition to the deserialized StableFunctionEntry, the struct stores
   /// the offsets of corresponding serialized stable function entries, and a
   /// once flag for safe lazy loading in a multithreaded environment.
   struct EntryStorage {
-    /// The actual storage of deserialized stable function entries. If the map
-    /// is lazily loaded, this will be empty until the first access by the
-    /// corresponding function hash.
+    /// Deserialized stable function entries for a function hash.
+    ///
+    /// If the map is lazily loaded, this will be empty until the first access
+    /// by the corresponding function hash.
     StableFunctionEntries Entries;
 
   private:
@@ -102,57 +124,88 @@ struct StableFunctionMap {
   // Note: EntryStorage contains a std::once_flag, which is neither copyable
   // nor movable, and the lazy-loading design relies on value addresses being
   // stable. DenseMap relocates values on rehash, so use std::unordered_map.
+  /// Map from a stable function hash to its entry storage.
   using HashFuncsMapType = std::unordered_map<stable_hash, EntryStorage>;
 
   /// Get the HashToFuncs map for serialization.
+  ///
+  /// \return The map from stable function hashes to entry storage.
   LLVM_ABI const HashFuncsMapType &getFunctionMap() const;
 
   /// Get the NameToId vector for serialization.
+  ///
+  /// \return The vector of names indexed by id.
   ArrayRef<std::string> getNames() const { return IdToName; }
 
   /// Get an existing ID associated with the given name or create a new ID if it
   /// doesn't exist.
+  ///
+  /// \param Name Function or module name to look up or insert.
+  /// \return The ID associated with \p Name.
   LLVM_ABI unsigned getIdOrCreateForName(StringRef Name);
 
   /// Get the name associated with a given ID
+  ///
+  /// \param Id Name id previously returned by getIdOrCreateForName.
+  /// \return The name for \p Id, or std::nullopt if \p Id is invalid.
   LLVM_ABI std::optional<std::string> getNameForId(unsigned Id) const;
 
   /// Insert a `StableFunction` object into the function map. This method
   /// handles the uniquing of string names and create a `StableFunctionEntry`
   /// for insertion.
+  ///
+  /// \param Func Stable function to insert into the map.
   LLVM_ABI void insert(const StableFunction &Func);
 
   /// Merge a \p OtherMap into this function map.
+  ///
+  /// \param OtherMap Stable function map whose entries are merged into this
+  /// one.
   LLVM_ABI void merge(const StableFunctionMap &OtherMap);
 
-  /// \returns true if there is no stable function entry.
+  /// Return true if there is no stable function entry.
+  ///
+  /// \return True if the map has no stable function entries.
   bool empty() const { return size() == 0; }
 
-  /// \returns true if there is an entry for the given function hash.
+  /// Return true if there is an entry for the given function hash.
+  ///
   /// This does not trigger lazy loading.
+  ///
+  /// \param FunctionHash Stable function hash to look up.
+  /// \return True if an entry exists for \p FunctionHash.
   bool contains(HashFuncsMapType::key_type FunctionHash) const {
     return HashToFuncs.count(FunctionHash) > 0;
   }
 
-  /// \returns the stable function entries for the given function hash. If the
-  /// map is lazily loaded, it will deserialize the entries if it is not already
-  /// done, other requests to the same hash at the same time will be blocked
-  /// until the entries are deserialized.
+  /// Return the stable function entries for the given function hash.
+  ///
+  /// If the map is lazily loaded, it will deserialize the entries if it is not
+  /// already done, other requests to the same hash at the same time will be
+  /// blocked until the entries are deserialized.
+  ///
+  /// \param FunctionHash Stable function hash whose entries are returned.
+  /// \return The stable function entries for \p FunctionHash.
   LLVM_ABI const StableFunctionEntries &
   at(HashFuncsMapType::key_type FunctionHash) const;
 
+  /// Kind of size metric for StableFunctionMap::size.
   enum SizeType {
-    UniqueHashCount,        // The number of unique hashes in HashToFuncs.
-    TotalFunctionCount,     // The number of total functions in HashToFuncs.
-    MergeableFunctionCount, // The number of functions that can be merged based
-                            // on their hash.
+    UniqueHashCount,        ///< The number of unique hashes in HashToFuncs.
+    TotalFunctionCount,     ///< The number of total functions in HashToFuncs.
+    MergeableFunctionCount, ///< The number of functions that can be merged
+                            ///< based on their hash.
   };
 
-  /// \returns the size of StableFunctionMap.
-  /// \p Type is the type of size to return.
+  /// Return the size of the stable function map.
+  ///
+  /// \param Type Which size metric to compute.
+  /// \return The size according to \p Type.
   LLVM_ABI size_t size(SizeType Type = UniqueHashCount) const;
 
   /// Finalize the stable function map by trimming content.
+  ///
+  /// \param SkipTrim When true, skip trimming the map content.
   LLVM_ABI void finalize(bool SkipTrim = false);
 
 private:

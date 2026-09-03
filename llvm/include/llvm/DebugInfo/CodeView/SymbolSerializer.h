@@ -26,6 +26,7 @@
 namespace llvm {
 namespace codeview {
 
+/// Serializes CodeView symbol records via SymbolVisitorCallbacks.
 class LLVM_ABI SymbolSerializer : public SymbolVisitorCallbacks {
   BumpPtrAllocator &Storage;
   // Since this is a fixed size buffer, use a stack allocated buffer.  This
@@ -47,8 +48,19 @@ class LLVM_ABI SymbolSerializer : public SymbolVisitorCallbacks {
   }
 
 public:
+  /// Construct a symbol serializer that allocates stable record bytes in
+  /// \p Storage for \p Container.
+  ///
+  /// \param Storage Allocator used for stable copies of serialized records.
+  /// \param Container CodeView container that controls record alignment rules.
   SymbolSerializer(BumpPtrAllocator &Storage, CodeViewContainer Container);
 
+  /// Serialize a single symbol \p Sym into a stable \c CVSymbol in \p Storage.
+  ///
+  /// \param Sym Typed symbol record to serialize.
+  /// \param Storage Allocator used for the stable serialized record bytes.
+  /// \param Container CodeView container that controls record alignment rules.
+  /// \returns The serialized symbol record whose data lives in \p Storage.
   template <typename SymType>
   static CVSymbol writeOneSymbol(SymType &Sym, BumpPtrAllocator &Storage,
                                  CodeViewContainer Container) {
@@ -61,7 +73,16 @@ public:
     return Result;
   }
 
+  /// Begin serializing the symbol record \p Record into the scratch buffer.
+  ///
+  /// \param Record CodeView symbol whose kind seeds the record prefix.
+  /// \returns Success, or an error from writing the prefix or starting mapping.
   Error visitSymbolBegin(CVSymbol &Record) override;
+
+  /// Finish serializing \p Record, fix its length, and copy bytes to storage.
+  ///
+  /// \param Record CodeView symbol whose visit is ending; RecordData is updated.
+  /// \returns Success, or an error from mapping, length fixup, or allocation.
   Error visitSymbolEnd(CVSymbol &Record) override;
 
 #define SYMBOL_RECORD(EnumName, EnumVal, Name)                                 \

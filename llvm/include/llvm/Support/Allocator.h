@@ -88,6 +88,8 @@ public:
   BumpPtrAllocatorImpl() = default;
 
   /// Construct using a custom underlying allocator \p Allocator.
+  ///
+  /// \param Allocator Underlying allocator used to obtain slabs.
   template <typename T>
   BumpPtrAllocatorImpl(T &&Allocator)
       : AllocTy(std::forward<T &&>(Allocator)) {}
@@ -95,6 +97,8 @@ public:
   // Manually implement a move constructor as we must clear the old allocator's
   // slabs as a matter of correctness.
   /// Move-construct, taking ownership of \p Old's slabs and clearing \p Old.
+  ///
+  /// \param Old Allocator to move from; left empty after the move.
   BumpPtrAllocatorImpl(BumpPtrAllocatorImpl &&Old)
       : AllocTy(std::move(Old.getAllocator())), CurPtr(Old.CurPtr),
         EndSentinel(Old.EndSentinel), Slabs(std::move(Old.Slabs)),
@@ -115,6 +119,9 @@ public:
   }
 
   /// Move-assign, deallocating this allocator's slabs and taking ownership of \p RHS.
+  ///
+  /// \param RHS Allocator to move from; left empty after the assignment.
+  /// \return Reference to this allocator.
   BumpPtrAllocatorImpl &operator=(BumpPtrAllocatorImpl &&RHS) {
     DeallocateSlabs(Slabs.begin(), Slabs.end());
     DeallocateCustomSizedSlabs();
@@ -155,6 +162,11 @@ public:
   }
 
   /// Allocate space at the specified alignment.
+  ///
+  /// \param Size Number of bytes to allocate.
+  /// \param Alignment Required alignment of the allocated memory.
+  /// \return Non-null pointer to the allocated memory (must not be
+  /// dereferenced when \p Size is 0).
   // This method is *not* marked noalias, because
   // SpecificBumpPtrAllocator::DestroyAll() loops over all allocations, and
   // that loop is not based on the Allocate() return value.
@@ -195,6 +207,11 @@ public:
   }
 
   /// Slow path that starts a new slab (or a custom-sized slab) for \p Size bytes.
+  ///
+  /// \param Size Requested allocation size in bytes (before red-zone padding).
+  /// \param SizeToAllocate Size including red-zone and MinAlign rounding.
+  /// \param Alignment Required alignment of the allocated memory.
+  /// \return Non-null pointer to the allocated memory.
   LLVM_ATTRIBUTE_RETURNS_NONNULL LLVM_ATTRIBUTE_NOINLINE void *
   AllocateSlow(size_t Size, size_t SizeToAllocate, Align Alignment) {
     // If Size is really big, allocate a separate slab for it.
@@ -228,6 +245,10 @@ public:
   }
 
   /// Allocate \p Size bytes with alignment \p Alignment (size_t overload).
+  ///
+  /// \param Size Number of bytes to allocate.
+  /// \param Alignment Required alignment of the allocated memory in bytes.
+  /// \return Non-null pointer to the allocated memory.
   inline LLVM_ATTRIBUTE_RETURNS_NONNULL void *
   Allocate(size_t Size, size_t Alignment) {
     assert(Alignment > 0 && "0-byte alignment is not allowed. Use 1 instead.");
@@ -235,22 +256,34 @@ public:
   }
 
   // Pull in base class overloads.
+  /// Bring AllocatorBase typed Allocate overloads into scope.
   using AllocatorBase<BumpPtrAllocatorImpl>::Allocate;
 
   // Bump pointer allocators are expected to never free their storage; and
   // clients expect pointers to remain valid for non-dereferencing uses even
   // after deallocation.
   /// Poison deallocated memory under ASan; bump allocators do not reclaim space.
-  void Deallocate(const void *Ptr, size_t Size, size_t /*Alignment*/) {
+  ///
+  /// \param Ptr Memory previously returned by Allocate.
+  /// \param Size Size in bytes of the allocation being freed.
+  /// \param Alignment Alignment of the allocation being freed (unused).
+  void Deallocate(const void *Ptr, size_t Size,
+                  [[maybe_unused]] size_t Alignment) {
     __asan_poison_memory_region(Ptr, Size);
   }
 
   // Pull in base class overloads.
+  /// Bring AllocatorBase typed Deallocate overloads into scope.
   using AllocatorBase<BumpPtrAllocatorImpl>::Deallocate;
 
-  /// \returns the number of slabs currently owned by this allocator.
+  /// Return the number of slabs currently owned by this allocator.
+  ///
+  /// \return Total count of regular and custom-sized slabs.
   size_t GetNumSlabs() const { return Slabs.size() + CustomSizedSlabs.size(); }
 
+  /// Return an index uniquely identifying \p Ptr in this allocator.
+  ///
+  /// \param Ptr Pointer previously returned by this allocator.
   /// \return An index uniquely and reproducibly identifying
   /// an input pointer \p Ptr in the given allocator.
   /// The returned value is negative iff the object is inside a custom-size
@@ -280,6 +313,8 @@ public:
 
   /// A wrapper around identifyObject that additionally asserts that
   /// the object is indeed within the allocator.
+  ///
+  /// \param Ptr Pointer previously returned by this allocator.
   /// \return An index uniquely and reproducibly identifying
   /// an input pointer \p Ptr in the given allocator.
   int64_t identifyKnownObject(const void *Ptr) {
@@ -288,12 +323,17 @@ public:
     return *Out;
   }
 
+  /// Return a compact identifier for a known object of type \c T.
+  ///
   /// A wrapper around identifyKnownObject. Accepts type information
   /// about the object and produces a smaller identifier by relying on
   /// the alignment information. Note that sub-classes may have different
   /// alignment, so the most base class should be passed as template parameter
   /// in order to obtain correct results. For that reason automatic template
   /// parameter deduction is disabled.
+  ///
+  /// \param Ptr Pointer previously returned by this allocator and known to
+  /// point at an object of type \c T (or a base thereof).
   /// \return An index uniquely and reproducibly identifying
   /// an input pointer \p Ptr in the given allocator. This identifier is
   /// different from the ones produced by identifyObject and
@@ -317,6 +357,8 @@ public:
   }
 
   /// Set the ASan red-zone size between allocations (no-op without ABI checks).
+  ///
+  /// \param NewSize Number of red-zone bytes to place between allocations.
   void setRedZoneSize([[maybe_unused]] size_t NewSize) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     RedZoneSize = NewSize;
@@ -424,17 +466,24 @@ public:
     Allocator.setRedZoneSize(0);
   }
   /// Move-construct, taking ownership of \p Old's underlying allocator.
+  ///
+  /// \param Old Allocator to move from; left empty after the move.
   SpecificBumpPtrAllocator(SpecificBumpPtrAllocator &&Old)
       : Allocator(std::move(Old.Allocator)) {}
   /// Destroy all allocated objects and release owned memory.
   ~SpecificBumpPtrAllocator() { DestroyAll(); }
 
   /// Move-assign, taking ownership of \p RHS's underlying allocator.
+  ///
+  /// \param RHS Allocator to move from; left empty after the assignment.
+  /// \return Reference to this allocator.
   SpecificBumpPtrAllocator &operator=(SpecificBumpPtrAllocator &&RHS) {
     Allocator = std::move(RHS.Allocator);
     return *this;
   }
 
+  /// Destroy every allocated object and reset the underlying bump allocator.
+  ///
   /// Call the destructor of each allocated object and deallocate all but the
   /// current slab and reset the current pointer to the beginning of it, freeing
   /// all memory allocated so far.
@@ -467,6 +516,9 @@ public:
   }
 
   /// Allocate space for an array of objects without constructing them.
+  ///
+  /// \param num Number of objects of type \c T to allocate space for.
+  /// \return Pointer to uninitialized storage for \p num objects of type \c T.
   T *Allocate(size_t num = 1) {
     // Slabs are max_align_t-aligned and every size is a multiple of alignof(T),
     // so the bump pointer is already alignof(T)-aligned. Request alignment 1 so
@@ -476,6 +528,9 @@ public:
     return Allocator.Allocate<T>(num);
   }
 
+  /// Return an index uniquely identifying \p Ptr in this allocator.
+  ///
+  /// \param Ptr Pointer previously returned by this allocator.
   /// \return An index uniquely and reproducibly identifying
   /// an input pointer \p Ptr in the given allocator.
   /// Returns an empty optional if the pointer is not found in the allocator.

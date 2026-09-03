@@ -12,7 +12,12 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+/// Pass that converts irreducible control-flow into natural loops.
 struct FixIrreduciblePass : RequiredPassInfoMixin<FixIrreduciblePass> {
+  /// Run the fix-irreducible pass over the function.
+  /// @param F Function whose irreducible control-flow should be fixed.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // namespace llvm

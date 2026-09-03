@@ -25,8 +25,19 @@ class ArgumentPromotionPass
   unsigned MaxElements;
 
 public:
+  /// Construct an argument-promotion pass.
+  ///
+  /// \param MaxElements Maximum number of aggregate elements to promote into
+  /// by-value arguments; zero means no limit.
   ArgumentPromotionPass(unsigned MaxElements = 2u) : MaxElements(MaxElements) {}
 
+  /// Run argument promotion over the functions in SCC \p C.
+  ///
+  /// \param C The SCC whose functions are candidates for promotion.
+  /// \param AM The CGSCC analysis manager.
+  /// \param CG The lazy call graph.
+  /// \param UR The CGSCC update result.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &C,
                                  CGSCCAnalysisManager &AM, LazyCallGraph &CG,
                                  CGSCCUpdateResult &UR);

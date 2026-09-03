@@ -17,8 +17,13 @@
 
 namespace llvm {
 
+/// Pass that lowers @llvm.widenable.condition to the default value i1 true.
 struct LowerWidenableConditionPass
     : OptionalPassInfoMixin<LowerWidenableConditionPass> {
+  /// Run widenable-condition lowering over the function.
+  /// @param F Function whose widenable.condition intrinsics may be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

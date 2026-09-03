@@ -18,16 +18,35 @@ class BinaryStreamReader;
 class BinaryStreamWriter;
 
 namespace codeview {
+/// Maps CodeView symbol records between binary streams and structured types.
 class LLVM_ABI SymbolRecordMapping : public SymbolVisitorCallbacks {
 public:
+  /// Construct a mapping that reads symbol fields from \p Reader.
+  ///
+  /// \param Reader Binary stream supplying serialized symbol record data.
+  /// \param Container CodeView container that owns the symbol stream.
   explicit SymbolRecordMapping(BinaryStreamReader &Reader,
                                CodeViewContainer Container)
       : IO(Reader), Container(Container) {}
+
+  /// Construct a mapping that writes symbol fields to \p Writer.
+  ///
+  /// \param Writer Binary stream that receives serialized symbol record data.
+  /// \param Container CodeView container that owns the symbol stream.
   explicit SymbolRecordMapping(BinaryStreamWriter &Writer,
                                CodeViewContainer Container)
       : IO(Writer), Container(Container) {}
 
+  /// Begin mapping \p Record by opening an IO record for its payload.
+  ///
+  /// \param Record Symbol record whose fields will be mapped.
+  /// \returns An Error if record setup fails, otherwise success.
   Error visitSymbolBegin(CVSymbol &Record) override;
+
+  /// Finish mapping \p Record by aligning and closing the active IO record.
+  ///
+  /// \param Record Symbol record whose visit is ending.
+  /// \returns An Error if alignment or teardown fails, otherwise success.
   Error visitSymbolEnd(CVSymbol &Record) override;
 
 #define SYMBOL_RECORD(EnumName, EnumVal, Name)                                 \

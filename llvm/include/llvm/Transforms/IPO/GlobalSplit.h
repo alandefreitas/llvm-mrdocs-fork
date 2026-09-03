@@ -25,6 +25,11 @@ class Module;
 /// Pass to perform split of global variables.
 class GlobalSplitPass : public OptionalPassInfoMixin<GlobalSplitPass> {
 public:
+  /// Run global splitting over the given module.
+  ///
+  /// \param M Module whose globals may be split using inrange GEP annotations.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

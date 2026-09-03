@@ -22,13 +22,19 @@
 namespace llvm {
 namespace remarks {
 
-// Parse remarks hotness threshold argument value.
-// Valid option values are
-// 1. integer: manually specified threshold; or
-// 2. string 'auto': automatically get threshold from profile summary.
-//
-// Return std::nullopt Optional if 'auto' is specified, indicating the value
-// will be filled later during PSI.
+/// Parse a remarks hotness threshold option value.
+///
+/// Valid option values are:
+/// 1. integer: manually specified threshold; or
+/// 2. string 'auto': automatically get threshold from profile summary.
+///
+/// Returns \c std::nullopt if 'auto' is specified, indicating the value will
+/// be filled later during PSI. Negative integers are treated as no threshold
+/// (zero).
+///
+/// \param Arg Option value string to parse.
+/// \return The threshold, \c std::nullopt for 'auto', or an error if \p Arg is
+/// not a valid integer or 'auto'.
 inline Expected<std::optional<uint64_t>> parseHotnessThresholdOption(StringRef Arg) {
   if (Arg == "auto")
     return std::nullopt;
@@ -42,11 +48,21 @@ inline Expected<std::optional<uint64_t>> parseHotnessThresholdOption(StringRef A
   return Val < 0 ? 0 : Val;
 }
 
-// A simple CL parser for '*-remarks-hotness-threshold='
+/// Command-line parser for `*-remarks-hotness-threshold=` option values.
 class HotnessThresholdParser : public cl::parser<std::optional<uint64_t>> {
 public:
+  /// Construct a hotness threshold parser owned by option \p O.
+  ///
+  /// \param O Option that owns this parser.
   HotnessThresholdParser(cl::Option &O) : cl::parser<std::optional<uint64_t>>(O) {}
 
+  /// Parse \p Arg into a hotness threshold value stored in \p V.
+  ///
+  /// \param O Option being parsed (used for error reporting).
+  /// \param ArgName Option name as written on the command line.
+  /// \param Arg Option value string to parse.
+  /// \param V Destination for the parsed optional threshold.
+  /// \return True on error.
   bool parse(cl::Option &O, StringRef ArgName, StringRef Arg,
              std::optional<uint64_t> &V) {
     auto ResultOrErr = parseHotnessThresholdOption(Arg);

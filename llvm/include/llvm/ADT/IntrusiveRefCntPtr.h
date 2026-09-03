@@ -81,9 +81,11 @@ protected:
   /// Initialize with a reference count of zero.
   RefCountedBase() = default;
   /// Copy construction does not copy the reference count.
-  RefCountedBase(const RefCountedBase &) {}
+  /// @param Other Source object whose reference count is ignored.
+  RefCountedBase(const RefCountedBase &Other) {}
   /// Copy assignment is deleted; reference counts are not copied.
-  RefCountedBase &operator=(const RefCountedBase &) = delete;
+  /// @param Other Source object that would be assigned from.
+  RefCountedBase &operator=(const RefCountedBase &Other) = delete;
 
 #ifndef NDEBUG
   /// Destroy; asserts that the reference count is zero.
@@ -100,6 +102,7 @@ protected:
 
 public:
   /// Return the current reference count.
+  /// @return The current reference count.
   unsigned UseCount() const { return RefCount; }
 
   /// Increment the reference count.
@@ -121,10 +124,12 @@ protected:
   /// Initialize with a reference count of zero.
   ThreadSafeRefCountedBase() = default;
   /// Copy construction does not copy the reference count.
-  ThreadSafeRefCountedBase(const ThreadSafeRefCountedBase &) {}
+  /// @param Other Source object whose reference count is ignored.
+  ThreadSafeRefCountedBase(const ThreadSafeRefCountedBase &Other) {}
   /// Copy assignment is deleted; reference counts are not copied.
+  /// @param Other Source object that would be assigned from.
   ThreadSafeRefCountedBase &
-  operator=(const ThreadSafeRefCountedBase &) = delete;
+  operator=(const ThreadSafeRefCountedBase &Other) = delete;
 
 #ifndef NDEBUG
   /// Assert that no references remain when the object is destroyed.
@@ -140,6 +145,7 @@ protected:
 
 public:
   /// Return the current reference count.
+  /// @return The current reference count.
   unsigned UseCount() const { return RefCount.load(std::memory_order_relaxed); }
 
   /// Increment the reference count.
@@ -176,10 +182,14 @@ public:
 /// functions on Foo itself, because Foo would be an incomplete type.
 template <typename T> struct IntrusiveRefCntPtrInfo {
   /// Return the reference count of \p obj.
+  /// @param obj Object whose reference count is queried.
+  /// @return The reference count of \p obj.
   static unsigned useCount(const T *obj) { return obj->UseCount(); }
   /// Increment the reference count of \p obj.
+  /// @param obj Object whose reference count is incremented.
   static void retain(T *obj) { obj->Retain(); }
   /// Decrement the reference count of \p obj.
+  /// @param obj Object whose reference count is decremented.
   static void release(T *obj) { obj->Release(); }
 };
 
@@ -202,8 +212,10 @@ public:
   /// @param obj Object to retain, or null.
   IntrusiveRefCntPtr(T *obj) : Obj(obj) { retain(); }
   /// Copy and retain the pointee from \p S.
+  /// @param S Source smart pointer to copy from.
   IntrusiveRefCntPtr(const IntrusiveRefCntPtr &S) : Obj(S.Obj) { retain(); }
   /// Take ownership of \p S's pointee without retaining.
+  /// @param S Source smart pointer (left null).
   IntrusiveRefCntPtr(IntrusiveRefCntPtr &&S) : Obj(S.Obj) { S.Obj = nullptr; }
 
   /// Take ownership of a convertible IntrusiveRefCntPtr \p S without retaining.
@@ -226,21 +238,28 @@ public:
   ~IntrusiveRefCntPtr() { release(); }
 
   /// Copy-assign via swap with \p S.
+  /// @param S Source smart pointer (passed by value).
+  /// @return Reference to this smart pointer.
   IntrusiveRefCntPtr &operator=(IntrusiveRefCntPtr S) {
     swap(S);
     return *this;
   }
 
   /// Dereference the pointee.
+  /// @return Reference to the managed object.
   T &operator*() const { return *Obj; }
   /// Return a pointer to the pointee.
+  /// @return Pointer to the managed object.
   T *operator->() const { return Obj; }
   /// Return the raw pointer without affecting the reference count.
+  /// @return The raw pointer, or null if empty.
   T *get() const { return Obj; }
   /// Return true if this pointer is non-null.
+  /// @return True if this pointer is non-null.
   explicit operator bool() const { return Obj; }
 
   /// Exchange pointees with \p other.
+  /// @param other Other smart pointer to swap with.
   void swap(IntrusiveRefCntPtr &other) {
     T *tmp = other.Obj;
     other.Obj = Obj;
@@ -257,6 +276,7 @@ public:
   void resetWithoutRelease() { Obj = nullptr; }
 
   /// Return the pointee's reference count, or zero if empty.
+  /// @return The pointee's reference count, or zero if empty.
   unsigned useCount() const {
     return Obj ? IntrusiveRefCntPtrInfo<T>::useCount(Obj) : 0;
   }
@@ -276,6 +296,9 @@ private:
 };
 
 /// Return true if \p A and \p B point to the same object.
+/// @param A First smart pointer.
+/// @param B Second smart pointer.
+/// @return True if \p A and \p B point to the same object.
 template <class T, class U>
 inline bool operator==(const IntrusiveRefCntPtr<T> &A,
                        const IntrusiveRefCntPtr<U> &B) {
@@ -283,6 +306,9 @@ inline bool operator==(const IntrusiveRefCntPtr<T> &A,
 }
 
 /// Return true if \p A and \p B point to different objects.
+/// @param A First smart pointer.
+/// @param B Second smart pointer.
+/// @return True if \p A and \p B point to different objects.
 template <class T, class U>
 inline bool operator!=(const IntrusiveRefCntPtr<T> &A,
                        const IntrusiveRefCntPtr<U> &B) {
@@ -290,48 +316,72 @@ inline bool operator!=(const IntrusiveRefCntPtr<T> &A,
 }
 
 /// Return true if \p A points to the same object as raw pointer \p B.
+/// @param A Smart pointer.
+/// @param B Raw pointer to compare against.
+/// @return True if \p A points to the same object as \p B.
 template <class T, class U>
 inline bool operator==(const IntrusiveRefCntPtr<T> &A, U *B) {
   return A.get() == B;
 }
 
 /// Return true if \p A points to a different object than raw pointer \p B.
+/// @param A Smart pointer.
+/// @param B Raw pointer to compare against.
+/// @return True if \p A points to a different object than \p B.
 template <class T, class U>
 inline bool operator!=(const IntrusiveRefCntPtr<T> &A, U *B) {
   return A.get() != B;
 }
 
 /// Return true if raw pointer \p A equals \p B's pointee.
+/// @param A Raw pointer.
+/// @param B Smart pointer whose pointee is compared.
+/// @return True if \p A equals \p B's pointee.
 template <class T, class U>
 inline bool operator==(T *A, const IntrusiveRefCntPtr<U> &B) {
   return A == B.get();
 }
 
 /// Return true if raw pointer \p A differs from \p B's pointee.
+/// @param A Raw pointer.
+/// @param B Smart pointer whose pointee is compared.
+/// @return True if \p A differs from \p B's pointee.
 template <class T, class U>
 inline bool operator!=(T *A, const IntrusiveRefCntPtr<U> &B) {
   return A != B.get();
 }
 
 /// Return true if \p B is empty.
+/// @param A Null pointer constant.
+/// @param B Smart pointer to test.
+/// @return True if \p B is empty.
 template <class T>
-bool operator==(std::nullptr_t, const IntrusiveRefCntPtr<T> &B) {
+bool operator==(std::nullptr_t A, const IntrusiveRefCntPtr<T> &B) {
   return !B;
 }
 
 /// Return true if \p A is empty.
+/// @param A Smart pointer to test.
+/// @param B Null pointer constant.
+/// @return True if \p A is empty.
 template <class T>
 bool operator==(const IntrusiveRefCntPtr<T> &A, std::nullptr_t B) {
   return B == A;
 }
 
 /// Return true if \p B is non-empty.
+/// @param A Null pointer constant.
+/// @param B Smart pointer to test.
+/// @return True if \p B is non-empty.
 template <class T>
 bool operator!=(std::nullptr_t A, const IntrusiveRefCntPtr<T> &B) {
   return !(A == B);
 }
 
 /// Return true if \p A is non-empty.
+/// @param A Smart pointer to test.
+/// @param B Null pointer constant.
+/// @return True if \p A is non-empty.
 template <class T>
 bool operator!=(const IntrusiveRefCntPtr<T> &A, std::nullptr_t B) {
   return !(A == B);
@@ -341,23 +391,35 @@ bool operator!=(const IntrusiveRefCntPtr<T> &A, std::nullptr_t B) {
 // Casting.h.
 template <typename From> struct simplify_type;
 
+/// Allow IntrusiveRefCntPtr to convert into a raw pointer for isa/dyn_cast.
 template <class T> struct simplify_type<IntrusiveRefCntPtr<T>> {
+  /// Underlying type used by casting operators.
   using SimpleType = T *;
 
+  /// Return the raw pointer held by \p Val.
+  /// @param Val Smart pointer to unwrap.
+  /// @return The raw pointer held by \p Val.
   static SimpleType getSimplifiedValue(IntrusiveRefCntPtr<T> &Val) {
     return Val.get();
   }
 };
 
+/// Allow const IntrusiveRefCntPtr to convert into a raw pointer for isa/dyn_cast.
 template <class T> struct simplify_type<const IntrusiveRefCntPtr<T>> {
+  /// Underlying type used by casting operators.
   using SimpleType = /*const*/ T *;
 
+  /// Return the raw pointer held by \p Val.
+  /// @param Val Const smart pointer to unwrap.
+  /// @return The raw pointer held by \p Val.
   static SimpleType getSimplifiedValue(const IntrusiveRefCntPtr<T> &Val) {
     return Val.get();
   }
 };
 
 /// Factory function for creating intrusive ref counted pointers.
+/// @param A Constructor arguments forwarded to \c T.
+/// @return An IntrusiveRefCntPtr owning a newly constructed \c T.
 template <typename T, typename... Args>
 IntrusiveRefCntPtr<T> makeIntrusiveRefCnt(Args &&...A) {
   return IntrusiveRefCntPtr<T>(new T(std::forward<Args>(A)...));

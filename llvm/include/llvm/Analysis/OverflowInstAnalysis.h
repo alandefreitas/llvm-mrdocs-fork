@@ -20,6 +20,8 @@ namespace llvm {
 class Use;
 class Value;
 
+/// Return true if \p Op0 and \p Op1 match a zero check with mul-with-overflow.
+///
 /// Match one of the patterns up to the select/logic op:
 ///   %Op0 = icmp ne i4 %X, 0
 ///   %Agg = call { i4, i1 } @llvm.[us]mul.with.overflow.i4(i4 %X, i4 %Y)
@@ -33,12 +35,23 @@ class Value;
 ///   %ret = select i1 %Op0, i1 true, i1 %Op1 / %ret = or i1 %Op0, %Op1
 ///
 /// Callers are expected to align that with the operands of the select/logic.
-/// IsAnd is set to true if the Op0 and Op1 are used as the first pattern.
-/// If Op0 and Op1 match one of the patterns above, return true and fill Y's
-/// use.
-
+/// \p IsAnd should be true when matching the first (and/select-false) pattern.
+/// If \p Op0 and \p Op1 match one of the patterns above, return true and fill
+/// \p Y's use.
+/// @param Op0 Zero-comparison operand of the select or logic operation.
+/// @param Op1 Overflow-bit (or inverted overflow-bit) operand.
+/// @param IsAnd True for the and/select-false pattern; false for or/select-true.
+/// @param Y Set to the use of the non-zero multiplicand when a match is found.
+/// @return True if \p Op0 and \p Op1 match one of the patterns above.
 LLVM_ABI bool isCheckForZeroAndMulWithOverflow(Value *Op0, Value *Op1,
                                                bool IsAnd, Use *&Y);
+/// Return true if \p Op0 and \p Op1 match a zero check with mul-with-overflow.
+///
+/// Convenience overload that ignores the matched multiplicand use.
+/// @param Op0 Zero-comparison operand of the select or logic operation.
+/// @param Op1 Overflow-bit (or inverted overflow-bit) operand.
+/// @param IsAnd True for the and/select-false pattern; false for or/select-true.
+/// @return True if \p Op0 and \p Op1 match a zero check with mul-with-overflow.
 LLVM_ABI bool isCheckForZeroAndMulWithOverflow(Value *Op0, Value *Op1,
                                                bool IsAnd);
 } // end namespace llvm

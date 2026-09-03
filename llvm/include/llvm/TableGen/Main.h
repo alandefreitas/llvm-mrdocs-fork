@@ -21,10 +21,12 @@ namespace llvm {
 class raw_ostream;
 class RecordKeeper;
 
+/// Holds the primary and any additional files produced by a TableGen backend.
 struct TableGenOutputFiles {
+  /// Contents of the primary output file written by the backend.
   std::string MainFile;
 
-  // Translates additional output file names to their contents.
+  /// Maps additional output file name suffixes to their contents.
   std::map<StringRef, std::string> AdditionalFiles;
 };
 
@@ -37,8 +39,24 @@ using TableGenMainFn =
 using MultiFileTableGenMainFn = function_ref<bool(TableGenOutputFiles &OutFiles,
                                                   const RecordKeeper &Records)>;
 
+/// Run TableGen with a single-file backend callback.
+///
+/// Parses the input TableGen file, invokes \p MainFn (or a registered
+/// emitter), and writes the generated output.
+///
+/// \param argv0 Program name used when reporting errors.
+/// \param MainFn Optional callback that writes one output file from Records.
+/// \returns Non-zero status on error, zero on success.
 LLVM_ABI int TableGenMain(const char *argv0, TableGenMainFn MainFn = nullptr);
 
+/// Run TableGen with a multi-file backend callback.
+///
+/// Parses the input TableGen file, invokes \p MainFn (or a registered
+/// emitter), and writes the main and any additional output files.
+///
+/// \param argv0 Program name used when reporting errors.
+/// \param MainFn Optional callback that fills OutFiles from Records.
+/// \returns Non-zero status on error, zero on success.
 LLVM_ABI int TableGenMain(const char *argv0,
                           MultiFileTableGenMainFn MainFn = nullptr);
 

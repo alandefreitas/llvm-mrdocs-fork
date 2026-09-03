@@ -23,8 +23,10 @@ namespace llvm::coverage::mcdc {
 
 /// The ID for MCDCBranch.
 using ConditionID = int16_t;
+/// Pair of ConditionIDs for the True and False branches of a condition.
 using ConditionIDs = std::array<ConditionID, 2>;
 
+/// Parameters for an MC/DC Decision Region.
 struct DecisionParameters {
   /// Byte Index of Bitmap Coverage Object for a Decision Region.
   unsigned BitmapIdx;
@@ -32,20 +34,30 @@ struct DecisionParameters {
   /// Number of Conditions used for a Decision Region.
   uint16_t NumConditions;
 
+  /// Deleted; BitmapIdx and NumConditions are required.
   DecisionParameters() = delete;
+  /// Construct decision parameters for a coverage bitmap.
+  /// \param BitmapIdx Byte index of the bitmap coverage object.
+  /// \param NumConditions Number of conditions in the decision region.
   DecisionParameters(unsigned BitmapIdx, unsigned NumConditions)
       : BitmapIdx(BitmapIdx), NumConditions(NumConditions) {
     assert(NumConditions > 0);
   }
 };
 
+/// Parameters for an MC/DC Branch Region.
 struct BranchParameters {
   /// IDs used to represent a branch region and other branch regions
   /// evaluated based on True and False branches.
   ConditionID ID;
+  /// Condition IDs of the True and False branch targets.
   ConditionIDs Conds;
 
+  /// Deleted; ID and Conds are required.
   BranchParameters() = delete;
+  /// Construct branch parameters for a condition.
+  /// \param ID Condition ID of this branch region.
+  /// \param Conds Condition IDs for the True and False branches.
   BranchParameters(ConditionID ID, const ConditionIDs &Conds)
       : ID(ID), Conds(Conds) {
     assert(ID >= 0);
@@ -60,6 +72,7 @@ using Parameters =
 /// \tparam MaybeConstInnerParameters Type to get. May be const.
 /// \tparam MaybeConstMCDCParameters Expected inferred. May be const.
 /// \param MCDCParams May be const.
+/// \return Reference to the requested parameter alternative in \p MCDCParams.
 template <class MaybeConstInnerParameters, class MaybeConstMCDCParameters>
 auto &getParams(MaybeConstMCDCParameters &MCDCParams) {
   using InnerParameters =

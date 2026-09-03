@@ -52,25 +52,45 @@ namespace llvm::orc {
 /// architecture.
 class LLVM_ABI COFFAutoImportGenerator : public DefinitionGenerator {
 public:
+  /// Load a dynamic library and return a generator for its exports.
+  ///
   /// Loads the dynamic library at the given path in the executor (via the given
   /// DylibManager) and, on success, returns a COFFAutoImportGenerator that
   /// synthesizes imports for the symbols it exports. On failure returns the
   /// reason the library failed to load. Resolving imports through DylibManager
   /// means this works for both in-process and out-of-process execution.
+  /// @param ES Execution session for the generator.
+  /// @param L Object linking layer used to emit synthesized stubs.
+  /// @param DylibMgr Manager used to load the library in the executor.
+  /// @param LibraryPath Path of the dynamic library to load.
+  /// @return A generator for the library's exports, or an error if the library
+  ///     failed to load.
   static Expected<std::unique_ptr<COFFAutoImportGenerator>>
   Load(ExecutionSession &ES, ObjectLinkingLayer &L, DylibManager &DylibMgr,
        const char *LibraryPath);
 
+  /// Synthesize COFF dllimport stubs for unresolved symbols this library
+  /// exports.
+  /// @param LS Lookup state that may be suspended while definitions are sought.
+  /// @param K Kind of lookup being performed.
+  /// @param JD Target JITDylib being searched.
+  /// @param JDLookupFlags Whether the search should match hidden symbols.
+  /// @param Symbols Unresolved symbols and their associated lookup flags.
+  /// @return Success, or an error if stub synthesis fails.
   Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
                       JITDylibLookupFlags JDLookupFlags,
                       const SymbolLookupSet &Symbols) override;
 
+  /// Return the resource tracker owning synthesized import stubs, or null.
+  ///
   /// Returns the ResourceTracker that owns the stubs synthesized by this
   /// generator, or null if none have been synthesized yet. Calling remove() on
   /// it reclaims every synthesized __imp_ slot and thunk without affecting
   /// other definitions in the JITDylib; synthesis afterwards transparently
   /// starts a fresh tracker. Not thread-safe with respect to lookups that may
   /// concurrently trigger synthesis -- reclaim at a quiescent point.
+  /// @return The resource tracker owning synthesized stubs, or null if none
+  ///     have been synthesized yet.
   ResourceTrackerSP getImportStubsResourceTracker() const {
     return ImportStubsRT;
   }

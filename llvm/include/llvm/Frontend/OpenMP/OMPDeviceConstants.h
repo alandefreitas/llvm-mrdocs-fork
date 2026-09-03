@@ -18,12 +18,18 @@
 namespace llvm {
 namespace omp {
 
+/// Bit flags describing the execution mode of an OpenMP target kernel.
 enum OMPTgtExecModeFlags : unsigned char {
+  /// Bare kernel with no OpenMP runtime state machine.
   OMP_TGT_EXEC_MODE_BARE = 0,
+  /// Generic mode where a single thread runs the sequential regions.
   OMP_TGT_EXEC_MODE_GENERIC = 1 << 0,
+  /// SPMD mode where all threads execute the kernel in parallel.
   OMP_TGT_EXEC_MODE_SPMD = 1 << 1,
+  /// Combined generic and SPMD execution mode.
   OMP_TGT_EXEC_MODE_GENERIC_SPMD =
       OMP_TGT_EXEC_MODE_GENERIC | OMP_TGT_EXEC_MODE_SPMD,
+  /// SPMD mode without a worksharing loop around the kernel body.
   OMP_TGT_EXEC_MODE_SPMD_NO_LOOP = 1 << 2 | OMP_TGT_EXEC_MODE_SPMD
 };
 

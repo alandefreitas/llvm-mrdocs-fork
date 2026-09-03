@@ -18,6 +18,8 @@
 
 namespace llvm {
 
+/// A tagged pointer-like type bound to a discriminant within a sum type.
+///
 /// A compile time pair of an integer tag and the pointer-like type which it
 /// indexes within a sum type. Also allows the user to specify a particular
 /// traits class for pointer types with custom behavior such as over-aligned
@@ -103,6 +105,7 @@ public:
   constexpr PointerSumType() = default;
 
   /// A typed setter to a given tagged member of the sum type.
+  /// \param Pointer Pointer value to store under tag \c N.
   template <TagT N>
   void set(typename HelperT::template Lookup<N>::PointerT Pointer) {
     void *V = HelperT::template Lookup<N>::TraitsT::getAsVoidPointer(Pointer);
@@ -112,6 +115,8 @@ public:
   }
 
   /// A typed constructor for a specific tagged member of the sum type.
+  /// \param Pointer Pointer value to store under tag \c N.
+  /// \return Sum type holding \p Pointer under tag \c N.
   template <TagT N>
   static PointerSumType
   create(typename HelperT::template Lookup<N>::PointerT Pointer) {
@@ -124,20 +129,24 @@ public:
   void clear() { set<HelperT::MinTag>(nullptr); }
 
   /// Return the discriminant tag of the active member.
+  /// \return Discriminant tag of the active member.
   TagT getTag() const {
     return static_cast<TagT>(getOpaqueValue() & HelperT::TagMask);
   }
 
   /// Return true if the active member has tag \p N.
+  /// \return True if the active member has tag \p N.
   template <TagT N> bool is() const { return N == getTag(); }
 
   /// Return the pointer for tag \p N, or null if that tag is inactive.
+  /// \return Pointer for tag \p N, or null if that tag is inactive.
   template <TagT N> typename HelperT::template Lookup<N>::PointerT get() const {
     void *P = is<N>() ? getVoidPtr() : nullptr;
     return HelperT::template Lookup<N>::TraitsT::getFromVoidPointer(P);
   }
 
   /// Return the pointer for tag \p N; asserts that tag is active.
+  /// \return Pointer for tag \p N.
   template <TagT N>
   typename HelperT::template Lookup<N>::PointerT cast() const {
     assert(is<N>() && "This instance has a different active member.");
@@ -148,6 +157,7 @@ public:
   /// If the tag is zero and the pointer's value isn't changed when being
   /// stored, get the address of the stored value type-punned to the zero-tag's
   /// pointer type.
+  /// \return Const address of the zero-tag pointer in typed storage.
   typename HelperT::template Lookup<HelperT::MinTag>::PointerT const *
   getAddrOfZeroTagPointer() const {
     return const_cast<PointerSumType *>(this)->getAddrOfZeroTagPointer();
@@ -156,6 +166,7 @@ public:
   /// If the tag is zero and the pointer's value isn't changed when being
   /// stored, get the address of the stored value type-punned to the zero-tag's
   /// pointer type.
+  /// \return Address of the zero-tag pointer in typed storage.
   typename HelperT::template Lookup<HelperT::MinTag>::PointerT *
   getAddrOfZeroTagPointer() {
     static_assert(HelperT::MinTag == 0, "Non-zero minimum tag value!");
@@ -175,35 +186,49 @@ public:
   }
 
   /// Return true if the stored pointer bits are non-null.
+  /// \return True if the stored pointer bits are non-null.
   explicit operator bool() const {
     return getOpaqueValue() & HelperT::PointerMask;
   }
   /// Compare two sum types by their opaque packed representation.
+  /// \param R Right-hand sum type to compare against.
+  /// \return True if the opaque representations are equal.
   bool operator==(const PointerSumType &R) const {
     return getOpaqueValue() == R.getOpaqueValue();
   }
   /// Return true if the opaque representations differ.
+  /// \param R Right-hand sum type to compare against.
+  /// \return True if the opaque representations differ.
   bool operator!=(const PointerSumType &R) const {
     return getOpaqueValue() != R.getOpaqueValue();
   }
   /// Order by the opaque packed representation.
+  /// \param R Right-hand sum type to compare against.
+  /// \return True if this opaque value is less than \p R.
   bool operator<(const PointerSumType &R) const {
     return getOpaqueValue() < R.getOpaqueValue();
   }
   /// Order by the opaque packed representation.
+  /// \param R Right-hand sum type to compare against.
+  /// \return True if this opaque value is greater than \p R.
   bool operator>(const PointerSumType &R) const {
     return getOpaqueValue() > R.getOpaqueValue();
   }
   /// Order by the opaque packed representation.
+  /// \param R Right-hand sum type to compare against.
+  /// \return True if this opaque value is less than or equal to \p R.
   bool operator<=(const PointerSumType &R) const {
     return getOpaqueValue() <= R.getOpaqueValue();
   }
   /// Order by the opaque packed representation.
+  /// \param R Right-hand sum type to compare against.
+  /// \return True if this opaque value is greater than or equal to \p R.
   bool operator>=(const PointerSumType &R) const {
     return getOpaqueValue() >= R.getOpaqueValue();
   }
 
   /// Return the raw tagged pointer bits.
+  /// \return Opaque packed representation of the tagged pointer.
   uintptr_t getOpaqueValue() const {
     // Read the underlying storage of the union, regardless of the active
     // member.
@@ -212,6 +237,7 @@ public:
 
 protected:
   /// Return the pointer bits with the tag cleared.
+  /// \return Pointer bits with the discriminant tag cleared.
   void *getVoidPtr() const {
     return reinterpret_cast<void *>(getOpaqueValue() & HelperT::PointerMask);
   }
@@ -265,16 +291,24 @@ struct PointerSumTypeHelper : MemberTs... {
 
 } // end namespace detail
 
-// Teach DenseMap how to use PointerSumTypes as keys.
+/// DenseMapInfo specialization so PointerSumType can be used as a DenseMap key.
 template <typename TagT, typename... MemberTs>
 struct DenseMapInfo<PointerSumType<TagT, MemberTs...>> {
+  /// PointerSumType type this DenseMapInfo specialization describes.
   using SumType = PointerSumType<TagT, MemberTs...>;
 
+  /// Hash \p Arg by its opaque packed bit pattern.
+  /// \param Arg Key value to hash.
+  /// \return Hash of the opaque packed bit pattern.
   static unsigned getHashValue(const SumType &Arg) {
     uintptr_t OpaqueValue = Arg.getOpaqueValue();
     return DenseMapInfo<uintptr_t>::getHashValue(OpaqueValue);
   }
 
+  /// Return true if \p LHS and \p RHS have equal opaque bit patterns.
+  /// \param LHS Left-hand key.
+  /// \param RHS Right-hand key.
+  /// \return True when the opaque bit patterns are equal.
   static bool isEqual(const SumType &LHS, const SumType &RHS) {
     return LHS == RHS;
   }

@@ -15,7 +15,12 @@ namespace llvm {
 
 class Function;
 
+/// Pass that merges chains of integer comparisons into a memcmp call.
 struct MergeICmpsPass : OptionalPassInfoMixin<MergeICmpsPass> {
+  /// Run merge-icmp optimizations over the function.
+  /// @param F Function whose integer comparison chains may be merged.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

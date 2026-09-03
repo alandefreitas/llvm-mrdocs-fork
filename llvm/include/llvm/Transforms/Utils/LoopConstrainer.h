@@ -27,21 +27,27 @@ class SCEV;
 class SCEVExpander;
 class Value;
 
-// Keeps track of the structure of a loop.  This is similar to llvm::Loop,
-// except that it is more lightweight and can track the state of a loop through
-// changing and potentially invalid IR.  This structure also formalizes the
-// kinds of loops we can deal with -- ones that have a single latch that is also
-// an exiting block *and* have a canonical induction variable.
+/// Lightweight description of a loop with a single exiting latch and IV.
+///
+/// This is similar to llvm::Loop, except that it is more lightweight and can
+/// track the state of a loop through changing and potentially invalid IR.  This
+/// structure also formalizes the kinds of loops we can deal with -- ones that
+/// have a single latch that is also an exiting block *and* have a canonical
+/// induction variable.
 struct LoopStructure {
+  /// Optional label identifying this loop structure instance.
   const char *Tag = "";
 
+  /// Header basic block of the loop.
   BasicBlock *Header = nullptr;
+  /// Latch basic block of the loop; also an exiting block.
   BasicBlock *Latch = nullptr;
 
-  // `Latch's terminator instruction is `LatchBr', and it's `LatchBrExitIdx'th
-  // successor is `LatchExit', the exit block of the loop.
+  /// Conditional branch that terminates \ref Latch.
   CondBrInst *LatchBr = nullptr;
+  /// Exit block taken when leaving the loop through \ref LatchBr.
   BasicBlock *LatchExit = nullptr;
+  /// Successor index of \ref LatchBr that leads to \ref LatchExit.
   unsigned LatchBrExitIdx = std::numeric_limits<unsigned>::max();
 
   // The loop represented by this instance of LoopStructure is semantically
@@ -53,16 +59,29 @@ struct LoopStructure {
   // for (intN_ty iv = IndVarStart; predicate(iv, LoopExitAt); iv = IndVarBase)
   //   ... body ...
 
+  /// Induction-variable PHI (or equivalent) that forms the loop IV base.
   Value *IndVarBase = nullptr;
+  /// Starting value of the induction variable.
   Value *IndVarStart = nullptr;
+  /// Step applied to the induction variable each iteration.
   Value *IndVarStep = nullptr;
+  /// Bound compared against the induction variable in the latch exit test.
   Value *LoopExitAt = nullptr;
+  /// True if the induction variable increases each iteration.
   bool IndVarIncreasing = false;
+  /// True if the latch exit uses a signed relational predicate.
   bool IsSignedPredicate = true;
+  /// Integer type used for the loop's exit-count / trip-count arithmetic.
   IntegerType *ExitCountTy = nullptr;
 
+  /// Construct an empty, uninitialized loop structure.
   LoopStructure() = default;
 
+  /// Return a copy of this structure with every value remapped by \p Map.
+  ///
+  /// \param Map Callable that maps each Value* or BasicBlock* member to its
+  ///        counterpart in another copy of the loop.
+  /// \return Remapped loop structure.
   template <typename M> LoopStructure map(M Map) const {
     LoopStructure Result;
     Result.Tag = Tag;
@@ -81,9 +100,17 @@ struct LoopStructure {
     return Result;
   }
 
-  /// Parse \p L and use \p Expander to materialize values needed by the parsed
-  /// structure. This allows the caller to discard speculative expansions with
-  /// a SCEVExpanderCleaner if the transformation is not committed.
+  /// Parse a loop into a LoopStructure, materializing values with \p Expander.
+  ///
+  /// This allows the caller to discard speculative expansions with a
+  /// SCEVExpanderCleaner if the transformation is not committed.
+  ///
+  /// \param Expander Expander used to materialize SCEV values for the structure.
+  /// \param L Loop to parse.
+  /// \param AllowUnsignedLatchCond Whether an unsigned latch predicate is
+  ///        accepted.
+  /// \param FailureReason Set to a human-readable reason when parsing fails.
+  /// \return Parsed structure on success, or std::nullopt on failure.
   LLVM_ABI static std::optional<LoopStructure>
   parseLoopStructure(SCEVExpander &Expander, Loop &L,
                      bool AllowUnsignedLatchCond, const char *&FailureReason);
@@ -100,15 +127,17 @@ struct LoopStructure {
 /// iterations in which the induction variable is >= End.
 class LoopConstrainer {
 public:
-  // Calculated subranges we restrict the iteration space of the main loop to.
-  // See the implementation of `calculateSubRanges' for more details on how
-  // these fields are computed.  `LowLimit` is std::nullopt if there is no
-  // restriction on low end of the restricted iteration space of the main loop.
-  // `HighLimit` is std::nullopt if there is no restriction on high end of the
-  // restricted iteration space of the main loop.
-
+  /// Subranges that restrict the main loop's iteration space.
+  ///
+  /// See the implementation of `calculateSubRanges' for more details on how
+  /// these fields are computed.  `LowLimit` is std::nullopt if there is no
+  /// restriction on low end of the restricted iteration space of the main loop.
+  /// `HighLimit` is std::nullopt if there is no restriction on high end of the
+  /// restricted iteration space of the main loop.
   struct SubRanges {
+    /// Optional lower bound on the main loop's restricted iteration space.
     std::optional<const SCEV *> LowLimit;
+    /// Optional upper bound on the main loop's restricted iteration space.
     std::optional<const SCEV *> HighLimit;
   };
 
@@ -219,12 +248,25 @@ private:
   SubRanges SR;
 
 public:
+  /// Construct a constrainer for loop \p L with structure \p LS and range \p SR.
+  ///
+  /// \param L Loop whose iteration space will be constrained.
+  /// \param LI LoopInfo to keep consistent with newly created loops.
+  /// \param LPMAddNewLoop Callback used to register newly created loops with
+  ///        the loop pass manager.
+  /// \param LS Parsed structure describing \p L.
+  /// \param SE ScalarEvolution analysis for \p L.
+  /// \param DT Dominator tree for the function containing \p L.
+  /// \param T Integer type of the constrained iteration range.
+  /// \param SR Subranges that restrict the main loop's iteration space.
   LLVM_ABI LoopConstrainer(Loop &L, LoopInfo &LI,
                            function_ref<void(Loop *, bool)> LPMAddNewLoop,
                            const LoopStructure &LS, ScalarEvolution &SE,
                            DominatorTree &DT, Type *T, SubRanges SR);
 
-  // Entry point for the algorithm.  Returns true on success.
+  /// Run the loop constraining algorithm.
+  ///
+  /// \return True on success.
   LLVM_ABI bool run();
 };
 } // namespace llvm

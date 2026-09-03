@@ -19,6 +19,8 @@
 #include "llvm/Support/MSP430Attributes.h"
 
 namespace llvm {
+
+/// Parser for MSP430 ELF build attributes.
 class LLVM_ABI MSP430AttributeParser : public ELFCompactAttrParser {
   struct DisplayHandler {
     MSP430Attrs::AttrType Attribute;
@@ -34,9 +36,13 @@ class LLVM_ABI MSP430AttributeParser : public ELFCompactAttrParser {
   Error handler(uint64_t Tag, bool &Handled) override;
 
 public:
+  /// Construct a parser that prints attribute details to \p SW.
+  ///
+  /// \param SW Printer used for attribute comments, or null to suppress output.
   MSP430AttributeParser(ScopedPrinter *SW)
       : ELFCompactAttrParser(SW, MSP430Attrs::getMSP430AttributeTags(),
                              "mspabi") {}
+  /// Construct a parser that does not print attribute details.
   MSP430AttributeParser()
       : ELFCompactAttrParser(MSP430Attrs::getMSP430AttributeTags(), "mspabi") {}
 };

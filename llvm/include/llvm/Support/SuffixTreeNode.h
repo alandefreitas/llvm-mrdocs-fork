@@ -35,7 +35,13 @@ struct SuffixTreeNode {
 public:
   /// Represents an undefined index in the suffix tree.
   static const unsigned EmptyIdx = -1;
-  enum class NodeKind { ST_Leaf, ST_Internal };
+  /// Kind of suffix tree node for LLVM-style RTTI.
+  enum class NodeKind {
+    /// A leaf node that represents a suffix.
+    ST_Leaf,
+    /// An internal node with children, or the root.
+    ST_Internal
+  };
 
 private:
   const NodeKind Kind;
@@ -59,42 +65,67 @@ private:
   unsigned RightLeafIdx = EmptyIdx;
 
 public:
-  // LLVM RTTI boilerplate.
+  /// Return the kind of this node.
+  ///
+  /// \returns The kind of this node.
   NodeKind getKind() const { return Kind; }
 
-  /// \return the start index of this node's substring in the entire string.
+  /// Return the start index of this node's substring in the entire string.
+  ///
+  /// \returns The start index of this node's substring.
   LLVM_ABI unsigned getStartIdx() const;
 
-  /// \returns the end index of this node.
+  /// Return the end index of this node.
+  ///
+  /// \returns The end index of this node's substring.
   virtual unsigned getEndIdx() const = 0;
 
-  /// \return the index of this node's left most leaf node.
+  /// Return the index of this node's left most leaf node.
+  ///
+  /// \returns The left-most leaf index.
   LLVM_ABI unsigned getLeftLeafIdx() const;
 
-  /// \return the index of this node's right most leaf node.
+  /// Return the index of this node's right most leaf node.
+  ///
+  /// \returns The right-most leaf index.
   LLVM_ABI unsigned getRightLeafIdx() const;
 
   /// Set the index of the left most leaf node of this node to \p Idx.
+  ///
+  /// \param Idx The left-most leaf index.
   LLVM_ABI void setLeftLeafIdx(unsigned Idx);
 
   /// Set the index of the right most leaf node of this node to \p Idx.
+  ///
+  /// \param Idx The right-most leaf index.
   LLVM_ABI void setRightLeafIdx(unsigned Idx);
 
   /// Advance this node's StartIdx by \p Inc.
+  ///
+  /// \param Inc The amount to add to the start index.
   LLVM_ABI void incrementStartIdx(unsigned Inc);
 
   /// Set the length of the string from the root to this node to \p Len.
+  ///
+  /// \param Len The concatenated length from the root to this node.
   LLVM_ABI void setConcatLen(unsigned Len);
 
-  /// \returns the length of the string from the root to this node.
+  /// Return the length of the string from the root to this node.
+  ///
+  /// \returns The concatenated length from the root to this node.
   LLVM_ABI unsigned getConcatLen() const;
 
+  /// Construct a suffix tree node of the given kind and start index.
+  ///
+  /// \param Kind The kind of node to create.
+  /// \param StartIdx The start index of this node's substring.
   SuffixTreeNode(NodeKind Kind, unsigned StartIdx)
       : Kind(Kind), StartIdx(StartIdx) {}
+  /// Destroy a suffix tree node.
   virtual ~SuffixTreeNode() = default;
 };
 
-// A node with two or more children, or the root.
+/// A node with two or more children, or the root.
 struct LLVM_ABI SuffixTreeInternalNode : SuffixTreeNode {
 private:
   /// The end index of this node's substring in the main string.
@@ -126,21 +157,33 @@ private:
   SuffixTreeInternalNode *Link = nullptr;
 
 public:
-  // LLVM RTTI boilerplate.
+  /// Check whether \p N is a \c SuffixTreeInternalNode.
+  ///
+  /// \param N The node to inspect.
+  ///
+  /// \returns true if \p N is an internal node.
   static bool classof(const SuffixTreeNode *N) {
     return N->getKind() == NodeKind::ST_Internal;
   }
 
-  /// \returns true if this node is the root of its owning \p SuffixTree.
+  /// Return true if this node is the root of its owning \p SuffixTree.
+  ///
+  /// \returns True if this node is the root.
   bool isRoot() const;
 
-  /// \returns the end index of this node's substring in the entire string.
+  /// Return the end index of this node's substring in the entire string.
+  ///
+  /// \returns The end index of this node's substring.
   unsigned getEndIdx() const override;
 
   /// Sets \p Link to \p L. Assumes \p L is not null.
+  ///
+  /// \param L The suffix link to set.
   void setLink(SuffixTreeInternalNode *L);
 
-  /// \returns the pointer to the Link node.
+  /// Return the pointer to the Link node.
+  ///
+  /// \returns The suffix link, or nullptr if unset.
   SuffixTreeInternalNode *getLink() const;
 
   /// The children of this node.
@@ -150,15 +193,21 @@ public:
   /// mapping by tacking that character on the end of the current string.
   DenseMap<unsigned, SuffixTreeNode *> Children;
 
+  /// Construct an internal node with the given bounds and suffix link.
+  ///
+  /// \param StartIdx The start index of this node's substring.
+  /// \param EndIdx The end index of this node's substring.
+  /// \param Link The suffix link for this node, or null.
   SuffixTreeInternalNode(unsigned StartIdx, unsigned EndIdx,
                          SuffixTreeInternalNode *Link)
       : SuffixTreeNode(NodeKind::ST_Internal, StartIdx), EndIdx(EndIdx),
         Link(Link) {}
 
+  /// Destroy an internal node.
   ~SuffixTreeInternalNode() override = default;
 };
 
-// A node representing a suffix.
+/// A node representing a suffix.
 struct LLVM_ABI SuffixTreeLeafNode : SuffixTreeNode {
 private:
   /// The start index of the suffix represented by this leaf.
@@ -173,22 +222,37 @@ private:
   unsigned *EndIdx = nullptr;
 
 public:
-  // LLVM RTTI boilerplate.
+  /// Check whether \p N is a \c SuffixTreeLeafNode.
+  ///
+  /// \param N The node to inspect.
+  ///
+  /// \returns true if \p N is a leaf node.
   static bool classof(const SuffixTreeNode *N) {
     return N->getKind() == NodeKind::ST_Leaf;
   }
 
-  /// \returns the end index of this node's substring in the entire string.
+  /// Return the end index of this node's substring in the entire string.
+  ///
+  /// \returns The end index of this node's substring.
   unsigned getEndIdx() const override;
 
-  /// \returns the start index of the suffix represented by this leaf.
+  /// Return the start index of the suffix represented by this leaf.
+  ///
+  /// \returns The start index of the suffix.
   unsigned getSuffixIdx() const;
 
   /// Sets the start index of the suffix represented by this leaf to \p Idx.
+  ///
+  /// \param Idx The start index of the suffix.
   void setSuffixIdx(unsigned Idx);
+  /// Construct a leaf node with the given start index and shared end index.
+  ///
+  /// \param StartIdx The start index of this node's substring.
+  /// \param EndIdx Pointer to the shared end index for leaf nodes.
   SuffixTreeLeafNode(unsigned StartIdx, unsigned *EndIdx)
       : SuffixTreeNode(NodeKind::ST_Leaf, StartIdx), EndIdx(EndIdx) {}
 
+  /// Destroy a leaf node.
   ~SuffixTreeLeafNode() override = default;
 };
 } // namespace llvm

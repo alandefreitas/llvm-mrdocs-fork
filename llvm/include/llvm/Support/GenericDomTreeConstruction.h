@@ -51,64 +51,98 @@
 namespace llvm {
 namespace DomTreeBuilder {
 
+/// Scratch state and algorithms for Semi-NCA dominator tree construction.
 template <typename DomTreeT> struct SemiNCAInfo {
+  /// Pointer type for CFG nodes in \p DomTreeT.
   using NodePtr = typename DomTreeT::NodePtr;
+  /// CFG node value type in \p DomTreeT.
   using NodeT = typename DomTreeT::NodeType;
+  /// Pointer to a node in the dominator tree.
   using TreeNodePtr = DomTreeNodeBase<NodeT> *;
+  /// Container type used to store tree roots.
   using RootsT = decltype(DomTreeT::Roots);
+  /// True when constructing a postdominator tree.
   static constexpr bool IsPostDom = DomTreeT::IsPostDominator;
+  /// CFG snapshot type matching the (post)dominator orientation.
   using GraphDiffT = GraphDiff<NodePtr, IsPostDom>;
 
-  // Marks a node that hasn't been visited by DFS.
+  /// Sentinel DFS number marking a node that has not been visited.
   static constexpr unsigned Unvisited = 0;
 
-  // Trivially-copyable record used by Semi-NCA during tree construction.
-  // DFSNumPlus1 is the DFS number + 1, so a zeroed InfoRec is unvisited.
+  /// Per-node scratch data used by Semi-NCA during tree construction.
+  ///
+  /// DFSNumPlus1 is the DFS number + 1, so a zeroed InfoRec is unvisited.
   struct InfoRec {
+    /// DFS number plus one; zero means the node is unvisited.
     unsigned DFSNumPlus1 = 0;
+    /// DFS number of the spanning-tree parent.
     unsigned Parent = 0;
+    /// Semidominator DFS number.
     unsigned Semi = 0;
+    /// Path-compressed label used by eval(); holds a Semi value.
     unsigned Label = 0;
+    /// Immediate dominator DFS number.
     unsigned IDom = 0;
-    // Head index + 1 into ReverseChildren; 0: empty list.
+    /// Head index + 1 into ReverseChildren; 0 means an empty list.
     unsigned ReverseChildrenStart = 0;
   };
 
-  // Map a 0-based DFS number to the node. 0 is the DFS root, or the virtual
-  // root for postdominators.
+  /// Map from a 0-based DFS number to the corresponding CFG node.
+  ///
+  /// Index 0 is the DFS root, or the virtual root for postdominators.
   SmallVector<NodePtr, 32> NumToNode;
+  /// Per-CFG-node Semi-NCA scratch records, indexed by node number.
   SmallVector<InfoRec, 32> NodeInfos;
 
   /// Reverse children of nodes; pairs of (DFSNum (predecessor), next-or-zero);
   /// forms a linked list in this vector.
   SmallVector<std::pair<unsigned, unsigned>, 32> ReverseChildren;
 
+  /// CFG edge update type from \p DomTreeT.
   using UpdateT = typename DomTreeT::UpdateType;
+  /// CFG edge update kind (insert or delete) from \p DomTreeT.
   using UpdateKind = typename DomTreeT::UpdateKind;
+  /// State for applying a batch of legalized CFG updates to a dominator tree.
   struct BatchUpdateInfo {
-    // Note: Updates inside PreViewCFG are already legalized.
+    /// Construct batch state from a pre-view CFG and optional post-view CFG.
+    ///
+    /// Updates inside \p PreViewCFG are already legalized.
+    ///
+    /// \param PreViewCFG CFG snapshot used for incremental updates.
+    /// \param PostViewCFG Optional post-view CFG used when rebuilding from
+    /// scratch; may be null.
     BatchUpdateInfo(GraphDiffT &PreViewCFG, GraphDiffT *PostViewCFG = nullptr)
         : PreViewCFG(PreViewCFG), PostViewCFG(PostViewCFG),
           NumLegalized(PreViewCFG.getNumLegalizedUpdates()) {}
 
-    // Remembers if the whole tree was recalculated at some point during the
-    // current batch update.
+    /// True if the whole tree was recalculated during this batch update.
     bool IsRecalculated = false;
+    /// CFG snapshot used while applying incremental updates.
     GraphDiffT &PreViewCFG;
+    /// Optional post-view CFG used when rebuilding from scratch.
     GraphDiffT *PostViewCFG;
+    /// Number of legalized updates remaining in \p PreViewCFG at construction.
     const size_t NumLegalized;
   };
 
+  /// Active batch-update state, or null when none is in progress.
   BatchUpdateInfo *BatchUpdates;
+  /// Pointer to an optional \c BatchUpdateInfo.
   using BatchUpdatePtr = BatchUpdateInfo *;
 
-  // If BUI is a nullptr, then there's no batch update in progress.
+  /// Construct Semi-NCA scratch state for \p DT, optionally under batch updates.
+  ///
+  /// If \p BUI is null, there is no batch update in progress.
+  ///
+  /// \param DT Dominator tree providing the parent CFG and node numbering.
+  /// \param BUI Optional batch-update state, or null.
   SemiNCAInfo(const DomTreeT &DT, BatchUpdatePtr BUI) : BatchUpdates(BUI) {
     unsigned MaxNodeNumber =
         GraphTraits<typename DomTreeT::ParentPtr>::getMaxNumber(DT.Parent);
     NodeInfos.resize(MaxNodeNumber + IsPostDom); // post-dom null block is zero.
   }
 
+  /// Clear DFS numbering and node info while preserving batch-update state.
   void clear() {
     NumToNode.clear();
     NodeInfos.assign(NodeInfos.size(), InfoRec{});
@@ -117,6 +151,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
     // in progress, we need this information to continue it.
   }
 
+  /// Return the children of \p N, optionally under a batch-update CFG view.
+  ///
+  /// \tparam Inversed If true, walk predecessors instead of successors.
+  /// \param N CFG node whose children are requested.
+  /// \param BUI Optional batch-update view; null uses the real CFG.
+  /// \return Small vector of successor or predecessor CFG nodes.
   template <bool Inversed>
   static SmallVector<NodePtr, 8> getChildren(NodePtr N, BatchUpdatePtr BUI) {
     if (BUI)
@@ -125,14 +165,24 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return SmallVector<NodePtr, 8>(Children.begin(), Children.end());
   }
 
-  // Returns a lazy range over N's children, reversed for non-inverted graphs so
-  // a LIFO worklist visits them in their natural order.
+  /// Return a lazy range over \p N's children on the real CFG.
+  ///
+  /// The range is reversed for non-inverted graphs so a LIFO worklist visits
+  /// them in their natural order.
+  ///
+  /// \tparam Inversed If true, walk predecessors instead of successors.
+  /// \param N CFG node whose children are requested.
+  /// \return Lazy range of successor or predecessor CFG nodes.
   template <bool Inversed> static auto getChildren(NodePtr N) {
     using DirectedNodeT =
         std::conditional_t<Inversed, Inverse<NodePtr>, NodePtr>;
     return detail::reverse_if<!Inversed>(children<DirectedNodeT>(N));
   }
 
+  /// Return the Semi-NCA info record for CFG node \p BB.
+  ///
+  /// \param BB CFG node to look up; may be null for the PDT virtual root.
+  /// \return Mutable Semi-NCA info for \p BB.
   InfoRec &getNodeInfo(NodePtr BB) {
     // For post-dominator trees, index 0 is the null block.
     if constexpr (IsPostDom)
@@ -140,14 +190,36 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return NodeInfos[GraphTraits<NodePtr>::getNumber(BB)];
   }
 
-  static bool AlwaysDescend(NodePtr, NodePtr) { return true; }
+  /// Descend condition that always continues DFS into every successor.
+  ///
+  /// \param From Current CFG node (unused).
+  /// \param To Successor CFG node (unused).
+  /// \return Always true.
+  static bool AlwaysDescend(NodePtr From, NodePtr To) {
+    (void)From;
+    (void)To;
+    return true;
+  }
 
+  /// Helper that prints a CFG node name for debug output.
   struct BlockNamePrinter {
+    /// CFG node to print; may be null.
     NodePtr N;
 
+    /// Construct a printer for CFG node \p Block.
+    ///
+    /// \param Block CFG node to print; may be null.
     BlockNamePrinter(NodePtr Block) : N(Block) {}
+    /// Construct a printer for the CFG block of tree node \p TN.
+    ///
+    /// \param TN Dominator tree node; may be null.
     BlockNamePrinter(TreeNodePtr TN) : N(TN ? TN->getBlock() : nullptr) {}
 
+    /// Print the block name of \p BP to stream \p O.
+    ///
+    /// \param O Output stream.
+    /// \param BP Block name printer to stream.
+    /// \return The output stream \p O.
     friend raw_ostream &operator<<(raw_ostream &O, const BlockNamePrinter &BP) {
       if (!BP.N)
         O << "nullptr";
@@ -158,18 +230,30 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   };
 
+  /// Dense map from CFG nodes to a traversal order index.
   using NodeOrderMap = DenseMap<NodePtr, unsigned>;
 
-  // Custom DFS implementation which can skip nodes based on a provided
-  // predicate. It also collects ReverseChildren so that we don't have to spend
-  // time getting predecessors in SemiNCA.
-  //
-  // If IsReverse is set to true, the DFS walk will be performed backwards
-  // relative to IsPostDom -- using reverse edges for dominators and forward
-  // edges for postdominators.
-  //
-  // If SuccOrder is specified then in this order the DFS traverses the children
-  // otherwise the order is implied by the results of getChildren().
+  /// Run a custom DFS that can skip nodes and records reverse children.
+  ///
+  /// Custom DFS implementation which can skip nodes based on a provided
+  /// predicate. It also collects ReverseChildren so that we don't have to spend
+  /// time getting predecessors in SemiNCA.
+  ///
+  /// If IsReverse is set to true, the DFS walk will be performed backwards
+  /// relative to IsPostDom -- using reverse edges for dominators and forward
+  /// edges for postdominators.
+  ///
+  /// If SuccOrder is specified then in this order the DFS traverses the children
+  /// otherwise the order is implied by the results of getChildren().
+  ///
+  /// \tparam IsReverse If true, walk opposite to the (post)dominator direction.
+  /// \tparam DescendCondition Callable (From, To) -> bool controlling descent.
+  /// \param V CFG node at which to start the walk.
+  /// \param LastNum Next DFS number to assign.
+  /// \param Condition Predicate that returns true when DFS should descend.
+  /// \param AttachToNum DFS number of the spanning-tree parent to attach to.
+  /// \param SuccOrder Optional map imposing a successor visit order.
+  /// \returns The next unused DFS number after the walk.
   template <bool IsReverse = false, typename DescendCondition>
   unsigned runDFS(NodePtr V, unsigned LastNum, DescendCondition Condition,
                   unsigned AttachToNum,
@@ -221,20 +305,28 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return LastNum;
   }
 
-  // V is a predecessor of W. eval() returns V if V < W, otherwise the minimum
-  // of sdom(U), where U > W and there is a virtual forest path from U to V. The
-  // virtual forest consists of linked edges of processed vertices.
-  //
-  // We can follow Parent pointers (virtual forest edges) to determine the
-  // ancestor U with minimum sdom(U). But it is slow and thus we employ the path
-  // compression technique to speed up to O(m*log(n)). Theoretically the virtual
-  // forest can be organized as balanced trees to achieve almost linear
-  // O(m*alpha(m,n)) running time. But it requires two auxiliary arrays (Size
-  // and Child) and is unlikely to be faster than the simple implementation.
-  //
-  // For each vertex V, its Label is the minimal sdom (Semi) on its path from V
-  // (included) to NodeToInfo[V].Parent (excluded), held directly as a Semi
-  // value.
+  /// Evaluate the path-compressed label of DFS node \p V in the virtual forest.
+  ///
+  /// V is a predecessor of W. eval() returns V if V < W, otherwise the minimum
+  /// of sdom(U), where U > W and there is a virtual forest path from U to V. The
+  /// virtual forest consists of linked edges of processed vertices.
+  ///
+  /// We can follow Parent pointers (virtual forest edges) to determine the
+  /// ancestor U with minimum sdom(U). But it is slow and thus we employ the path
+  /// compression technique to speed up to O(m*log(n)). Theoretically the virtual
+  /// forest can be organized as balanced trees to achieve almost linear
+  /// O(m*alpha(m,n)) running time. But it requires two auxiliary arrays (Size
+  /// and Child) and is unlikely to be faster than the simple implementation.
+  ///
+  /// For each vertex V, its Label is the minimal sdom (Semi) on its path from V
+  /// (included) to NodeToInfo[V].Parent (excluded), held directly as a Semi
+  /// value.
+  ///
+  /// \param V DFS number of the vertex to evaluate.
+  /// \param LastLinked Lowest DFS number still linked in the virtual forest.
+  /// \param Stack Scratch stack used for path compression.
+  /// \param NumToInfo Map from DFS number to the corresponding InfoRec.
+  /// \returns The compressed Semi label for \p V.
   unsigned eval(unsigned V, unsigned LastLinked,
                 SmallVectorImpl<InfoRec *> &Stack,
                 ArrayRef<InfoRec *> NumToInfo) {
@@ -266,7 +358,9 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return VInfo->Label;
   }
 
-  // This function requires DFS to be run before calling it.
+  /// Run the Semi-NCA algorithm on the nodes discovered by a prior DFS.
+  ///
+  /// This function requires DFS to be run before calling it.
   void runSemiNCA() {
     const unsigned NextDFSNum(NumToNode.size());
     // NumToInfo is indexed by DFS number; 0 is the root. IDoms holds
@@ -310,11 +404,13 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   }
 
-  // PostDominatorTree always has a virtual root that represents a virtual CFG
-  // node that serves as a single exit from the function. All the other exits
-  // (CFG nodes with terminators and nodes in infinite loops are logically
-  // connected to this virtual CFG exit node).
-  // This functions maps a nullptr CFG node to the virtual root tree node.
+  /// Add the virtual exit root used by postdominator trees.
+  ///
+  /// PostDominatorTree always has a virtual root that represents a virtual CFG
+  /// node that serves as a single exit from the function. All the other exits
+  /// (CFG nodes with terminators and nodes in infinite loops are logically
+  /// connected to this virtual CFG exit node).
+  /// This function maps a nullptr CFG node to the virtual root tree node.
   void addVirtualRoot() {
     assert(IsPostDom && "Only postdominators have a virtual root");
     assert(NumToNode.empty() && "SNCAInfo must be freshly constructed");
@@ -326,22 +422,37 @@ template <typename DomTreeT> struct SemiNCAInfo {
     NumToNode.push_back(nullptr); // NumToNode[0] = nullptr;
   }
 
-  // For postdominators, nodes with no forward successors are trivial roots that
-  // are always selected as tree roots. Roots with forward successors correspond
-  // to CFG nodes within infinite loops.
+  /// Return true if CFG node \p N has at least one forward successor.
+  ///
+  /// For postdominators, nodes with no forward successors are trivial roots that
+  /// are always selected as tree roots. Roots with forward successors correspond
+  /// to CFG nodes within infinite loops.
+  ///
+  /// \param N CFG node to inspect.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \return True if \p N has one or more forward successors.
   static bool HasForwardSuccessors(const NodePtr N, BatchUpdatePtr BUI) {
     assert(N && "N must be a valid node");
     return !getChildren<false>(N, BUI).empty();
   }
 
+  /// Return the entry CFG node of the parent of \p DT.
+  ///
+  /// \param DT Dominator tree whose parent CFG entry is requested.
+  /// \return Entry CFG node of \p DT's parent.
   static NodePtr GetEntryNode(const DomTreeT &DT) {
     assert(DT.Parent && "Parent not set");
     return GraphTraits<typename DomTreeT::ParentPtr>::getEntryNode(DT.Parent);
   }
 
-  // Finds all roots without relaying on the set of roots already stored in the
-  // tree.
-  // We define roots to be some non-redundant set of the CFG nodes
+  /// Find a non-redundant set of (post)dominator roots for \p DT.
+  ///
+  /// Finds all roots without relying on the set of roots already stored in the
+  /// tree. We define roots to be some non-redundant set of the CFG nodes.
+  ///
+  /// \param DT Dominator tree whose parent CFG is searched for roots.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \return Non-redundant set of CFG root nodes for \p DT.
   static RootsT FindRoots(const DomTreeT &DT, BatchUpdatePtr BUI) {
     assert(DT.Parent && "Parent pointer is not set");
     RootsT Roots;
@@ -490,14 +601,20 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return Roots;
   }
 
-  // This function only makes sense for postdominators.
-  // We define roots to be some set of CFG nodes where (reverse) DFS walks have
-  // to start in order to visit all the CFG nodes (including the
-  // reverse-unreachable ones).
-  // When the search for non-trivial roots is done it may happen that some of
-  // the non-trivial roots are reverse-reachable from other non-trivial roots,
-  // which makes them redundant. This function removes them from the set of
-  // input roots.
+  /// Remove postdominator roots that are reverse-reachable from other roots.
+  ///
+  /// This function only makes sense for postdominators.
+  /// We define roots to be some set of CFG nodes where (reverse) DFS walks have
+  /// to start in order to visit all the CFG nodes (including the
+  /// reverse-unreachable ones).
+  /// When the search for non-trivial roots is done it may happen that some of
+  /// the non-trivial roots are reverse-reachable from other non-trivial roots,
+  /// which makes them redundant. This function removes them from the set of
+  /// input roots.
+  ///
+  /// \param DT Postdominator tree providing the parent CFG.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param Roots Root set to prune in place.
   static void RemoveRedundantRoots(const DomTreeT &DT, BatchUpdatePtr BUI,
                                    RootsT &Roots) {
     assert(IsPostDom && "This function is for postdominators only");
@@ -537,6 +654,11 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   }
 
+  /// Walk the whole CFG of \p DT under descend condition \p DC.
+  ///
+  /// \tparam DescendCondition Callable (From, To) -> bool controlling descent.
+  /// \param DT Dominator tree whose roots define the walk.
+  /// \param DC Predicate that returns true when DFS should descend.
   template <typename DescendCondition>
   void doFullDFSWalk(const DomTreeT &DT, DescendCondition DC) {
     if (!IsPostDom) {
@@ -551,6 +673,10 @@ template <typename DomTreeT> struct SemiNCAInfo {
       Num = runDFS(Root, Num, DC, 0);
   }
 
+  /// Rebuild \p DT from scratch, optionally under a batch-update CFG view.
+  ///
+  /// \param DT Dominator tree to recalculate.
+  /// \param BUI Optional batch-update view; null uses the real CFG.
   static void CalculateFromScratch(DomTreeT &DT, BatchUpdatePtr BUI) {
     auto *Parent = DT.Parent;
     DT.reset();
@@ -591,9 +717,13 @@ template <typename DomTreeT> struct SemiNCAInfo {
     SNCA.attachNewSubtree(DT);
   }
 
-  // For each non-root node in a subtree, attach it to the immediate dominator.
-  // Link nodes in reverse: addChild prepends, so this leaves the children of
-  // each node in DFS order.
+  /// Attach newly discovered DFS nodes in this SemiNCAInfo to \p DT.
+  ///
+  /// For each non-root node in a subtree, attach it to the immediate dominator.
+  /// Link nodes in reverse: addChild prepends, so this leaves the children of
+  /// each node in DFS order.
+  ///
+  /// \param DT Dominator tree receiving the new subtree nodes.
   void attachNewSubtree(DomTreeT &DT) {
     const unsigned E = NumToNode.size();
     for (unsigned Num = 1; Num != E; ++Num) {
@@ -607,6 +737,10 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   }
 
+  /// Reattach existing tree nodes discovered by DFS under parent \p AttachTo.
+  ///
+  /// \param DT Dominator tree whose IDoms are updated.
+  /// \param AttachTo Immediate dominator for the DFS root of this subtree.
   void reattachExistingSubtree(DomTreeT &DT, const TreeNodePtr AttachTo) {
     DT.getNode(NumToNode[0])->setIDom(AttachTo);
     for (unsigned Num = 1, E = NumToNode.size(); Num != E; ++Num) {
@@ -616,25 +750,40 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   }
 
-  // Helper struct used during edge insertions.
+  /// Helper state used while discovering nodes affected by an edge insertion.
   struct InsertionInfo {
+    /// Order tree nodes by ascending level for the insertion bucket queue.
     struct Compare {
+      /// Return true if \p LHS is at a shallower tree level than \p RHS.
+      ///
+      /// \param LHS Left-hand tree node.
+      /// \param RHS Right-hand tree node.
+      /// \return True if \p LHS has a strictly smaller level than \p RHS.
       bool operator()(TreeNodePtr LHS, TreeNodePtr RHS) const {
         return LHS->getLevel() < RHS->getLevel();
       }
     };
 
-    // Bucket queue of tree nodes ordered by descending level. For simplicity,
-    // we use a priority_queue here.
+    /// Bucket queue of tree nodes ordered by descending level.
+    ///
+    /// For simplicity, we use a priority_queue here.
     std::priority_queue<TreeNodePtr, SmallVector<TreeNodePtr, 8>, Compare>
         Bucket;
+    /// Tree nodes already visited during the depth-based search.
     SmallDenseSet<TreeNodePtr, 8> Visited;
+    /// Tree nodes whose immediate dominator must be updated after insertion.
     SmallVector<TreeNodePtr, 8> Affected;
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     SmallVector<TreeNodePtr, 8> VisitedUnaffected;
 #endif
   };
 
+  /// Insert CFG edge \p From -> \p To into the dominator tree \p DT.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG, or null for the real CFG.
+  /// \param From Source node of the inserted edge (may be null for a PDT root).
+  /// \param To Destination node of the inserted edge.
   static void InsertEdge(DomTreeT &DT, const BatchUpdatePtr BUI,
                          const NodePtr From, const NodePtr To) {
     assert((From || IsPostDom) &&
@@ -664,8 +813,16 @@ template <typename DomTreeT> struct SemiNCAInfo {
       InsertReachable(DT, BUI, FromTN, ToTN);
   }
 
-  // Determines if some existing root becomes reverse-reachable after the
-  // insertion. Rebuilds the whole tree if that situation happens.
+  /// Rebuild the tree if insertion makes an existing postdominator root reachable.
+  ///
+  /// Determines if some existing root becomes reverse-reachable after the
+  /// insertion. Rebuilds the whole tree if that situation happens.
+  ///
+  /// \param DT Postdominator tree being updated.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param From Source tree node of the inserted edge.
+  /// \param To Destination tree node of the inserted edge.
+  /// \returns True if the tree was rebuilt from scratch.
   static bool UpdateRootsBeforeInsertion(DomTreeT &DT, const BatchUpdatePtr BUI,
                                          const TreeNodePtr From,
                                          const TreeNodePtr To) {
@@ -685,6 +842,11 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
+  /// Return true if \p A and \p B contain the same nodes in any order.
+  ///
+  /// \param A First sequence of nodes.
+  /// \param B Second sequence of nodes.
+  /// \return True if \p A and \p B are permutations of each other.
   static bool isPermutation(const SmallVectorImpl<NodePtr> &A,
                             const SmallVectorImpl<NodePtr> &B) {
     if (A.size() != B.size())
@@ -696,9 +858,13 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
-  // Updates the set of roots after insertion or deletion. This ensures that
-  // roots are the same when after a series of updates and when the tree would
-  // be built from scratch.
+  /// Refresh postdominator roots after an insertion or deletion on \p DT.
+  ///
+  /// This ensures that roots are the same when after a series of updates and
+  /// when the tree would be built from scratch.
+  ///
+  /// \param DT Postdominator tree whose roots may need refreshing.
+  /// \param BUI Optional batch-update view of the CFG.
   static void UpdateRootsAfterUpdate(DomTreeT &DT, const BatchUpdatePtr BUI) {
     assert(IsPostDom && "This function is only for postdominators");
 
@@ -724,7 +890,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   }
 
-  // Handles insertion to a node already in the dominator tree.
+  /// Handle insertion of an edge whose destination is already in the tree.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param From Source tree node of the inserted edge.
+  /// \param To Destination tree node of the inserted edge.
   static void InsertReachable(DomTreeT &DT, const BatchUpdatePtr BUI,
                               const TreeNodePtr From, const TreeNodePtr To) {
     LLVM_DEBUG(dbgs() << "\tReachable " << BlockNamePrinter(From->getBlock())
@@ -832,7 +1003,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
     UpdateInsertion(DT, BUI, NCD, II);
   }
 
-  // Updates immediate dominators and levels after insertion.
+  /// Update immediate dominators and levels after a reachable edge insertion.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param NCD Nearest common dominator of the inserted edge endpoints.
+  /// \param II Insertion search state listing affected nodes.
   static void UpdateInsertion(DomTreeT &DT, const BatchUpdatePtr BUI,
                               const TreeNodePtr NCD, InsertionInfo &II) {
     LLVM_DEBUG(dbgs() << "Updating NCD = " << BlockNamePrinter(NCD) << "\n");
@@ -853,7 +1029,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
       UpdateRootsAfterUpdate(DT, BUI);
   }
 
-  // Handles insertion to previously unreachable nodes.
+  /// Handle insertion of an edge to a previously unreachable destination.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param From Source tree node of the inserted edge.
+  /// \param To Previously unreachable destination CFG node.
   static void InsertUnreachable(DomTreeT &DT, const BatchUpdatePtr BUI,
                                 const TreeNodePtr From, const NodePtr To) {
     LLVM_DEBUG(dbgs() << "Inserting " << BlockNamePrinter(From)
@@ -878,7 +1059,14 @@ template <typename DomTreeT> struct SemiNCAInfo {
     }
   }
 
-  // Connects nodes that become reachable with an insertion.
+  /// Connect nodes that become reachable after inserting an edge to \p Root.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param Root Previously unreachable CFG node that becomes reachable.
+  /// \param Incoming Tree node of the edge that made \p Root reachable.
+  /// \param DiscoveredConnectingEdges Receives edges from new nodes into the
+  /// already-reachable part of the CFG.
   static void
   ComputeUnreachableDominators(DomTreeT &DT, const BatchUpdatePtr BUI,
                                const NodePtr Root, const TreeNodePtr Incoming,
@@ -906,6 +1094,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
     LLVM_DEBUG(dbgs() << "After adding unreachable nodes\n");
   }
 
+  /// Delete CFG edge \p From -> \p To from the dominator tree \p DT.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG, or null for the real CFG.
+  /// \param From Source node of the deleted edge.
+  /// \param To Destination node of the deleted edge.
   static void DeleteEdge(DomTreeT &DT, const BatchUpdatePtr BUI,
                          const NodePtr From, const NodePtr To) {
     assert(From && To && "Cannot disconnect nullptrs");
@@ -960,7 +1154,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
       UpdateRootsAfterUpdate(DT, BUI);
   }
 
-  // Handles deletions that leave destination nodes reachable.
+  /// Handle deletions that leave the destination node reachable.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param FromTN Source tree node of the deleted edge.
+  /// \param ToTN Destination tree node of the deleted edge.
   static void DeleteReachable(DomTreeT &DT, const BatchUpdatePtr BUI,
                               const TreeNodePtr FromTN,
                               const TreeNodePtr ToTN) {
@@ -1000,8 +1199,15 @@ template <typename DomTreeT> struct SemiNCAInfo {
     SNCA.reattachExistingSubtree(DT, PrevIDomSubTree);
   }
 
-  // Checks if a node has proper support, as defined on the page 3 and later
-  // explained on the page 7 of [2].
+  /// Return true if \p TN has proper support as defined in [2].
+  ///
+  /// Checks if a node has proper support, as defined on the page 3 and later
+  /// explained on the page 7 of [2].
+  ///
+  /// \param DT Dominator tree used for nearest-common-dominator queries.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param TN Tree node whose support is tested.
+  /// \return True if \p TN has proper support.
   static bool HasProperSupport(DomTreeT &DT, const BatchUpdatePtr BUI,
                                const TreeNodePtr TN) {
     LLVM_DEBUG(dbgs() << "IsReachableFromIDom " << BlockNamePrinter(TN)
@@ -1025,8 +1231,13 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return false;
   }
 
-  // Handle deletions that make destination node unreachable.
-  // (Based on the lemma 2.7 from the [2].)
+  /// Handle deletions that make the destination node unreachable.
+  ///
+  /// Based on lemma 2.7 from [2].
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Optional batch-update view of the CFG.
+  /// \param ToTN Destination tree node that becomes unreachable.
   static void DeleteUnreachable(DomTreeT &DT, const BatchUpdatePtr BUI,
                                 const TreeNodePtr ToTN) {
     LLVM_DEBUG(dbgs() << "Deleting unreachable subtree "
@@ -1134,6 +1345,11 @@ template <typename DomTreeT> struct SemiNCAInfo {
   //===--------------------- DomTree Batch Updater --------------------------===
   //~~
 
+  /// Apply a batch of legalized CFG updates to the dominator tree \p DT.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param PreViewCFG CFG snapshot used for incremental updates.
+  /// \param PostViewCFG Optional post-view CFG used when rebuilding from scratch.
   static void ApplyUpdates(DomTreeT &DT, GraphDiffT &PreViewCFG,
                            GraphDiffT *PostViewCFG) {
     // Note: the PostViewCFG is only used when computing from scratch. It's data
@@ -1183,6 +1399,10 @@ template <typename DomTreeT> struct SemiNCAInfo {
       ApplyNextUpdate(DT, BUI);
   }
 
+  /// Apply the next pending update from \p BUI to the dominator tree \p DT.
+  ///
+  /// \param DT Dominator tree to update.
+  /// \param BUI Batch update state holding the next legalized update.
   static void ApplyNextUpdate(DomTreeT &DT, BatchUpdateInfo &BUI) {
     // Popping the next update, will move the PreViewCFG to the next snapshot.
     UpdateT CurrentUpdate = BUI.PreViewCFG.popUpdateForIncrementalUpdates();
@@ -1204,11 +1424,15 @@ template <typename DomTreeT> struct SemiNCAInfo {
   //===--------------- DomTree correctness verification ---------------------===
   //~~
 
-  // Check if the tree has correct roots. A DominatorTree always has a single
-  // root which is the function's entry node. A PostDominatorTree can have
-  // multiple roots - one for each node with no successors and for infinite
-  // loops.
-  // Running time: O(N).
+  /// Check whether the tree has the correct set of roots for \p DT.
+  ///
+  /// A DominatorTree always has a single root which is the function's entry
+  /// node. A PostDominatorTree can have multiple roots - one for each node with
+  /// no successors and for infinite loops.
+  /// Running time: O(N).
+  ///
+  /// \param DT Dominator tree whose roots are checked.
+  /// \returns True if the roots match a freshly computed root set.
   bool verifyRoots(const DomTreeT &DT) {
     if (!DT.Parent && !DT.Roots.empty()) {
       errs() << "Tree has no parent but has roots!\n";
@@ -1247,8 +1471,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
-  // Checks if the tree contains all reachable nodes in the input graph.
-  // Running time: O(N).
+  /// Check whether the tree contains all reachable nodes in the input graph.
+  ///
+  /// Running time: O(N).
+  ///
+  /// \param DT Dominator tree whose node set is checked against the CFG.
+  /// \returns True if tree nodes and reachable CFG nodes match.
   bool verifyReachability(const DomTreeT &DT) {
     clear();
     doFullDFSWalk(DT, AlwaysDescend);
@@ -1284,9 +1512,12 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
-  // Check if for every parent with a level L in the tree all of its children
-  // have level L + 1.
-  // Running time: O(N).
+  /// Check that every node's level is one greater than its parent's level.
+  ///
+  /// Running time: O(N).
+  ///
+  /// \param DT Dominator tree whose levels are checked.
+  /// \returns True if all parent/child levels are consistent.
   static bool VerifyLevels(const DomTreeT &DT) {
     for (auto *TN : DT.DomTreeNodes) {
       if (!TN)
@@ -1318,9 +1549,14 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
-  // Check if the computed DFS numbers are correct. Note that DFS info may not
-  // be valid, and when that is the case, we don't verify the numbers.
-  // Running time: O(N log(N)).
+  /// Check that DFS In/Out numbers on the tree are consistent when valid.
+  ///
+  /// Note that DFS info may not be valid, and when that is the case, we don't
+  /// verify the numbers.
+  /// Running time: O(N log(N)).
+  ///
+  /// \param DT Dominator tree whose DFS numbers are checked.
+  /// \returns True if DFS numbers are absent or correctly nested.
   static bool VerifyDFSNumbers(const DomTreeT &DT) {
     if (!DT.DFSInfoValid || !DT.Parent)
       return true;
@@ -1452,13 +1688,17 @@ template <typename DomTreeT> struct SemiNCAInfo {
   // but the algorithms are complex. Instead, we do it in a straightforward
   // N^2 and N^3 way below, using direct path reachability.
 
-  // Checks if the tree has the parent property: if for all edges from V to W in
-  // the input graph, such that V is reachable, the parent of W in the tree is
-  // an ancestor of V in the tree.
-  // Running time: O(N^2).
-  //
-  // This means that if a node gets disconnected from the graph, then all of
-  // the nodes it dominated previously will now become unreachable.
+  /// Check whether the tree has the parent property relative to the CFG.
+  ///
+  /// For all edges from V to W in the input graph, such that V is reachable,
+  /// the parent of W in the tree is an ancestor of V in the tree.
+  /// Running time: O(N^2).
+  ///
+  /// This means that if a node gets disconnected from the graph, then all of
+  /// the nodes it dominated previously will now become unreachable.
+  ///
+  /// \param DT Dominator tree to check against its CFG.
+  /// \returns True if the parent property holds.
   bool verifyParentProperty(const DomTreeT &DT) {
     for (auto *TN : DT.DomTreeNodes) {
       if (!TN)
@@ -1488,12 +1728,15 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
-  // Check if the tree has sibling property: if a node V does not dominate a
-  // node W for all siblings V and W in the tree.
-  // Running time: O(N^3).
-  //
-  // This means that if a node gets disconnected from the graph, then all of its
-  // siblings will now still be reachable.
+  /// Check whether sibling nodes in the tree do not dominate each other.
+  ///
+  /// Running time: O(N^3).
+  ///
+  /// This means that if a node gets disconnected from the graph, then all of
+  /// its siblings will now still be reachable.
+  ///
+  /// \param DT Dominator tree to check against its CFG.
+  /// \returns True if the sibling property holds.
   bool verifySiblingProperty(const DomTreeT &DT) {
     for (auto *TN : DT.DomTreeNodes) {
       if (!TN)
@@ -1528,13 +1771,16 @@ template <typename DomTreeT> struct SemiNCAInfo {
     return true;
   }
 
-  // Check if the given tree is the same as a freshly computed one for the same
-  // Parent.
-  // Running time: O(N^2), but faster in practice (same as tree construction).
-  //
-  // Note that this does not check if that the tree construction algorithm is
-  // correct and should be only used for fast (but possibly unsound)
-  // verification.
+  /// Check whether \p DT matches a freshly computed tree for the same Parent.
+  ///
+  /// Running time: O(N^2), but faster in practice (same as tree construction).
+  ///
+  /// Note that this does not check if that the tree construction algorithm is
+  /// correct and should be only used for fast (but possibly unsound)
+  /// verification.
+  ///
+  /// \param DT Dominator tree to compare against a rebuild from scratch.
+  /// \returns True if \p DT equals the freshly computed tree.
   static bool IsSameAsFreshTree(const DomTreeT &DT) {
     DomTreeT FreshTree;
     FreshTree.recalculate(*DT.Parent);
@@ -1554,10 +1800,17 @@ template <typename DomTreeT> struct SemiNCAInfo {
   }
 };
 
+/// Calculate the dominator tree for \p DT from scratch.
+///
+/// \param DT Dominator tree to rebuild.
 template <class DomTreeT> void Calculate(DomTreeT &DT) {
   SemiNCAInfo<DomTreeT>::CalculateFromScratch(DT, nullptr);
 }
 
+/// Calculate the dominator tree for \p DT from scratch under a CFG update view.
+///
+/// \param DT Dominator tree to rebuild.
+/// \param Updates CFG edge updates defining the view used during construction.
 template <typename DomTreeT>
 void CalculateWithUpdates(DomTreeT &DT,
                           ArrayRef<typename DomTreeT::UpdateType> Updates) {
@@ -1569,6 +1822,11 @@ void CalculateWithUpdates(DomTreeT &DT,
   SemiNCAInfo<DomTreeT>::CalculateFromScratch(DT, &BUI);
 }
 
+/// Insert CFG edge \p From -> \p To into the dominator tree \p DT.
+///
+/// \param DT Dominator tree to update.
+/// \param From Source node of the inserted edge.
+/// \param To Destination node of the inserted edge.
 template <class DomTreeT>
 void InsertEdge(DomTreeT &DT, typename DomTreeT::NodePtr From,
                 typename DomTreeT::NodePtr To) {
@@ -1577,6 +1835,11 @@ void InsertEdge(DomTreeT &DT, typename DomTreeT::NodePtr From,
   SemiNCAInfo<DomTreeT>::InsertEdge(DT, nullptr, From, To);
 }
 
+/// Delete CFG edge \p From -> \p To from the dominator tree \p DT.
+///
+/// \param DT Dominator tree to update.
+/// \param From Source node of the deleted edge.
+/// \param To Destination node of the deleted edge.
 template <class DomTreeT>
 void DeleteEdge(DomTreeT &DT, typename DomTreeT::NodePtr From,
                 typename DomTreeT::NodePtr To) {
@@ -1585,6 +1848,11 @@ void DeleteEdge(DomTreeT &DT, typename DomTreeT::NodePtr From,
   SemiNCAInfo<DomTreeT>::DeleteEdge(DT, nullptr, From, To);
 }
 
+/// Apply a batch of legalized CFG updates to the dominator tree \p DT.
+///
+/// \param DT Dominator tree to update.
+/// \param PreViewCFG CFG snapshot used for incremental updates.
+/// \param PostViewCFG Optional post-view CFG used when rebuilding from scratch.
 template <class DomTreeT>
 void ApplyUpdates(DomTreeT &DT,
                   GraphDiff<typename DomTreeT::NodePtr,
@@ -1594,6 +1862,11 @@ void ApplyUpdates(DomTreeT &DT,
   SemiNCAInfo<DomTreeT>::ApplyUpdates(DT, PreViewCFG, PostViewCFG);
 }
 
+/// Verify that \p DT is a correct dominator tree at level \p VL.
+///
+/// \param DT Dominator tree to verify.
+/// \param VL How thoroughly to verify the tree.
+/// \returns True if all requested checks pass.
 template <class DomTreeT>
 bool Verify(const DomTreeT &DT, typename DomTreeT::VerificationLevel VL) {
   SemiNCAInfo<DomTreeT> SNCA(DT, nullptr);
@@ -1625,6 +1898,11 @@ bool Verify(const DomTreeT &DT, typename DomTreeT::VerificationLevel VL) {
 // Defined here so that a translation unit including only
 // GenericDomTree.h calls these out of line, and needs no instantiation
 // of the algorithms above.
+/// Inform the dominator tree about a sequence of CFG edge insertions and
+/// deletions and perform a batch update on the tree.
+///
+/// \param Updates An ordered sequence of updates to perform. The current CFG
+/// and the reverse of these updates provides the pre-view of the CFG.
 template <typename NodeT, bool IsPostDom>
 void DominatorTreeBase<NodeT, IsPostDom>::applyUpdates(
     ArrayRef<UpdateType> Updates) {
@@ -1633,6 +1911,12 @@ void DominatorTreeBase<NodeT, IsPostDom>::applyUpdates(
   DomTreeBuilder::ApplyUpdates(*this, PreViewCFG, nullptr);
 }
 
+/// Apply CFG updates using both a pre-view and a post-view of the CFG.
+///
+/// \param Updates An ordered sequence of updates to perform. The current CFG
+/// and the reverse of these updates provides the pre-view of the CFG.
+/// \param PostViewUpdates An ordered sequence of updates that yield the
+/// desired post-view CFG end state assumed by the tree update.
 template <typename NodeT, bool IsPostDom>
 void DominatorTreeBase<NodeT, IsPostDom>::applyUpdates(
     ArrayRef<UpdateType> Updates, ArrayRef<UpdateType> PostViewUpdates) {
@@ -1653,6 +1937,10 @@ void DominatorTreeBase<NodeT, IsPostDom>::applyUpdates(
   DomTreeBuilder::ApplyUpdates(*this, PreViewCFG, &PostViewCFG);
 }
 
+/// Inform the dominator tree about a CFG edge insertion and update the tree.
+///
+/// \param From Source node of the inserted CFG edge.
+/// \param To Destination node of the inserted CFG edge.
 template <typename NodeT, bool IsPostDom>
 void DominatorTreeBase<NodeT, IsPostDom>::insertEdge(NodeT *From, NodeT *To) {
   assert(From);
@@ -1662,6 +1950,10 @@ void DominatorTreeBase<NodeT, IsPostDom>::insertEdge(NodeT *From, NodeT *To) {
   DomTreeBuilder::InsertEdge(*this, From, To);
 }
 
+/// Inform the dominator tree about a CFG edge deletion and update the tree.
+///
+/// \param From Source node of the deleted CFG edge.
+/// \param To Destination node of the deleted CFG edge.
 template <typename NodeT, bool IsPostDom>
 void DominatorTreeBase<NodeT, IsPostDom>::deleteEdge(NodeT *From, NodeT *To) {
   assert(From);
@@ -1671,6 +1963,9 @@ void DominatorTreeBase<NodeT, IsPostDom>::deleteEdge(NodeT *From, NodeT *To) {
   DomTreeBuilder::DeleteEdge(*this, From, To);
 }
 
+/// Recompute the dominator tree from scratch for \p Func.
+///
+/// \param Func Parent CFG whose dominator tree should be recalculated.
 template <typename NodeT, bool IsPostDom>
 void DominatorTreeBase<NodeT, IsPostDom>::recalculate(ParentType &Func) {
   Parent = &Func;
@@ -1678,6 +1973,10 @@ void DominatorTreeBase<NodeT, IsPostDom>::recalculate(ParentType &Func) {
   DomTreeBuilder::Calculate(*this);
 }
 
+/// Recalculate the dominator tree for \p Func using a view of pending updates.
+///
+/// \param Func Parent CFG whose dominator tree should be recalculated.
+/// \param Updates CFG edge updates defining the view used during construction.
 template <typename NodeT, bool IsPostDom>
 void DominatorTreeBase<NodeT, IsPostDom>::recalculate(
     ParentType &Func, ArrayRef<UpdateType> Updates) {
@@ -1686,6 +1985,23 @@ void DominatorTreeBase<NodeT, IsPostDom>::recalculate(
   DomTreeBuilder::CalculateWithUpdates(*this, Updates);
 }
 
+/// Check whether the dominator tree is correct at the given verification level.
+///
+/// There are 3 levels of verification:
+///  - Full -- verifies if the tree is correct by making sure all the
+///            properties (including the parent and the sibling property)
+///            hold. Takes O(N^3) time.
+///
+///  - Basic -- checks if the tree is correct, but compares it to a freshly
+///             constructed tree instead of checking the sibling property.
+///             Takes O(N^2) time.
+///
+///  - Fast  -- checks basic tree structure and compares it with a freshly
+///             constructed tree. Takes O(N^2) time worst case, but is faster
+///             in practise (same as tree construction).
+///
+/// \param VL How thoroughly to verify the tree.
+/// \return True if the tree passes verification at level \p VL.
 template <typename NodeT, bool IsPostDom>
 bool DominatorTreeBase<NodeT, IsPostDom>::verify(VerificationLevel VL) const {
   return DomTreeBuilder::Verify(*this, VL);

@@ -26,6 +26,10 @@ class Module;
 /// inserts calls to runtime library functions. If the functions aren't declared
 /// yet, the pass inserts the declarations. Otherwise the existing globals are
 struct ThreadSanitizerPass : public RequiredPassInfoMixin<ThreadSanitizerPass> {
+  /// Run ThreadSanitizer instrumentation over the function.
+  /// @param F Function to instrument.
+  /// @param FAM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 
@@ -34,6 +38,10 @@ struct ThreadSanitizerPass : public RequiredPassInfoMixin<ThreadSanitizerPass> {
 /// Create ctor and init functions.
 struct ModuleThreadSanitizerPass
     : public RequiredPassInfoMixin<ModuleThreadSanitizerPass> {
+  /// Run ThreadSanitizer module instrumentation over the module.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

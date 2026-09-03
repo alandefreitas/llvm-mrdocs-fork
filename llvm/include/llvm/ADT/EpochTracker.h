@@ -97,10 +97,16 @@ public:
     /// Construct an unbound handle.
     HandleBase() = default;
     /// Construct a handle linked to \p Parent (ignored without checks).
-    explicit HandleBase(const DebugEpochBase *) {}
+    ///
+    /// \param Parent The parent epoch base; unused when checks are disabled.
+    explicit HandleBase(const DebugEpochBase *Parent) {}
     /// Always returns true when ABI-breaking checks are disabled.
+    ///
+    /// \return Always true.
     bool isHandleInSync() const { return true; }
     /// Always returns nullptr when ABI-breaking checks are disabled.
+    ///
+    /// \return Always nullptr.
     const void *getEpochAddress() const { return nullptr; }
   };
 };

@@ -28,6 +28,10 @@ namespace llvm {
 /// functions aren't declared yet, the pass inserts the declarations.
 struct NumericalStabilitySanitizerPass
     : public RequiredPassInfoMixin<NumericalStabilitySanitizerPass> {
+  /// Run NumericalStabilitySanitizer instrumentation over the module.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -12,6 +12,14 @@
 #include <cstdlib>
 
 namespace llvm {
+/// Return a constant true value that the compiler cannot fold.
+///
+/// Some parts of the codebase require a "constant true value" used as a
+/// predicate. These cases require that even with LTO and static linking,
+/// it's not possible for the compiler to fold the value. As compilers
+/// aren't smart enough to know that \c getenv() never returns -1, this will
+/// do the job.
+/// \return Always \c true; opaque to the optimizer.
 inline bool getNonFoldableAlwaysTrue() {
   // Some parts of the codebase require a "constant true value" used as a
   // predicate. These cases require that even with LTO and static linking,

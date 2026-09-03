@@ -41,15 +41,19 @@ class OnDiskKeyValueDB;
 class UnifiedOnDiskCache {
 public:
   /// The \p OnDiskGraphDB instance for the open directory.
+  /// \returns a reference to the primary graph database.
   OnDiskGraphDB &getGraphDB() { return *PrimaryGraphDB; }
 
   /// The \p OnDiskGraphDB instance for the open directory.
+  /// \returns a const reference to the primary graph database.
   const OnDiskGraphDB &getGraphDB() const { return *PrimaryGraphDB; }
 
-  /// The \p OnDiskGraphDB instance for the open directory.
+  /// The \p OnDiskKeyValueDB instance for the open directory.
+  /// \returns a reference to the primary key-value database.
   OnDiskKeyValueDB &getKeyValueDB() { return *PrimaryKVDB; }
 
-  /// The \p OnDiskGraphDB instance for the open directory.
+  /// The \p OnDiskKeyValueDB instance for the open directory.
+  /// \returns a const reference to the primary key-value database.
   const OnDiskKeyValueDB &getKeyValueDB() const { return *PrimaryKVDB; }
 
   /// Open a \p UnifiedOnDiskCache instance for a directory.
@@ -64,6 +68,8 @@ public:
   /// \param FaultInPolicy Controls how nodes are copied to primary store. This
   /// is recorded at creation time and subsequent opens need to pass the same
   /// policy otherwise the \p open will fail.
+  /// \returns an owned \c UnifiedOnDiskCache for \p Path, or an error on
+  /// failure.
   LLVM_ABI static Expected<std::unique_ptr<UnifiedOnDiskCache>>
   open(StringRef Path, std::optional<uint64_t> SizeLimit, StringRef HashName,
        unsigned HashByteSize,
@@ -81,6 +87,7 @@ public:
   /// be used.
   /// \param HashByteSize Size for the object digest hash bytes.
   /// \param CheckHash Whether to validate hashes match the data.
+  /// \param HashFn Hashing function used for objects inside the CAS.
   /// \param AllowRecovery Whether to automatically recover from invalid data by
   /// marking the files for garbage collection.
   /// \param ForceValidation Whether to force validation to occur even if it
@@ -100,8 +107,11 @@ public:
                    std::optional<StringRef> LLVMCasBinary);
 
   /// Validate the action cache only.
+  /// \returns success, or an error if the action cache is invalid.
   LLVM_ABI Error validateActionCache() const;
 
+  /// Close the cache and release exclusive access to the directory.
+  ///
   /// This is called implicitly at destruction time, so it is not required for a
   /// client to call this. After calling \p close the only method that is valid
   /// to call is \p needsGarbageCollection.
@@ -109,12 +119,17 @@ public:
   /// \param CheckSizeLimit if true it will check whether the primary store has
   /// exceeded its intended size limit. If false the check is skipped even if a
   /// \p SizeLimit was passed to the \p open call.
+  /// \returns success, or an error if closing the cache fails.
   LLVM_ABI Error close(bool CheckSizeLimit = true);
 
   /// Set the size for limiting growth. This has an effect for when the instance
   /// is closed.
+  ///
+  /// \param SizeLimit Optional maximum storage size, or \c std::nullopt for no
+  /// limit.
   LLVM_ABI void setSizeLimit(std::optional<uint64_t> SizeLimit);
 
+  /// Get the storage size of the cache data.
   /// \returns the storage size of the cache data.
   LLVM_ABI uint64_t getStorageSize() const;
 
@@ -125,6 +140,7 @@ public:
   /// collection needs to be triggered or not, call \p needsGarbaseCollection.
   LLVM_ABI bool hasExceededSizeLimit() const;
 
+  /// Check whether unused data can be garbage-collected.
   /// \returns whether there are unused data that can be deleted using a
   /// \p collectGarbage call.
   bool needsGarbageCollection() const { return NeedsGarbageCollection; }
@@ -138,18 +154,29 @@ public:
   ///
   /// It is recommended that garbage-collection is triggered concurrently in the
   /// background, so that it has minimal effect on the workload of the process.
+  ///
+  /// \param Path directory for the on-disk database.
+  /// \param Logger Optional logger for on-disk CAS operations.
+  /// \returns success, or an error if garbage collection fails.
   LLVM_ABI static Error
   collectGarbage(StringRef Path, ondisk::OnDiskCASLogger *Logger = nullptr);
 
   /// Remove unused data from the current UnifiedOnDiskCache.
+  /// \returns success, or an error if garbage collection fails.
   LLVM_ABI Error collectGarbage();
 
   /// Helper function to convert the value stored in KeyValueDB and ObjectID.
+  ///
+  /// \param Value Encoded ObjectID bytes stored in KeyValueDB.
+  /// \returns the \c ObjectID decoded from \p Value.
   LLVM_ABI static ObjectID getObjectIDFromValue(ArrayRef<char> Value);
 
   /// Fixed-size byte array used to store encoded ObjectID values in KeyValueDB.
   using ValueBytes = std::array<char, sizeof(uint64_t)>;
   /// Encode \p ID as little-endian bytes for storage in KeyValueDB.
+  ///
+  /// \param ID Object identifier to encode.
+  /// \returns the little-endian encoded bytes for \p ID.
   LLVM_ABI static ValueBytes getValueFromObjectID(ObjectID ID);
 
   /// Destroy the cache and release on-disk resources.

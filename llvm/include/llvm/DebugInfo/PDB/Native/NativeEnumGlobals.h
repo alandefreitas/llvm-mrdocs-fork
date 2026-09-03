@@ -20,14 +20,39 @@ namespace pdb {
 
 class NativeSession;
 
+/// Enumerator over global symbols from a native PDB session.
+///
+/// Walks the globals table and yields \c PDBSymbol instances whose CodeView
+/// symbol kinds match the kinds supplied at construction.
 class LLVM_ABI NativeEnumGlobals : public IPDBEnumChildren<PDBSymbol> {
 public:
+  /// Construct an enumerator of globals matching any of \p Kinds.
+  ///
+  /// \param Session The native PDB session that owns the globals and symbol
+  ///     streams.
+  /// \param Kinds CodeView symbol kinds to include; other globals are skipped.
   NativeEnumGlobals(NativeSession &Session,
                     std::vector<codeview::SymbolKind> Kinds);
 
+  /// Return the number of matching global symbols.
+  ///
+  /// \returns The total number of globals whose kinds were accepted.
   uint32_t getChildCount() const override;
+
+  /// Return the matching global symbol at the given zero-based \p Index.
+  ///
+  /// \param Index Zero-based index of the global to retrieve.
+  ///
+  /// \returns An owning pointer to the symbol, or null if \p Index is out of
+  ///     range.
   std::unique_ptr<PDBSymbol> getChildAtIndex(uint32_t Index) const override;
+
+  /// Advance the enumerator and return the next matching global symbol.
+  ///
+  /// \returns An owning pointer to the next symbol, or null when exhausted.
   std::unique_ptr<PDBSymbol> getNext() override;
+
+  /// Reset the enumerator to its initial position.
   void reset() override;
 
 private:

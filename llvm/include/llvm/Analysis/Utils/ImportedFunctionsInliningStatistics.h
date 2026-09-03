@@ -22,7 +22,8 @@
 namespace llvm {
 class Module;
 class Function;
-/// Calculate and dump ThinLTO specific inliner stats.
+/// Calculate and dump ThinLTO-specific inliner statistics.
+///
 /// The main statistics are:
 /// (1) Number of inlined imported functions,
 /// (2) Number of imported functions inlined into importing module (indirect),
@@ -62,11 +63,15 @@ private:
   };
 
 public:
+  /// Construct an empty statistics collector.
   ImportedFunctionsInliningStatistics() = default;
+  /// Deleted copy constructor; this class is not copyable.
+  /// @param Other Unused copy source; copying is not supported.
   ImportedFunctionsInliningStatistics(
-      const ImportedFunctionsInliningStatistics &) = delete;
+      const ImportedFunctionsInliningStatistics &Other) = delete;
 
   /// Set information like AllFunctions, ImportedFunctions, ModuleName.
+  /// @param M Module from which to collect function counts and the module name.
   LLVM_ABI void setModuleInfo(const Module &M);
   /// Record inline of @param Callee to @param Caller for statistis.
   LLVM_ABI void recordInline(const Function &Caller, const Function &Callee);
@@ -102,9 +107,13 @@ private:
   StringRef ModuleName;
 };
 
+/// Verbosity level for imported-function inliner statistics.
 enum class InlinerFunctionImportStatsOpts {
+  /// Do not collect or dump imported-function inliner statistics.
   No = 0,
+  /// Dump aggregate imported-function inliner statistics.
   Basic = 1,
+  /// Dump aggregate statistics plus per-function inliner details.
   Verbose = 2,
 };
 

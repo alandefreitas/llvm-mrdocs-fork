@@ -27,15 +27,25 @@
 
 namespace llvm {
 
+/// New PM pass that deletes IR basic blocks unreachable from the entry node.
 class UnreachableBlockElimPass
     : public RequiredPassInfoMixin<UnreachableBlockElimPass> {
 public:
+  /// Delete unreachable basic blocks in \p F.
+  /// \param F Function whose unreachable blocks are removed.
+  /// \param AM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after deleting unreachable blocks.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+/// New PM pass that deletes machine basic blocks unreachable from the entry.
 class UnreachableMachineBlockElimPass
     : public RequiredPassInfoMixin<UnreachableMachineBlockElimPass> {
 public:
+  /// Delete unreachable machine basic blocks in \p F.
+  /// \param F Machine function whose unreachable blocks are removed.
+  /// \param AM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after deleting unreachable blocks.
   LLVM_ABI PreservedAnalyses run(MachineFunction &F,
                                  MachineFunctionAnalysisManager &AM);
 };

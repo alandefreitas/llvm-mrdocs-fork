@@ -142,24 +142,36 @@ template <typename T>
 struct IntervalMapInfo {
   /// startLess - Return true if x is not in [a;b].
   /// This is x < a both for closed intervals and for [a;b) half-open intervals.
+  /// @param x Key to test.
+  /// @param a Interval start.
+  /// @return True if \p x is not in the closed interval starting at \p a.
   static inline bool startLess(const T &x, const T &a) {
     return x < a;
   }
 
   /// stopLess - Return true if x is not in [a;b].
   /// This is b < x for a closed interval, b <= x for [a;b) half-open intervals.
+  /// @param b Interval stop.
+  /// @param x Key to test.
+  /// @return True if \p x is not in the closed interval ending at \p b.
   static inline bool stopLess(const T &b, const T &x) {
     return b < x;
   }
 
   /// adjacent - Return true when the intervals [x;a] and [b;y] can coalesce.
   /// This is a+1 == b for closed intervals, a == b for half-open intervals.
+  /// @param a Stop of the left interval.
+  /// @param b Start of the right interval.
+  /// @return True if the intervals can coalesce.
   static inline bool adjacent(const T &a, const T &b) {
     return a+1 == b;
   }
 
   /// nonEmpty - Return true if [a;b] is non-empty.
   /// This is a <= b for a closed interval, a < b for [a;b) half-open intervals.
+  /// @param a Interval start.
+  /// @param b Interval stop.
+  /// @return True if the closed interval is non-empty.
   static inline bool nonEmpty(const T &a, const T &b) {
     return a <= b;
   }
@@ -169,21 +181,33 @@ struct IntervalMapInfo {
 template <typename T>
 struct IntervalMapHalfOpenInfo {
   /// startLess - Return true if x is not in [a;b).
+  /// @param x Key to test.
+  /// @param a Interval start.
+  /// @return True if \p x is not in the half-open interval starting at \p a.
   static inline bool startLess(const T &x, const T &a) {
     return x < a;
   }
 
   /// stopLess - Return true if x is not in [a;b).
+  /// @param b Interval stop.
+  /// @param x Key to test.
+  /// @return True if \p x is not in the half-open interval ending at \p b.
   static inline bool stopLess(const T &b, const T &x) {
     return b <= x;
   }
 
   /// adjacent - Return true when the intervals [x;a) and [b;y) can coalesce.
+  /// @param a Stop of the left interval.
+  /// @param b Start of the right interval.
+  /// @return True if the half-open intervals can coalesce.
   static inline bool adjacent(const T &a, const T &b) {
     return a == b;
   }
 
   /// nonEmpty - Return true if [a;b) is non-empty.
+  /// @param a Interval start.
+  /// @param b Interval stop.
+  /// @return True if the half-open interval is non-empty.
   static inline bool nonEmpty(const T &a, const T &b) {
     return a < b;
   }
@@ -386,10 +410,10 @@ void adjustSiblingSizes(NodeT *Node[], unsigned Nodes,
 #endif
 }
 
-/// IntervalMapImpl::distribute - Compute a new distribution of node elements
-/// after an overflow or underflow. Reserve space for a new element at Position,
-/// and compute the node that will hold Position after redistributing node
-/// elements.
+/// Compute a new distribution of node elements after overflow or underflow.
+///
+/// Reserve space for a new element at Position, and compute the node that will
+/// hold Position after redistributing node elements.
 ///
 /// It is required that
 ///
@@ -482,7 +506,8 @@ struct NodeSizer {
       static_cast<unsigned>(sizeof(KeyT) + sizeof(void*))
   };
 
-  /// Allocator - The recycling allocator used for both branch and leaf nodes.
+  /// Recycling allocator used for both branch and leaf nodes.
+  ///
   /// This typedef is very likely to be identical for all IntervalMaps with
   /// reasonably sized entries, so the same allocator can be shared among
   /// different kinds of maps.
@@ -525,34 +550,44 @@ public:
   NodeRef() = default;
 
   /// operator bool - Detect a null ref.
+  /// @return True if this reference is non-null.
   explicit operator bool() const { return pip.getOpaqueValue(); }
 
   /// NodeRef - Create a reference to the node p with n elements.
+  /// @param p Node pointer.
+  /// @param n Number of elements in the node.
   template <typename NodeT>
   NodeRef(NodeT *p, unsigned n) : pip(p, n - 1) {
     assert(n <= NodeT::Capacity && "Size too big for node");
   }
 
   /// size - Return the number of elements in the referenced node.
+  /// @return Number of elements in the referenced node.
   unsigned size() const { return pip.getInt() + 1; }
 
   /// setSize - Update the node size.
+  /// @param n New element count.
   void setSize(unsigned n) { pip.setInt(n - 1); }
 
   /// subtree - Access the i'th subtree reference in a branch node.
   /// This depends on branch nodes storing the NodeRef array as their first
   /// member.
+  /// @param i Child index.
+  /// @return Reference to the child NodeRef at index \p i.
   NodeRef &subtree(unsigned i) const {
     return reinterpret_cast<NodeRef*>(pip.getPointer())[i];
   }
 
   /// get - Dereference as a NodeT reference.
+  /// @return Reference to the referenced node as \p NodeT.
   template <typename NodeT>
   NodeT &get() const {
     return *reinterpret_cast<NodeT*>(pip.getPointer());
   }
 
   /// Return true if both refs point to the same node with the same size.
+  /// @param RHS Other node reference.
+  /// @return True if both refs designate the same node and size.
   bool operator==(const NodeRef &RHS) const {
     if (pip == RHS.pip)
       return true;
@@ -561,6 +596,8 @@ public:
   }
 
   /// Return true if the refs differ in node or size.
+  /// @param RHS Other node reference.
+  /// @return True if the refs are not equal.
   bool operator!=(const NodeRef &RHS) const {
     return !operator==(RHS);
   }
@@ -591,17 +628,29 @@ template <typename KeyT, typename ValT, unsigned N, typename Traits>
 class LeafNode : public NodeBase<std::pair<KeyT, KeyT>, ValT, N> {
 public:
   /// Return the start key of interval \p i.
+  /// @param i Interval index.
+  /// @return Const reference to the start key.
   const KeyT &start(unsigned i) const { return this->first[i].first; }
   /// Return the stop key of interval \p i.
+  /// @param i Interval index.
+  /// @return Const reference to the stop key.
   const KeyT &stop(unsigned i) const { return this->first[i].second; }
   /// Return the mapped value of interval \p i.
+  /// @param i Interval index.
+  /// @return Const reference to the mapped value.
   const ValT &value(unsigned i) const { return this->second[i]; }
 
   /// Return a mutable reference to the start key of interval \p i.
+  /// @param i Interval index.
+  /// @return Mutable reference to the start key.
   KeyT &start(unsigned i) { return this->first[i].first; }
   /// Return a mutable reference to the stop key of interval \p i.
+  /// @param i Interval index.
+  /// @return Mutable reference to the stop key.
   KeyT &stop(unsigned i) { return this->first[i].second; }
   /// Return a mutable reference to the mapped value of interval \p i.
+  /// @param i Interval index.
+  /// @return Mutable reference to the mapped value.
   ValT &value(unsigned i) { return this->second[i]; }
 
   /// findFrom - Find the first interval after i that may contain x.
@@ -647,9 +696,10 @@ public:
   unsigned insertFrom(unsigned &Pos, unsigned Size, KeyT a, KeyT b, ValT y);
 };
 
-/// insertFrom - Add mapping of [a;b] to y if possible, coalescing as much as
-/// possible. This may cause the node to grow by 1, or it may cause the node
-/// to shrink because of coalescing.
+/// Add a mapping of [a;b] to y if possible, coalescing as much as possible.
+///
+/// This may cause the node to grow by 1, or it may cause the node to shrink
+/// because of coalescing.
 /// @param Pos  Starting index = insertFrom(0, size, a)
 /// @param Size Number of elements in node.
 /// @param a    Interval start.
@@ -735,13 +785,21 @@ template <typename KeyT, typename ValT, unsigned N, typename Traits>
 class BranchNode : public NodeBase<NodeRef, KeyT, N> {
 public:
   /// Return the last key covered by child \p i.
+  /// @param i Child index.
+  /// @return Const reference to the stop key of child \p i.
   const KeyT &stop(unsigned i) const { return this->second[i]; }
   /// Return the child node reference at index \p i.
+  /// @param i Child index.
+  /// @return Const reference to child \p i.
   const NodeRef &subtree(unsigned i) const { return this->first[i]; }
 
   /// Return a mutable stop key for child \p i.
+  /// @param i Child index.
+  /// @return Mutable reference to the stop key of child \p i.
   KeyT &stop(unsigned i) { return this->second[i]; }
   /// Return a mutable child node reference at index \p i.
+  /// @param i Child index.
+  /// @return Mutable reference to child \p i.
   NodeRef &subtree(unsigned i) { return this->first[i]; }
 
   /// findFrom - Find the first subtree after i that may contain x.
@@ -831,39 +889,54 @@ class Path {
 
 public:
   /// Return the node at tree \p Level cast to \p NodeT.
+  /// @param Level Tree level; 0 is the root.
+  /// @return Reference to the node at \p Level.
   template <typename NodeT> NodeT &node(unsigned Level) const {
     return *reinterpret_cast<NodeT*>(path[Level].node);
   }
   /// Return the number of elements in the node at \p Level.
+  /// @param Level Tree level; 0 is the root.
+  /// @return Element count of the node at \p Level.
   unsigned size(unsigned Level) const { return path[Level].size; }
   /// Return the current child/slot offset at \p Level.
+  /// @param Level Tree level; 0 is the root.
+  /// @return Slot offset at \p Level.
   unsigned offset(unsigned Level) const { return path[Level].offset; }
   /// Return a mutable reference to the offset at \p Level.
+  /// @param Level Tree level; 0 is the root.
+  /// @return Mutable reference to the offset at \p Level.
   unsigned &offset(unsigned Level) { return path[Level].offset; }
 
   /// Return the leaf node at the end of the path cast to \p NodeT.
+  /// @return Reference to the leaf node.
   template <typename NodeT> NodeT &leaf() const {
     return *reinterpret_cast<NodeT*>(path.back().node);
   }
   /// Return the number of elements in the current leaf.
+  /// @return Element count of the leaf node.
   unsigned leafSize() const { return path.back().size; }
   /// Return the current slot offset within the leaf.
+  /// @return Current leaf slot index.
   unsigned leafOffset() const { return path.back().offset; }
   /// Return a mutable reference to the leaf slot offset.
+  /// @return Mutable reference to the leaf offset.
   unsigned &leafOffset() { return path.back().offset; }
 
   /// valid - Return true if path is at a valid node, not at end().
+  /// @return True if the path is non-empty and not past the last root entry.
   bool valid() const {
     return !path.empty() && path.front().offset < path.front().size;
   }
 
   /// height - Return the height of the tree corresponding to this path.
   /// This matches map->height in a full path.
+  /// @return Tree height (path size minus one).
   unsigned height() const { return path.size() - 1; }
 
   /// subtree - Get the subtree referenced from Level. When the path is
   /// consistent, node(Level + 1) == subtree(Level).
   /// @param Level 0..height-1. The leaves have no subtrees.
+  /// @return Reference to the selected child NodeRef.
   NodeRef &subtree(unsigned Level) const {
     return path[Level].subtree(path[Level].offset);
   }
@@ -940,6 +1013,7 @@ public:
   LLVM_ABI void moveRight(unsigned Level);
 
   /// atBegin - Return true if path is at begin().
+  /// @return True if every level offset is zero.
   bool atBegin() const {
     for (unsigned i = 0, e = path.size(); i != e; ++i)
       if (path[i].offset != 0)
@@ -950,14 +1024,16 @@ public:
   /// atLastEntry - Return true if the path is at the last entry of the node at
   /// Level.
   /// @param Level Node to examine.
+  /// @return True if offset(Level) is the last slot in that node.
   bool atLastEntry(unsigned Level) const {
     return path[Level].offset == path[Level].size - 1;
   }
 
-  /// legalizeForInsert - Prepare the path for an insertion at Level. When the
-  /// path is at end(), node(Level) may not be a legal node. legalizeForInsert
-  /// ensures that node(Level) is real by moving back to the last node at Level,
-  /// and setting offset(Level) to size(Level) if required.
+  /// Prepare the path for an insertion at Level.
+  ///
+  /// When the path is at end(), node(Level) may not be a legal node.
+  /// legalizeForInsert ensures that node(Level) is real by moving back to the
+  /// last node at Level, and setting offset(Level) to size(Level) if required.
   /// @param Level The level where an insertion is about to take place.
   void legalizeForInsert(unsigned Level) {
     if (valid())
@@ -1100,6 +1176,7 @@ public:
   /// NOTE: The moved-from or copied-from object's allocator needs to have a
   /// lifetime equal to or exceeding the moved-to or copied-to object to avoid
   /// undefined behaviour.
+  /// @param RHS Map to copy from.
   IntervalMap(IntervalMap const &RHS) : IntervalMap(*RHS.allocator) {
     // Future-proofing assertion: this function assumes the IntervalMap
     // constructor doesn't add any nodes.
@@ -1154,23 +1231,27 @@ public:
   }
   ///@}
 
+  /// Destroy the map and free all allocated nodes.
   ~IntervalMap() {
     clear();
     rootLeaf().~RootLeaf();
   }
 
   /// empty -  Return true when no intervals are mapped.
+  /// @return True if the map contains no intervals.
   bool empty() const {
     return rootSize == 0;
   }
 
   /// start - Return the smallest mapped key in a non-empty map.
+  /// @return Start key of the first mapped interval.
   KeyT start() const {
     assert(!empty() && "Empty IntervalMap has no start");
     return !branched() ? rootLeaf().start(0) : rootBranchStart();
   }
 
   /// stop - Return the largest mapped key in a non-empty map.
+  /// @return Stop key of the last mapped interval.
   KeyT stop() const {
     assert(!empty() && "Empty IntervalMap has no stop");
     return !branched() ? rootLeaf().stop(rootSize - 1) :
@@ -1178,6 +1259,9 @@ public:
   }
 
   /// lookup - Return the mapped value at x or NotFound.
+  /// @param x Key to look up.
+  /// @param NotFound Value returned when x is unmapped.
+  /// @return Mapped value at x, or NotFound.
   ValT lookup(KeyT x, ValT NotFound = ValT()) const {
     if (empty() || Traits::startLess(x, start()) || Traits::stopLess(stop(), x))
       return NotFound;
@@ -1185,9 +1269,13 @@ public:
                         rootLeaf().safeLookup(x, NotFound);
   }
 
-  /// insert - Add a mapping of [a;b] to y, coalesce with adjacent intervals.
+  /// Add a mapping of [a;b] to y, coalescing with adjacent intervals.
+  ///
   /// It is assumed that no key in the interval is mapped to another value, but
   /// overlapping intervals already mapped to y will be coalesced.
+  /// @param a Interval start key.
+  /// @param b Interval stop key.
+  /// @param y Value to map onto [a;b].
   void insert(KeyT a, KeyT b, ValT y) {
     if (branched() || rootSize == RootLeaf::Capacity)
       return find(a).insert(a, b, y);
@@ -1200,12 +1288,15 @@ public:
   /// clear - Remove all entries.
   void clear();
 
+  /// Read-only bidirectional iterator over coalesced intervals.
   class const_iterator;
+  /// Mutable bidirectional iterator over coalesced intervals.
   class iterator;
   friend class const_iterator;
   friend class iterator;
 
   /// Return a const iterator to the first interval.
+  /// @return Const iterator to the first mapped interval, or end() if empty.
   const_iterator begin() const {
     const_iterator I(*this);
     I.goToBegin();
@@ -1213,6 +1304,7 @@ public:
   }
 
   /// Return an iterator to the first interval.
+  /// @return Iterator to the first mapped interval, or end() if empty.
   iterator begin() {
     iterator I(*this);
     I.goToBegin();
@@ -1220,6 +1312,7 @@ public:
   }
 
   /// Return a const iterator past the last interval.
+  /// @return Past-the-end const iterator.
   const_iterator end() const {
     const_iterator I(*this);
     I.goToEnd();
@@ -1227,6 +1320,7 @@ public:
   }
 
   /// Return an iterator past the last interval.
+  /// @return Past-the-end iterator.
   iterator end() {
     iterator I(*this);
     I.goToEnd();
@@ -1235,6 +1329,8 @@ public:
 
   /// find - Return an iterator pointing to the first interval ending at or
   /// after x, or end().
+  /// @param x Key to search for.
+  /// @return Iterator to the first interval with stop >= x, or end().
   const_iterator find(KeyT x) const {
     const_iterator I(*this);
     I.find(x);
@@ -1253,6 +1349,9 @@ public:
 
   /// overlaps(a, b) - Return true if the intervals in this map overlap with the
   /// interval [a;b].
+  /// @param a Interval start key.
+  /// @param b Interval stop key.
+  /// @return True if any mapped interval overlaps [a;b].
   bool overlaps(KeyT a, KeyT b) const {
     assert(Traits::nonEmpty(a, b));
     const_iterator I = find(a);
@@ -1434,16 +1533,19 @@ protected:
   IntervalMapImpl::Path path;
 
   /// Construct an iterator bound to \p map but not yet positioned.
+  /// @param map Interval map to iterate over.
   explicit const_iterator(const IntervalMap &map) :
     map(const_cast<IntervalMap*>(&map)) {}
 
   /// Return true if the map uses a branched (non-inline) root.
+  /// @return True if the map root is a branch node.
   bool branched() const {
     assert(map && "Invalid iterator");
     return map->branched();
   }
 
   /// Initialize the path root entry at slot \p Offset.
+  /// @param Offset Slot index in the root node.
   void setRoot(unsigned Offset) {
     if (branched())
       path.setRoot(&map->rootBranch(), map->rootSize, Offset);
@@ -1451,11 +1553,18 @@ protected:
       path.setRoot(&map->rootLeaf(), map->rootSize, Offset);
   }
 
+  /// Complete the path by searching downward for \p x.
+  /// @param x Key to search for.
   void pathFillFind(KeyT x);
+  /// Find \p x in a branched tree from the root.
+  /// @param x Key to search for.
   void treeFind(KeyT x);
+  /// Advance to \p x from the current branched-tree position.
+  /// @param x Key to search for.
   void treeAdvanceTo(KeyT x);
 
   /// unsafeStart - Writable access to start() for iterator.
+  /// @return Mutable reference to the start key.
   KeyT &unsafeStart() const {
     assert(valid() && "Cannot access invalid iterator");
     return branched() ? path.leaf<Leaf>().start(path.leafOffset()) :
@@ -1463,6 +1572,7 @@ protected:
   }
 
   /// unsafeStop - Writable access to stop() for iterator.
+  /// @return Mutable reference to the stop key.
   KeyT &unsafeStop() const {
     assert(valid() && "Cannot access invalid iterator");
     return branched() ? path.leaf<Leaf>().stop(path.leafOffset()) :
@@ -1470,6 +1580,7 @@ protected:
   }
 
   /// unsafeValue - Writable access to value() for iterator.
+  /// @return Mutable reference to the mapped value.
   ValT &unsafeValue() const {
     assert(valid() && "Cannot access invalid iterator");
     return branched() ? path.leaf<Leaf>().value(path.leafOffset()) :
@@ -1482,27 +1593,36 @@ public:
 
   /// setMap - Change the map iterated over. This call must be followed by a
   /// call to goToBegin(), goToEnd(), or find()
+  /// @param m Map this iterator should walk.
   void setMap(const IntervalMap &m) { map = const_cast<IntervalMap*>(&m); }
 
   /// valid - Return true if the current position is valid, false for end().
+  /// @return True if the iterator is not at end().
   bool valid() const { return path.valid(); }
 
   /// atBegin - Return true if the current position is the first map entry.
+  /// @return True if the iterator is at the first mapped interval.
   bool atBegin() const { return path.atBegin(); }
 
   /// start - Return the beginning of the current interval.
+  /// @return Const reference to the start key.
   const KeyT &start() const { return unsafeStart(); }
 
   /// stop - Return the end of the current interval.
+  /// @return Const reference to the stop key.
   const KeyT &stop() const { return unsafeStop(); }
 
   /// value - Return the mapped value at the current interval.
+  /// @return Const reference to the mapped value.
   const ValT &value() const { return unsafeValue(); }
 
   /// Dereference to the mapped value of the current interval.
+  /// @return Const reference to the mapped value.
   const ValT &operator*() const { return value(); }
 
   /// Return true if both iterators refer to the same map position.
+  /// @param RHS Iterator to compare against.
+  /// @return True if the iterators refer to the same position.
   bool operator==(const const_iterator &RHS) const {
     assert(map == RHS.map && "Cannot compare iterators from different maps");
     if (!valid())
@@ -1513,6 +1633,8 @@ public:
   }
 
   /// Return true if the iterators refer to different positions.
+  /// @param RHS Iterator to compare against.
+  /// @return True if the iterators are not at the same position.
   bool operator!=(const const_iterator &RHS) const {
     return !operator==(RHS);
   }
@@ -1530,6 +1652,7 @@ public:
   }
 
   /// preincrement - Move to the next interval.
+  /// @return Reference to this iterator after advancing.
   const_iterator &operator++() {
     assert(valid() && "Cannot increment end()");
     if (++path.leafOffset() == path.leafSize() && branched())
@@ -1538,13 +1661,16 @@ public:
   }
 
   /// postincrement - Don't do that!
-  const_iterator operator++(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before advancing.
+  const_iterator operator++(int Unused) {
     const_iterator tmp = *this;
     operator++();
     return tmp;
   }
 
   /// predecrement - Move to the previous interval.
+  /// @return Reference to this iterator after decrementing.
   const_iterator &operator--() {
     if (path.leafOffset() && (valid() || !branched()))
       --path.leafOffset();
@@ -1554,7 +1680,9 @@ public:
   }
 
   /// postdecrement - Don't do that!
-  const_iterator operator--(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before decrementing.
+  const_iterator operator--(int Unused) {
     const_iterator tmp = *this;
     operator--();
     return tmp;
@@ -1562,6 +1690,7 @@ public:
 
   /// find - Move to the first interval with stop >= x, or end().
   /// This is a full search from the root, the current position is ignored.
+  /// @param x Key to search for.
   void find(KeyT x) {
     if (branched())
       treeFind(x);
@@ -1569,9 +1698,11 @@ public:
       setRoot(map->rootLeaf().findFrom(0, map->rootSize, x));
   }
 
-  /// advanceTo - Move to the first interval with stop >= x, or end().
+  /// Move to the first interval with stop >= x, or end().
+  ///
   /// The search is started from the current position, and no earlier positions
   /// can be found. This is much faster than find() for small moves.
+  /// @param x Key to search for.
   void advanceTo(KeyT x) {
     if (!valid())
       return;
@@ -1686,14 +1817,14 @@ public:
   /// @param x New value.
   void setValue(ValT x);
 
-  /// setStartUnchecked - Move the start of the current interval without
-  /// checking for coalescing or overlaps.
+  /// Move the start of the current interval without coalescing checks.
+  ///
   /// This should only be used when it is known that coalescing is not required.
   /// @param a New start key.
   void setStartUnchecked(KeyT a) { this->unsafeStart() = a; }
 
-  /// setStopUnchecked - Move the end of the current interval without checking
-  /// for coalescing or overlaps.
+  /// Move the end of the current interval without coalescing checks.
+  ///
   /// This should only be used when it is known that coalescing is not required.
   /// @param b New stop key.
   void setStopUnchecked(KeyT b) {
@@ -1708,33 +1839,42 @@ public:
   /// @param x New value.
   void setValueUnchecked(ValT x) { this->unsafeValue() = x; }
 
-  /// insert - Insert mapping [a;b] -> y before the current position.
+  /// Insert mapping [a;b] -> y before the current position.
+  /// @param a Interval start key.
+  /// @param b Interval stop key.
+  /// @param y Value to map onto [a;b].
   void insert(KeyT a, KeyT b, ValT y);
 
   /// erase - Erase the current interval.
   void erase();
 
   /// preincrement - Move to the next interval.
+  /// @return Reference to this iterator after advancing.
   iterator &operator++() {
     const_iterator::operator++();
     return *this;
   }
 
   /// Post-increment to the next interval.
-  iterator operator++(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before advancing.
+  iterator operator++(int Unused) {
     iterator tmp = *this;
     operator++();
     return tmp;
   }
 
   /// predecrement - Move to the previous interval.
+  /// @return Reference to this iterator after decrementing.
   iterator &operator--() {
     const_iterator::operator--();
     return *this;
   }
 
   /// Post-decrement to the previous interval.
-  iterator operator--(int) {
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before decrementing.
+  iterator operator--(int Unused) {
     iterator tmp = *this;
     operator--();
     return tmp;
@@ -2180,9 +2320,9 @@ iterator::overflow(unsigned Level) {
 //---                       IntervalMapOverlaps                           ----//
 //===----------------------------------------------------------------------===//
 
-/// IntervalMapOverlaps - Iterate over the overlaps of mapped intervals in two
-/// IntervalMaps. The maps may be different, but the KeyT and Traits types
-/// should be the same.
+/// Iterate over the overlaps of mapped intervals in two IntervalMaps.
+///
+/// The maps may be different, but the KeyT and Traits types should be the same.
 ///
 /// Typical uses:
 ///
@@ -2235,23 +2375,29 @@ class IntervalMapOverlaps {
   }
 
 public:
-  /// IntervalMapOverlaps - Create an iterator for the overlaps of a and b.
+  /// Create an iterator for the overlaps of maps \p a and \p b.
+  /// @param a First interval map.
+  /// @param b Second interval map.
   IntervalMapOverlaps(const MapA &a, const MapB &b)
     : posA(b.empty() ? a.end() : a.find(b.start())),
       posB(posA.valid() ? b.find(posA.start()) : b.end()) { advance(); }
 
   /// valid - Return true if iterator is at an overlap.
+  /// @return True if both map iterators are at a valid overlapping position.
   bool valid() const {
     return posA.valid() && posB.valid();
   }
 
   /// a - access the left hand side in the overlap.
+  /// @return Const iterator into the first map at the current overlap.
   const typename MapA::const_iterator &a() const { return posA; }
 
   /// b - access the right hand side in the overlap.
+  /// @return Const iterator into the second map at the current overlap.
   const typename MapB::const_iterator &b() const { return posB; }
 
   /// start - Beginning of the overlapping interval.
+  /// @return Start key of the current overlap.
   KeyType start() const {
     KeyType ak = a().start();
     KeyType bk = b().start();
@@ -2259,6 +2405,7 @@ public:
   }
 
   /// stop - End of the overlapping interval.
+  /// @return Stop key of the current overlap.
   KeyType stop() const {
     KeyType ak = a().stop();
     KeyType bk = b().stop();
@@ -2278,6 +2425,7 @@ public:
   }
 
   /// Preincrement - Move to the next overlap.
+  /// @return Reference to this iterator after advancing.
   IntervalMapOverlaps &operator++() {
     // Bump the iterator that ends first. The other one may have more overlaps.
     if (Traits::startLess(posB.stop(), posA.stop()))
@@ -2287,8 +2435,8 @@ public:
     return *this;
   }
 
-  /// advanceTo - Move to the first overlapping interval with
-  /// stopLess(x, stop()).
+  /// Move to the first overlapping interval with stopLess(x, stop()).
+  /// @param x Key that the overlap stop must not precede.
   void advanceTo(KeyType x) {
     if (!valid())
       return;

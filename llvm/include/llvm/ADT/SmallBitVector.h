@@ -76,9 +76,12 @@ public:
     reference(SmallBitVector &b, unsigned Idx) : TheVector(b), BitPos(Idx) {}
 
     /// Copy-construct; both references refer to the same bit.
-    reference(const reference&) = default;
+    /// @param Other Bit reference to copy.
+    reference(const reference &Other) = default;
 
     /// Assign from another bit reference by copying its boolean value.
+    /// @param t Source bit reference.
+    /// @return This reference.
     reference& operator=(reference t) {
       *this = bool(t);
       return *this;
@@ -96,6 +99,7 @@ public:
     }
 
     /// Return the current value of the referenced bit.
+    /// @return True if the referenced bit is set.
     operator bool() const {
       return const_cast<const SmallBitVector &>(TheVector).operator[](BitPos);
     }
@@ -155,6 +159,8 @@ public:
 
   /// Creates a bitvector of specified number of bits. All bits are initialized
   /// to the specified value.
+  /// @param s Number of bits in the new vector.
+  /// @param t Initial value for every bit.
   explicit SmallBitVector(unsigned s, bool t = false) {
     if (s <= SmallNumDataBits)
       switchToSmall(t ? ~uintptr_t(0) : 0, s);
@@ -163,6 +169,7 @@ public:
   }
 
   /// SmallBitVector copy ctor.
+  /// @param RHS Bit vector to copy.
   SmallBitVector(const SmallBitVector &RHS) {
     if (RHS.isSmall())
       X = RHS.X;
@@ -188,34 +195,41 @@ public:
   using set_iterator = const_set_bits_iterator;
 
   /// Iterator to the first set bit, or end if none are set.
+  /// @return Iterator positioned at the first set bit, or end if none.
   const_set_bits_iterator set_bits_begin() const {
     return const_set_bits_iterator(*this);
   }
 
   /// Past-the-end iterator for the set-bits range.
+  /// @return Past-the-end iterator for set-bit iteration.
   const_set_bits_iterator set_bits_end() const {
     return const_set_bits_iterator(*this, -1);
   }
 
   /// Return a range over the indices of all set bits.
+  /// @return Iterator range covering indices of all set bits.
   iterator_range<const_set_bits_iterator> set_bits() const {
     return make_range(set_bits_begin(), set_bits_end());
   }
 
   /// Return true if this vector uses inline storage rather than a heap \c BitVector.
+  /// @return True if bits are stored inline rather than on the heap.
   bool isSmall() const { return X & uintptr_t(1); }
 
   /// Tests whether there are no bits in this bitvector.
+  /// @return True if the bit vector has size zero.
   bool empty() const {
     return isSmall() ? getSmallSize() == 0 : getPointer()->empty();
   }
 
   /// Returns the number of bits in this bitvector.
+  /// @return Number of bits in this bit vector.
   size_type size() const {
     return isSmall() ? getSmallSize() : getPointer()->size();
   }
 
   /// Returns the number of bits which are set.
+  /// @return Count of bits that are set to one.
   size_type count() const {
     if (isSmall()) {
       uintptr_t Bits = getSmallBits();
@@ -225,6 +239,7 @@ public:
   }
 
   /// Returns true if any bit is set.
+  /// @return True if at least one bit is set.
   bool any() const {
     if (isSmall())
       return getSmallBits() != 0;
@@ -232,6 +247,7 @@ public:
   }
 
   /// Returns true if all bits are set.
+  /// @return True if every bit in the vector is set.
   bool all() const {
     if (isSmall())
       return getSmallBits() == (uintptr_t(1) << getSmallSize()) - 1;
@@ -239,6 +255,7 @@ public:
   }
 
   /// Returns true if none of the bits are set.
+  /// @return True if no bits are set.
   bool none() const {
     if (isSmall())
       return getSmallBits() == 0;
@@ -246,6 +263,7 @@ public:
   }
 
   /// Returns the index of the first set bit, -1 if none of the bits are set.
+  /// @return Index of the first set bit, or -1 if none are set.
   int find_first() const {
     if (isSmall()) {
       uintptr_t Bits = getSmallBits();
@@ -257,6 +275,7 @@ public:
   }
 
   /// Returns the index of the last set bit, -1 if none of the bits are set.
+  /// @return Index of the last set bit, or -1 if none are set.
   int find_last() const {
     if (isSmall()) {
       uintptr_t Bits = getSmallBits();
@@ -268,6 +287,7 @@ public:
   }
 
   /// Returns the index of the first unset bit, -1 if all of the bits are set.
+  /// @return Index of the first unset bit, or -1 if all bits are set.
   int find_first_unset() const {
     if (isSmall()) {
       if (count() == getSmallSize())
@@ -280,6 +300,7 @@ public:
   }
 
   /// Returns the index of the last unset bit, -1 if all of the bits are set.
+  /// @return Index of the last unset bit, or -1 if all bits are set.
   int find_last_unset() const {
     if (isSmall()) {
       if (count() == getSmallSize())
@@ -295,6 +316,8 @@ public:
 
   /// Returns the index of the next set bit following the "Prev" bit.
   /// Returns -1 if the next set bit is not found.
+  /// @param Prev Bit index after which to search for the next set bit.
+  /// @return Index of the next set bit after \p Prev, or -1 if none.
   int find_next(unsigned Prev) const {
     if (isSmall()) {
       uintptr_t Bits = getSmallBits();
@@ -309,6 +332,8 @@ public:
 
   /// Returns the index of the next unset bit following the "Prev" bit.
   /// Returns -1 if the next unset bit is not found.
+  /// @param Prev Bit index after which to search for the next unset bit.
+  /// @return Index of the next unset bit after \p Prev, or -1 if none.
   int find_next_unset(unsigned Prev) const {
     if (isSmall()) {
       uintptr_t Bits = getSmallBits();
@@ -326,6 +351,8 @@ public:
 
   /// find_prev - Returns the index of the first set bit that precedes the
   /// the bit at \p PriorTo.  Returns -1 if all previous bits are unset.
+  /// @param PriorTo Bit index before which to search for a set bit.
+  /// @return Index of the nearest set bit before \p PriorTo, or -1 if none.
   int find_prev(unsigned PriorTo) const {
     if (isSmall()) {
       if (PriorTo == 0)
@@ -350,6 +377,8 @@ public:
   }
 
   /// Grow or shrink the bitvector.
+  /// @param N New size in bits.
+  /// @param t Value used to initialize newly added bits when growing.
   void resize(unsigned N, bool t = false) {
     if (!isSmall()) {
       getPointer()->resize(N, t);
@@ -386,6 +415,7 @@ public:
   }
 
   /// Set all bits in the bitvector.
+  /// @return Reference to this bit vector.
   SmallBitVector &set() {
     if (isSmall())
       setSmallBits(~uintptr_t(0));
@@ -396,6 +426,7 @@ public:
 
   /// Set bit \p Idx in the bitvector.
   /// @param Idx Index of the bit to set.
+  /// @return Reference to this bit vector.
   SmallBitVector &set(unsigned Idx) {
     if (isSmall()) {
       assert(Idx <= static_cast<unsigned>(
@@ -409,6 +440,9 @@ public:
   }
 
   /// Efficiently set a range of bits in [I, E)
+  /// @param I Inclusive start of the range to set.
+  /// @param E Exclusive end of the range to set.
+  /// @return Reference to this bit vector.
   SmallBitVector &set(unsigned I, unsigned E) {
     assert(I <= E && "Attempted to set backwards range!");
     assert(E <= size() && "Attempted to set out-of-bounds range!");
@@ -425,6 +459,7 @@ public:
   }
 
   /// Reset all bits in the bitvector.
+  /// @return Reference to this bit vector.
   SmallBitVector &reset() {
     if (isSmall())
       setSmallBits(0);
@@ -435,6 +470,7 @@ public:
 
   /// Clear bit \p Idx and return this vector.
   /// @param Idx Bit index to clear.
+  /// @return Reference to this bit vector.
   SmallBitVector &reset(unsigned Idx) {
     if (isSmall())
       setSmallBits(getSmallBits() & ~(uintptr_t(1) << Idx));
@@ -444,6 +480,9 @@ public:
   }
 
   /// Efficiently reset a range of bits in [I, E)
+  /// @param I Inclusive start of the range to clear.
+  /// @param E Exclusive end of the range to clear.
+  /// @return Reference to this bit vector.
   SmallBitVector &reset(unsigned I, unsigned E) {
     assert(I <= E && "Attempted to reset backwards range!");
     assert(E <= size() && "Attempted to reset out-of-bounds range!");
@@ -460,6 +499,7 @@ public:
   }
 
   /// Flip all bits in the bitvector.
+  /// @return Reference to this bit vector.
   SmallBitVector &flip() {
     if (isSmall())
       setSmallBits(~getSmallBits());
@@ -470,6 +510,7 @@ public:
 
   /// Toggle bit \p Idx and return this vector.
   /// @param Idx Bit index to flip.
+  /// @return Reference to this bit vector.
   SmallBitVector &flip(unsigned Idx) {
     if (isSmall())
       setSmallBits(getSmallBits() ^ (uintptr_t(1) << Idx));
@@ -479,12 +520,14 @@ public:
   }
 
   /// Return a copy of this vector with every bit inverted.
+  /// @return New bit vector with all bits flipped.
   SmallBitVector operator~() const {
     return SmallBitVector(*this).flip();
   }
 
   /// Return a mutable reference to bit \p Idx.
   /// @param Idx Bit index to access.
+  /// @return Proxy referring to bit \p Idx.
   reference operator[](unsigned Idx) {
     assert(Idx < size() && "Out-of-bounds Bit access.");
     return reference(*this, Idx);
@@ -492,6 +535,7 @@ public:
 
   /// Return the value of bit \p Idx.
   /// @param Idx Bit index to read.
+  /// @return True if bit \p Idx is set.
   bool operator[](unsigned Idx) const {
     assert(Idx < size() && "Out-of-bounds Bit access.");
     if (isSmall())
@@ -500,17 +544,23 @@ public:
   }
 
   /// Return the last element in the vector.
+  /// @return Value of the last bit in the vector.
   bool back() const {
     assert(!empty() && "Getting last element of empty vector.");
     return (*this)[size() - 1];
   }
 
   /// Returns true if bit \p Idx is set.
+  /// @param Idx Bit index to test.
+  /// @return True if bit \p Idx is set.
   bool test(unsigned Idx) const {
     return (*this)[Idx];
   }
 
   /// Returns true if all bits in the range [Begin, End) are set.
+  /// @param Begin Inclusive start of the range.
+  /// @param End Exclusive end of the range.
+  /// @return True if every bit in [Begin, End) is set.
   bool test_all(unsigned Begin, unsigned End) const {
     for (unsigned i = Begin; i < End; ++i) {
       if (!test(i))
@@ -520,6 +570,9 @@ public:
   }
 
   /// Returns true if any of the bits in the range [Begin, End) are set.
+  /// @param Begin Inclusive start of the range.
+  /// @param End Exclusive end of the range.
+  /// @return True if any bit in [Begin, End) is set.
   bool test_any(unsigned Begin, unsigned End) const {
     for (unsigned i = Begin; i < End; ++i) {
       if (test(i))
@@ -541,6 +594,8 @@ public:
   }
 
   /// Test if any common bits are set.
+  /// @param RHS Bit vector to compare against for overlapping set bits.
+  /// @return True if any bit is set in both this vector and \p RHS.
   bool anyCommon(const SmallBitVector &RHS) const {
     if (isSmall() && RHS.isSmall())
       return (getSmallBits() & RHS.getSmallBits()) != 0;
@@ -554,6 +609,8 @@ public:
   }
 
   /// Return true if this and \p RHS have the same size and bit pattern.
+  /// @param RHS Bit vector to compare against.
+  /// @return True if the vectors have the same size and bit pattern.
   bool operator==(const SmallBitVector &RHS) const {
     if (size() != RHS.size())
       return false;
@@ -571,11 +628,15 @@ public:
   }
 
   /// Return true if this and \p RHS differ in size or any bit.
+  /// @param RHS Bit vector to compare against.
+  /// @return True if the vectors differ in size or bit pattern.
   bool operator!=(const SmallBitVector &RHS) const {
     return !(*this == RHS);
   }
 
   /// Intersect this vector with \p RHS in place, resizing to the larger size.
+  /// @param RHS Bit vector to AND with this one.
+  /// @return Reference to this bit vector.
   // FIXME BitVector::operator&= does not resize the LHS but this does
   SmallBitVector &operator&=(const SmallBitVector &RHS) {
     resize(std::max(size(), RHS.size()));
@@ -594,6 +655,8 @@ public:
   }
 
   /// Reset bits that are set in RHS. Same as *this &= ~RHS.
+  /// @param RHS Bit vector whose set bits are cleared in this vector.
+  /// @return Reference to this bit vector.
   SmallBitVector &reset(const SmallBitVector &RHS) {
     if (isSmall() && RHS.isSmall())
       setSmallBits(getSmallBits() & ~RHS.getSmallBits());
@@ -609,6 +672,8 @@ public:
 
   /// Check if (This - RHS) is non-zero.
   /// This is the same as reset(RHS) and any().
+  /// @param RHS Bit vector subtracted from this one before testing for any set bits.
+  /// @return True if any bit is set in this vector but not in \p RHS.
   bool test(const SmallBitVector &RHS) const {
     if (isSmall() && RHS.isSmall())
       return (getSmallBits() & ~RHS.getSmallBits()) != 0;
@@ -628,10 +693,13 @@ public:
   }
 
   /// Check if This is a subset of RHS.
+  /// @param RHS Bit vector that should contain every set bit of this vector.
+  /// @return True if every set bit of this vector is also set in \p RHS.
   bool subsetOf(const SmallBitVector &RHS) const { return !test(RHS); }
 
   /// OR this vector with \p RHS in place, resizing if needed.
   /// @param RHS Bit vector to OR with.
+  /// @return Reference to this bit vector.
   SmallBitVector &operator|=(const SmallBitVector &RHS) {
     resize(std::max(size(), RHS.size()));
     if (isSmall() && RHS.isSmall())
@@ -647,6 +715,7 @@ public:
 
   /// XOR this vector with \p RHS in place, resizing if needed.
   /// @param RHS Bit vector to XOR with.
+  /// @return Reference to this bit vector.
   SmallBitVector &operator^=(const SmallBitVector &RHS) {
     resize(std::max(size(), RHS.size()));
     if (isSmall() && RHS.isSmall())
@@ -662,6 +731,7 @@ public:
 
   /// Shift bits left by \p N positions; vacated low bits become zero.
   /// @param N Number of bit positions to shift.
+  /// @return Reference to this bit vector.
   SmallBitVector &operator<<=(unsigned N) {
     if (isSmall())
       setSmallBits(getSmallBits() << N);
@@ -672,6 +742,7 @@ public:
 
   /// Shift bits right by \p N positions; vacated high bits become zero.
   /// @param N Number of bit positions to shift.
+  /// @return Reference to this bit vector.
   SmallBitVector &operator>>=(unsigned N) {
     if (isSmall())
       setSmallBits(getSmallBits() >> N);
@@ -681,6 +752,8 @@ public:
   }
 
   /// Copy-assign from \p RHS, switching between small and large storage as needed.
+  /// @param RHS Bit vector to copy from.
+  /// @return Reference to this bit vector.
   const SmallBitVector &operator=(const SmallBitVector &RHS) {
     if (isSmall()) {
       if (RHS.isSmall())
@@ -699,6 +772,8 @@ public:
   }
 
   /// Move-assign from \p RHS, taking its storage and leaving \p RHS empty.
+  /// @param RHS Bit vector to move from.
+  /// @return Reference to this bit vector.
   const SmallBitVector &operator=(SmallBitVector &&RHS) {
     if (this != &RHS) {
       clear();
@@ -708,12 +783,15 @@ public:
   }
 
   /// Exchange contents with \p RHS.
+  /// @param RHS Other bit vector to swap with.
   void swap(SmallBitVector &RHS) {
     std::swap(X, RHS.X);
   }
 
   /// Add '1' bits from Mask to this vector. Don't resize.
   /// This computes "*this |= Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void setBitsInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     if (isSmall())
       applyMask<true, false>(Mask, MaskWords);
@@ -723,6 +801,8 @@ public:
 
   /// Clear any bits in this vector that are set in Mask. Don't resize.
   /// This computes "*this &= ~Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void clearBitsInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     if (isSmall())
       applyMask<false, false>(Mask, MaskWords);
@@ -732,6 +812,8 @@ public:
 
   /// Add a bit to this vector for every '0' bit in Mask. Don't resize.
   /// This computes "*this |= ~Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void setBitsNotInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     if (isSmall())
       applyMask<true, true>(Mask, MaskWords);
@@ -741,6 +823,8 @@ public:
 
   /// Clear a bit in this vector for every '0' bit in Mask. Don't resize.
   /// This computes "*this &= Mask".
+  /// @param Mask Portable bit mask of 32-bit words (LSB is lowest bit).
+  /// @param MaskWords Number of words in \p Mask; defaults to covering this vector.
   void clearBitsNotInMask(const uint32_t *Mask, unsigned MaskWords = ~0u) {
     if (isSmall())
       applyMask<false, true>(Mask, MaskWords);
@@ -775,6 +859,9 @@ private:
 };
 
 /// Return the bitwise AND of \p LHS and \p RHS.
+/// @param LHS Left-hand bit vector.
+/// @param RHS Right-hand bit vector.
+/// @return New bit vector that is the bitwise AND of \p LHS and \p RHS.
 inline SmallBitVector
 operator&(const SmallBitVector &LHS, const SmallBitVector &RHS) {
   SmallBitVector Result(LHS);
@@ -783,6 +870,9 @@ operator&(const SmallBitVector &LHS, const SmallBitVector &RHS) {
 }
 
 /// Return the bitwise OR of \p LHS and \p RHS.
+/// @param LHS Left-hand bit vector.
+/// @param RHS Right-hand bit vector.
+/// @return New bit vector that is the bitwise OR of \p LHS and \p RHS.
 inline SmallBitVector
 operator|(const SmallBitVector &LHS, const SmallBitVector &RHS) {
   SmallBitVector Result(LHS);
@@ -791,6 +881,9 @@ operator|(const SmallBitVector &LHS, const SmallBitVector &RHS) {
 }
 
 /// Return the bitwise XOR of \p LHS and \p RHS.
+/// @param LHS Left-hand bit vector.
+/// @param RHS Right-hand bit vector.
+/// @return New bit vector with bits set where \p LHS and \p RHS differ.
 inline SmallBitVector
 operator^(const SmallBitVector &LHS, const SmallBitVector &RHS) {
   SmallBitVector Result(LHS);
@@ -798,13 +891,21 @@ operator^(const SmallBitVector &LHS, const SmallBitVector &RHS) {
   return Result;
 }
 
+/// Provide DenseMapInfo for SmallBitVector, hashing size and word storage.
 template <> struct DenseMapInfo<SmallBitVector> {
+  /// Compute a hash code for bit vector \p V.
+  /// @param V Bit vector to hash.
+  /// @return Hash value for \p V.
   static unsigned getHashValue(const SmallBitVector &V) {
     uintptr_t Store;
     return DenseMapInfo<
         std::pair<SmallBitVector::size_type, ArrayRef<uintptr_t>>>::
         getHashValue(std::make_pair(V.size(), V.getData(Store)));
   }
+  /// Return true if \p LHS and \p RHS have equal size and bit pattern.
+  /// @param LHS First bit vector.
+  /// @param RHS Second bit vector.
+  /// @return True if the vectors are equal.
   static bool isEqual(const SmallBitVector &LHS, const SmallBitVector &RHS) {
     return LHS == RHS;
   }

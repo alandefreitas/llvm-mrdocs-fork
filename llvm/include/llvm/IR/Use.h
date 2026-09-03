@@ -34,10 +34,13 @@ class Value;
 /// jumping directly to the User when we arrive from the Value's uses.
 class Use {
 public:
+  /// Copy construction is deleted; Use is non-copyable.
+  /// \param U Unused source Use (deleted).
   Use(const Use &U) = delete;
 
   /// Provide a fast substitute to std::swap<Use>
   /// that also works with less standard-compliant compilers
+  /// \param RHS Use to swap with this one.
   LLVM_ABI void swap(Use &RHS);
 
 private:
@@ -51,30 +54,48 @@ public:
   friend class Value;
   friend class User;
 
+  /// Implicitly convert this use to the referenced value.
+  /// \return The referenced value.
   operator Value *() const { return Val; }
+  /// Return the value this use refers to.
+  /// \return The value this use refers to.
   Value *get() const { return Val; }
 
   /// Returns the User that contains this Use.
   ///
   /// For an instruction operand, for example, this will return the
   /// instruction.
+  /// \return The User that contains this Use.
   User *getUser() const { return Parent; }
 
   LLVM_ABI inline void set(Value *Val);
 
   LLVM_ABI inline Value *operator=(Value *RHS);
+  /// Assign from another use by setting this use to the same value.
+  /// \param RHS Use whose referenced value is assigned to this use.
+  /// \return This use.
   LLVM_ABI inline const Use &operator=(const Use &RHS);
 
+  /// Access members of the referenced value.
+  /// \return Pointer to the referenced value.
   Value *operator->() { return Val; }
+  /// Access members of the referenced value.
+  /// \return Pointer to the referenced value.
   const Value *operator->() const { return Val; }
 
+  /// Return the next use in this value's use list.
+  /// \return The next use, or null if this is the last use.
   Use *getNext() const { return Next; }
 
   /// Return the operand # of this use in its User.
+  /// \return The zero-based operand index of this use in its User.
   LLVM_ABI unsigned getOperandNo() const;
 
   /// Destroys Use operands when the number of operands of
   /// a User changes.
+  /// \param Start First use in the operand range to destroy.
+  /// \param Stop One-past-the-end of the use range to destroy.
+  /// \param del If true, delete the storage for the uses.
   LLVM_ABI static void zap(Use *Start, const Use *Stop, bool del = false);
 
 private:
@@ -105,36 +126,69 @@ private:
   }
 };
 
-/// Allow clients to treat uses just like values when using
-/// casting operators.
+/// Allow clients to treat uses just like values when using casting operators.
 template <> struct simplify_type<Use> {
+  /// Simplified type used by casting operators.
   using SimpleType = Value *;
 
+  /// Return the value referenced by \p Val.
+  /// \param Val Use to unwrap.
+  /// \return The value referenced by \p Val.
   static SimpleType getSimplifiedValue(Use &Val) { return Val.get(); }
 };
+/// Allow clients to treat const uses just like values when using casting
+/// operators.
 template <> struct simplify_type<const Use> {
+  /// Simplified type used by casting operators.
   using SimpleType = /*const*/ Value *;
 
+  /// Return the value referenced by \p Val.
+  /// \param Val Const use to unwrap.
+  /// \return The value referenced by \p Val.
   static SimpleType getSimplifiedValue(const Use &Val) { return Val.get(); }
 };
 
+/// Allow clients to treat use pointers just like values when using casting
+/// operators.
 template <> struct simplify_type<Use *> {
+  /// Simplified type used by casting operators.
   using SimpleType = Value *;
 
+  /// Return the value referenced by \p Val, or null if \p Val is null.
+  /// \param Val Use pointer to unwrap.
+  /// \return The value referenced by \p Val, or null if \p Val is null.
   static SimpleType getSimplifiedValue(Use *Val) {
     return Val ? Val->get() : nullptr;
   }
 };
+/// Allow clients to treat const use pointers just like values when using
+/// casting operators.
 template <> struct simplify_type<const Use *> {
+  /// Simplified type used by casting operators.
   using SimpleType = /*const*/ Value *;
 
+  /// Return the value referenced by \p Val, or null if \p Val is null.
+  /// \param Val Const use pointer to unwrap.
+  /// \return The value referenced by \p Val, or null if \p Val is null.
   static SimpleType getSimplifiedValue(const Use *Val) {
     return Val ? Val->get() : nullptr;
   }
 };
 
 // Create wrappers for C Binding types (see CBindingWrapping.h).
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(Use, LLVMUseRef)
+/// Convert an opaque \c LLVMUseRef to a \c Use pointer.
+/// \param P Opaque C API use reference to unwrap.
+/// \return The Use pointer corresponding to \p P.
+inline Use *unwrap(LLVMUseRef P) {
+  return reinterpret_cast<Use *>(P);
+}
+
+/// Convert a \c Use pointer to an opaque \c LLVMUseRef.
+/// \param P Use to wrap for the C API.
+/// \return Opaque C API use reference for \p P.
+inline LLVMUseRef wrap(const Use *P) {
+  return reinterpret_cast<LLVMUseRef>(const_cast<Use *>(P));
+}
 
 } // end namespace llvm
 

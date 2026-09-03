@@ -28,6 +28,10 @@ class Instruction;
 class Scheduler;
 class Type;
 
+/// A Region pass that vectorizes short store-load chains.
+///
+/// Unlike generic bundle vectorization, this pass can vectorize instructions
+/// of different types.
 class LLVM_ABI LoadStoreVec final : public RegionPass {
   const DataLayout *DL = nullptr;
   /// Checks legality of vectorization and \returns the vector type on success,
@@ -39,9 +43,15 @@ class LLVM_ABI LoadStoreVec final : public RegionPass {
                           ArrayRef<Value *> Operands);
 
 public:
+  /// Construct a LoadStoreVec pass.
+  /// \param AuxArg Unused; must be empty.
   LoadStoreVec(StringRef AuxArg) : RegionPass("load-store-vec") {
     assert(AuxArg.empty() && "This pass ignores aux arg!");
   }
+  /// Run load/store vectorization on the given region.
+  /// \param Rgn The region to vectorize.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the IR was modified.
   bool runOnRegion(Region &Rgn, const Analyses &A) final;
 };
 

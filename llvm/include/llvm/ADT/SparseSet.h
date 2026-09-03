@@ -31,14 +31,15 @@
 
 namespace llvm {
 
-/// SparseSetValTraits - Objects in a SparseSet are identified by keys that can
-/// be uniquely converted to a small integer less than the set's universe. This
-/// class allows the set to hold values that differ from the set's key type as
-/// long as an index can still be derived from the value. SparseSet never
-/// directly compares ValueT, only their indices, so it can map keys to
-/// arbitrary values. SparseSetValTraits computes the index from the value
-/// object. To compute the index from a key, SparseSet uses a separate
-/// KeyFunctorT template argument.
+/// SparseSetValTraits - Traits for deriving a sparse-set index from a value.
+///
+/// Objects in a SparseSet are identified by keys that can be uniquely converted
+/// to a small integer less than the set's universe. This class allows the set
+/// to hold values that differ from the set's key type as long as an index can
+/// still be derived from the value. SparseSet never directly compares ValueT,
+/// only their indices, so it can map keys to arbitrary values.
+/// SparseSetValTraits computes the index from the value object. To compute the
+/// index from a key, SparseSet uses a separate KeyFunctorT template argument.
 ///
 /// A simple type declaration, SparseSet<Type>, handles these cases:
 /// - unsigned key, identity index, identity value
@@ -56,6 +57,7 @@ namespace llvm {
 template <typename ValueT> struct SparseSetValTraits {
   /// Return the sparse-set index encoded in \p Val.
   /// @param Val Value that provides getSparseSetIndex().
+  /// @return Sparse-set index encoded in \p Val.
   static unsigned getValIndex(const ValueT &Val) {
     return Val.getSparseSetIndex();
   }
@@ -69,6 +71,7 @@ template <typename KeyT, typename ValueT, typename KeyFunctorT>
 struct SparseSetValFunctor {
   /// Return the sparse-set index for \p Val.
   /// @param Val Value whose key index is needed.
+  /// @return Sparse-set index derived from \p Val.
   unsigned operator()(const ValueT &Val) const {
     if constexpr (std::is_same_v<KeyT, ValueT>)
       return KeyFunctorT()(Val);
@@ -150,11 +153,14 @@ public:
   /// Construct an empty set; call setUniverse() before inserting.
   SparseSet() = default;
   /// Copy construction is deleted; the sparse array is not shareable.
-  SparseSet(const SparseSet &) = delete;
+  /// @param Other Set that would be copied.
+  SparseSet(const SparseSet &Other) = delete;
   /// Copy assignment is deleted; the sparse array is not shareable.
-  SparseSet &operator=(const SparseSet &) = delete;
+  /// @param Other Set that would be assigned from.
+  SparseSet &operator=(const SparseSet &Other) = delete;
   /// Move-construct, taking ownership of the dense and sparse storage.
-  SparseSet(SparseSet &&) = default;
+  /// @param Other Set to move from.
+  SparseSet(SparseSet &&Other) = default;
 
   /// setUniverse - Set the universe size which determines the largest key the
   /// set can hold.  The universe must be sized before any elements can be
@@ -183,18 +189,23 @@ public:
   using const_iterator = typename DenseT::const_iterator;
 
   /// Return a const iterator to the first element.
+  /// @return Const iterator to the first element.
   [[nodiscard]] const_iterator begin() const { return Dense.begin(); }
   /// Return a const iterator past the last element.
+  /// @return Const iterator past the last element.
   [[nodiscard]] const_iterator end() const { return Dense.end(); }
   /// Return an iterator to the first element.
+  /// @return Iterator to the first element.
   [[nodiscard]] iterator begin() { return Dense.begin(); }
   /// Return an iterator past the last element.
+  /// @return Iterator past the last element.
   [[nodiscard]] iterator end() { return Dense.end(); }
 
   /// empty - Returns true if the set is empty.
   ///
   /// This is not the same as BitVector::empty().
   ///
+  /// @return True if the set has no elements.
   [[nodiscard]] bool empty() const { return Dense.empty(); }
 
   /// size - Returns the number of elements in the set.
@@ -202,6 +213,7 @@ public:
   /// This is not the same as BitVector::size() which returns the size of the
   /// universe.
   ///
+  /// @return The number of elements currently in the set.
   [[nodiscard]] size_type size() const { return Dense.size(); }
 
   /// clear - Clears the set.  This is a very fast constant time operation.
@@ -252,12 +264,16 @@ public:
   /// Check if the set contains the given \c Key.
   ///
   /// @param Key A valid key to find.
+  /// @return True if an element with \p Key is present.
   [[nodiscard]] bool contains(const KeyT &Key) const {
     return find(Key) != end();
   }
 
   /// count - Returns 1 if this set contains an element identified by Key,
   /// 0 otherwise.
+  ///
+  /// @param Key A valid key to look up.
+  /// @return 1 if the key is present, otherwise 0.
   ///
   [[nodiscard]] size_type count(const KeyT &Key) const {
     return contains(Key) ? 1 : 0;
@@ -273,6 +289,9 @@ public:
   ///
   /// Insertion invalidates all iterators.
   ///
+  /// @param Val Element to insert.
+  /// @return A pair of an iterator to the element and whether it was inserted.
+  ///
   std::pair<iterator, bool> insert(const ValueT &Val) {
     unsigned Idx = ValIndexOf(Val);
     iterator I = findIndex(Idx);
@@ -283,15 +302,23 @@ public:
     return {end() - 1, true};
   }
 
-  /// array subscript - If an element already exists with this key, return it.
-  /// Otherwise, automatically construct a new value from Key, insert it,
-  /// and return the newly inserted element.
+  /// operator[] - Return the element for Key, inserting one if absent.
+  ///
+  /// If an element already exists with this key, return it. Otherwise,
+  /// automatically construct a new value from Key, insert it, and return the
+  /// newly inserted element.
+  ///
+  /// @param Key Key used to find or construct the element.
+  /// @return Reference to the existing or newly inserted element.
+  ///
   ValueT &operator[](const KeyT &Key) { return *insert(ValueT(Key)).first; }
 
   /// Remove and return the last element in insertion order.
   ///
   /// Like clear of a single entry, the sparse array is left stale until the
   /// next find(), which tolerates that.
+  ///
+  /// @return The last element, removed from the set.
   ValueT pop_back_val() {
     // Sparse does not need to be cleared, see find().
     return Dense.pop_back_val();
@@ -310,6 +337,9 @@ public:
   ///       ++I;
   ///
   /// Note that end() changes when elements are erased, unlike std::list.
+  ///
+  /// @param I Iterator identifying the element to erase.
+  /// @return Iterator pointing to the next element after the erased one.
   ///
   iterator erase(iterator I) {
     assert(unsigned(I - begin()) < size() && "Invalid iterator");

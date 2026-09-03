@@ -22,14 +22,17 @@
 #define LLVM_SUPPORT_ARMEHABI_H
 
 namespace llvm {
+/// ARM architecture support utilities and constants.
 namespace ARM {
+/// ARM Exception Handling ABI (EHABI) constants and enumerations.
 namespace EHABI {
   /// ARM exception handling table entry kinds
   enum EHTEntryKind {
-    EHT_GENERIC = 0x00,
-    EHT_COMPACT = 0x80
+    EHT_GENERIC = 0x00, ///< Generic (non-compact) exception-handling table entry.
+    EHT_COMPACT = 0x80  ///< Compact exception-handling table entry.
   };
 
+  /// Index table sentinel values used by the ARM EHABI.
   enum {
     /// Special entry for the function never unwind
     EXIDX_CANTUNWIND = 0x1
@@ -37,98 +40,118 @@ namespace EHABI {
 
   /// ARM-defined frame unwinding opcodes
   enum UnwindOpcodes {
-    // Format: 00xxxxxx
-    // Purpose: vsp = vsp + ((x << 2) + 4)
+    /// Increment VSP by ((x << 2) + 4).
+    ///
+    /// Format: 00xxxxxx
     UNWIND_OPCODE_INC_VSP = 0x00,
 
-    // Format: 01xxxxxx
-    // Purpose: vsp = vsp - ((x << 2) + 4)
+    /// Decrement VSP by ((x << 2) + 4).
+    ///
+    /// Format: 01xxxxxx
     UNWIND_OPCODE_DEC_VSP = 0x40,
 
-    // Format: 10000000 00000000
-    // Purpose: refuse to unwind
+    /// Refuse to unwind.
+    ///
+    /// Format: 10000000 00000000
     UNWIND_OPCODE_REFUSE = 0x8000,
 
-    // Format: 1000xxxx xxxxxxxx
-    // Purpose: pop r[15:12], r[11:4]
-    // Constraint: x != 0
+    /// Pop registers r[15:12] and r[11:4] from the mask.
+    ///
+    /// Format: 1000xxxx xxxxxxxx
+    /// Constraint: x != 0
     UNWIND_OPCODE_POP_REG_MASK_R4 = 0x8000,
 
-    // Format: 1001xxxx
-    // Purpose: vsp = r[x]
-    // Constraint: x != 13 && x != 15
+    /// Set VSP to register r[x].
+    ///
+    /// Format: 1001xxxx
+    /// Constraint: x != 13 && x != 15
     UNWIND_OPCODE_SET_VSP = 0x90,
 
-    // Format: 10100xxx
-    // Purpose: pop r[(4+x):4]
+    /// Pop consecutive registers r[(4+x):4].
+    ///
+    /// Format: 10100xxx
     UNWIND_OPCODE_POP_REG_RANGE_R4 = 0xa0,
 
-    // Format: 10101xxx
-    // Purpose: pop r14, r[(4+x):4]
+    /// Pop r14 and consecutive registers r[(4+x):4].
+    ///
+    /// Format: 10101xxx
     UNWIND_OPCODE_POP_REG_RANGE_R4_R14 = 0xa8,
 
-    // Format: 10110000
-    // Purpose: finish
+    /// Finish the unwind opcode sequence.
+    ///
+    /// Format: 10110000
     UNWIND_OPCODE_FINISH = 0xb0,
 
-    // Format: 10110100
-    // Purpose: Pop Return Address Authetication Code
+    /// Pop the Return Address Authentication Code.
+    ///
+    /// Format: 10110100
     UNWIND_OPCODE_POP_RA_AUTH_CODE = 0xb4,
 
-    // Format: 10110001 0000xxxx
-    // Purpose: pop r[3:0]
-    // Constraint: x != 0
+    /// Pop registers r[3:0] from the mask.
+    ///
+    /// Format: 10110001 0000xxxx
+    /// Constraint: x != 0
     UNWIND_OPCODE_POP_REG_MASK = 0xb100,
 
-    // Format: 10110010 x(uleb128)
-    // Purpose: vsp = vsp + ((x << 2) + 0x204)
+    /// Increment VSP by ((x << 2) + 0x204) with a ULEB128 operand.
+    ///
+    /// Format: 10110010 x(uleb128)
     UNWIND_OPCODE_INC_VSP_ULEB128 = 0xb2,
 
-    // Format: 10110011 xxxxyyyy
-    // Purpose: pop d[(x+y):x]
+    /// Pop VFP registers d[(x+y):x] with FSTMFDX encoding.
+    ///
+    /// Format: 10110011 xxxxyyyy
     UNWIND_OPCODE_POP_VFP_REG_RANGE_FSTMFDX = 0xb300,
 
-    // Format: 10111xxx
-    // Purpose: pop d[(8+x):8]
+    /// Pop VFP registers d[(8+x):8] with FSTMFDX encoding.
+    ///
+    /// Format: 10111xxx
     UNWIND_OPCODE_POP_VFP_REG_RANGE_FSTMFDX_D8 = 0xb8,
 
-    // Format: 11000xxx
-    // Purpose: pop wR[(10+x):10]
+    /// Pop Wireless MMX registers wR[(10+x):10].
+    ///
+    /// Format: 11000xxx
     UNWIND_OPCODE_POP_WIRELESS_MMX_REG_RANGE_WR10 = 0xc0,
 
-    // Format: 11000110 xxxxyyyy
-    // Purpose: pop wR[(x+y):x]
+    /// Pop Wireless MMX registers wR[(x+y):x].
+    ///
+    /// Format: 11000110 xxxxyyyy
     UNWIND_OPCODE_POP_WIRELESS_MMX_REG_RANGE = 0xc600,
 
-    // Format: 11000111 0000xxxx
-    // Purpose: pop wCGR[3:0]
-    // Constraint: x != 0
+    /// Pop Wireless MMX control registers wCGR[3:0] from the mask.
+    ///
+    /// Format: 11000111 0000xxxx
+    /// Constraint: x != 0
     UNWIND_OPCODE_POP_WIRELESS_MMX_REG_MASK = 0xc700,
 
-    // Format: 11001000 xxxxyyyy
-    // Purpose: pop d[(16+x+y):(16+x)]
+    /// Pop VFP registers d[(16+x+y):(16+x)] with FSTMFDD encoding.
+    ///
+    /// Format: 11001000 xxxxyyyy
     UNWIND_OPCODE_POP_VFP_REG_RANGE_FSTMFDD_D16 = 0xc800,
 
-    // Format: 11001001 xxxxyyyy
-    // Purpose: pop d[(x+y):x]
+    /// Pop VFP registers d[(x+y):x] with FSTMFDD encoding.
+    ///
+    /// Format: 11001001 xxxxyyyy
     UNWIND_OPCODE_POP_VFP_REG_RANGE_FSTMFDD = 0xc900,
 
-    // Format: 11010xxx
-    // Purpose: pop d[(8+x):8]
+    /// Pop VFP registers d[(8+x):8] with FSTMFDD encoding.
+    ///
+    /// Format: 11010xxx
     UNWIND_OPCODE_POP_VFP_REG_RANGE_FSTMFDD_D8 = 0xd0
   };
 
   /// ARM-defined Personality Routine Index
+  ///
+  /// To make the exception handling table become more compact, ARM defined
+  /// several personality routines in EHABI.  There are 3 different
+  /// personality routines in ARM EHABI currently.  It is possible to have 16
+  /// pre-defined personality routines at most.
   enum PersonalityRoutineIndex {
-    // To make the exception handling table become more compact, ARM defined
-    // several personality routines in EHABI.  There are 3 different
-    // personality routines in ARM EHABI currently.  It is possible to have 16
-    // pre-defined personality routines at most.
-    AEABI_UNWIND_CPP_PR0 = 0,
-    AEABI_UNWIND_CPP_PR1 = 1,
-    AEABI_UNWIND_CPP_PR2 = 2,
+    AEABI_UNWIND_CPP_PR0 = 0, ///< Compact personality routine 0 (__aeabi_unwind_cpp_pr0).
+    AEABI_UNWIND_CPP_PR1 = 1, ///< Compact personality routine 1 (__aeabi_unwind_cpp_pr1).
+    AEABI_UNWIND_CPP_PR2 = 2, ///< Compact personality routine 2 (__aeabi_unwind_cpp_pr2).
 
-    NUM_PERSONALITY_INDEX
+    NUM_PERSONALITY_INDEX ///< Number of predefined personality routine indices.
   };
 }
 }

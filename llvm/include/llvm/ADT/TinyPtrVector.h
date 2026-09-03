@@ -60,6 +60,7 @@ public:
 
   /// Copy-assign from \p RHS.
   /// @param RHS Vector to copy.
+  /// @return Reference to this vector.
   TinyPtrVector &operator=(const TinyPtrVector &RHS) {
     if (this == &RHS)
       return *this;
@@ -96,6 +97,7 @@ public:
 
   /// Move-assign from \p RHS, leaving \p RHS empty.
   /// @param RHS Vector to move from.
+  /// @return Reference to this vector.
   TinyPtrVector &operator=(TinyPtrVector &&RHS) {
     if (this == &RHS)
       return *this;
@@ -134,6 +136,7 @@ public:
   ///
   /// This also is a constructor for individual array elements due to the single
   /// element constructor for ArrayRef.
+  /// @param Elts Elements to copy into the vector.
   explicit TinyPtrVector(ArrayRef<EltTy> Elts)
       : Val(Elts.empty()
                 ? PtrUnion()
@@ -150,6 +153,7 @@ public:
                                     : PtrUnion(new VecTy(Count, Value))) {}
 
   /// Return true if the vector contains no elements.
+  /// @return True if the vector contains no elements.
   bool empty() const {
     // This vector can be empty if it contains no element, or if it
     // contains a pointer to an empty vector.
@@ -159,6 +163,7 @@ public:
   }
 
   /// Return the number of elements.
+  /// @return Number of elements in the vector.
   unsigned size() const {
     if (isa<EltTy>(Val))
       return Val.isNull() ? 0 : 1;
@@ -175,6 +180,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   /// Return a mutable iterator to the first element.
+  /// @return Iterator to the first element.
   iterator begin() {
     if (isa<EltTy>(Val))
       return Val.getAddrOfPtr1();
@@ -183,6 +189,7 @@ public:
   }
 
   /// Return a mutable past-the-end iterator.
+  /// @return Iterator past the last element.
   iterator end() {
     if (isa<EltTy>(Val))
       return begin() + (Val.isNull() ? 0 : 1);
@@ -191,37 +198,46 @@ public:
   }
 
   /// Return a const iterator to the first element.
+  /// @return Const iterator to the first element.
   const_iterator begin() const {
     return (const_iterator)const_cast<TinyPtrVector*>(this)->begin();
   }
 
   /// Return a const past-the-end iterator.
+  /// @return Const iterator past the last element.
   const_iterator end() const {
     return (const_iterator)const_cast<TinyPtrVector*>(this)->end();
   }
 
   /// Return a reverse iterator to the last element.
+  /// @return Reverse iterator to the last element.
   reverse_iterator rbegin() { return reverse_iterator(end()); }
   /// Return a reverse past-the-end iterator.
+  /// @return Reverse iterator past the reverse end.
   reverse_iterator rend() { return reverse_iterator(begin()); }
 
   /// Return a const reverse iterator to the last element.
+  /// @return Const reverse iterator to the last element.
   const_reverse_iterator rbegin() const {
     return const_reverse_iterator(end());
   }
 
   /// Return a const reverse past-the-end iterator.
+  /// @return Const reverse iterator past the reverse end.
   const_reverse_iterator rend() const {
     return const_reverse_iterator(begin());
   }
 
   /// Return a pointer to the first element (or begin for the empty vector).
+  /// @return Pointer to the first element.
   EltTy *data() { return begin(); }
   /// Return a const pointer to the first element.
+  /// @return Const pointer to the first element.
   const EltTy *data() const { return begin(); }
 
   /// Return the element at index \p i.
   /// @param i Zero-based index; must be in range.
+  /// @return The element at index \p i.
   EltTy operator[](unsigned i) const {
     assert(!Val.isNull() && "can't index into an empty vector");
     if (isa<EltTy>(Val)) {
@@ -234,6 +250,7 @@ public:
   }
 
   /// Return the first element; the vector must be non-empty.
+  /// @return The first element.
   EltTy front() const {
     assert(!empty() && "vector empty");
     if (isa<EltTy>(Val))
@@ -242,6 +259,7 @@ public:
   }
 
   /// Return the last element; the vector must be non-empty.
+  /// @return The last element.
   EltTy back() const {
     assert(!empty() && "vector empty");
     if (isa<EltTy>(Val))
@@ -292,6 +310,7 @@ public:
 
   /// Erase the element at \p I and return an iterator to the following element.
   /// @param I Iterator to the element to erase.
+  /// @return Iterator following the removed element.
   iterator erase(iterator I) {
     assert(I >= begin() && "Iterator to erase is out of bounds.");
     assert(I < end() && "Erasing at past-the-end iterator.");
@@ -311,6 +330,7 @@ public:
   /// Erase the half-open range [\p S, \p E).
   /// @param S Start of the range to erase.
   /// @param E Past-the-end of the range to erase.
+  /// @return Iterator following the last removed element.
   iterator erase(iterator S, iterator E) {
     assert(S >= begin() && "Range to erase is out of bounds.");
     assert(S <= E && "Trying to erase invalid range.");
@@ -328,6 +348,7 @@ public:
   /// Insert \p Elt before \p I and return an iterator to the inserted element.
   /// @param I Insertion position.
   /// @param Elt Element pointer to insert (must be non-null).
+  /// @return Iterator to the inserted element.
   iterator insert(iterator I, const EltTy &Elt) {
     assert(I >= this->begin() && "Insertion iterator is out of bounds.");
     assert(I <= this->end() && "Inserting past the end of the vector.");
@@ -351,6 +372,7 @@ public:
   /// @param I Insertion position.
   /// @param From Start of the source range.
   /// @param To Past-the-end of the source range.
+  /// @return Iterator to the first inserted element.
   template <typename ItTy>
   iterator insert(iterator I, ItTy From, ItTy To) {
     assert(I >= this->begin() && "Insertion iterator is out of bounds.");

@@ -282,7 +282,9 @@ template <class Edge, class BBInfo> class CFGMST {
   }
 
 public:
-  // Dump the Debug information about the instrumentation.
+  /// Dump debug information about the instrumentation.
+  /// @param OS Stream to write the dump to.
+  /// @param Message Optional header message printed before the dump.
   void dumpEdges(raw_ostream &OS, const Twine &Message) const {
     if (!Message.str().empty())
       OS << Message << "\n";
@@ -326,7 +328,11 @@ public:
          << getBBInfo(EI->DestBB).Index << EI->infoString() << "\n";
   }
 
-  // Add an edge to AllEdges with weight W.
+  /// Add an edge from \p Src to \p Dest with weight \p W.
+  /// @param Src Source basic block, or null for a fake entry edge.
+  /// @param Dest Destination basic block, or null for a fake exit edge.
+  /// @param W Edge weight used when building the MST.
+  /// @return Reference to the newly created edge.
   Edge &addEdge(BasicBlock *Src, BasicBlock *Dest, uint64_t W) {
     uint32_t Index = BBInfos.size();
     auto Iter = BBInfos.end();
@@ -345,6 +351,15 @@ public:
     return *AllEdges.back();
   }
 
+  /// Construct a CFG minimum spanning tree for \p Func.
+  /// @param Func Function whose CFG is analyzed.
+  /// @param InstrumentFuncEntry Whether the function entry is always
+  /// instrumented.
+  /// @param InstrumentLoopEntries Whether loop entries are always
+  /// instrumented.
+  /// @param BPI Optional branch probability info used to weight edges.
+  /// @param BFI Optional block frequency info used to weight edges.
+  /// @param LI Optional loop info required when instrumenting loop entries.
   CFGMST(Function &Func, bool InstrumentFuncEntry, bool InstrumentLoopEntries,
          BranchProbabilityInfo *BPI = nullptr,
          BlockFrequencyInfo *BFI = nullptr, LoopInfo *LI = nullptr)
@@ -364,24 +379,36 @@ public:
                      std::move(AllEdges.begin() + AllEdges.size() - 1));
   }
 
+  /// Return all CFG edges.
+  /// @return Const reference to the edge list.
   const std::vector<std::unique_ptr<Edge>> &allEdges() const {
     return AllEdges;
   }
 
+  /// Return all CFG edges.
+  /// @return Mutable reference to the edge list.
   std::vector<std::unique_ptr<Edge>> &allEdges() { return AllEdges; }
 
+  /// Return the number of CFG edges.
+  /// @return Number of edges stored for the CFG.
   size_t numEdges() const { return AllEdges.size(); }
 
+  /// Return the number of basic blocks with auxiliary info.
+  /// @return Number of entries in the BB info map.
   size_t bbInfoSize() const { return BBInfos.size(); }
 
-  // Give BB, return the auxiliary information.
+  /// Return the auxiliary information for \p BB.
+  /// @param BB Basic block to look up.
+  /// @return Reference to the auxiliary BB information.
   BBInfo &getBBInfo(const BasicBlock *BB) const {
     auto It = BBInfos.find(BB);
     assert(It->second.get() != nullptr);
     return *It->second.get();
   }
 
-  // Give BB, return the auxiliary information if it's available.
+  /// Return the auxiliary information for \p BB if available.
+  /// @param BB Basic block to look up.
+  /// @return Pointer to the auxiliary BB information, or null if absent.
   BBInfo *findBBInfo(const BasicBlock *BB) const {
     auto It = BBInfos.find(BB);
     if (It == BBInfos.end())

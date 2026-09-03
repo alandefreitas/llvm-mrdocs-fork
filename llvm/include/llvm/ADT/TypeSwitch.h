@@ -32,10 +32,15 @@ public:
 
   /// TypeSwitchBase is not copyable.
   TypeSwitchBase(const TypeSwitchBase &) = delete;
-  void operator=(const TypeSwitchBase &) = delete;
+  /// Copy-assignment is deleted; TypeSwitchBase is move-only.
+  /// @param other Unused; copy assignment is not supported.
+  void operator=(const TypeSwitchBase &other) = delete;
+  /// Move-assignment is deleted because the root value is const.
+  /// @param other Unused; move assignment is not supported.
   void operator=(TypeSwitchBase &&other) = delete;
 
   /// Invoke a case on the derived class with multiple case types.
+  /// @param caseFn Callable invoked for each matching case type.
   template <typename CaseT, typename CaseT2, typename... CaseTs,
             typename CallableT>
   // This is marked always_inline and nodebug so it doesn't show up in stack
@@ -49,10 +54,11 @@ public:
         .template Case<CaseT2, CaseTs...>(caseFn);
   }
 
-  /// Invoke a case on the derived class, inferring the type of the Case from
-  /// the first input of the given callable.
+  /// Invoke a case, inferring the case type from the callable's first argument.
+  ///
   /// Note: This inference rules for this overload are very simple: strip
   ///       pointers and references.
+  /// @param caseFn Callable whose first parameter type selects the case.
   template <typename CallableT> DerivedT &Case(CallableT &&caseFn) {
     using Traits = function_traits<std::decay_t<CallableT>>;
     using CaseT = std::remove_cv_t<std::remove_pointer_t<
@@ -64,6 +70,7 @@ public:
 
 protected:
   /// Attempt to dyn_cast the given `value` to `CastT`.
+  /// @param value Value to cast to \c CastT.
   template <typename CastT, typename ValueT>
   static decltype(auto) castValue(ValueT &&value) {
     return dyn_cast<CastT>(value);
@@ -74,10 +81,10 @@ protected:
 };
 } // end namespace detail
 
-/// This class implements a switch-like dispatch statement for a value of 'T'
-/// using dyn_cast functionality. Each `Case<T>` takes a callable to be invoked
-/// if the root value isa<T>, the callable is invoked with the result of
-/// dyn_cast<T>() as a parameter.
+/// A switch()-like dispatch on a value of type \c T using dyn_cast.
+///
+/// Each `Case<T>` takes a callable to be invoked if the root value isa<T>, the
+/// callable is invoked with the result of dyn_cast<T>() as a parameter.
 ///
 /// Example:
 ///  Operation *op = ...;
@@ -90,13 +97,17 @@ class TypeSwitch : public detail::TypeSwitchBase<TypeSwitch<T, ResultT>, T> {
 public:
   /// CRTP base that provides Case() helpers for this TypeSwitch.
   using BaseT = detail::TypeSwitchBase<TypeSwitch<T, ResultT>, T>;
+  /// Inherit constructors from the CRTP base.
   using BaseT::BaseT;
+  /// Inherit Case() overloads from the CRTP base.
   using BaseT::Case;
   /// Move-construct from another TypeSwitch.
   /// @param other Switch state to move from.
   TypeSwitch(TypeSwitch &&other) = default;
 
   /// Add a case on the given type.
+  /// @param caseFn Callable invoked with the cast value when the case matches.
+  /// @return This switch for further chaining.
   template <typename CaseT, typename CallableT>
   TypeSwitch<T, ResultT> &Case(CallableT &&caseFn) {
     if (result)
@@ -109,6 +120,8 @@ public:
   }
 
   /// As a default, invoke the given callable within the root value.
+  /// @param defaultFn Callable invoked with the root value when no case matched.
+  /// @return The matched result, or the value returned by \p defaultFn.
   template <typename CallableT>
   [[nodiscard]] ResultT Default(CallableT &&defaultFn) {
     if (result)
@@ -117,6 +130,8 @@ public:
   }
 
   /// As a default, return the given value.
+  /// @param defaultResult Value returned when no case matched.
+  /// @return The matched result, or \p defaultResult if no case matched.
   [[nodiscard]] ResultT Default(ResultT defaultResult) {
     if (result)
       return std::move(*result);
@@ -124,23 +139,29 @@ public:
   }
 
   /// Default for pointer-like results types that accept `nullptr`.
+  /// @param Null Unused nullptr literal used to select this overload.
+  /// @return The matched result, or a nullptr-constructed ResultT if none matched.
   template <typename ArgT = ResultT,
             typename =
                 std::enable_if_t<std::is_constructible_v<ArgT, std::nullptr_t>>>
-  [[nodiscard]] ResultT Default(std::nullptr_t) {
+  [[nodiscard]] ResultT Default(std::nullptr_t Null) {
     return Default(ResultT(nullptr));
   }
 
   /// Default for optional results types that accept `std::nullopt`.
+  /// @param None Unused nullopt literal used to select this overload.
+  /// @return The matched result, or a nullopt-constructed ResultT if none matched.
   template <typename ArgT = ResultT,
             typename =
                 std::enable_if_t<std::is_constructible_v<ArgT, std::nullopt_t>>>
-  [[nodiscard]] ResultT Default(std::nullopt_t) {
+  [[nodiscard]] ResultT Default(std::nullopt_t None) {
     return Default(ResultT(std::nullopt));
   }
 
   /// Default for result types constructible from `LogicalResult` (e.g.,
   /// `FailureOr<T>`).
+  /// @param result LogicalResult used to construct the default return value.
+  /// @return The matched result, or a ResultT constructed from \p result.
   template <typename ArgT = ResultT,
             typename =
                 std::enable_if_t<std::is_constructible_v<ArgT, LogicalResult> &&
@@ -150,6 +171,8 @@ public:
   }
 
   /// Declare default as unreachable, making sure that all cases were handled.
+  /// @param message Abort message if no case matched.
+  /// @return The matched result; aborts if no case matched.
   [[nodiscard]] ResultT DefaultUnreachable(
       const char *message = "Fell off the end of a type-switch") {
     if (result)
@@ -158,6 +181,7 @@ public:
   }
 
   /// Convert to \c ResultT, treating a missing case as unreachable.
+  /// @return The matched result; aborts if no case matched.
   [[nodiscard]] operator ResultT() { return DefaultUnreachable(); }
 
 private:
@@ -171,12 +195,19 @@ template <typename T>
 class TypeSwitch<T, void>
     : public detail::TypeSwitchBase<TypeSwitch<T, void>, T> {
 public:
+  /// CRTP base that provides Case() helpers for this TypeSwitch.
   using BaseT = detail::TypeSwitchBase<TypeSwitch<T, void>, T>;
+  /// Inherit constructors from the CRTP base.
   using BaseT::BaseT;
+  /// Inherit Case() overloads from the CRTP base.
   using BaseT::Case;
+  /// Move-construct from another TypeSwitch.
+  /// @param other Switch state to move from.
   TypeSwitch(TypeSwitch &&other) = default;
 
   /// Add a case on the given type.
+  /// @param caseFn Callable invoked with the cast value when the case matches.
+  /// @return This switch for further chaining.
   template <typename CaseT, typename CallableT>
   TypeSwitch<T, void> &Case(CallableT &&caseFn) {
     if (foundMatch)
@@ -191,12 +222,14 @@ public:
   }
 
   /// As a default, invoke the given callable within the root value.
+  /// @param defaultFn Callable invoked with the root value when no case matched.
   template <typename CallableT> void Default(CallableT &&defaultFn) {
     if (!foundMatch)
       defaultFn(this->value);
   }
 
   /// Declare default as unreachable, making sure that all cases were handled.
+  /// @param message Abort message if no case matched.
   void DefaultUnreachable(
       const char *message = "Fell off the end of a type-switch") {
     if (!foundMatch)

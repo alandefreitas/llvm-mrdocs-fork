@@ -55,10 +55,11 @@ struct PassPluginLibraryInfo {
   /// instance
   void (*RegisterPassBuilderCallbacks)(PassBuilder &) = nullptr;
 
-  /// Callback called before running the back-end passes on the module. The
-  /// callback can generate code itself by writing the expected output to OS and
-  /// returning true to prevent the default pipeline and further plugin
-  /// callbacks from running.
+  /// Callback invoked before running back-end passes on a module.
+  ///
+  /// The callback can generate code itself by writing the expected output to
+  /// \p OS and returning true to prevent the default pipeline and further
+  /// plugin callbacks from running.
   bool (*PreCodeGenCallback)(Module &, TargetMachine &, CodeGenFileType,
                              raw_pwrite_stream &OS) = nullptr;
 };
@@ -72,30 +73,48 @@ class PassPlugin {
 public:
   /// Attempts to load a pass plugin from a given file.
   ///
+  /// \param Filename Path to the plugin shared library.
   /// \returns Returns an error if either the library cannot be found or loaded,
   /// there is no public entry point, or the plugin implements the wrong API
   /// version.
   LLVM_ABI static Expected<PassPlugin> Load(const std::string &Filename);
 
   /// Get the filename of the loaded plugin.
+  ///
+  /// \returns The path to the plugin shared library.
   StringRef getFilename() const { return Filename; }
 
   /// Get the plugin name
+  ///
+  /// \returns The name of the loaded plugin.
   StringRef getPluginName() const { return Info.PluginName; }
 
   /// Get the plugin version
+  ///
+  /// \returns The version string of the loaded plugin.
   StringRef getPluginVersion() const { return Info.PluginVersion; }
 
   /// Get the plugin API version
+  ///
+  /// \returns The API version understood by this plugin.
   uint32_t getAPIVersion() const { return Info.APIVersion; }
 
-  /// Invoke the PassBuilder callback registration
+  /// Invoke the PassBuilder callback registration.
+  ///
+  /// \param PB Pass builder that receives the plugin's pass registrations.
   void registerPassBuilderCallbacks(PassBuilder &PB) const {
     if (Info.RegisterPassBuilderCallbacks)
       Info.RegisterPassBuilderCallbacks(PB);
   }
 
   /// Invoke the pre-codegen callback.
+  ///
+  /// \param M Module about to undergo code generation.
+  /// \param TM Target machine for the code generation.
+  /// \param CGFT Output file type requested for code generation.
+  /// \param OS Stream that receives generated code when the callback emits it.
+  /// \returns True if the callback handled code generation; false if there is
+  /// no callback or it declined to handle it.
   bool invokePreCodeGenCallback(Module &M, TargetMachine &TM,
                                 CodeGenFileType CGFT,
                                 raw_pwrite_stream &OS) const {

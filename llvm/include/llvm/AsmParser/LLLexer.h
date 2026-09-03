@@ -25,6 +25,7 @@ namespace llvm {
   class SMDiagnostic;
   class LLVMContext;
 
+  /// Lexer for LLVM IR textual assembly (`.ll` files).
   class LLLexer {
     const char *CurPtr;
     StringRef CurBuf;
@@ -62,46 +63,107 @@ namespace llvm {
     bool IgnoreColonInIdentifiers = false;
 
   public:
-    LLVM_ABI explicit LLLexer(StringRef StartBuf, SourceMgr &SM, SMDiagnostic &,
-                              LLVMContext &C);
+    /// Construct a lexer over assembly buffer \p StartBuf.
+    ///
+    /// \param StartBuf Assembly source text to tokenize.
+    /// \param SM Source manager owning \p StartBuf's buffer.
+    /// \param Err Diagnostic sink for lexer and parser errors.
+    /// \param C Context used when materializing types from tokens.
+    LLVM_ABI explicit LLLexer(StringRef StartBuf, SourceMgr &SM,
+                              SMDiagnostic &Err, LLVMContext &C);
 
+    /// Advance to the next token and return its kind.
+    ///
+    /// \return The kind of the newly lexed token.
     lltok::Kind Lex() { return CurKind = LexToken(); }
 
+    /// Source location type used for lexer and parser diagnostics.
     typedef SMLoc LocTy;
+    /// Return the source location of the start of the current token.
+    ///
+    /// \return Source location of the start of the current token.
     LocTy getLoc() const { return SMLoc::getFromPointer(TokStart); }
+    /// Return the kind of the current token.
+    ///
+    /// \return Kind of the current token.
     lltok::Kind getKind() const { return CurKind; }
+    /// Return the string value associated with the current token.
+    ///
+    /// \return String value of the current token.
     const std::string &getStrVal() const { return StrVal; }
+    /// Return the type value associated with the current token.
+    ///
+    /// \return Type associated with the current token.
     Type *getTyVal() const { return TyVal; }
+    /// Return the unsigned integer value associated with the current token.
+    ///
+    /// \return Unsigned integer value of the current token.
     unsigned getUIntVal() const { return UIntVal; }
+    /// Return the arbitrary-precision integer value of the current token.
+    ///
+    /// \return Arbitrary-precision integer value of the current token.
     const APSInt &getAPSIntVal() const { return APSIntVal; }
+    /// Return the floating-point value associated with the current token.
+    ///
+    /// \return Floating-point value of the current token.
     const APFloat &getAPFloatVal() const { return APFloatVal; }
 
+    /// Control whether a trailing ':' is part of an identifier or a label.
+    ///
+    /// When \p val is false (the default), an identifier ending in ':' is a
+    /// label token. When true, the ':' is treated as a separate token.
+    ///
+    /// \param val Whether to ignore colon characters in identifiers.
     void setIgnoreColonInIdentifiers(bool val) {
       IgnoreColonInIdentifiers = val;
     }
 
     /// Get the line, column position of the start of the current token,
-    /// zero-indexed
+    /// zero-indexed.
+    ///
+    /// \return Zero-indexed line and column of the start of the current token.
     std::pair<unsigned, unsigned> getTokLineColumnPos() {
       auto LC = SM.getLineAndColumn(SMLoc::getFromPointer(TokStart));
       return {LC.first - 1, LC.second - 1};
     }
     /// Get the line, column position of the end of the previous token,
-    /// zero-indexed exclusive
+    /// zero-indexed exclusive.
+    ///
+    /// \return Zero-indexed exclusive line and column of the previous token end.
     std::pair<unsigned, unsigned> getPrevTokEndLineColumnPos() {
       auto LC = SM.getLineAndColumn(SMLoc::getFromPointer(PrevTokEnd));
       return {LC.first - 1, LC.second - 1};
     }
 
-    // This returns true as a convenience for the parser functions that return
-    // true on error.
+    /// Record a parser error at \p ErrorLoc and return true.
+    ///
+    /// Always returns true as a convenience for parser functions that return
+    /// true on error.
+    ///
+    /// \param ErrorLoc Source location of the error.
+    /// \param Msg Diagnostic message to report.
+    /// \return Always true.
     bool ParseError(LocTy ErrorLoc, const Twine &Msg) {
       Error(ErrorLoc, Msg, ErrorPriority::Parser);
       return true;
     }
+    /// Record a parser error at the current token and return true.
+    ///
+    /// Always returns true as a convenience for parser functions that return
+    /// true on error.
+    ///
+    /// \param Msg Diagnostic message to report.
+    /// \return Always true.
     bool ParseError(const Twine &Msg) { return ParseError(getLoc(), Msg); }
 
+    /// Emit a warning diagnostic at \p WarningLoc.
+    ///
+    /// \param WarningLoc Source location of the warning.
+    /// \param Msg Diagnostic message to report.
     LLVM_ABI void Warning(LocTy WarningLoc, const Twine &Msg) const;
+    /// Emit a warning diagnostic at the current token location.
+    ///
+    /// \param Msg Diagnostic message to report.
     void Warning(const Twine &Msg) const { return Warning(getLoc(), Msg); }
 
   private:

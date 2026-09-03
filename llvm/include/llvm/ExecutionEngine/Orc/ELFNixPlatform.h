@@ -28,21 +28,32 @@
 namespace llvm {
 namespace orc {
 
+/// Per-object ELF sections that must be registered with the ORC runtime.
 struct ELFPerObjectSectionsToRegister {
+  /// Range of the object's EH frame section, if present.
   ExecutorAddrRange EHFrameSection;
+  /// Range of the object's thread-local data section, if present.
   ExecutorAddrRange ThreadDataSection;
 };
 
+/// List of JITDylib header addresses that a JITDylib depends on.
 using ELFNixJITDylibDepInfo = std::vector<ExecutorAddr>;
+/// Map from JITDylib header address to its dependency info.
 using ELFNixJITDylibDepInfoMap =
     std::vector<std::pair<ExecutorAddr, ELFNixJITDylibDepInfo>>;
 
+/// Named ORC runtime function whose address is resolved during bootstrap.
 struct RuntimeFunction {
+  /// Construct a runtime function entry for the given symbol name.
+  /// @param Name Interned name of the runtime function.
   RuntimeFunction(SymbolStringPtr Name) : Name(std::move(Name)) {}
+  /// Interned name of the runtime function.
   SymbolStringPtr Name;
+  /// Resolved address of the runtime function in the executor.
   ExecutorAddr Addr;
 };
 
+/// Map of deferred runtime function call argument pairs pending bootstrap.
 using DeferredRuntimeFnMap = DenseMap<
     std::pair<RuntimeFunction *, RuntimeFunction *>,
     SmallVector<std::pair<shared::WrapperFunctionCall::ArgDataBufferType,
@@ -89,41 +100,82 @@ public:
   /// override these defaults by passing a non-None value for the
   /// RuntimeAliases function, in which case the client is responsible for
   /// setting up all aliases (including the required ones).
+  /// @param ObjLinkingLayer Object linking layer used to load the runtime and
+  ///        JIT'd objects.
+  /// @param PlatformJD JITDylib that will hold the ORC runtime and platform
+  ///        aliases.
+  /// @param OrcRuntime Definition generator that supplies the ORC runtime.
+  /// @param RuntimeAliases Optional alias map; if unset,
+  ///        \c standardPlatformAliases is used.
+  /// @return An ELFNixPlatform instance, or an error if creation fails.
   static Expected<std::unique_ptr<ELFNixPlatform>>
   Create(ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
          std::unique_ptr<DefinitionGenerator> OrcRuntime,
          std::optional<SymbolAliasMap> RuntimeAliases = std::nullopt);
 
   /// Construct using a path to the ORC runtime.
+  /// @param ObjLinkingLayer Object linking layer used to load the runtime and
+  ///        JIT'd objects.
+  /// @param PlatformJD JITDylib that will hold the ORC runtime and platform
+  ///        aliases.
+  /// @param OrcRuntimePath Filesystem path to the ORC runtime static archive.
+  /// @param RuntimeAliases Optional alias map; if unset,
+  ///        \c standardPlatformAliases is used.
+  /// @return An ELFNixPlatform instance, or an error if creation fails.
   static Expected<std::unique_ptr<ELFNixPlatform>>
   Create(ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
          const char *OrcRuntimePath,
          std::optional<SymbolAliasMap> RuntimeAliases = std::nullopt);
 
+  /// Returns the ExecutionSession for this platform.
+  /// @return The ExecutionSession for this platform.
   ExecutionSession &getExecutionSession() const { return ES; }
+  /// Returns the ObjectLinkingLayer for this platform.
+  /// @return The ObjectLinkingLayer for this platform.
   ObjectLinkingLayer &getObjectLinkingLayer() const { return ObjLinkingLayer; }
 
+  /// Install ELFNix platform symbols and per-JITDylib runtime support in \p JD.
+  /// @param JD JITDylib to set up for ELFNix execution.
+  /// @return Success, or an error if setup fails.
   Error setupJITDylib(JITDylib &JD) override;
+  /// Remove ELFNix platform state associated with \p JD.
+  /// @param JD JITDylib being torn down.
+  /// @return Success, or an error if teardown fails.
   Error teardownJITDylib(JITDylib &JD) override;
+  /// Record initializer symbols when a MaterializationUnit is added.
+  /// @param RT Resource tracker for the JITDylib receiving \p MU.
+  /// @param MU Materialization unit being added.
+  /// @return Success, or an error if recording initializers fails.
   Error notifyAdding(ResourceTracker &RT,
                      const MaterializationUnit &MU) override;
+  /// Handle removal of a ResourceTracker (not supported yet).
+  /// @param RT Resource tracker being removed.
+  /// @return Success, or an error if removal is not supported.
   Error notifyRemoving(ResourceTracker &RT) override;
 
-  /// Returns an AliasMap containing the default aliases for the ELFNixPlatform.
+  /// Returns the default aliases for the ELFNixPlatform.
+  ///
   /// This can be modified by clients when constructing the platform to add
   /// or remove aliases.
+  /// @param ES Execution session used to intern alias symbol names.
+  /// @param PlatformJD JITDylib that will hold the platform aliases.
+  /// @return The default symbol alias map for ELFNixPlatform, or an error.
   static Expected<SymbolAliasMap> standardPlatformAliases(ExecutionSession &ES,
                                                           JITDylib &PlatformJD);
 
   /// Returns the array of required CXX aliases.
+  /// @return The array of required CXX aliases.
   static ArrayRef<std::pair<const char *, const char *>> requiredCXXAliases();
 
   /// Returns the array of standard runtime utility aliases for ELF.
+  /// @return The array of standard runtime utility aliases for ELF.
   static ArrayRef<std::pair<const char *, const char *>>
   standardRuntimeUtilityAliases();
 
   /// Returns a list of aliases required to enable lazy compilation via the
   /// ORC runtime.
+  /// @return The list of aliases required for lazy compilation via the ORC
+  ///         runtime.
   static ArrayRef<std::pair<const char *, const char *>>
   standardLazyCompilationAliases();
 
@@ -269,27 +321,41 @@ private:
   std::atomic<BootstrapInfo *> Bootstrap;
 };
 
+/// SPS serialization helpers for ELFNixPlatform types.
 namespace shared {
 
+/// SPS tag type for ELFPerObjectSectionsToRegister as an EH-frame/TLV pair.
 using SPSELFPerObjectSectionsToRegister =
     SPSTuple<SPSExecutorAddrRange, SPSExecutorAddrRange>;
 
+/// SPS serialization traits for ELFPerObjectSectionsToRegister.
 template <>
 class SPSSerializationTraits<SPSELFPerObjectSectionsToRegister,
                              ELFPerObjectSectionsToRegister> {
 
 public:
+  /// Return the serialized size of \p MOPOSR.
+  /// @param MOPOSR Sections to measure.
+  /// @return Number of bytes needed to serialize \p MOPOSR.
   static size_t size(const ELFPerObjectSectionsToRegister &MOPOSR) {
     return SPSELFPerObjectSectionsToRegister::AsArgList::size(
         MOPOSR.EHFrameSection, MOPOSR.ThreadDataSection);
   }
 
+  /// Serialize \p MOPOSR into \p OB.
+  /// @param OB Output buffer.
+  /// @param MOPOSR Sections to serialize.
+  /// @return True on success, false if serialization fails.
   static bool serialize(SPSOutputBuffer &OB,
                         const ELFPerObjectSectionsToRegister &MOPOSR) {
     return SPSELFPerObjectSectionsToRegister::AsArgList::serialize(
         OB, MOPOSR.EHFrameSection, MOPOSR.ThreadDataSection);
   }
 
+  /// Deserialize an ELFPerObjectSectionsToRegister from \p IB into \p MOPOSR.
+  /// @param IB Input buffer.
+  /// @param MOPOSR Destination sections.
+  /// @return True on success, false if deserialization fails.
   static bool deserialize(SPSInputBuffer &IB,
                           ELFPerObjectSectionsToRegister &MOPOSR) {
     return SPSELFPerObjectSectionsToRegister::AsArgList::deserialize(
@@ -297,6 +363,7 @@ public:
   }
 };
 
+/// SPS tag type for ELFNixJITDylibDepInfoMap.
 using SPSELFNixJITDylibDepInfoMap =
     SPSSequence<SPSTuple<SPSExecutorAddr, SPSSequence<SPSExecutorAddr>>>;
 

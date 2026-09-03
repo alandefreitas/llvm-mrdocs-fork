@@ -58,9 +58,14 @@ class BPFunctionNode {
   friend class BalancedPartitioning;
 
 public:
+  /// Type of the function node identifier
   using IDT = uint64_t;
+  /// Type of a utility node identifier
   using UtilityNodeT = uint32_t;
 
+  /// Construct a function node with the given identifier and utility nodes
+  ///
+  /// \param Id the identifier of this function node
   /// \param UtilityNodes the set of utility nodes (must be unique'd)
   BPFunctionNode(IDT Id, ArrayRef<UtilityNodeT> UtilityNodes)
       : Id(Id), UtilityNodes(UtilityNodes) {}
@@ -68,6 +73,9 @@ public:
   /// The ID of this node
   IDT Id;
 
+  /// Print this function node to the given output stream
+  ///
+  /// \param OS the stream to write to
   LLVM_ABI void dump(raw_ostream &OS) const;
 
 protected:
@@ -78,8 +86,11 @@ protected:
   /// The index of the input order of the FunctionNodes
   uint64_t InputOrderIndex = 0;
 
+  /// Test fixture with access to BPFunctionNode internals
   friend class BPFunctionNodeTest_Basic_Test;
+  /// Test fixture with access to BalancedPartitioning internals
   friend class BalancedPartitioningTest_Basic_Test;
+  /// Test fixture for large BalancedPartitioning cases
   friend class BalancedPartitioningTest_Large_Test;
 };
 
@@ -92,17 +103,27 @@ struct BalancedPartitioningConfig {
   /// The probability for a vertex to skip a move from its current bucket to
   /// another bucket; it often helps to escape from a local optima
   float SkipProbability = 0.1f;
+  /// Maximum recursion depth at which bisect subtasks are parallelized
+  ///
   /// Recursive subtasks up to the given depth are added to the queue and
   /// distributed among threads by ThreadPool; all subsequent calls are executed
   /// on the same thread
   unsigned TaskSplitDepth = 9;
 };
 
+/// Recursive balanced graph partitioning for ordering function nodes
 class BalancedPartitioning {
 public:
+  /// Construct a balanced partitioner with the given configuration
+  ///
+  /// \param Config algorithm parameters controlling depth, iterations, and
+  /// parallelization
   LLVM_ABI BalancedPartitioning(const BalancedPartitioningConfig &Config);
 
   /// Run recursive graph partitioning that optimizes a given objective.
+  ///
+  /// \param Nodes the function nodes to partition; buckets are written back in
+  /// place
   LLVM_ABI void run(std::vector<BPFunctionNode> &Nodes) const;
 
 private:
@@ -193,8 +214,15 @@ private:
 
 protected:
   /// Compute the move gain for uniform log-gap cost
+  ///
+  /// \param N the function node whose move gain is computed
+  /// \param FromLeftToRight true to evaluate a move from the left bucket to the
+  /// right, false for the opposite direction
+  /// \param Signatures the utility-node signatures for the current bisection
+  /// \returns the gain of moving \p N in the requested direction
   LLVM_ABI static float moveGain(const BPFunctionNode &N, bool FromLeftToRight,
                                  const SignaturesT &Signatures);
+  /// Test fixture with access to BalancedPartitioning::moveGain
   friend class BalancedPartitioningTest_MoveGain_Test;
 };
 

@@ -48,8 +48,12 @@ private:
   uint64_t current_pos() const override { return OS.str().size(); }
 
 public:
+  /// Construct an unbuffered stream that hashes written data.
   HashingStream() : OS(Buffer) { SetUnbuffered(); }
 
+  /// Finalize the hash of all written data and return the digest.
+  ///
+  /// \return The hash digest of all data written to the stream.
   auto final() {
     Builder.update(OS.str());
     return Builder.final();
@@ -68,10 +72,18 @@ private:
   }
 
 protected:
+  /// Return this backend; hashing backends share state and are not cloned.
+  ///
+  /// \return A reference-counted pointer to this backend.
   IntrusiveRefCntPtr<OutputBackend> cloneImpl() const override {
     return const_cast<HashingOutputBackend<HasherT> *>(this);
   }
 
+  /// Create a hashing output file for \p Path.
+  ///
+  /// \param Path Output path whose contents will be hashed.
+  /// \param Config Optional output configuration; unused by this backend.
+  /// \return A hashing output file for \p Path, or an error on failure.
   Expected<std::unique_ptr<OutputFileImpl>>
   createFileImpl(StringRef Path, std::optional<OutputConfig> Config) override {
     return std::make_unique<HashingOutputFile<HasherT>>(Path, *this);
@@ -81,12 +93,17 @@ public:
   /// Iterator for all the output file names.
   ///
   /// Not thread safe. Should be queried after all outputs are written.
+  ///
+  /// \return A range of the hashed output file paths.
   auto outputFiles() const { return OutputHashes.keys(); }
 
   /// Get hash value for the output files in hex representation.
-  /// Return None if the requested path is not generated.
   ///
   /// Not thread safe. Should be queried after all outputs are written.
+  ///
+  /// \param Path Output path whose hash should be returned.
+  /// \return The hex-encoded hash for \p Path, or \c std::nullopt if that
+  /// path was not generated.
   std::optional<std::string> getHashValueForFile(StringRef Path) {
     auto F = OutputHashes.find(Path);
     if (F == OutputHashes.end())
@@ -103,14 +120,27 @@ private:
 template <typename HasherT>
 class HashingOutputFile final : public OutputFileImpl {
 public:
+  /// Finalize the content hash and store it in the backend.
+  ///
+  /// \return Success, or an error if the hash could not be stored.
   Error keep() override {
     auto Result = OS.final();
     Backend.addOutputFile(OutputPath, toStringRef(Result));
     return Error::success();
   }
+  /// Discard the output without recording a hash.
+  ///
+  /// \return Success.
   Error discard() override { return Error::success(); }
+  /// Return the stream that hashes written content.
+  ///
+  /// \return The hashing stream that receives written content.
   raw_pwrite_stream &getOS() override { return OS; }
 
+  /// Construct a hashing output file for \p OutputPath owned by \p Backend.
+  ///
+  /// \param OutputPath Path of the logical output whose contents are hashed.
+  /// \param Backend Backend that will store the hash when the file is kept.
   HashingOutputFile(StringRef OutputPath,
                     HashingOutputBackend<HasherT> &Backend)
       : OutputPath(OutputPath.str()), Backend(Backend) {}

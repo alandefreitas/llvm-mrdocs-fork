@@ -24,10 +24,15 @@
 namespace llvm {
 namespace orc {
 
+/// RedirectableSymbolManager implementation that uses JITLink stubs.
 class LLVM_ABI JITLinkRedirectableSymbolManager
     : public RedirectableSymbolManager {
 public:
-  /// Create redirection manager that uses JITLink based implementaion.
+  /// Create a redirection manager that uses a JITLink-based implementation.
+  /// \param ObjLinkingLayer Object linking layer used to emit stub graphs.
+  /// \param MemAccess Memory-access interface for the executor process.
+  /// \return A new RedirectableSymbolManager, or an error if the architecture
+  ///         is unsupported.
   static Expected<std::unique_ptr<RedirectableSymbolManager>>
   Create(ObjectLinkingLayer &ObjLinkingLayer, MemoryAccess &MemAccess) {
     auto AnonymousPtrCreator(jitlink::getAnonymousPointerCreator(
@@ -43,6 +48,13 @@ public:
                                              PtrJumpStubCreator));
   }
 
+  /// Construct a JITLink-based redirectable symbol manager.
+  /// \param ObjLinkingLayer Object linking layer used to emit stub graphs.
+  /// \param MemAccess Memory-access interface for the executor process.
+  /// \param AnonymousPtrCreator Architecture-specific anonymous pointer
+  ///        creator.
+  /// \param PtrJumpStubCreator Architecture-specific pointer jump-stub
+  ///        creator.
   JITLinkRedirectableSymbolManager(
       ObjectLinkingLayer &ObjLinkingLayer, MemoryAccess &MemAccess,
       jitlink::AnonymousPointerCreator &AnonymousPtrCreator,
@@ -51,11 +63,20 @@ public:
         AnonymousPtrCreator(std::move(AnonymousPtrCreator)),
         PtrJumpStubCreator(std::move(PtrJumpStubCreator)) {}
 
+  /// Return a reference to the ObjectLinkingLayer used by this manager.
+  /// \return Reference to the ObjectLinkingLayer used by this manager.
   ObjectLinkingLayer &getObjectLinkingLayer() const { return ObjLinkingLayer; }
 
+  /// Emit redirectable symbols with the given initial destinations.
+  /// \param R Materialization responsibility for the symbols being emitted.
+  /// \param InitialDests Map of symbol names to their initial destinations.
   void emitRedirectableSymbols(std::unique_ptr<MaterializationResponsibility> R,
                                SymbolMap InitialDests) override;
 
+  /// Redirect named symbols in \p JD to the destinations in \p NewDests.
+  /// \param JD JITDylib containing the symbols to redirect.
+  /// \param NewDests Map of symbol names to new destination definitions.
+  /// \return Success, or an error if redirection fails.
   Error redirect(JITDylib &JD, const SymbolMap &NewDests) override;
 
 private:

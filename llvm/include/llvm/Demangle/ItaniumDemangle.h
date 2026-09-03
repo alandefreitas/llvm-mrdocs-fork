@@ -36,8 +36,11 @@
 #pragma clang diagnostic ignored "-Wunused-template"
 #endif
 
-DEMANGLE_NAMESPACE_BEGIN
+namespace llvm {
+/// Itanium C++ ABI demangler AST nodes, utilities, and parser.
+namespace itanium_demangle {
 
+/// Small vector of POD elements with inline storage of capacity N.
 template <class T, size_t N> class PODSmallVector {
   static_assert(std::is_trivially_copyable<T>::value,
                 "T is required to be a trivially copyable type");
@@ -75,11 +78,18 @@ template <class T, size_t N> class PODSmallVector {
   }
 
 public:
+  /// Construct an empty vector using inline storage.
   PODSmallVector() : First(Inline), Last(First), Cap(Inline + N) {}
 
-  PODSmallVector(const PODSmallVector &) = delete;
-  PODSmallVector &operator=(const PODSmallVector &) = delete;
+  /// Copy construction is deleted.
+  /// \param Other Unused; copy construction is deleted.
+  PODSmallVector(const PODSmallVector &Other) = delete;
+  /// Copy assignment is deleted.
+  /// \param Other Unused; copy assignment is deleted.
+  PODSmallVector &operator=(const PODSmallVector &Other) = delete;
 
+  /// Move-construct from \p Other, leaving it empty.
+  /// \param Other Source vector whose elements are taken or copied.
   PODSmallVector(PODSmallVector &&Other) : PODSmallVector() {
     if (Other.isInline()) {
       std::copy(Other.begin(), Other.end(), First);
@@ -94,6 +104,9 @@ public:
     Other.clearInline();
   }
 
+  /// Move-assign from \p Other, leaving it empty.
+  /// \param Other Source vector whose elements are taken or copied.
+  /// \return A reference to this vector.
   PODSmallVector &operator=(PODSmallVector &&Other) {
     if (Other.isInline()) {
       if (!isInline()) {
@@ -122,6 +135,8 @@ public:
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
+  /// Append \p Elem, growing storage if needed.
+  /// \param Elem Element to append.
   void push_back(const T &Elem) {
     if (Last == Cap)
       reserve(size() * 2);
@@ -129,31 +144,49 @@ public:
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
+  /// Remove the last element.
   void pop_back() {
     DEMANGLE_ASSERT(Last != First, "Popping empty vector!");
     --Last;
   }
 
+  /// Shrink the vector to the first \p Index elements.
+  /// \param Index New size; must be <= size().
   void shrinkToSize(size_t Index) {
     DEMANGLE_ASSERT(Index <= size(), "shrinkToSize() can't expand!");
     Last = First + Index;
   }
 
+  /// Return a pointer to the first element.
+  /// \return A pointer to the first element.
   T *begin() { return First; }
+  /// Return a pointer one past the last element.
+  /// \return A pointer one past the last element.
   T *end() { return Last; }
 
+  /// Return true if the vector has no elements.
+  /// \return True if there are no elements.
   bool empty() const { return First == Last; }
+  /// Return the number of elements.
+  /// \return The number of elements.
   size_t size() const { return static_cast<size_t>(Last - First); }
+  /// Return a reference to the last element.
+  /// \return A reference to the last element.
   T &back() {
     DEMANGLE_ASSERT(Last != First, "Calling back() on empty vector!");
     return *(Last - 1);
   }
+  /// Return a reference to the element at \p Index.
+  /// \param Index Zero-based element index.
+  /// \return A reference to the element at the given index.
   T &operator[](size_t Index) {
     DEMANGLE_ASSERT(Index < size(), "Invalid access!");
     return *(begin() + Index);
   }
+  /// Remove all elements without freeing capacity.
   void clear() { Last = First; }
 
+  /// Destroy the vector and free any heap storage.
   ~PODSmallVector() {
     if (!isInline())
       std::free(First);
@@ -162,41 +195,74 @@ public:
 
 class NodeArray;
 
-// Base class of all AST nodes. The AST is built by the parser, then is
-// traversed by the printLeft/Right functions to produce a demangled string.
+/// Base class of all Itanium demangler AST nodes.
+///
+/// The AST is built by the parser, then traversed by the printLeft/Right
+/// functions to produce a demangled string.
 class Node {
 public:
+  /// Discriminator for the concrete derived node type.
   enum Kind : uint8_t {
 #define NODE(NodeKind) K##NodeKind,
 #include "ItaniumNodes.def"
   };
 
-  /// Three-way bool to track a cached value. Unknown is possible if this node
-  /// has an unexpanded parameter pack below it that may affect this cache.
-  enum class Cache : uint8_t { Yes, No, Unknown, };
+  /// Three-way bool to track a cached value.
+  ///
+  /// Unknown is possible if this node has an unexpanded parameter pack below
+  /// it that may affect this cache.
+  enum class Cache : uint8_t {
+    /// Cached result is true.
+    Yes,
+    /// Cached result is false.
+    No,
+    /// Result depends on unexpanded packs and is not yet known.
+    Unknown,
+  };
 
-  /// Operator precedence for expression nodes. Used to determine required
-  /// parens in expression emission.
+  /// Operator precedence for expression nodes.
+  ///
+  /// Used to determine required parentheses in expression emission.
   enum class Prec : uint8_t {
+    /// Primary expression (highest precedence).
     Primary,
+    /// Postfix operators (++, --, calls, subscripts).
     Postfix,
+    /// Prefix unary operators.
     Unary,
+    /// C-style and named casts.
     Cast,
+    /// Pointer-to-member operators .* and ->*.
     PtrMem,
+    /// Multiplicative operators *, /, %.
     Multiplicative,
+    /// Additive operators + and -.
     Additive,
+    /// Shift operators << and >>.
     Shift,
+    /// Three-way comparison operator <=>.
     Spaceship,
+    /// Relational operators <, >, <=, >=.
     Relational,
+    /// Equality operators == and !=.
     Equality,
+    /// Bitwise AND operator &.
     And,
+    /// Bitwise XOR operator ^.
     Xor,
+    /// Bitwise OR operator |.
     Ior,
+    /// Logical AND operator &&.
     AndIf,
+    /// Logical OR operator ||.
     OrIf,
+    /// Conditional operator ?: .
     Conditional,
+    /// Assignment and compound assignment operators.
     Assign,
+    /// Comma operator.
     Comma,
+    /// Default / sentinel precedence used when none is specified.
     Default,
   };
 
@@ -219,60 +285,110 @@ protected:
   Cache FunctionCache : 2;
 
 public:
+  /// Construct a node with kind, precedence, and cache hints.
+  /// \param K_ Concrete node kind.
+  /// \param Precedence_ Expression precedence for this node.
+  /// \param RHSComponentCache_ Whether this node has a right-hand component.
+  /// \param ArrayCache_ Whether this node is an array type.
+  /// \param FunctionCache_ Whether this node is a function type.
   Node(Kind K_, Prec Precedence_ = Prec::Primary,
        Cache RHSComponentCache_ = Cache::No, Cache ArrayCache_ = Cache::No,
        Cache FunctionCache_ = Cache::No)
       : K(K_), Precedence(Precedence_), RHSComponentCache(RHSComponentCache_),
         ArrayCache(ArrayCache_), FunctionCache(FunctionCache_) {}
+  /// Construct a node with kind and cache hints, using primary precedence.
+  /// \param K_ Concrete node kind.
+  /// \param RHSComponentCache_ Whether this node has a right-hand component.
+  /// \param ArrayCache_ Whether this node is an array type.
+  /// \param FunctionCache_ Whether this node is a function type.
   Node(Kind K_, Cache RHSComponentCache_, Cache ArrayCache_ = Cache::No,
        Cache FunctionCache_ = Cache::No)
       : Node(K_, Prec::Primary, RHSComponentCache_, ArrayCache_,
              FunctionCache_) {}
 
   /// Visit the most-derived object corresponding to this object.
+  /// \param F Callable invoked with the node cast to its derived type.
   template<typename Fn> void visit(Fn F) const;
 
   // The following function is provided by all derived classes:
   //
   // Call F with arguments that, when passed to the constructor of this node,
   // would construct an equivalent node.
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   //template<typename Fn> void match(Fn F) const;
 
+  /// Return true if this node has a right-hand print component.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponent(OutputBuffer &OB) const {
     if (RHSComponentCache != Cache::Unknown)
       return RHSComponentCache == Cache::Yes;
     return hasRHSComponentSlow(OB);
   }
 
+  /// Return true if this node is a (possibly qualified) array type.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) array type.
   bool hasArray(OutputBuffer &OB) const {
     if (ArrayCache != Cache::Unknown)
       return ArrayCache == Cache::Yes;
     return hasArraySlow(OB);
   }
 
+  /// Return true if this node is a (possibly qualified) function type.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) function type.
   bool hasFunction(OutputBuffer &OB) const {
     if (FunctionCache != Cache::Unknown)
       return FunctionCache == Cache::Yes;
     return hasFunctionSlow(OB);
   }
 
+  /// Return the concrete kind of this node.
+  /// \return The concrete kind of this node.
   Kind getKind() const { return K; }
 
+  /// Return the expression precedence of this node.
+  /// \return The expression precedence of this node.
   Prec getPrecedence() const { return Precedence; }
+  /// Return the cached right-hand-component flag.
+  /// \return The cached right-hand-component flag.
   Cache getRHSComponentCache() const { return RHSComponentCache; }
+  /// Return the cached array-type flag.
+  /// \return The cached array-type flag.
   Cache getArrayCache() const { return ArrayCache; }
+  /// Return the cached function-type flag.
+  /// \return The cached function-type flag.
   Cache getFunctionCache() const { return FunctionCache; }
 
-  virtual bool hasRHSComponentSlow(OutputBuffer &) const { return false; }
-  virtual bool hasArraySlow(OutputBuffer &) const { return false; }
-  virtual bool hasFunctionSlow(OutputBuffer &) const { return false; }
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node has a right-hand print component.
+  virtual bool hasRHSComponentSlow(OutputBuffer &OB) const { return false; }
+  /// Slow path for hasArray when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) array type.
+  virtual bool hasArraySlow(OutputBuffer &OB) const { return false; }
+  /// Slow path for hasFunction when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) function type.
+  virtual bool hasFunctionSlow(OutputBuffer &OB) const { return false; }
 
-  // Dig through "glue" nodes like ParameterPack and ForwardTemplateReference to
-  // get at a node that actually represents some concrete syntax.
-  virtual const Node *getSyntaxNode(OutputBuffer &) const { return this; }
+  /// Dig through glue nodes to the concrete syntax node.
+  ///
+  /// Skips ParameterPack and ForwardTemplateReference wrappers.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return The concrete syntax node under glue wrappers.
+  virtual const Node *getSyntaxNode(OutputBuffer &OB) const { return this; }
 
-  // Print this node as an expression operand, surrounding it in parentheses if
-  // its precedence is [Strictly] weaker than P.
+  /// Print this node as an expression operand.
+  ///
+  /// Surrounds the node in parentheses if its precedence is weaker than \p P
+  /// (or strictly weaker when \p StrictlyWorse is true).
+  /// \param OB Destination demangle output buffer.
+  /// \param P Surrounding operator precedence.
+  /// \param StrictlyWorse Require strictly weaker precedence for parentheses.
   void printAsOperand(OutputBuffer &OB, Prec P = Prec::Default,
                       bool StrictlyWorse = false) const {
     bool Paren =
@@ -284,64 +400,93 @@ public:
       OB.printClose();
   }
 
+  /// Print this node by emitting its left and optional right components.
+  /// \param OB Destination demangle output buffer.
   void print(OutputBuffer &OB) const {
     OB.printLeft(*this);
     if (RHSComponentCache != Cache::No)
       OB.printRight(*this);
   }
 
-  // Print an initializer list of this type. Returns true if we printed a custom
-  // representation, false if nothing has been printed and the default
-  // representation should be used.
-  virtual bool printInitListAsType(OutputBuffer &, const NodeArray &) const {
+  /// Print an initializer list of this type.
+  ///
+  /// \return true if a custom representation was printed; false to use the
+  /// default representation.
+  /// \param OB Destination demangle output buffer.
+  /// \param Elements Initializer-list element nodes.
+  virtual bool printInitListAsType(OutputBuffer &OB,
+                                   const NodeArray &Elements) const {
     return false;
   }
 
+  /// Return the base identifier spelling for this name node, if any.
+  /// \return The base identifier spelling for this name node.
   virtual std::string_view getBaseName() const { return {}; }
 
-  // Silence compiler warnings, this dtor will never be called.
+  /// Virtual destructor; nodes are not destroyed through this hierarchy.
   virtual ~Node() = default;
 
 #ifndef NDEBUG
+  /// Dump this node for debugging.
   DEMANGLE_DUMP_METHOD void dump() const;
 #endif
 
 private:
   friend class OutputBuffer;
 
-  // Print the "left" side of this Node into OutputBuffer.
-  //
-  // Note, should only be called from OutputBuffer implementations.
-  // Call \ref OutputBuffer::printLeft instead.
-  virtual void printLeft(OutputBuffer &) const = 0;
+  /// Print the left-hand portion of this node into \p OB.
+  ///
+  /// Only OutputBuffer implementations should call this; clients use
+  /// \ref OutputBuffer::printLeft instead.
+  /// \param OB Destination demangle output buffer.
+  virtual void printLeft(OutputBuffer &OB) const = 0;
 
-  // Print the "right". This distinction is necessary to represent C++ types
-  // that appear on the RHS of their subtype, such as arrays or functions.
-  // Since most types don't have such a component, provide a default
-  // implementation.
-  //
-  // Note, should only be called from OutputBuffer implementations.
-  // Call \ref OutputBuffer::printRight instead.
-  virtual void printRight(OutputBuffer &) const {}
+  /// Print the right-hand portion of this node into \p OB.
+  ///
+  /// Needed for C++ types that appear to the right of their subtype, such as
+  /// arrays or functions. Most nodes have no right-hand component.
+  ///
+  /// Only OutputBuffer implementations should call this; clients use
+  /// \ref OutputBuffer::printRight instead.
+  /// \param OB Destination demangle output buffer.
+  virtual void printRight(OutputBuffer &OB) const {}
 };
 
+/// Non-owning array of AST node pointers.
 class NodeArray {
   Node **Elements;
   size_t NumElements;
 
 public:
+  /// Construct an empty node array.
   NodeArray() : Elements(nullptr), NumElements(0) {}
+  /// Construct a node array over \p Elements_ of length \p NumElements_.
+  /// \param Elements_ Pointer to the first node pointer.
+  /// \param NumElements_ Number of elements.
   NodeArray(Node **Elements_, size_t NumElements_)
       : Elements(Elements_), NumElements(NumElements_) {}
 
+  /// Return true if the array has no elements.
+  /// \return True if there are no elements.
   bool empty() const { return NumElements == 0; }
+  /// Return the number of elements.
+  /// \return The number of elements.
   size_t size() const { return NumElements; }
 
+  /// Return a pointer to the first element.
+  /// \return A pointer to the first element.
   Node **begin() const { return Elements; }
+  /// Return a pointer one past the last element.
+  /// \return A pointer one past the last element.
   Node **end() const { return Elements + NumElements; }
 
+  /// Return the element at \p Idx.
+  /// \param Idx Zero-based element index.
+  /// \return A reference to the element at the given index.
   Node *operator[](size_t Idx) const { return Elements[Idx]; }
 
+  /// Print elements as a comma-separated operand list into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printWithComma(OutputBuffer &OB) const {
     bool FirstElement = true;
     for (size_t Idx = 0; Idx != NumElements; ++Idx) {
@@ -362,30 +507,47 @@ public:
     }
   }
 
-  // Print an array of integer literals as a string literal. Returns whether we
-  // could do so.
+  /// Print an array of integer literals as a string literal.
+  /// \param OB Destination demangle output buffer.
+  /// \return true if a string literal was printed.
   bool printAsString(OutputBuffer &OB) const;
 };
 
+/// AST node wrapping a NodeArray for printing.
 struct NodeArrayNode : Node {
+  /// Contained node array.
   NodeArray Array;
+  /// Construct a NodeArrayNode node.
+  /// \param Array_ The array.
   NodeArrayNode(NodeArray Array_) : Node(KNodeArrayNode), Array(Array_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Array); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override { Array.printWithComma(OB); }
 };
 
+/// Vendor or extension suffix after a mangled encoding.
 class DotSuffix final : public Node {
   const Node *Prefix;
   const std::string_view Suffix;
 
 public:
+  /// Construct a DotSuffix node.
+  /// \param Prefix_ The prefix.
+  /// \param Suffix_ The suffix.
   DotSuffix(const Node *Prefix_, std::string_view Suffix_)
       : Node(KDotSuffix), Prefix(Prefix_), Suffix(Suffix_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Prefix, Suffix); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Prefix->print(OB);
     OB += " (";
@@ -394,21 +556,36 @@ public:
   }
 };
 
+/// Type with a vendor-extended qualifier.
 class VendorExtQualType final : public Node {
   const Node *Ty;
   std::string_view Ext;
   const Node *TA;
 
 public:
+  /// Construct a VendorExtQualType node.
+  /// \param Ty_ Pointee or underlying type node.
+  /// \param Ext_ The ext.
+  /// \param TA_ The ta.
   VendorExtQualType(const Node *Ty_, std::string_view Ext_, const Node *TA_)
       : Node(KVendorExtQualType), Ty(Ty_), Ext(Ext_), TA(TA_) {}
 
+  /// Return the underlying type.
+  /// \return The underlying type.
   const Node *getTy() const { return Ty; }
+  /// Return the ext.
+  /// \return The vendor extension qualifier spelling.
   std::string_view getExt() const { return Ext; }
+  /// Return the template arguments for the vendor qualifier.
+  /// \return The template arguments for the vendor qualifier, or null if none.
   const Node *getTA() const { return TA; }
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Ty, Ext, TA); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Ty->print(OB);
     OB += " ";
@@ -418,28 +595,46 @@ public:
   }
 };
 
+/// Ref-qualifier on a non-static member function type.
 enum FunctionRefQual : unsigned char {
+  /// No ref-qualifier.
   FrefQualNone,
+  /// Lvalue ref-qualifier (&).
   FrefQualLValue,
+  /// Rvalue ref-qualifier (&&).
   FrefQualRValue,
 };
 
+/// CV and restrict qualifiers bitfield.
 enum Qualifiers {
+  /// No qualifiers.
   QualNone = 0,
+  /// const qualifier.
   QualConst = 0x1,
+  /// volatile qualifier.
   QualVolatile = 0x2,
+  /// restrict qualifier.
   QualRestrict = 0x4,
 };
 
+/// Or-assign \p Q2 into \p Q1 and return the result.
+/// \param Q1 Qualifiers updated in place.
+/// \param Q2 Qualifiers to merge.
+/// \return The updated qualifiers value.
 inline Qualifiers operator|=(Qualifiers &Q1, Qualifiers Q2) {
   return Q1 = static_cast<Qualifiers>(Q1 | Q2);
 }
 
+/// Type with const/volatile/restrict qualifiers.
 class QualType final : public Node {
 protected:
+  /// Applied CV/restrict qualifiers.
   const Qualifiers Quals;
+  /// Qualified child type.
   const Node *Child;
 
+  /// Print CV/restrict qualifiers into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printQuals(OutputBuffer &OB) const {
     if (Quals & QualConst)
       OB += " const";
@@ -450,89 +645,147 @@ protected:
   }
 
 public:
+  /// Construct a QualType node.
+  /// \param Child_ Child AST node.
+  /// \param Quals_ Type qualifiers.
   QualType(const Node *Child_, Qualifiers Quals_)
       : Node(KQualType, Child_->getRHSComponentCache(), Child_->getArrayCache(),
              Child_->getFunctionCache()),
         Quals(Quals_), Child(Child_) {}
 
+  /// Return the quals.
+  /// \return The applied CV/restrict qualifiers.
   Qualifiers getQuals() const { return Quals; }
+  /// Return the qualified child type.
+  /// \return The qualified child type.
   const Node *getChild() const { return Child; }
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Child, Quals); }
 
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponentSlow(OutputBuffer &OB) const override {
     return Child->hasRHSComponent(OB);
   }
+  /// Slow path for hasArray when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node is a (possibly qualified) array type.
   bool hasArraySlow(OutputBuffer &OB) const override {
     return Child->hasArray(OB);
   }
+  /// Slow path for hasFunction when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node is a (possibly qualified) function type.
   bool hasFunctionSlow(OutputBuffer &OB) const override {
     return Child->hasFunction(OB);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*Child);
+    /// Print CV/restrict qualifiers into \p OB.
+    /// \param OB Destination demangle output buffer.
     printQuals(OB);
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override { OB.printRight(*Child); }
 };
 
+/// Conversion operator target type.
 class ConversionOperatorType final : public Node {
   const Node *Ty;
 
 public:
+  /// Construct a ConversionOperatorType node.
+  /// \param Ty_ Pointee or underlying type node.
   ConversionOperatorType(const Node *Ty_)
       : Node(KConversionOperatorType), Ty(Ty_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Ty); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "operator ";
     Ty->print(OB);
   }
 };
 
+/// Type with a vendor postfix qualifier.
 class PostfixQualifiedType final : public Node {
   const Node *Ty;
   const std::string_view Postfix;
 
 public:
+  /// Construct a PostfixQualifiedType node.
+  /// \param Ty_ Pointee or underlying type node.
+  /// \param Postfix_ The postfix.
   PostfixQualifiedType(const Node *Ty_, std::string_view Postfix_)
       : Node(KPostfixQualifiedType), Ty(Ty_), Postfix(Postfix_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Ty, Postfix); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*Ty);
     OB += Postfix;
   }
 };
 
+/// Simple named type or identifier spelling.
 class NameType final : public Node {
   const std::string_view Name;
 
 public:
+  /// Construct a NameType node.
+  /// \param Name_ Name node.
   NameType(std::string_view Name_) : Node(KNameType), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Name); }
 
+  /// Return the name.
+  /// \return The name spelling.
   std::string_view getName() const { return Name; }
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Name; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override { OB += Name; }
 };
 
+/// _BitInt(N) / unsigned _BitInt(N) type.
 class BitIntType final : public Node {
   const Node *Size;
   bool Signed;
 
 public:
+  /// Construct a BitIntType node.
+  /// \param Size_ The size.
+  /// \param Signed_ The signed.
   BitIntType(const Node *Size_, bool Signed_)
       : Node(KBitIntType), Size(Size_), Signed(Signed_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Size, Signed); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (!Signed)
       OB += "unsigned ";
@@ -543,15 +796,23 @@ public:
   }
 };
 
+/// Elaborated type specifier (class/struct/union/enum).
 class ElaboratedTypeSpefType : public Node {
   std::string_view Kind;
   Node *Child;
 public:
+  /// Construct a ElaboratedTypeSpefType node.
+  /// \param Kind_ The kind.
+  /// \param Child_ Child AST node.
   ElaboratedTypeSpefType(std::string_view Kind_, Node *Child_)
       : Node(KElaboratedTypeSpefType), Kind(Kind_), Child(Child_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Kind, Child); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += Kind;
     OB += ' ';
@@ -559,15 +820,23 @@ public:
   }
 };
 
+/// Type transformed by a vendor type trait.
 class TransformedType : public Node {
   std::string_view Transform;
   Node *BaseType;
 public:
+  /// Construct a TransformedType node.
+  /// \param Transform_ The transform.
+  /// \param BaseType_ The base type.
   TransformedType(std::string_view Transform_, Node *BaseType_)
       : Node(KTransformedType), Transform(Transform_), BaseType(BaseType_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Transform, BaseType); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += Transform;
     OB += '(';
@@ -576,19 +845,31 @@ public:
   }
 };
 
+/// GNU abi_tag attribute applied to a name.
 struct AbiTagAttr : Node {
+  /// Node to which the abi_tag is applied.
   Node *Base;
+  /// ABI tag spelling.
   std::string_view Tag;
 
+  /// Construct a AbiTagAttr node.
+  /// \param Base_ Base node.
+  /// \param Tag_ ABI tag spelling.
   AbiTagAttr(Node *Base_, std::string_view Tag_)
       : Node(KAbiTagAttr, Base_->getRHSComponentCache(), Base_->getArrayCache(),
              Base_->getFunctionCache()),
         Base(Base_), Tag(Tag_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Base, Tag); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Base->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*Base);
     OB += "[abi:";
@@ -597,14 +878,21 @@ struct AbiTagAttr : Node {
   }
 };
 
+/// enable_if attribute with condition expressions.
 class EnableIfAttr : public Node {
   NodeArray Conditions;
 public:
+  /// Construct a EnableIfAttr node.
+  /// \param Conditions_ The conditions.
   EnableIfAttr(NodeArray Conditions_)
       : Node(KEnableIfAttr), Conditions(Conditions_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Conditions); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += " [enable_if:";
     Conditions.printWithComma(OB);
@@ -612,23 +900,35 @@ public:
   }
 };
 
+/// Objective-C protocol-qualified type name.
 class ObjCProtoName : public Node {
   const Node *Ty;
   std::string_view Protocol;
 
 public:
+  /// Construct a ObjCProtoName node.
+  /// \param Ty_ Pointee or underlying type node.
+  /// \param Protocol_ The protocol.
   ObjCProtoName(const Node *Ty_, std::string_view Protocol_)
       : Node(KObjCProtoName), Ty(Ty_), Protocol(Protocol_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Ty, Protocol); }
 
+  /// Return true if obj cobject.
+  /// \return True if the underlying type is objc_object.
   bool isObjCObject() const {
     return Ty->getKind() == KNameType &&
            static_cast<const NameType *>(Ty)->getName() == "objc_object";
   }
 
+  /// Return the protocol.
+  /// \return The Objective-C protocol name.
   std::string_view getProtocol() const { return Protocol; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Ty->print(OB);
     OB += "<";
@@ -637,22 +937,34 @@ public:
   }
 };
 
+/// Pointer type.
 class PointerType final : public Node {
   const Node *Pointee;
 
 public:
+  /// Construct a PointerType node.
+  /// \param Pointee_ The pointee.
   PointerType(const Node *Pointee_)
       : Node(KPointerType, Pointee_->getRHSComponentCache()),
         Pointee(Pointee_) {}
 
+  /// Return the pointee type.
+  /// \return The pointee type.
   const Node *getPointee() const { return Pointee; }
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Pointee); }
 
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponentSlow(OutputBuffer &OB) const override {
     return Pointee->hasRHSComponent(OB);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     // We rewrite objc_object<SomeProtocol>* into id<SomeProtocol>.
     if (Pointee->getKind() != KObjCProtoName ||
@@ -671,6 +983,8 @@ public:
     }
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     if (Pointee->getKind() != KObjCProtoName ||
         !static_cast<const ObjCProtoName *>(Pointee)->isObjCObject()) {
@@ -681,12 +995,16 @@ public:
   }
 };
 
+/// Kind of C++ reference.
 enum class ReferenceKind {
+  /// Lvalue reference (&).
   LValue,
+  /// Rvalue reference (&&).
   RValue,
 };
 
 // Represents either a LValue or an RValue reference type.
+/// Lvalue or rvalue reference type.
 class ReferenceType : public Node {
   const Node *Pointee;
   ReferenceKind RK;
@@ -703,9 +1021,13 @@ class ReferenceType : public Node {
   std::pair<ReferenceKind, const Node *> collapse(OutputBuffer &OB) const {
     auto SoFar = std::make_pair(RK, Pointee);
     // Track the chain of nodes for the Floyd's 'tortoise and hare'
+    /// Return the concrete syntax node under glue wrappers.
+    /// \param S The s.
     // cycle-detection algorithm, since getSyntaxNode(S) is impure
     PODSmallVector<const Node *, 8> Prev;
     for (;;) {
+      /// Return the concrete syntax node under glue wrappers.
+      /// \param OB Destination demangle output buffer.
       const Node *SN = SoFar.second->getSyntaxNode(OB);
       if (SN->getKind() != KReferenceType)
         break;
@@ -725,16 +1047,26 @@ class ReferenceType : public Node {
   }
 
 public:
+  /// Construct a ReferenceType node.
+  /// \param Pointee_ The pointee.
+  /// \param RK_ The rk.
   ReferenceType(const Node *Pointee_, ReferenceKind RK_)
       : Node(KReferenceType, Pointee_->getRHSComponentCache()),
         Pointee(Pointee_), RK(RK_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Pointee, RK); }
 
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponentSlow(OutputBuffer &OB) const override {
     return Pointee->hasRHSComponent(OB);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (Printing)
       return;
@@ -750,6 +1082,8 @@ public:
 
     OB += (Collapsed.first == ReferenceKind::LValue ? "&" : "&&");
   }
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     if (Printing)
       return;
@@ -763,21 +1097,32 @@ public:
   }
 };
 
+/// Pointer-to-member type.
 class PointerToMemberType final : public Node {
   const Node *ClassType;
   const Node *MemberType;
 
 public:
+  /// Construct a PointerToMemberType node.
+  /// \param ClassType_ The class type.
+  /// \param MemberType_ The member type.
   PointerToMemberType(const Node *ClassType_, const Node *MemberType_)
       : Node(KPointerToMemberType, MemberType_->getRHSComponentCache()),
         ClassType(ClassType_), MemberType(MemberType_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(ClassType, MemberType); }
 
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponentSlow(OutputBuffer &OB) const override {
     return MemberType->hasRHSComponent(OB);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*MemberType);
     if (MemberType->hasArray(OB) || MemberType->hasFunction(OB))
@@ -788,6 +1133,8 @@ public:
     OB += "::*";
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     if (MemberType->hasArray(OB) || MemberType->hasFunction(OB))
       OB += ")";
@@ -795,24 +1142,40 @@ public:
   }
 };
 
+/// Array type with optional bound.
 class ArrayType final : public Node {
   const Node *Base;
   Node *Dimension;
 
 public:
+  /// Construct a ArrayType node.
+  /// \param Base_ Base node.
+  /// \param Dimension_ The dimension.
   ArrayType(const Node *Base_, Node *Dimension_)
       : Node(KArrayType,
              /*RHSComponentCache=*/Cache::Yes,
              /*ArrayCache=*/Cache::Yes),
         Base(Base_), Dimension(Dimension_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Base, Dimension); }
 
-  bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
-  bool hasArraySlow(OutputBuffer &) const override { return true; }
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node has a right-hand print component.
+  bool hasRHSComponentSlow(OutputBuffer &OB) const override { return true; }
+  /// Slow path for hasArray when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) array type.
+  bool hasArraySlow(OutputBuffer &OB) const override { return true; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override { OB.printLeft(*Base); }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     if (OB.back() != ']')
       OB += " ";
@@ -823,6 +1186,10 @@ public:
     OB.printRight(*Base);
   }
 
+  /// Print an initializer list of this array type.
+  /// \param OB Destination demangle output buffer.
+  /// \param Elements Initializer-list element nodes.
+  /// \return True if a custom representation was printed.
   bool printInitListAsType(OutputBuffer &OB,
                            const NodeArray &Elements) const override {
     if (Base->getKind() == KNameType &&
@@ -833,6 +1200,7 @@ public:
   }
 };
 
+/// Function type including exception spec and ref-qualifiers.
 class FunctionType final : public Node {
   const Node *Ret;
   NodeArray Params;
@@ -841,6 +1209,12 @@ class FunctionType final : public Node {
   const Node *ExceptionSpec;
 
 public:
+  /// Construct a FunctionType node.
+  /// \param Ret_ The ret.
+  /// \param Params_ The params.
+  /// \param CVQuals_ The cvquals.
+  /// \param RefQual_ The ref qual.
+  /// \param ExceptionSpec_ The exception spec.
   FunctionType(const Node *Ret_, NodeArray Params_, Qualifiers CVQuals_,
                FunctionRefQual RefQual_, const Node *ExceptionSpec_)
       : Node(KFunctionType,
@@ -849,12 +1223,20 @@ public:
         Ret(Ret_), Params(Params_), CVQuals(CVQuals_), RefQual(RefQual_),
         ExceptionSpec(ExceptionSpec_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const {
     F(Ret, Params, CVQuals, RefQual, ExceptionSpec);
   }
 
-  bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
-  bool hasFunctionSlow(OutputBuffer &) const override { return true; }
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node has a right-hand print component.
+  bool hasRHSComponentSlow(OutputBuffer &OB) const override { return true; }
+  /// Slow path for hasFunction when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) function type.
+  bool hasFunctionSlow(OutputBuffer &OB) const override { return true; }
 
   // Handle C++'s ... quirky decl grammar by using the left & right
   // distinction. Consider:
@@ -863,11 +1245,15 @@ public:
   // that takes a char and returns an int. If we're trying to print f, start
   // by printing out the return types's left, then print our parameters, then
   // finally print right of the return type.
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*Ret);
     OB += " ";
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     OB.printOpen();
     Params.printWithComma(OB);
@@ -893,13 +1279,20 @@ public:
   }
 };
 
+/// noexcept exception specification.
 class NoexceptSpec : public Node {
   const Node *E;
 public:
+  /// Construct a NoexceptSpec node.
+  /// \param E_ Two-character operator encoding.
   NoexceptSpec(const Node *E_) : Node(KNoexceptSpec), E(E_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(E); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "noexcept";
     OB.printOpen();
@@ -908,14 +1301,21 @@ public:
   }
 };
 
+/// Dynamic exception specification throw(...).
 class DynamicExceptionSpec : public Node {
   NodeArray Types;
 public:
+  /// Construct a DynamicExceptionSpec node.
+  /// \param Types_ The types.
   DynamicExceptionSpec(NodeArray Types_)
       : Node(KDynamicExceptionSpec), Types(Types_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Types); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "throw";
     OB.printOpen();
@@ -935,6 +1335,8 @@ class ExplicitObjectParameter final : public Node {
   Node *Base;
 
 public:
+  /// Construct a ExplicitObjectParameter node.
+  /// \param Base_ Base node.
   ExplicitObjectParameter(Node *Base_)
       : Node(KExplicitObjectParameter), Base(Base_) {
     DEMANGLE_ASSERT(
@@ -942,14 +1344,19 @@ public:
         "Creating an ExplicitObjectParameter without a valid Base Node.");
   }
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Base); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "this ";
     Base->print(OB);
   }
 };
 
+/// Encoded function name with type and constraints.
 class FunctionEncoding final : public Node {
   const Node *Ret;
   const Node *Name;
@@ -960,6 +1367,14 @@ class FunctionEncoding final : public Node {
   FunctionRefQual RefQual;
 
 public:
+  /// Construct a FunctionEncoding node.
+  /// \param Ret_ The ret.
+  /// \param Name_ Name node.
+  /// \param Params_ The params.
+  /// \param Attrs_ The attrs.
+  /// \param Requires_ Requires clause node.
+  /// \param CVQuals_ The cvquals.
+  /// \param RefQual_ The ref qual.
   FunctionEncoding(const Node *Ret_, const Node *Name_, NodeArray Params_,
                    const Node *Attrs_, const Node *Requires_,
                    Qualifiers CVQuals_, FunctionRefQual RefQual_)
@@ -969,22 +1384,46 @@ public:
         Ret(Ret_), Name(Name_), Params(Params_), Attrs(Attrs_),
         Requires(Requires_), CVQuals(CVQuals_), RefQual(RefQual_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const {
     F(Ret, Name, Params, Attrs, Requires, CVQuals, RefQual);
   }
 
+  /// Return the cvquals.
+  /// \return The function cv-qualifiers.
   Qualifiers getCVQuals() const { return CVQuals; }
+  /// Return the ref qual.
+  /// \return The function ref-qualifier.
   FunctionRefQual getRefQual() const { return RefQual; }
+  /// Return the function parameter types.
+  /// \return The function parameter types.
   NodeArray getParams() const { return Params; }
+  /// Return the function return type.
+  /// \return The function return type, or null if none.
   const Node *getReturnType() const { return Ret; }
+  /// Return the function attributes node.
+  /// \return The function attributes node, or null if none.
   const Node *getAttrs() const { return Attrs; }
+  /// Return the requires-clause node.
+  /// \return The requires-clause node, or null if none.
   const Node *getRequires() const { return Requires; }
 
-  bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
-  bool hasFunctionSlow(OutputBuffer &) const override { return true; }
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node has a right-hand print component.
+  bool hasRHSComponentSlow(OutputBuffer &OB) const override { return true; }
+  /// Slow path for hasFunction when the cache is Unknown.
+  /// \param OB Output buffer providing pack-expansion printing state.
+  /// \return True if this node is a (possibly qualified) function type.
+  bool hasFunctionSlow(OutputBuffer &OB) const override { return true; }
 
+  /// Return the function name node.
+  /// \return The function name node.
   const Node *getName() const { return Name; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (Ret) {
       OB.printLeft(*Ret);
@@ -995,6 +1434,8 @@ public:
     Name->print(OB);
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     OB.printOpen();
     Params.printWithComma(OB);
@@ -1025,48 +1466,71 @@ public:
   }
 };
 
+/// User-defined literal operator name.
 class LiteralOperator : public Node {
   const Node *OpName;
 
 public:
+  /// Construct a LiteralOperator node.
+  /// \param OpName_ The op name.
   LiteralOperator(const Node *OpName_)
       : Node(KLiteralOperator), OpName(OpName_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(OpName); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "operator\"\" ";
     OpName->print(OB);
   }
 };
 
+/// Special mangled name with a fixed prefix string.
 class SpecialName final : public Node {
   const std::string_view Special;
   const Node *Child;
 
 public:
+  /// Construct a SpecialName node.
+  /// \param Special_ The special.
+  /// \param Child_ Child AST node.
   SpecialName(std::string_view Special_, const Node *Child_)
       : Node(KSpecialName), Special(Special_), Child(Child_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Special, Child); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += Special;
     Child->print(OB);
   }
 };
 
+/// Construction-vtable special name.
 class CtorVtableSpecialName final : public Node {
   const Node *FirstType;
   const Node *SecondType;
 
 public:
+  /// Construct a CtorVtableSpecialName node.
+  /// \param FirstType_ The first type.
+  /// \param SecondType_ The second type.
   CtorVtableSpecialName(const Node *FirstType_, const Node *SecondType_)
       : Node(KCtorVtableSpecialName),
         FirstType(FirstType_), SecondType(SecondType_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(FirstType, SecondType); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "construction vtable for ";
     FirstType->print(OB);
@@ -1075,17 +1539,29 @@ public:
   }
 };
 
+/// Qualified nested name (N...E).
 struct NestedName : Node {
+  /// Qualifying scope.
   Node *Qual;
+  /// Nested name component.
   Node *Name;
 
+  /// Construct a NestedName node.
+  /// \param Qual_ The qual.
+  /// \param Name_ Name node.
   NestedName(Node *Qual_, Node *Name_)
       : Node(KNestedName), Qual(Qual_), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Qual, Name); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Name->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Qual->print(OB);
     OB += "::";
@@ -1093,17 +1569,29 @@ struct NestedName : Node {
   }
 };
 
+/// Member-like friend function name.
 struct MemberLikeFriendName : Node {
+  /// Qualifying scope.
   Node *Qual;
+  /// Friend function name.
   Node *Name;
 
+  /// Construct a MemberLikeFriendName node.
+  /// \param Qual_ The qual.
+  /// \param Name_ Name node.
   MemberLikeFriendName(Node *Qual_, Node *Name_)
       : Node(KMemberLikeFriendName), Qual(Qual_), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Qual, Name); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Name->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Qual->print(OB);
     OB += "::friend ";
@@ -1111,19 +1599,31 @@ struct MemberLikeFriendName : Node {
   }
 };
 
+/// C++20 module or module-partition name.
 struct ModuleName : Node {
+  /// Parent module name, if any.
   ModuleName *Parent;
+  /// Module component name.
   Node *Name;
+  /// True if this component is a partition.
   bool IsPartition;
 
+  /// Construct a ModuleName node.
+  /// \param Parent_ The parent.
+  /// \param Name_ Name node.
+  /// \param IsPartition_ The is partition.
   ModuleName(ModuleName *Parent_, Node *Name_, bool IsPartition_ = false)
       : Node(KModuleName), Parent(Parent_), Name(Name_),
         IsPartition(IsPartition_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Parent, Name, IsPartition);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (Parent)
       Parent->print(OB);
@@ -1133,17 +1633,29 @@ struct ModuleName : Node {
   }
 };
 
+/// Entity attached to a module name.
 struct ModuleEntity : Node {
+  /// Owning module.
   ModuleName *Module;
+  /// Entity name within the module.
   Node *Name;
 
+  /// Construct a ModuleEntity node.
+  /// \param Module_ Module name being built.
+  /// \param Name_ Name node.
   ModuleEntity(ModuleName *Module_, Node *Name_)
       : Node(KModuleEntity), Module(Module_), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Module, Name); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Name->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Name->print(OB);
     OB += '@';
@@ -1151,15 +1663,25 @@ struct ModuleEntity : Node {
   }
 };
 
+/// Local name encoded relative to a function (Z...E).
 struct LocalName : Node {
+  /// Enclosing function encoding.
   Node *Encoding;
+  /// Local entity name.
   Node *Entity;
 
+  /// Construct a LocalName node.
+  /// \param Encoding_ The encoding.
+  /// \param Entity_ The entity.
   LocalName(Node *Encoding_, Node *Entity_)
       : Node(KLocalName), Encoding(Encoding_), Entity(Entity_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Encoding, Entity); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Encoding->print(OB);
     OB += "::";
@@ -1167,19 +1689,29 @@ struct LocalName : Node {
   }
 };
 
+/// Name qualified by a scope node.
 class QualifiedName final : public Node {
   // qualifier::name
   const Node *Qualifier;
   const Node *Name;
 
 public:
+  /// Construct a QualifiedName node.
+  /// \param Qualifier_ The qualifier.
+  /// \param Name_ Name node.
   QualifiedName(const Node *Qualifier_, const Node *Name_)
       : Node(KQualifiedName), Qualifier(Qualifier_), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Qualifier, Name); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Name->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Qualifier->print(OB);
     OB += "::";
@@ -1187,19 +1719,31 @@ public:
   }
 };
 
+/// GNU vector type.
 class VectorType final : public Node {
   const Node *BaseType;
   const Node *Dimension;
 
 public:
+  /// Construct a VectorType node.
+  /// \param BaseType_ The base type.
+  /// \param Dimension_ The dimension.
   VectorType(const Node *BaseType_, const Node *Dimension_)
       : Node(KVectorType), BaseType(BaseType_), Dimension(Dimension_) {}
 
+  /// Return the vector element type.
+  /// \return The vector element type.
   const Node *getBaseType() const { return BaseType; }
+  /// Return the vector dimension expression.
+  /// \return The vector dimension expression.
   const Node *getDimension() const { return Dimension; }
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(BaseType, Dimension); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     BaseType->print(OB);
     OB += " vector[";
@@ -1209,15 +1753,22 @@ public:
   }
 };
 
+/// AltiVec pixel vector type.
 class PixelVectorType final : public Node {
   const Node *Dimension;
 
 public:
+  /// Construct a PixelVectorType node.
+  /// \param Dimension_ The dimension.
   PixelVectorType(const Node *Dimension_)
       : Node(KPixelVectorType), Dimension(Dimension_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Dimension); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     // FIXME: This should demangle as "vector pixel".
     OB += "pixel vector[";
@@ -1226,22 +1777,37 @@ public:
   }
 };
 
+/// Binary floating-point type of given bit width.
 class BinaryFPType final : public Node {
   const Node *Dimension;
 
 public:
+  /// Construct a BinaryFPType node.
+  /// \param Dimension_ The dimension.
   BinaryFPType(const Node *Dimension_)
       : Node(KBinaryFPType), Dimension(Dimension_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Dimension); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "_Float";
     Dimension->print(OB);
   }
 };
 
-enum class TemplateParamKind { Type, NonType, Template };
+/// Kind of synthetic / invented template parameter.
+enum class TemplateParamKind {
+  /// Type template parameter.
+  Type,
+  /// Non-type template parameter.
+  NonType,
+  /// Template template parameter.
+  Template,
+};
 
 /// An invented name for a template parameter for which we don't have a
 /// corresponding template argument.
@@ -1254,11 +1820,18 @@ class SyntheticTemplateParamName final : public Node {
   unsigned Index;
 
 public:
+  /// Construct a SyntheticTemplateParamName node.
+  /// \param Kind_ The kind.
+  /// \param Index_ Index expression node.
   SyntheticTemplateParamName(TemplateParamKind Kind_, unsigned Index_)
       : Node(KSyntheticTemplateParamName), Kind(Kind_), Index(Index_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Kind, Index); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     switch (Kind) {
     case TemplateParamKind::Type:
@@ -1276,18 +1849,28 @@ public:
   }
 };
 
+/// Template argument with an explicit parameter.
 class TemplateParamQualifiedArg final : public Node {
   Node *Param;
   Node *Arg;
 
 public:
+  /// Construct a TemplateParamQualifiedArg node.
+  /// \param Param_ The param.
+  /// \param Arg_ The arg.
   TemplateParamQualifiedArg(Node *Param_, Node *Arg_)
       : Node(KTemplateParamQualifiedArg), Param(Param_), Arg(Arg_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Param, Arg); }
 
+  /// Return the template argument node.
+  /// \return The template argument node.
   Node *getArg() { return Arg; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     // Don't print Param to keep the output consistent.
     Arg->print(OB);
@@ -1299,13 +1882,21 @@ class TypeTemplateParamDecl final : public Node {
   Node *Name;
 
 public:
+  /// Construct a TypeTemplateParamDecl node.
+  /// \param Name_ Name node.
   TypeTemplateParamDecl(Node *Name_)
       : Node(KTypeTemplateParamDecl, Cache::Yes), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Name); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override { OB += "typename "; }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override { Name->print(OB); }
 };
 
@@ -1315,17 +1906,26 @@ class ConstrainedTypeTemplateParamDecl final : public Node {
   Node *Name;
 
 public:
+  /// Construct a ConstrainedTypeTemplateParamDecl node.
+  /// \param Constraint_ Constraint expression node.
+  /// \param Name_ Name node.
   ConstrainedTypeTemplateParamDecl(Node *Constraint_, Node *Name_)
       : Node(KConstrainedTypeTemplateParamDecl, Cache::Yes),
         Constraint(Constraint_), Name(Name_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Constraint, Name); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Constraint->print(OB);
     OB += " ";
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override { Name->print(OB); }
 };
 
@@ -1335,17 +1935,26 @@ class NonTypeTemplateParamDecl final : public Node {
   Node *Type;
 
 public:
+  /// Construct a NonTypeTemplateParamDecl node.
+  /// \param Name_ Name node.
+  /// \param Type_ Parameter type node.
   NonTypeTemplateParamDecl(Node *Name_, Node *Type_)
       : Node(KNonTypeTemplateParamDecl, Cache::Yes), Name(Name_), Type(Type_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Name, Type); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*Type);
     if (!Type->hasRHSComponent(OB))
       OB += " ";
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     Name->print(OB);
     OB.printRight(*Type);
@@ -1360,12 +1969,20 @@ class TemplateTemplateParamDecl final : public Node {
   Node *Requires;
 
 public:
+  /// Construct a TemplateTemplateParamDecl node.
+  /// \param Name_ Name node.
+  /// \param Params_ The params.
+  /// \param Requires_ Requires clause node.
   TemplateTemplateParamDecl(Node *Name_, NodeArray Params_, Node *Requires_)
       : Node(KTemplateTemplateParamDecl, Cache::Yes), Name(Name_),
         Params(Params_), Requires(Requires_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Name, Params, Requires); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
     OB += "template<";
@@ -1373,6 +1990,8 @@ public:
     OB += "> typename ";
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     Name->print(OB);
     if (Requires != nullptr) {
@@ -1387,16 +2006,24 @@ class TemplateParamPackDecl final : public Node {
   Node *Param;
 
 public:
+  /// Construct a TemplateParamPackDecl node.
+  /// \param Param_ Underlying template parameter declaration.
   TemplateParamPackDecl(Node *Param_)
       : Node(KTemplateParamPackDecl, Cache::Yes), Param(Param_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Param); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printLeft(*Param);
     OB += "...";
   }
 
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override { OB.printRight(*Param); }
 };
 
@@ -1421,6 +2048,8 @@ class ParameterPack final : public Node {
   }
 
 public:
+  /// Construct a ParameterPack node.
+  /// \param Data_ The data.
   ParameterPack(NodeArray Data_) : Node(KParameterPack), Data(Data_) {
     ArrayCache = FunctionCache = RHSComponentCache = Cache::Unknown;
     if (std::all_of(Data.begin(), Data.end(),
@@ -1435,35 +2064,53 @@ public:
       RHSComponentCache = Cache::No;
   }
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Data); }
 
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponentSlow(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     return Idx < Data.size() && Data[Idx]->hasRHSComponent(OB);
   }
+  /// Slow path for hasArray when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node is a (possibly qualified) array type.
   bool hasArraySlow(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     return Idx < Data.size() && Data[Idx]->hasArray(OB);
   }
+  /// Slow path for hasFunction when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node is a (possibly qualified) function type.
   bool hasFunctionSlow(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     return Idx < Data.size() && Data[Idx]->hasFunction(OB);
   }
+  /// Return the concrete syntax node under glue wrappers.
+  /// \param OB Destination demangle output buffer.
+  /// \return The concrete syntax node under glue wrappers.
   const Node *getSyntaxNode(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     return Idx < Data.size() ? Data[Idx]->getSyntaxNode(OB) : this;
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     if (Idx < Data.size())
       OB.printLeft(*Data[Idx]);
   }
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
@@ -1472,21 +2119,30 @@ public:
   }
 };
 
-/// A variadic template argument. This node represents an occurrence of
-/// J<something>E in some <template-args>. It isn't itself unexpanded, unless
-/// one of its Elements is. The parser inserts a ParameterPack into the
-/// TemplateParams table if the <template-args> this pack belongs to apply to an
-/// <encoding>.
+/// Variadic template argument pack from a J...E encoding.
+///
+/// This node represents an occurrence of J<something>E in some
+/// <template-args>. It isn't itself unexpanded, unless one of its Elements is.
+/// The parser inserts a ParameterPack into the TemplateParams table if the
+/// <template-args> this pack belongs to apply to an <encoding>.
 class TemplateArgumentPack final : public Node {
   NodeArray Elements;
 public:
+  /// Construct a TemplateArgumentPack node.
+  /// \param Elements_ Pack or array elements.
   TemplateArgumentPack(NodeArray Elements_)
       : Node(KTemplateArgumentPack), Elements(Elements_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Elements); }
 
+  /// Return the elements.
+  /// \return The elements of the template argument pack.
   NodeArray getElements() const { return Elements; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Elements.printWithComma(OB);
   }
@@ -1498,13 +2154,21 @@ class ParameterPackExpansion final : public Node {
   const Node *Child;
 
 public:
+  /// Construct a ParameterPackExpansion node.
+  /// \param Child_ Child AST node.
   ParameterPackExpansion(const Node *Child_)
       : Node(KParameterPackExpansion), Child(Child_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Child); }
 
+  /// Return the pattern being expanded.
+  /// \return The child pattern that contains unexpanded parameter packs.
   const Node *getChild() const { return Child; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     constexpr unsigned Max = std::numeric_limits<unsigned>::max();
     ScopedOverride<unsigned> SavePackIdx(OB.CurrentPackIndex, Max);
@@ -1538,16 +2202,24 @@ public:
   }
 };
 
+/// C++26 pack indexing expression.
 class PackIndexing final : public Node {
   const Node *Pattern;
   const Node *Index;
 
 public:
+  /// Construct a PackIndexing node.
+  /// \param Pattern_ Pack pattern node.
+  /// \param Index_ Index expression node.
   PackIndexing(const Node *Pattern_, const Node *Index_)
       : Node(KPackIndexing), Pattern(Pattern_), Index(Index_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Pattern, Index); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen('(');
     ParameterPackExpansion PPE(Pattern);
@@ -1559,18 +2231,29 @@ public:
   }
 };
 
+/// List of template arguments (I...E).
 class TemplateArgs final : public Node {
   NodeArray Params;
   Node *Requires;
 
 public:
+  /// Construct a TemplateArgs node.
+  /// \param Params_ The params.
+  /// \param Requires_ Requires clause node.
   TemplateArgs(NodeArray Params_, Node *Requires_)
       : Node(KTemplateArgs), Params(Params_), Requires(Requires_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
+  /// \return The function parameter types.
   template<typename Fn> void match(Fn F) const { F(Params, Requires); }
 
+  /// Return the template argument nodes.
+  /// \return The template argument nodes.
   NodeArray getParams() { return Params; }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
     OB += "<";
@@ -1599,15 +2282,20 @@ public:
 /// \c ForwardTemplateReference node that is resolved after we parse the
 /// template arguments.
 struct ForwardTemplateReference : Node {
+  /// Template parameter index being referenced.
   size_t Index;
+  /// Resolved referent once known.
   Node *Ref = nullptr;
 
   // If we're currently printing this node. It is possible (though invalid) for
   // a forward template reference to refer to itself via a substitution. This
   // creates a cyclic AST, which will stack overflow printing. To fix this, bail
   // out if more than one print* function is active.
+  /// True while this node is being printed (cycle guard).
   mutable bool Printing = false;
 
+  /// Construct a ForwardTemplateReference node.
+  /// \param Index_ Index expression node.
   ForwardTemplateReference(size_t Index_)
       : Node(KForwardTemplateReference, Cache::Unknown, Cache::Unknown,
              Cache::Unknown),
@@ -1616,26 +2304,40 @@ struct ForwardTemplateReference : Node {
   // We don't provide a matcher for these, because the value of the node is
   // not determined by its construction parameters, and it generally needs
   // special handling.
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const = delete;
 
+  /// Slow path for hasRHSComponent when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node has a right-hand print component.
   bool hasRHSComponentSlow(OutputBuffer &OB) const override {
     if (Printing)
       return false;
     ScopedOverride<bool> SavePrinting(Printing, true);
     return Ref->hasRHSComponent(OB);
   }
+  /// Slow path for hasArray when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node is a (possibly qualified) array type.
   bool hasArraySlow(OutputBuffer &OB) const override {
     if (Printing)
       return false;
     ScopedOverride<bool> SavePrinting(Printing, true);
     return Ref->hasArray(OB);
   }
+  /// Slow path for hasFunction when the cache is Unknown.
+  /// \param OB Destination demangle output buffer.
+  /// \return True if this node is a (possibly qualified) function type.
   bool hasFunctionSlow(OutputBuffer &OB) const override {
     if (Printing)
       return false;
     ScopedOverride<bool> SavePrinting(Printing, true);
     return Ref->hasFunction(OB);
   }
+  /// Return the concrete syntax node under glue wrappers.
+  /// \param OB Destination demangle output buffer.
+  /// \return The concrete syntax node under glue wrappers.
   const Node *getSyntaxNode(OutputBuffer &OB) const override {
     if (Printing)
       return this;
@@ -1643,12 +2345,16 @@ struct ForwardTemplateReference : Node {
     return Ref->getSyntaxNode(OB);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (Printing)
       return;
     ScopedOverride<bool> SavePrinting(Printing, true);
     OB.printLeft(*Ref);
   }
+  /// Print the right-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printRight(OutputBuffer &OB) const override {
     if (Printing)
       return;
@@ -1657,69 +2363,110 @@ struct ForwardTemplateReference : Node {
   }
 };
 
+/// Name with attached template arguments.
 struct NameWithTemplateArgs : Node {
   // name<template_args>
+  /// Base name before template arguments.
   Node *Name;
+  /// Template argument list node.
   Node *TemplateArgs;
 
+  /// Construct a NameWithTemplateArgs node.
+  /// \param Name_ Name node.
+  /// \param TemplateArgs_ The template args.
   NameWithTemplateArgs(Node *Name_, Node *TemplateArgs_)
       : Node(KNameWithTemplateArgs), Name(Name_), TemplateArgs(TemplateArgs_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Name, TemplateArgs); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Name->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Name->print(OB);
     TemplateArgs->print(OB);
   }
 };
 
+/// Name explicitly rooted in the global namespace.
 class GlobalQualifiedName final : public Node {
   Node *Child;
 
 public:
+  /// Construct a GlobalQualifiedName node.
+  /// \param Child_ Child AST node.
   GlobalQualifiedName(Node* Child_)
       : Node(KGlobalQualifiedName), Child(Child_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Child); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override { return Child->getBaseName(); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "::";
     Child->print(OB);
   }
 };
 
+/// Kind of Itanium special substitution for common std entities.
 enum class SpecialSubKind {
+  /// std::allocator.
   allocator,
+  /// std::basic_string.
   basic_string,
+  /// std::string.
   string,
+  /// std::istream.
   istream,
+  /// std::ostream.
   ostream,
+  /// std::iostream.
   iostream,
 };
 
 class SpecialSubstitution;
+/// Expanded spelling of a special substitution.
 class ExpandedSpecialSubstitution : public Node {
 protected:
+  /// Which special substitution is expanded.
   SpecialSubKind SSK;
 
+  /// Construct a ExpandedSpecialSubstitution node.
+  /// \param SSK_ Which special substitution this node represents.
+  /// \param K_ Concrete AST node kind.
   ExpandedSpecialSubstitution(SpecialSubKind SSK_, Kind K_)
       : Node(K_), SSK(SSK_) {}
 public:
+  /// Construct a ExpandedSpecialSubstitution node.
+  /// \param SSK_ Which special substitution this node represents.
   ExpandedSpecialSubstitution(SpecialSubKind SSK_)
       : ExpandedSpecialSubstitution(SSK_, KExpandedSpecialSubstitution) {}
   inline ExpandedSpecialSubstitution(SpecialSubstitution const *);
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(SSK); }
 
 protected:
+  /// Return true if this special substitution is a class-template instantiation.
+  /// \return True if this special substitution is a class-template instantiation.
   bool isInstantiation() const {
     return unsigned(SSK) >= unsigned(SpecialSubKind::string);
   }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override {
     switch (SSK) {
     case SpecialSubKind::allocator:
@@ -1739,6 +2486,8 @@ protected:
   }
 
 private:
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB << "std::" << getBaseName();
     if (isInstantiation()) {
@@ -1750,13 +2499,20 @@ private:
   }
 };
 
+/// Compressed special substitution (std::string, etc.).
 class SpecialSubstitution final : public ExpandedSpecialSubstitution {
 public:
+  /// Construct a SpecialSubstitution node.
+  /// \param SSK_ Which special substitution this node represents.
   SpecialSubstitution(SpecialSubKind SSK_)
       : ExpandedSpecialSubstitution(SSK_, KSpecialSubstitution) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(SSK); }
 
+  /// Return the base name.
+  /// \return The base identifier spelling for this name node.
   std::string_view getBaseName() const override {
     std::string_view SV = ExpandedSpecialSubstitution::getBaseName();
     if (isInstantiation()) {
@@ -1767,27 +2523,40 @@ public:
     return SV;
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB << "std::" << getBaseName();
   }
 };
 
+/// Construct an ExpandedSpecialSubstitution from a SpecialSubstitution.
+/// \param SS The special substitution whose kind is expanded.
 inline ExpandedSpecialSubstitution::ExpandedSpecialSubstitution(
     SpecialSubstitution const *SS)
     : ExpandedSpecialSubstitution(SS->SSK) {}
 
+/// Constructor or destructor name.
 class CtorDtorName final : public Node {
   const Node *Basename;
   const bool IsDtor;
   const int Variant;
 
 public:
+  /// Construct a CtorDtorName node.
+  /// \param Basename_ The basename.
+  /// \param IsDtor_ The is dtor.
+  /// \param Variant_ The variant.
   CtorDtorName(const Node *Basename_, bool IsDtor_, int Variant_)
       : Node(KCtorDtorName), Basename(Basename_), IsDtor(IsDtor_),
         Variant(Variant_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Basename, IsDtor, Variant); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (IsDtor)
       OB += "~";
@@ -1795,29 +2564,43 @@ public:
   }
 };
 
+/// Destructor name derived from a type.
 class DtorName : public Node {
   const Node *Base;
 
 public:
+  /// Construct a DtorName node.
+  /// \param Base_ Base node.
   DtorName(const Node *Base_) : Node(KDtorName), Base(Base_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Base); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "~";
     OB.printLeft(*Base);
   }
 };
 
+/// Unnamed local type with a discriminator.
 class UnnamedTypeName : public Node {
   const std::string_view Count;
 
 public:
+  /// Construct a UnnamedTypeName node.
+  /// \param Count_ The count.
   UnnamedTypeName(std::string_view Count_)
       : Node(KUnnamedTypeName), Count(Count_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Count); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "'unnamed";
     OB += Count;
@@ -1825,6 +2608,7 @@ public:
   }
 };
 
+/// Closure / lambda type name.
 class ClosureTypeName : public Node {
   NodeArray TemplateParams;
   const Node *Requires1;
@@ -1833,6 +2617,12 @@ class ClosureTypeName : public Node {
   std::string_view Count;
 
 public:
+  /// Construct a ClosureTypeName node.
+  /// \param TemplateParams_ The template params.
+  /// \param Requires1_ The requires1.
+  /// \param Params_ The params.
+  /// \param Requires2_ The requires2.
+  /// \param Count_ The count.
   ClosureTypeName(NodeArray TemplateParams_, const Node *Requires1_,
                   NodeArray Params_, const Node *Requires2_,
                   std::string_view Count_)
@@ -1840,10 +2630,14 @@ public:
         Requires1(Requires1_), Params(Params_), Requires2(Requires2_),
         Count(Count_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const {
     F(TemplateParams, Requires1, Params, Requires2, Count);
   }
 
+  /// Print the lambda declarator portion into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printDeclarator(OutputBuffer &OB) const {
     if (!TemplateParams.empty()) {
       ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
@@ -1865,23 +2659,34 @@ public:
     }
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     // FIXME: This demangling is not particularly readable.
     OB += "\'lambda";
     OB += Count;
     OB += "\'";
+    /// Print the lambda declarator portion into \p OB.
+    /// \param OB Destination demangle output buffer.
     printDeclarator(OB);
   }
 };
 
+/// Structured binding declaration name.
 class StructuredBindingName : public Node {
   NodeArray Bindings;
 public:
+  /// Construct a StructuredBindingName node.
+  /// \param Bindings_ The bindings.
   StructuredBindingName(NodeArray Bindings_)
       : Node(KStructuredBindingName), Bindings(Bindings_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Bindings); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen('[');
     Bindings.printWithComma(OB);
@@ -1891,21 +2696,31 @@ public:
 
 // -- Expression Nodes --
 
+/// Binary operator expression.
 class BinaryExpr : public Node {
   const Node *LHS;
   const std::string_view InfixOperator;
   const Node *RHS;
 
 public:
+  /// Construct a BinaryExpr node.
+  /// \param LHS_ The lhs.
+  /// \param InfixOperator_ The infix operator.
+  /// \param RHS_ The rhs.
+  /// \param Prec_ The prec.
   BinaryExpr(const Node *LHS_, std::string_view InfixOperator_,
              const Node *RHS_, Prec Prec_)
       : Node(KBinaryExpr, Prec_), LHS(LHS_), InfixOperator(InfixOperator_),
         RHS(RHS_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(LHS, InfixOperator, RHS, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     // If we're printing a '<' inside of a template argument, and we haven't
     // yet parenthesized the expression, do so now.
@@ -1927,18 +2742,27 @@ public:
   }
 };
 
+/// Array subscript expression.
 class ArraySubscriptExpr : public Node {
   const Node *Op1;
   const Node *Op2;
 
 public:
+  /// Construct a ArraySubscriptExpr node.
+  /// \param Op1_ Left-hand subscript operand.
+  /// \param Op2_ Index expression.
+  /// \param Prec_ Expression precedence.
   ArraySubscriptExpr(const Node *Op1_, const Node *Op2_, Prec Prec_)
       : Node(KArraySubscriptExpr, Prec_), Op1(Op1_), Op2(Op2_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Op1, Op2, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Op1->printAsOperand(OB, getPrecedence());
     OB.printOpen('[');
@@ -1947,38 +2771,57 @@ public:
   }
 };
 
+/// Postfix unary operator expression.
 class PostfixExpr : public Node {
   const Node *Child;
   const std::string_view Operator;
 
 public:
+  /// Construct a PostfixExpr node.
+  /// \param Child_ Child AST node.
+  /// \param Operator_ Postfix operator spelling.
+  /// \param Prec_ Expression precedence.
   PostfixExpr(const Node *Child_, std::string_view Operator_, Prec Prec_)
       : Node(KPostfixExpr, Prec_), Child(Child_), Operator(Operator_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Child, Operator, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Child->printAsOperand(OB, getPrecedence(), true);
     OB += Operator;
   }
 };
 
+/// Conditional (ternary) expression.
 class ConditionalExpr : public Node {
   const Node *Cond;
   const Node *Then;
   const Node *Else;
 
 public:
+  /// Construct a ConditionalExpr node.
+  /// \param Cond_ Condition expression.
+  /// \param Then_ Then-branch expression.
+  /// \param Else_ Else-branch expression.
+  /// \param Prec_ Expression precedence.
   ConditionalExpr(const Node *Cond_, const Node *Then_, const Node *Else_,
                   Prec Prec_)
       : Node(KConditionalExpr, Prec_), Cond(Cond_), Then(Then_), Else(Else_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Cond, Then, Else, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     Cond->printAsOperand(OB, getPrecedence());
     OB += " ? ";
@@ -1988,20 +2831,30 @@ public:
   }
 };
 
+/// Member access expression.
 class MemberExpr : public Node {
   const Node *LHS;
   const std::string_view Kind;
   const Node *RHS;
 
 public:
+  /// Construct a MemberExpr node.
+  /// \param LHS_ Left-hand object expression.
+  /// \param Kind_ Member-access operator spelling.
+  /// \param RHS_ Right-hand member name.
+  /// \param Prec_ Expression precedence.
   MemberExpr(const Node *LHS_, std::string_view Kind_, const Node *RHS_,
              Prec Prec_)
       : Node(KMemberExpr, Prec_), LHS(LHS_), Kind(Kind_), RHS(RHS_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(LHS, Kind, RHS, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     LHS->printAsOperand(OB, getPrecedence(), true);
     OB += Kind;
@@ -2009,6 +2862,7 @@ public:
   }
 };
 
+/// Subobject expression with optional union selectors.
 class SubobjectExpr : public Node {
   const Node *Type;
   const Node *SubExpr;
@@ -2017,16 +2871,26 @@ class SubobjectExpr : public Node {
   bool OnePastTheEnd;
 
 public:
+  /// Construct a SubobjectExpr node.
+  /// \param Type_ The type.
+  /// \param SubExpr_ The sub expr.
+  /// \param Offset_ The offset.
+  /// \param UnionSelectors_ The union selectors.
+  /// \param OnePastTheEnd_ The one past the end.
   SubobjectExpr(const Node *Type_, const Node *SubExpr_,
                 std::string_view Offset_, NodeArray UnionSelectors_,
                 bool OnePastTheEnd_)
       : Node(KSubobjectExpr), Type(Type_), SubExpr(SubExpr_), Offset(Offset_),
         UnionSelectors(UnionSelectors_), OnePastTheEnd(OnePastTheEnd_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const {
     F(Type, SubExpr, Offset, UnionSelectors, OnePastTheEnd);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     SubExpr->print(OB);
     OB += ".<";
@@ -2044,20 +2908,29 @@ public:
   }
 };
 
+/// Expression wrapped in a named enclosing construct.
 class EnclosingExpr : public Node {
   const std::string_view Prefix;
   const Node *Infix;
   const std::string_view Postfix;
 
 public:
+  /// Construct a EnclosingExpr node.
+  /// \param Prefix_ Text before the enclosed expression.
+  /// \param Infix_ Enclosed expression node.
+  /// \param Prec_ Expression precedence.
   EnclosingExpr(std::string_view Prefix_, const Node *Infix_,
                 Prec Prec_ = Prec::Primary)
       : Node(KEnclosingExpr, Prec_), Prefix(Prefix_), Infix(Infix_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Prefix, Infix, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += Prefix;
     OB.printOpen();
@@ -2067,6 +2940,7 @@ public:
   }
 };
 
+/// Named cast expression (static_cast, etc.).
 class CastExpr : public Node {
   // cast_kind<to>(from)
   const std::string_view CastKind;
@@ -2074,14 +2948,23 @@ class CastExpr : public Node {
   const Node *From;
 
 public:
+  /// Construct a CastExpr node.
+  /// \param CastKind_ Cast keyword spelling.
+  /// \param To_ Destination type node.
+  /// \param From_ Source expression node.
+  /// \param Prec_ Expression precedence.
   CastExpr(std::string_view CastKind_, const Node *To_, const Node *From_,
            Prec Prec_)
       : Node(KCastExpr, Prec_), CastKind(CastKind_), To(To_), From(From_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(CastKind, To, From, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += CastKind;
     {
@@ -2096,15 +2979,22 @@ public:
   }
 };
 
+/// sizeof...(pack) expression.
 class SizeofParamPackExpr : public Node {
   const Node *Pack;
 
 public:
+  /// Construct a SizeofParamPackExpr node.
+  /// \param Pack_ The pack.
   SizeofParamPackExpr(const Node *Pack_)
       : Node(KSizeofParamPackExpr), Pack(Pack_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Pack); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "sizeof...";
     OB.printOpen();
@@ -2114,20 +3004,30 @@ public:
   }
 };
 
+/// Function call expression.
 class CallExpr : public Node {
   const Node *Callee;
   NodeArray Args;
   bool IsParen; // (func)(args ...) ?
 
 public:
+  /// Construct a CallExpr node.
+  /// \param Callee_ The callee.
+  /// \param Args_ The args.
+  /// \param IsParen_ The is paren.
+  /// \param Prec_ The prec.
   CallExpr(const Node *Callee_, NodeArray Args_, bool IsParen_, Prec Prec_)
       : Node(KCallExpr, Prec_), Callee(Callee_), Args(Args_),
         IsParen(IsParen_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Callee, Args, IsParen, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (IsParen)
       OB.printOpen();
@@ -2140,6 +3040,7 @@ public:
   }
 };
 
+/// new-expression.
 class NewExpr : public Node {
   // new (expr_list) type(init_list)
   NodeArray ExprList;
@@ -2148,15 +3049,26 @@ class NewExpr : public Node {
   bool IsGlobal; // ::operator new ?
   bool IsArray;  // new[] ?
 public:
+  /// Construct a NewExpr node.
+  /// \param ExprList_ The expr list.
+  /// \param Type_ The type.
+  /// \param InitList_ The init list.
+  /// \param IsGlobal_ The is global.
+  /// \param IsArray_ The is array.
+  /// \param Prec_ The prec.
   NewExpr(NodeArray ExprList_, Node *Type_, NodeArray InitList_, bool IsGlobal_,
           bool IsArray_, Prec Prec_)
       : Node(KNewExpr, Prec_), ExprList(ExprList_), Type(Type_),
         InitList(InitList_), IsGlobal(IsGlobal_), IsArray(IsArray_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const {
     F(ExprList, Type, InitList, IsGlobal, IsArray, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (IsGlobal)
       OB += "::";
@@ -2178,20 +3090,30 @@ public:
   }
 };
 
+/// delete-expression.
 class DeleteExpr : public Node {
   Node *Op;
   bool IsGlobal;
   bool IsArray;
 
 public:
+  /// Construct a DeleteExpr node.
+  /// \param Op_ The op.
+  /// \param IsGlobal_ The is global.
+  /// \param IsArray_ The is array.
+  /// \param Prec_ The prec.
   DeleteExpr(Node *Op_, bool IsGlobal_, bool IsArray_, Prec Prec_)
       : Node(KDeleteExpr, Prec_), Op(Op_), IsGlobal(IsGlobal_),
         IsArray(IsArray_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Op, IsGlobal, IsArray, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (IsGlobal)
       OB += "::";
@@ -2203,51 +3125,76 @@ public:
   }
 };
 
+/// Prefix unary operator expression.
 class PrefixExpr : public Node {
   std::string_view Prefix;
   Node *Child;
 
 public:
+  /// Construct a PrefixExpr node.
+  /// \param Prefix_ Prefix operator spelling.
+  /// \param Child_ Child AST node.
+  /// \param Prec_ Expression precedence.
   PrefixExpr(std::string_view Prefix_, Node *Child_, Prec Prec_)
       : Node(KPrefixExpr, Prec_), Prefix(Prefix_), Child(Child_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Prefix, Child, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += Prefix;
     Child->printAsOperand(OB, getPrecedence());
   }
 };
 
+/// Function parameter expression (fpT / fp_).
 class FunctionParam : public Node {
   std::string_view Number;
 
 public:
+  /// Construct a FunctionParam node.
+  /// \param Number_ The number.
   FunctionParam(std::string_view Number_)
       : Node(KFunctionParam), Number(Number_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Number); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "fp";
     OB += Number;
   }
 };
 
+/// Conversion expression with an operand list.
 class ConversionExpr : public Node {
   const Node *Type;
   NodeArray Expressions;
 
 public:
+  /// Construct a ConversionExpr node.
+  /// \param Type_ Destination type node.
+  /// \param Expressions_ Conversion operand expressions.
+  /// \param Prec_ Expression precedence.
   ConversionExpr(const Node *Type_, NodeArray Expressions_, Prec Prec_)
       : Node(KConversionExpr, Prec_), Type(Type_), Expressions(Expressions_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Type, Expressions, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen();
     Type->print(OB);
@@ -2258,21 +3205,31 @@ public:
   }
 };
 
+/// Pointer-to-member conversion expression.
 class PointerToMemberConversionExpr : public Node {
   const Node *Type;
   const Node *SubExpr;
   std::string_view Offset;
 
 public:
+  /// Construct a PointerToMemberConversionExpr node.
+  /// \param Type_ The type.
+  /// \param SubExpr_ The sub expr.
+  /// \param Offset_ The offset.
+  /// \param Prec_ The prec.
   PointerToMemberConversionExpr(const Node *Type_, const Node *SubExpr_,
                                 std::string_view Offset_, Prec Prec_)
       : Node(KPointerToMemberConversionExpr, Prec_), Type(Type_),
         SubExpr(SubExpr_), Offset(Offset_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Type, SubExpr, Offset, getPrecedence());
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen();
     Type->print(OB);
@@ -2283,15 +3240,23 @@ public:
   }
 };
 
+/// Initializer-list expression.
 class InitListExpr : public Node {
   const Node *Ty;
   NodeArray Inits;
 public:
+  /// Construct a InitListExpr node.
+  /// \param Ty_ Pointee or underlying type node.
+  /// \param Inits_ The inits.
   InitListExpr(const Node *Ty_, NodeArray Inits_)
       : Node(KInitListExpr), Ty(Ty_), Inits(Inits_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Ty, Inits); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (Ty) {
       if (Ty->printInitListAsType(OB, Inits))
@@ -2304,16 +3269,25 @@ public:
   }
 };
 
+/// Braced field initializer expression.
 class BracedExpr : public Node {
   const Node *Elem;
   const Node *Init;
   bool IsArray;
 public:
+  /// Construct a BracedExpr node.
+  /// \param Elem_ The elem.
+  /// \param Init_ The init.
+  /// \param IsArray_ The is array.
   BracedExpr(const Node *Elem_, const Node *Init_, bool IsArray_)
       : Node(KBracedExpr), Elem(Elem_), Init(Init_), IsArray(IsArray_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Elem, Init, IsArray); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (IsArray) {
       OB += '[';
@@ -2329,16 +3303,25 @@ public:
   }
 };
 
+/// Braced range (.field = [a ... b] = x) expression.
 class BracedRangeExpr : public Node {
   const Node *First;
   const Node *Last;
   const Node *Init;
 public:
+  /// Construct a BracedRangeExpr node.
+  /// \param First_ Start of mangled input.
+  /// \param Last_ End of mangled input.
+  /// \param Init_ The init.
   BracedRangeExpr(const Node *First_, const Node *Last_, const Node *Init_)
       : Node(KBracedRangeExpr), First(First_), Last(Last_), Init(Init_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(First, Last, Init); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += '[';
     First->print(OB);
@@ -2351,21 +3334,31 @@ public:
   }
 };
 
+/// C++17 fold expression.
 class FoldExpr : public Node {
   const Node *Pack, *Init;
   std::string_view OperatorName;
   bool IsLeftFold;
 
 public:
+  /// Construct a FoldExpr node.
+  /// \param IsLeftFold_ The is left fold.
+  /// \param OperatorName_ The operator name.
+  /// \param Pack_ The pack.
+  /// \param Init_ The init.
   FoldExpr(bool IsLeftFold_, std::string_view OperatorName_, const Node *Pack_,
            const Node *Init_)
       : Node(KFoldExpr), Pack(Pack_), Init(Init_), OperatorName(OperatorName_),
         IsLeftFold(IsLeftFold_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const {
     F(IsLeftFold, OperatorName, Pack, Init);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     auto PrintPack = [&] {
       OB.printOpen();
@@ -2398,41 +3391,62 @@ public:
   }
 };
 
+/// throw-expression.
 class ThrowExpr : public Node {
   const Node *Op;
 
 public:
+  /// Construct a ThrowExpr node.
+  /// \param Op_ The op.
   ThrowExpr(const Node *Op_) : Node(KThrowExpr), Op(Op_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Op); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "throw ";
     Op->print(OB);
   }
 };
 
+/// Boolean literal expression.
 class BoolExpr : public Node {
   bool Value;
 
 public:
+  /// Construct a BoolExpr node.
+  /// \param Value_ The value.
   BoolExpr(bool Value_) : Node(KBoolExpr), Value(Value_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Value); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += Value ? std::string_view("true") : std::string_view("false");
   }
 };
 
+/// String literal expression.
 class StringLiteral : public Node {
   const Node *Type;
 
 public:
+  /// Construct a StringLiteral node.
+  /// \param Type_ The type.
   StringLiteral(const Node *Type_) : Node(KStringLiteral), Type(Type_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Type); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "\"<";
     Type->print(OB);
@@ -2440,33 +3454,50 @@ public:
   }
 };
 
+/// Lambda expression type sugar.
 class LambdaExpr : public Node {
   const Node *Type;
 
 public:
+  /// Construct a LambdaExpr node.
+  /// \param Type_ The type.
   LambdaExpr(const Node *Type_) : Node(KLambdaExpr), Type(Type_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Type); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "[]";
     if (Type->getKind() == KClosureTypeName)
+      /// Print the lambda declarator portion into \p OB.
+      /// \param Type The type.
       static_cast<const ClosureTypeName *>(Type)->printDeclarator(OB);
     OB += "{...}";
   }
 };
 
+/// Enumerated literal expression.
 class EnumLiteral : public Node {
   // ty(integer)
   const Node *Ty;
   std::string_view Integer;
 
 public:
+  /// Construct a EnumLiteral node.
+  /// \param Ty_ Pointee or underlying type node.
+  /// \param Integer_ The integer.
   EnumLiteral(const Node *Ty_, std::string_view Integer_)
       : Node(KEnumLiteral), Ty(Ty_), Integer(Integer_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Ty, Integer); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen();
     Ty->print(OB);
@@ -2479,16 +3510,24 @@ public:
   }
 };
 
+/// Integer literal expression.
 class IntegerLiteral : public Node {
   std::string_view Type;
   std::string_view Value;
 
 public:
+  /// Construct a IntegerLiteral node.
+  /// \param Type_ The type.
+  /// \param Value_ The value.
   IntegerLiteral(std::string_view Type_, std::string_view Value_)
       : Node(KIntegerLiteral), Type(Type_), Value(Value_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Type, Value); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     if (Type.size() > 3) {
       OB.printOpen();
@@ -2505,19 +3544,29 @@ public:
       OB += Type;
   }
 
+  /// Return the integer literal spelling.
+  /// \return The integer literal spelling.
   std::string_view value() const { return Value; }
 };
 
+/// requires-expression.
 class RequiresExpr : public Node {
   NodeArray Parameters;
   NodeArray Requirements;
 public:
+  /// Construct a RequiresExpr node.
+  /// \param Parameters_ The parameters.
+  /// \param Requirements_ The requirements.
   RequiresExpr(NodeArray Parameters_, NodeArray Requirements_)
       : Node(KRequiresExpr), Parameters(Parameters_),
         Requirements(Requirements_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Parameters, Requirements); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += "requires";
     if (!Parameters.empty()) {
@@ -2536,20 +3585,29 @@ public:
   }
 };
 
+/// Expression requirement in a requires-expression.
 class ExprRequirement : public Node {
   const Node *Expr;
   bool IsNoexcept;
   const Node *TypeConstraint;
 public:
+  /// Construct a ExprRequirement node.
+  /// \param Expr_ The expr.
+  /// \param IsNoexcept_ The is noexcept.
+  /// \param TypeConstraint_ The type constraint.
   ExprRequirement(const Node *Expr_, bool IsNoexcept_,
                   const Node *TypeConstraint_)
       : Node(KExprRequirement), Expr(Expr_), IsNoexcept(IsNoexcept_),
         TypeConstraint(TypeConstraint_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const {
     F(Expr, IsNoexcept, TypeConstraint);
   }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += " ";
     if (IsNoexcept || TypeConstraint)
@@ -2567,14 +3625,21 @@ public:
   }
 };
 
+/// Type requirement in a requires-expression.
 class TypeRequirement : public Node {
   const Node *Type;
 public:
+  /// Construct a TypeRequirement node.
+  /// \param Type_ The type.
   TypeRequirement(const Node *Type_)
       : Node(KTypeRequirement), Type(Type_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Type); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += " typename ";
     Type->print(OB);
@@ -2582,14 +3647,21 @@ public:
   }
 };
 
+/// Nested requirement in a requires-expression.
 class NestedRequirement : public Node {
   const Node *Constraint;
 public:
+  /// Construct a NestedRequirement node.
+  /// \param Constraint_ Constraint expression node.
   NestedRequirement(const Node *Constraint_)
       : Node(KNestedRequirement), Constraint(Constraint_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template <typename Fn> void match(Fn F) const { F(Constraint); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     OB += " requires ";
     Constraint->print(OB);
@@ -2597,20 +3669,32 @@ public:
   }
 };
 
+/// Traits describing how a floating literal of type Float is mangled.
 template <class Float> struct FloatData;
 
+/// Helpers selecting the AST node kind for a floating literal type.
 namespace float_literal_impl {
-constexpr Node::Kind getFloatLiteralKind(float *) {
+/// Return the node kind for a float literal.
+/// \param unused Tag pointer selecting the float overload.
+/// \return The AST node kind for the floating literal type.
+constexpr Node::Kind getFloatLiteralKind(float *unused) {
   return Node::KFloatLiteral;
 }
-constexpr Node::Kind getFloatLiteralKind(double *) {
+/// Return the node kind for a double literal.
+/// \param unused Tag pointer selecting the double overload.
+/// \return The AST node kind for the floating literal type.
+constexpr Node::Kind getFloatLiteralKind(double *unused) {
   return Node::KDoubleLiteral;
 }
-constexpr Node::Kind getFloatLiteralKind(long double *) {
+/// Return the node kind for a long double literal.
+/// \param unused Tag pointer selecting the long double overload.
+/// \return The AST node kind for the floating literal type.
+constexpr Node::Kind getFloatLiteralKind(long double *unused) {
   return Node::KLongDoubleLiteral;
 }
 }
 
+/// Floating-point literal AST node for type \p Float.
 template <class Float> class FloatLiteralImpl : public Node {
   const std::string_view Contents;
 
@@ -2618,11 +3702,17 @@ template <class Float> class FloatLiteralImpl : public Node {
       float_literal_impl::getFloatLiteralKind((Float *)nullptr);
 
 public:
+  /// Construct a FloatLiteralImpl node.
+  /// \param Contents_ Mangled literal contents.
   FloatLiteralImpl(std::string_view Contents_)
       : Node(KindForClass), Contents(Contents_) {}
 
+  /// Invoke \p F with the constructor arguments that rebuild this node.
+  /// \param F Callable receiving the matched constructor arguments.
   template<typename Fn> void match(Fn F) const { F(Contents); }
 
+  /// Print the left-hand portion of this node into \p OB.
+  /// \param OB Destination demangle output buffer.
   void printLeft(OutputBuffer &OB) const override {
     const size_t N = FloatData<Float>::mangled_size;
     if (Contents.size() >= N) {
@@ -2651,12 +3741,16 @@ public:
   }
 };
 
+/// float floating literal node.
 using FloatLiteral = FloatLiteralImpl<float>;
+/// double floating literal node.
 using DoubleLiteral = FloatLiteralImpl<double>;
+/// long double floating literal node.
 using LongDoubleLiteral = FloatLiteralImpl<long double>;
 
 /// Visit the node. Calls \c F(P), where \c P is the node cast to the
 /// appropriate derived class.
+/// \param F Callable invoked with the node cast to its derived type.
 template<typename Fn>
 void Node::visit(Fn F) const {
   switch (K) {
@@ -2677,6 +3771,9 @@ template<typename NodeT> struct NodeKind;
   };
 #include "ItaniumNodes.def"
 
+/// Print an array of integer literals as a string literal.
+/// \param OB Destination demangle output buffer.
+/// \return true if a string literal was printed.
 inline bool NodeArray::printAsString(OutputBuffer &OB) const {
   auto StartPos = OB.getCurrentPosition();
   auto Fail = [&OB, StartPos] {
@@ -2765,91 +3862,122 @@ inline bool NodeArray::printAsString(OutputBuffer &OB) const {
   return true;
 }
 
+/// Recursive-descent parser for Itanium mangled names.
 template <typename Derived, typename Alloc> struct AbstractManglingParser {
+  /// Start of the remaining mangled input.
   const char *First;
+  /// End of the mangled input.
   const char *Last;
 
-  // Name stack, this is used by the parser to hold temporary names that were
-  // parsed. The parser collapses multiple names into new nodes to construct
-  // the AST. Once the parser is finished, names.size() == 1.
+  /// Temporary name stack used while building the AST.
+  ///
+  /// The parser collapses multiple names into new nodes to construct the AST.
+  /// Once the parser is finished, Names.size() == 1.
   PODSmallVector<Node *, 32> Names;
 
-  // Substitution table. Itanium supports name substitutions as a means of
-  // compression. The string "S42_" refers to the 44nd entry (base-36) in this
-  // table.
+  /// Substitution table for compressed Itanium name references.
+  ///
+  /// The string "S42_" refers to the 44th entry (base-36) in this table.
   PODSmallVector<Node *, 32> Subs;
 
-  // A list of template argument values corresponding to a template parameter
-  // list.
+  /// List of template argument values for a template parameter list.
   using TemplateParamList = PODSmallVector<Node *, 8>;
 
+  /// RAII helper that pushes a nested template parameter list.
   class ScopedTemplateParamList {
     AbstractManglingParser *Parser;
     size_t OldNumTemplateParamLists;
     TemplateParamList Params;
 
   public:
+    /// Push a new template parameter list onto \p TheParser.
+    /// \param TheParser Parser whose TemplateParams stack is extended.
     ScopedTemplateParamList(AbstractManglingParser *TheParser)
         : Parser(TheParser),
           OldNumTemplateParamLists(TheParser->TemplateParams.size()) {
       Parser->TemplateParams.push_back(&Params);
     }
+    /// Pop the template parameter list pushed by the constructor.
     ~ScopedTemplateParamList() {
       DEMANGLE_ASSERT(Parser->TemplateParams.size() >= OldNumTemplateParamLists,
                       "");
       Parser->TemplateParams.shrinkToSize(OldNumTemplateParamLists);
     }
+    /// Return the scoped template parameter list.
+    /// \return Pointer to the scoped template parameter list.
     TemplateParamList *params() { return &Params; }
   };
 
-  // Template parameter table. Like the above, but referenced like "T42_".
-  // This has a smaller size compared to Subs and Names because it can be
-  // stored on the stack.
+  /// Innermost / outer template parameter argument table (T_, T0_, ...).
+  ///
+  /// Referenced like "T42_". Smaller than Subs/Names so it can live on the
+  /// stack.
   TemplateParamList OuterTemplateParams;
 
-  // Lists of template parameters indexed by template parameter depth,
-  // referenced like "TL2_4_". If nonempty, element 0 is always
-  // OuterTemplateParams; inner elements are always template parameter lists of
-  // lambda expressions. For a generic lambda with no explicit template
-  // parameter list, the corresponding parameter list pointer will be null.
+  /// Template parameter lists indexed by template parameter depth (TL2_4_).
+  ///
+  /// If nonempty, element 0 is always OuterTemplateParams; inner elements are
+  /// always template parameter lists of lambda expressions. For a generic
+  /// lambda with no explicit template parameter list, the corresponding
+  /// parameter list pointer will be null.
   PODSmallVector<TemplateParamList *, 4> TemplateParams;
 
+  /// RAII helper that saves and clears template parameter tables.
   class SaveTemplateParams {
     AbstractManglingParser *Parser;
     decltype(TemplateParams) OldParams;
     decltype(OuterTemplateParams) OldOuterParams;
 
   public:
+    /// Save \p TheParser's template parameter tables and clear them.
+    /// \param TheParser Parser whose template parameter state is saved.
     SaveTemplateParams(AbstractManglingParser *TheParser) : Parser(TheParser) {
       OldParams = std::move(Parser->TemplateParams);
       OldOuterParams = std::move(Parser->OuterTemplateParams);
       Parser->TemplateParams.clear();
       Parser->OuterTemplateParams.clear();
     }
+    /// Restore the saved template parameter tables.
     ~SaveTemplateParams() {
       Parser->TemplateParams = std::move(OldParams);
       Parser->OuterTemplateParams = std::move(OldOuterParams);
     }
   };
 
-  // Set of unresolved forward <template-param> references. These can occur in a
-  // conversion operator's type, and are resolved in the enclosing <encoding>.
+  /// Unresolved forward <template-param> references.
+  ///
+  /// These can occur in a conversion operator's type, and are resolved in the
+  /// enclosing <encoding>.
   PODSmallVector<ForwardTemplateReference *, 4> ForwardTemplateRefs;
 
+  /// When true, attempt to parse <template-args> after names.
   bool TryToParseTemplateArgs = true;
+  /// When true, allow forward references to template parameters.
   bool PermitForwardTemplateReferences = false;
+  /// When true, template parameter tracking may be incomplete.
   bool HasIncompleteTemplateParameterTracking = false;
+  /// Depth at which lambda parameters are currently being parsed, or -1.
   size_t ParsingLambdaParamsAtLevel = (size_t)-1;
 
+  /// Counts of invented template parameters by TemplateParamKind.
   unsigned NumSyntheticTemplateParameters[3] = {};
 
+  /// Allocator used for AST nodes.
   Alloc ASTAllocator;
 
+  /// Construct a parser over mangled input [\p First_, \p Last_).
+  /// \param First_ Start of mangled input.
+  /// \param Last_ End of mangled input.
   AbstractManglingParser(const char *First_, const char *Last_)
       : First(First_), Last(Last_) {}
 
+  /// Return this parser cast to the derived CRTP type.
+  /// \return This parser cast to the derived CRTP type.
   Derived &getDerived() { return static_cast<Derived &>(*this); }
 
+  /// Reset the parser to mangled input [\p First_, \p Last_).
+  /// \param First_ Start of mangled input.
+  /// \param Last_ End of mangled input.
   void reset(const char *First_, const char *Last_) {
     First = First_;
     Last = Last_;
@@ -2864,10 +3992,17 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     ASTAllocator.reset();
   }
 
+  /// Allocate a node of type \p T with constructor arguments \p args.
+  /// \param args Constructor arguments forwarded to T.
+  /// \return Pointer to the newly allocated node.
   template <class T, class... Args> Node *make(Args &&... args) {
     return ASTAllocator.template makeNode<T>(std::forward<Args>(args)...);
   }
 
+  /// Copy the iterator range \p begin..\p end into allocator-owned storage.
+  /// \param begin Start iterator over Node*.
+  /// \param end End iterator over Node*.
+  /// \return A NodeArray owning a copy of the range.
   template <class It> NodeArray makeNodeArray(It begin, It end) {
     size_t sz = static_cast<size_t>(end - begin);
     void *mem = ASTAllocator.allocateNodeArray(sz);
@@ -2876,6 +4011,9 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     return NodeArray(data, sz);
   }
 
+  /// Pop names pushed since \p FromPosition into a NodeArray.
+  /// \param FromPosition Baseline Names size before the trailing nodes.
+  /// \return A NodeArray of the popped trailing names.
   NodeArray popTrailingNodeArray(size_t FromPosition) {
     DEMANGLE_ASSERT(FromPosition <= Names.size(), "");
     NodeArray res =
@@ -2884,6 +4022,9 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     return res;
   }
 
+  /// If the next input equals \p S, consume it and return true.
+  /// \param S Literal prefix to match.
+  /// \return True if the prefix or character was consumed.
   bool consumeIf(std::string_view S) {
     if (starts_with(std::string_view(First, Last - First), S)) {
       First += S.size();
@@ -2892,6 +4033,9 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     return false;
   }
 
+  /// If the next character equals \p C, consume it and return true.
+  /// \param C Character to match.
+  /// \return True if the prefix or character was consumed.
   bool consumeIf(char C) {
     if (First != Last && *First == C) {
       ++First;
@@ -2900,77 +4044,174 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     return false;
   }
 
+  /// Consume and return the next input character.
+  /// \return The consumed character, or '\0' if no input remains.
   char consume() { return First != Last ? *First++ : '\0'; }
 
+  /// Peek at the character \p Lookahead positions ahead without consuming.
+  /// \param Lookahead Zero-based offset from the current parse position.
+  /// \return The character at that position, or '\0' if past the end.
   char look(unsigned Lookahead = 0) const {
     if (static_cast<size_t>(Last - First) <= Lookahead)
       return '\0';
     return First[Lookahead];
   }
 
+  /// Return the number of unparsed input characters remaining.
+  /// \return The number of unparsed input characters remaining.
   size_t numLeft() const { return static_cast<size_t>(Last - First); }
 
+  /// Parse an optionally signed number from the input.
+  /// \param AllowNegative When true, accept a leading 'n' for negative values.
+  /// \return The parsed number spelling as a string view.
   std::string_view parseNumber(bool AllowNegative = false);
+  /// Parse CV and restrict qualifiers.
+  /// \return The parsed CV and restrict qualifiers.
   Qualifiers parseCVQualifiers();
+  /// Parse a positive integer into Out.
+  /// \param Out Destination for the parsed integer or sequence id.
+  /// \return True on success.
   bool parsePositiveInteger(size_t *Out);
+  /// Parse a bare <source-name> spelling.
+  /// \return The bare source-name spelling, or empty on failure.
   std::string_view parseBareSourceName();
 
+  /// Parse a <seq-id> production into Out.
+  /// \param Out Destination for the parsed integer or sequence id.
+  /// \return True on success.
   bool parseSeqId(size_t *Out);
+  /// Parse a <substitution> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseSubstitution();
+  /// Parse a <template-param> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseTemplateParam();
+  /// Parse a <template-param-decl> production.
+  /// \param Params Template parameter list being declared into.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseTemplateParamDecl(TemplateParamList *Params);
+  /// Parse a <template-args> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseTemplateArgs(bool TagTemplates = false);
+  /// Parse a <template-arg> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseTemplateArg();
 
+  /// Return true if the next input begins a <template-param-decl>.
+  /// \return True if the next input begins a <template-param-decl>.
   bool isTemplateParamDecl() {
     return look() == 'T' &&
            std::string_view("yptnk").find(look(1)) != std::string_view::npos;
   }
 
   /// Parse the <expression> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseExpr();
+  /// Parse a prefix unary expression.
+  /// \param Kind Operator spelling for the expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parsePrefixExpr(std::string_view Kind, Node::Prec Prec);
+  /// Parse a binary operator expression.
+  /// \param Kind Operator spelling for the expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseBinaryExpr(std::string_view Kind, Node::Prec Prec);
+  /// Parse an integer literal with the given type spelling.
+  /// \param Lit Type spelling to emit with the integer literal.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseIntegerLiteral(std::string_view Lit);
+  /// Parse an <expr-primary> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseExprPrimary();
+  /// Parse a floating-point literal of type Float.
+  /// \return The parsed AST node, or nullptr on failure.
   template <class Float> Node *parseFloatingLiteral();
+  /// Parse a function parameter expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseFunctionParam();
+  /// Parse a conversion expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseConversionExpr();
+  /// Parse a braced initializer expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseBracedExpr();
+  /// Parse a fold expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseFoldExpr();
+  /// Parse a pointer-to-member conversion expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parsePointerToMemberConversionExpr(Node::Prec Prec);
+  /// Parse a subobject expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseSubobjectExpr();
+  /// Parse a constraint expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseConstraintExpr();
+  /// Parse a requires-expression.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseRequiresExpr();
 
   /// Parse the <type> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseType();
+  /// Parse a function type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseFunctionType();
+  /// Parse a vector type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseVectorType();
+  /// Parse a decltype type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseDecltype();
+  /// Parse an array type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseArrayType();
+  /// Parse a pointer-to-member type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parsePointerToMemberType();
+  /// Parse a class or enum type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseClassEnumType();
+  /// Parse a qualified type.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseQualifiedType();
 
+  /// Parse an <encoding> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseEncoding(bool ParseParams = true);
+  /// Parse a <call-offset> production.
+  /// \return True if a <call-offset> was successfully parsed.
   bool parseCallOffset();
+  /// Parse a <special-name> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseSpecialName();
 
-  /// Holds some extra information about a <name> that is being parsed. This
+  /// Mutable state collected while parsing a <name>.
+  ///
+  /// Holds extra information about a <name> that is being parsed. This
   /// information is only pertinent if the <name> refers to an <encoding>.
   struct NameState {
+    /// True if the name is a ctor, dtor, or conversion operator.
     bool CtorDtorConversion = false;
+    /// True if the name ends with template arguments.
     bool EndsWithTemplateArgs = false;
+    /// CV-qualifiers accumulated for an encoding name.
     Qualifiers CVQualifiers = QualNone;
+    /// Ref-qualifier accumulated for an encoding name.
     FunctionRefQual ReferenceQualifier = FrefQualNone;
+    /// Index into ForwardTemplateRefs at the start of this name.
     size_t ForwardTemplateRefsBegin;
+    /// True if an explicit object parameter (C++23) was seen.
     bool HasExplicitObjectParameter = false;
 
+    /// Snapshot forward-template-ref baseline from \p Enclosing.
+    /// \param Enclosing Parser whose ForwardTemplateRefs size is recorded.
     NameState(AbstractManglingParser *Enclosing)
         : ForwardTemplateRefsBegin(Enclosing->ForwardTemplateRefs.size()) {}
   };
 
+  /// Resolve forward template refs recorded since \p State was constructed.
+  /// \param State Name state holding the ForwardTemplateRefs baseline.
+  /// \return true on success.
   bool resolveForwardTemplateRefs(NameState &State) {
     size_t I = State.ForwardTemplateRefsBegin;
     size_t E = ForwardTemplateRefs.size();
@@ -2985,63 +4226,139 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     return false;
   }
 
-  /// Parse the <name> production>
+  /// Parse the <name> production.
+  /// \param State Optional name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseName(NameState *State = nullptr);
+  /// Parse a <local-name> production.
+  /// \param State Name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseLocalName(NameState *State);
+  /// Parse an <operator-name> production.
+  /// \param State Name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseOperatorName(NameState *State);
+  /// Parse an optional module name prefix.
+  /// \param Module Module name being built.
+  /// \return True on success.
   bool parseModuleNameOpt(ModuleName *&Module);
+  /// Parse an <unqualified-name> production.
+  /// \param State Name-parsing state to update.
+  /// \param Scope Enclosing scope node.
+  /// \param Module Module name being built.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseUnqualifiedName(NameState *State, Node *Scope, ModuleName *Module);
+  /// Parse an <unnamed-type-name> production.
+  /// \param State Name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseUnnamedTypeName(NameState *State);
+  /// Parse a <source-name> production.
+  /// \param State Name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseSourceName(NameState *State);
-  Node *parseUnscopedName(NameState *State, bool *isSubstName);
+  /// Parse an <unscoped-name> production.
+  /// \param State Name-parsing state to update.
+  /// \param IsSubst Optional out-flag set when a substitution was parsed.
+  /// \return The parsed AST node, or nullptr on failure.
+  Node *parseUnscopedName(NameState *State, bool *IsSubst);
+  /// Parse a <nested-name> production.
+  /// \param State Name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseNestedName(NameState *State);
+  /// Parse a constructor or destructor name.
+  /// \param SoFar Name parsed so far.
+  /// \param State Name-parsing state to update.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseCtorDtorName(Node *&SoFar, NameState *State);
 
+  /// Parse and attach ABI tags to \p N.
+  /// \param N Node to extend with ABI tags.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseAbiTags(Node *N);
 
+  /// Table entry describing a mangled operator encoding.
   struct OperatorInfo {
+    /// Classification of how the operator is parsed and printed.
     enum OIKind : unsigned char {
-      Prefix,      // Prefix unary: @ expr
-      Postfix,     // Postfix unary: expr @
-      Binary,      // Binary: lhs @ rhs
-      Array,       // Array index:  lhs [ rhs ]
-      Member,      // Member access: lhs @ rhs
-      New,         // New
-      Del,         // Delete
-      Call,        // Function call: expr (expr*)
-      CCast,       // C cast: (type)expr
-      Conditional, // Conditional: expr ? expr : expr
-      NameOnly,    // Overload only, not allowed in expression.
-      // Below do not have operator names
-      NamedCast, // Named cast, @<type>(expr)
-      OfIdOp,    // alignof, sizeof, typeid
+      /// Prefix unary: @ expr.
+      Prefix,
+      /// Postfix unary: expr @.
+      Postfix,
+      /// Binary: lhs @ rhs.
+      Binary,
+      /// Array index: lhs [ rhs ].
+      Array,
+      /// Member access: lhs @ rhs.
+      Member,
+      /// New-expression operator.
+      New,
+      /// Delete-expression operator.
+      Del,
+      /// Function call: expr (expr*).
+      Call,
+      /// C cast: (type)expr.
+      CCast,
+      /// Conditional: expr ? expr : expr.
+      Conditional,
+      /// Overload-only name; not allowed in an expression.
+      NameOnly,
+      /// Named cast: @<type>(expr).
+      NamedCast,
+      /// alignof, sizeof, or typeid operator.
+      OfIdOp,
 
+      /// First kind without a printable "operator" spelling.
       Unnameable = NamedCast,
     };
-    char Enc[2];      // Encoding
-    OIKind Kind;      // Kind of operator
-    bool Flag : 1;    // Entry-specific flag
-    Node::Prec Prec : 7; // Precedence
-    const char *Name; // Spelling
+    /// Two-character Itanium operator encoding.
+    char Enc[2];
+    /// Kind of operator.
+    OIKind Kind;
+    /// Entry-specific flag.
+    bool Flag : 1;
+    /// Expression precedence.
+    Node::Prec Prec : 7;
+    /// Operator spelling, including any leading "operator" text.
+    const char *Name;
 
   public:
+    /// Construct an operator info table entry.
+    /// \param E Two-character encoding plus NUL.
+    /// \param K Operator kind.
+    /// \param F Entry-specific flag.
+    /// \param P Expression precedence.
+    /// \param N Operator spelling.
     constexpr OperatorInfo(const char (&E)[3], OIKind K, bool F, Node::Prec P,
                            const char *N)
         : Enc{E[0], E[1]}, Kind{K}, Flag{F}, Prec{P}, Name{N} {}
 
   public:
+    /// Compare encodings so this entry sorts before \p Other.
+    /// \param Other Other operator info.
+    /// \return True if this entry sorts before the other encoding.
     bool operator<(const OperatorInfo &Other) const {
       return *this < Other.Enc;
     }
+    /// Compare this encoding with the two characters at \p Peek.
+    /// \param Peek Pointer to a two-character encoding candidate.
+    /// \return True if this entry sorts before the other encoding.
     bool operator<(const char *Peek) const {
       return Enc[0] < Peek[0] || (Enc[0] == Peek[0] && Enc[1] < Peek[1]);
     }
+    /// Return true if this encoding equals the two characters at \p Peek.
+    /// \param Peek Pointer to a two-character encoding candidate.
+    /// \return True if the encodings are equal.
     bool operator==(const char *Peek) const {
       return Enc[0] == Peek[0] && Enc[1] == Peek[1];
     }
+    /// Return true if this encoding differs from the two characters at \p Peek.
+    /// \param Peek Pointer to a two-character encoding candidate.
+    /// \return True if the encodings differ.
     bool operator!=(const char *Peek) const { return !this->operator==(Peek); }
 
   public:
+    /// Return the operator symbol without a leading "operator" prefix.
+    /// \return The operator symbol without a leading "operator" prefix.
     std::string_view getSymbol() const {
       std::string_view Res = Name;
       if (Kind < Unnameable) {
@@ -3053,26 +4370,54 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
       }
       return Res;
     }
+    /// Return the full operator spelling.
+    /// \return The full operator spelling.
     std::string_view getName() const { return Name; }
+    /// Return the operator kind.
+    /// \return The operator kind.
     OIKind getKind() const { return Kind; }
+    /// Return the entry-specific flag.
+    /// \return The entry-specific flag.
     bool getFlag() const { return Flag; }
+    /// Return the expression precedence.
+    /// \return The expression precedence.
     Node::Prec getPrecedence() const { return Prec; }
   };
+  /// Sorted table of operator encodings.
   static const OperatorInfo Ops[];
+  /// Number of entries in Ops.
   static const size_t NumOps;
+  /// Parse an operator encoding from the input, if present.
+  /// \return Pointer to the matching OperatorInfo, or nullptr.
   const OperatorInfo *parseOperatorEncoding();
 
   /// Parse the <unresolved-name> production.
+  /// \param Global True when the name is rooted with a leading GS.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseUnresolvedName(bool Global);
+  /// Parse a <simple-id> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseSimpleId();
+  /// Parse a <base-unresolved-name> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseBaseUnresolvedName();
+  /// Parse an <unresolved-type> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseUnresolvedType();
+  /// Parse a <destructor-name> production.
+  /// \return The parsed AST node, or nullptr on failure.
   Node *parseDestructorName();
 
   /// Top-level entry point into the parser.
+  /// \param ParseParams When false, stop before function parameter types.
+  /// \return The root AST node, or nullptr on failure.
   Node *parse(bool ParseParams = true);
 };
 
+/// Skip a trailing discriminator in [\p first, \p last).
+/// \param first Start of the remaining mangled input.
+/// \param last End of the mangled input.
+/// \return Pointer past the discriminator, or \p first on failure.
 DEMANGLE_ABI const char *parse_discriminator(const char *first,
                                              const char *last);
 
@@ -3083,6 +4428,9 @@ DEMANGLE_ABI const char *parse_discriminator(const char *first,
 //
 // <unscoped-template-name> ::= <unscoped-name>
 //                          ::= <substitution>
+/// Parse a <name> production.
+/// \param State Name-parsing state to update.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseName(NameState *State) {
   if (look() == 'N')
@@ -3119,6 +4467,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseName(NameState *State) {
 // <local-name> := Z <function encoding> E <entity name> [<discriminator>]
 //              := Z <function encoding> E s [<discriminator>]
 //              := Z <function encoding> Ed [ <parameter number> ] _ <entity name>
+/// Parse a <local-name> production.
+/// \param State Name-parsing state to update.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseLocalName(NameState *State) {
   if (!consumeIf('Z'))
@@ -3159,6 +4510,10 @@ Node *AbstractManglingParser<Derived, Alloc>::parseLocalName(NameState *State) {
 // <unscoped-name> ::= <unqualified-name>
 //                 ::= St <unqualified-name>   # ::std::
 // [*] extension
+/// Parse an <unscoped-name> production.
+/// \param State Name-parsing state to update.
+/// \param IsSubst Optional out-flag set when a substitution was parsed.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseUnscopedName(NameState *State,
@@ -3200,6 +4555,11 @@ AbstractManglingParser<Derived, Alloc>::parseUnscopedName(NameState *State,
 //                    ::= [<module-name>] L? <unnamed-type-name> [<abi-tags>]
 //			# structured binding declaration
 //                    ::= [<module-name>] L? DC <source-name>+ E
+/// Parse an <unqualified-name> production.
+/// \param State Name-parsing state to update.
+/// \param Scope Enclosing scope node.
+/// \param Module Module name being built.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseUnqualifiedName(
     NameState *State, Node *Scope, ModuleName *Module) {
@@ -3251,6 +4611,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseUnqualifiedName(
 //		 ::= <substitution>  # passed in by caller
 // <module-subname> ::= W <source-name>
 //		    ::= W P <source-name>
+/// Parse an optional module name prefix.
+/// \param Module Module name being built.
+/// \return True on success.
 template <typename Derived, typename Alloc>
 bool AbstractManglingParser<Derived, Alloc>::parseModuleNameOpt(
     ModuleName *&Module) {
@@ -3274,6 +4637,9 @@ bool AbstractManglingParser<Derived, Alloc>::parseModuleNameOpt(
 //
 // <lambda-sig> ::= <template-param-decl>* [Q <requires-clause expression>]
 //                  <parameter type>+  # or "v" if the lambda has no parameters
+/// Parse an <unnamed-type-name> production.
+/// \param State Name-parsing state to update.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseUnnamedTypeName(NameState *State) {
@@ -3371,6 +4737,8 @@ AbstractManglingParser<Derived, Alloc>::parseUnnamedTypeName(NameState *State) {
 }
 
 // <source-name> ::= <positive length number> <identifier>
+/// Parse a <source-name> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseSourceName(NameState *) {
   size_t Length = 0;
@@ -3476,6 +4844,8 @@ const size_t AbstractManglingParser<Derived, Alloc>::NumOps = sizeof(Ops) /
 
 // If the next 2 chars are an operator encoding, consume them and return their
 // OperatorInfo.  Otherwise return nullptr.
+/// Parse an operator encoding from the input, if present.
+/// \return Pointer to the matching OperatorInfo, or nullptr.
 template <typename Derived, typename Alloc>
 const typename AbstractManglingParser<Derived, Alloc>::OperatorInfo *
 AbstractManglingParser<Derived, Alloc>::parseOperatorEncoding() {
@@ -3502,6 +4872,9 @@ AbstractManglingParser<Derived, Alloc>::parseOperatorEncoding() {
 //   <operator-name> ::= See parseOperatorEncoding()
 //                   ::= li <source-name>  # operator ""
 //                   ::= v <digit> <source-name>  # vendor extended operator
+/// Parse an <operator-name> production.
+/// \param State Name-parsing state to update.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseOperatorName(NameState *State) {
@@ -3565,6 +4938,10 @@ AbstractManglingParser<Derived, Alloc>::parseOperatorName(NameState *State) {
 //                  ::= D2  # base object destructor
 //   extension      ::= D4  # gcc old-style "[unified]" destructor
 //   extension      ::= D5  # the COMDAT used for dtors
+/// Parse a constructor or destructor name.
+/// \param SoFar Name parsed so far.
+/// \param State Name-parsing state to update.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseCtorDtorName(Node *&SoFar,
@@ -3622,6 +4999,9 @@ AbstractManglingParser<Derived, Alloc>::parseCtorDtorName(Node *&SoFar,
 // <template-prefix> ::= <prefix> <template unqualified-name>
 //                   ::= <template-param>
 //                   ::= <substitution>
+/// Parse a <nested-name> production.
+/// \param State Name-parsing state to update.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseNestedName(NameState *State) {
@@ -3725,6 +5105,8 @@ AbstractManglingParser<Derived, Alloc>::parseNestedName(NameState *State) {
 }
 
 // <simple-id> ::= <source-name> [ <template-args> ]
+/// Parse a <simple-id> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseSimpleId() {
   Node *SN = getDerived().parseSourceName(/*NameState=*/nullptr);
@@ -3741,6 +5123,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSimpleId() {
 
 // <destructor-name> ::= <unresolved-type>  # e.g., ~T or ~decltype(f())
 //                   ::= <simple-id>        # e.g., ~A<2*N>
+/// Parse a <destructor-name> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseDestructorName() {
   Node *Result;
@@ -3756,6 +5140,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseDestructorName() {
 // <unresolved-type> ::= <template-param>
 //                   ::= <decltype>
 //                   ::= <substitution>
+/// Parse an <unresolved-type> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseUnresolvedType() {
   if (look() == 'T') {
@@ -3782,6 +5168,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseUnresolvedType() {
 //                        ::= on <operator-name> <template-args>         # unresolved operator template-id
 //                        ::= dn <destructor-name>                       # destructor or pseudo-destructor;
 //                                                                         # e.g. ~X or ~X<N-1>
+/// Parse a <base-unresolved-name> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseBaseUnresolvedName() {
   if (std::isdigit(look()))
@@ -3816,6 +5204,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseBaseUnresolvedName() {
 //  (ignored)        ::= srN <unresolved-type>  <unresolved-qualifier-level>+ E <base-unresolved-name>
 //
 // <unresolved-qualifier-level> ::= <simple-id>
+/// Parse an <unresolved-name> production.
+/// \param Global True when the name is globally qualified.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseUnresolvedName(bool Global) {
   Node *SoFar = nullptr;
@@ -3904,6 +5295,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseUnresolvedName(bool Global) {
 
 // <abi-tags> ::= <abi-tag> [<abi-tags>]
 // <abi-tag> ::= B <source-name>
+/// Parse and attach ABI tags to \p N.
+/// \param N Node to extend with ABI tags.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseAbiTags(Node *N) {
   while (consumeIf('B')) {
@@ -3918,6 +5312,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseAbiTags(Node *N) {
 }
 
 // <number> ::= [n] <non-negative decimal integer>
+/// Parse an optionally signed number from the input.
+/// \param AllowNegative When true, accept a leading 'n' for negative values.
+/// \return The parsed number spelling as a string view.
 template <typename Alloc, typename Derived>
 std::string_view
 AbstractManglingParser<Alloc, Derived>::parseNumber(bool AllowNegative) {
@@ -3932,6 +5329,9 @@ AbstractManglingParser<Alloc, Derived>::parseNumber(bool AllowNegative) {
 }
 
 // <positive length number> ::= [0-9]*
+/// Parse a positive integer into Out.
+/// \param Out Destination for the parsed integer or sequence id.
+/// \return True on success.
 template <typename Alloc, typename Derived>
 bool AbstractManglingParser<Alloc, Derived>::parsePositiveInteger(size_t *Out) {
   *Out = 0;
@@ -3944,6 +5344,8 @@ bool AbstractManglingParser<Alloc, Derived>::parsePositiveInteger(size_t *Out) {
   return false;
 }
 
+/// Parse a bare <source-name> spelling.
+/// \return The bare source-name spelling, or empty on failure.
 template <typename Alloc, typename Derived>
 std::string_view AbstractManglingParser<Alloc, Derived>::parseBareSourceName() {
   size_t Int = 0;
@@ -3962,6 +5364,8 @@ std::string_view AbstractManglingParser<Alloc, Derived>::parseBareSourceName() {
 //
 // <ref-qualifier> ::= R                   # & ref-qualifier
 // <ref-qualifier> ::= O                   # && ref-qualifier
+/// Parse a function type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseFunctionType() {
   Qualifiers CVQuals = parseCVQualifiers();
@@ -4032,6 +5436,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseFunctionType() {
 //                         ::= Dv [<dimension expression>] _ <element type>
 // <extended element type> ::= <element type>
 //                         ::= p # AltiVec vector pixel
+/// Parse a vector type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseVectorType() {
   if (!consumeIf("Dv"))
@@ -4069,6 +5475,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseVectorType() {
 
 // <decltype>  ::= Dt <expression> E  # decltype of an id-expression or class member access (C++0x)
 //             ::= DT <expression> E  # decltype of an expression (C++0x)
+/// Parse a decltype type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseDecltype() {
   if (!consumeIf('D'))
@@ -4085,6 +5493,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseDecltype() {
 
 // <array-type> ::= A <positive dimension number> _ <element type>
 //              ::= A [<dimension expression>] _ <element type>
+/// Parse an array type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseArrayType() {
   if (!consumeIf('A'))
@@ -4114,6 +5524,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseArrayType() {
 }
 
 // <pointer-to-member-type> ::= M <class type> <member type>
+/// Parse a pointer-to-member type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parsePointerToMemberType() {
   if (!consumeIf('M'))
@@ -4131,6 +5543,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parsePointerToMemberType() {
 //                   ::= Ts <name>  # dependent elaborated type specifier using 'struct' or 'class'
 //                   ::= Tu <name>  # dependent elaborated type specifier using 'union'
 //                   ::= Te <name>  # dependent elaborated type specifier using 'enum'
+/// Parse a class/enum type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseClassEnumType() {
   std::string_view ElabSpef;
@@ -4154,6 +5568,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseClassEnumType() {
 // <qualified-type>     ::= <qualifiers> <type>
 // <qualifiers> ::= <extended-qualifier>* <CV-qualifiers>
 // <extended-qualifier> ::= U <source-name> [<template-args>] # vendor extended type qualifier
+/// Parse a qualified type.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseQualifiedType() {
   if (consumeIf('U')) {
@@ -4221,6 +5637,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseQualifiedType() {
 //
 // <objc-name> ::= <k0 number> objcproto <k1 number> <identifier>  # k0 = 9 + <number of digits in k1> + k1
 // <objc-type> ::= <source-name>  # PU<11+>objcproto 11objc_object<source-name> 11objc_object -> id<source-name>
+/// Parse a <type> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseType() {
   Node *Result = nullptr;
@@ -4715,6 +6133,10 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType() {
   return Result;
 }
 
+/// Parse a prefix unary expression.
+/// \param Kind The kind.
+/// \param Prec The prec.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parsePrefixExpr(std::string_view Kind,
@@ -4725,6 +6147,10 @@ AbstractManglingParser<Derived, Alloc>::parsePrefixExpr(std::string_view Kind,
   return make<PrefixExpr>(Kind, E, Prec);
 }
 
+/// Parse a binary operator expression.
+/// \param Kind The kind.
+/// \param Prec The prec.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseBinaryExpr(std::string_view Kind,
@@ -4738,6 +6164,9 @@ AbstractManglingParser<Derived, Alloc>::parseBinaryExpr(std::string_view Kind,
   return make<BinaryExpr>(LHS, Kind, RHS, Prec);
 }
 
+/// Parse an integer literal of the given type.
+/// \param Lit The lit.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseIntegerLiteral(
     std::string_view Lit) {
@@ -4748,6 +6177,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseIntegerLiteral(
 }
 
 // <CV-Qualifiers> ::= [r] [V] [K]
+/// Parse CV and restrict qualifiers.
+/// \return The parsed CV and restrict qualifiers.
 template <typename Alloc, typename Derived>
 Qualifiers AbstractManglingParser<Alloc, Derived>::parseCVQualifiers() {
   Qualifiers CVR = QualNone;
@@ -4765,6 +6196,8 @@ Qualifiers AbstractManglingParser<Alloc, Derived>::parseCVQualifiers() {
 //                  ::= fL <L-1 non-negative number> p <top-level CV-Qualifiers> _         # L > 0, first parameter
 //                  ::= fL <L-1 non-negative number> p <top-level CV-Qualifiers> <parameter-2 non-negative number> _   # L > 0, second and later parameters
 //                  ::= fpT      # 'this' expression (not part of standard?)
+/// Parse a function parameter expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseFunctionParam() {
   if (consumeIf("fpT"))
@@ -4792,6 +6225,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseFunctionParam() {
 
 // cv <type> <expression>                               # conversion with one argument
 // cv <type> _ <expression>* E                          # conversion with a different number of arguments
+/// Parse a conversion expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseConversionExpr() {
   if (!consumeIf("cv"))
@@ -4830,6 +6265,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseConversionExpr() {
 //                ::= L <lambda type> E                                  # lambda expression
 // FIXME:         ::= L <type> <real-part float> _ <imag-part float> E   # complex floating point literal (C 2000)
 //                ::= L <mangled-name> E                                 # external name
+/// Parse an <expr-primary> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseExprPrimary() {
   if (!consumeIf('L'))
@@ -4950,6 +6387,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExprPrimary() {
 //                     ::= di <field source-name> <braced-expression>    # .name = expr
 //                     ::= dx <index expression> <braced-expression>     # [expr] = expr
 //                     ::= dX <range begin expression> <range end expression> <braced-expression>
+/// Parse a braced initializer expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseBracedExpr() {
   if (look() == 'd') {
@@ -4997,6 +6436,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseBracedExpr() {
 //             ::= fR <binary-operator-name> <expression> <expression>
 //             ::= fl <binary-operator-name> <expression>
 //             ::= fr <binary-operator-name> <expression>
+/// Parse a fold expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseFoldExpr() {
   if (!consumeIf('f'))
@@ -5049,6 +6490,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseFoldExpr() {
 // <expression> ::= mc <parameter type> <expr> [<offset number>] E
 //
 // Not yet in the spec: https://github.com/itanium-cxx-abi/cxx-abi/issues/47
+/// Parse a pointer-to-member conversion expression.
+/// \param Prec The prec.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parsePointerToMemberConversionExpr(
@@ -5069,6 +6513,8 @@ AbstractManglingParser<Derived, Alloc>::parsePointerToMemberConversionExpr(
 // <union-selector> ::= _ [<number>]
 //
 // Not yet in the spec: https://github.com/itanium-cxx-abi/cxx-abi/issues/47
+/// Parse a subobject expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseSubobjectExpr() {
   Node *Ty = getDerived().parseType();
@@ -5092,6 +6538,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSubobjectExpr() {
       Ty, Expr, Offset, popTrailingNodeArray(SelectorsBegin), OnePastTheEnd);
 }
 
+/// Parse a constraint expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseConstraintExpr() {
   // Within this expression, all enclosing template parameter lists are in
@@ -5101,6 +6549,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseConstraintExpr() {
   return getDerived().parseExpr();
 }
 
+/// Parse a requires-expression.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseRequiresExpr() {
   NodeArray Params;
@@ -5207,6 +6657,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseRequiresExpr() {
 //              ::= fl <binary-operator-name> <expression>
 //              ::= fr <binary-operator-name> <expression>
 //              ::= <expr-primary>
+/// Parse an <expression> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseExpr() {
   bool Global = consumeIf("gs");
@@ -5514,6 +6966,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExpr() {
 //
 // <v-offset>  ::= <offset number> _ <virtual offset number>
 //               # virtual base override, with vcall offset
+/// Parse a <call-offset> production.
+/// \return True if a <call-offset> was successfully parsed.
 template <typename Alloc, typename Derived>
 bool AbstractManglingParser<Alloc, Derived>::parseCallOffset() {
   // Just scan through the call offset, we never add this information into the
@@ -5547,6 +7001,8 @@ bool AbstractManglingParser<Alloc, Derived>::parseCallOffset() {
 //      extension ::= TC <first type> <number> _ <second type>
 //      extension ::= GR <object name> # reference temporary for object
 //      extension ::= GI <module name> # module global initializer
+/// Parse a <special-name> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseSpecialName() {
   switch (look()) {
@@ -5692,6 +7148,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSpecialName() {
 //                    [`Q` <requires-clause expr>]
 //            ::= <data name>
 //            ::= <special-name>
+/// Parse an <encoding> production.
+/// \param ParseParams When false, skip function parameter types.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseEncoding(bool ParseParams) {
   // The template parameters of an encoding are unrelated to those of the
@@ -5785,45 +7244,38 @@ Node *AbstractManglingParser<Derived, Alloc>::parseEncoding(bool ParseParams) {
 template <class Float>
 struct FloatData;
 
-template <>
-struct FloatData<float>
-{
-    static const size_t mangled_size = 8;
-    static const size_t max_demangled_size = 24;
-    static constexpr const char* spec = "%af";
+/// FloatData traits for `float`.
+template <> struct FloatData<float> {
+  /// Number of mangled hex characters in the literal encoding.
+  static const size_t mangled_size = 8;
+  /// Maximum characters needed for the demangled spelling.
+  static const size_t max_demangled_size = 24;
+  /// printf-style conversion specifier for this type.
+  static constexpr const char *spec = "%af";
 };
 
-template <>
-struct FloatData<double>
-{
-    static const size_t mangled_size = 16;
-    static const size_t max_demangled_size = 32;
-    static constexpr const char* spec = "%a";
-};
-
-template <>
-struct FloatData<long double>
-{
-#if __LDBL_MANT_DIG__ == 113 || __LDBL_MANT_DIG__ == 106
-  static const size_t mangled_size = 32;
-#elif __LDBL_MANT_DIG__ == 53 || defined(_MSC_VER)
-  // MSVC doesn't define __LDBL_MANT_DIG__, but it has long double equal to
-  // regular double on all current architectures.
+/// FloatData traits for `double`.
+template <> struct FloatData<double> {
+  /// Number of mangled hex characters in the literal encoding.
   static const size_t mangled_size = 16;
-#elif __LDBL_MANT_DIG__ == 64
-  static const size_t mangled_size = 20;
-#else
-#error Unknown size for __LDBL_MANT_DIG__
-#endif
-    // `-0x1.ffffffffffffffffffffffffffffp+16383` + 'L' + '\0' == 42 bytes.
-    // 28 'f's * 4 bits == 112 bits, which is the number of mantissa bits.
-    // Negatives are one character longer than positives.
-    // `0x1.` and `p` are constant, and exponents `+16383` and `-16382` are the
-    // same length. 1 sign bit, 112 mantissa bits, and 15 exponent bits == 128.
-    static const size_t max_demangled_size = 42;
-    static constexpr const char *spec = "%LaL";
+  /// Maximum characters needed for the demangled spelling.
+  static const size_t max_demangled_size = 32;
+  /// printf-style conversion specifier for this type.
+  static constexpr const char *spec = "%a";
 };
 
+/// FloatData traits for `long double`.
+template <> struct FloatData<long double> {
+  /// Number of mangled hex characters in the literal encoding.
+  static const size_t mangled_size = 32;
+  /// Maximum characters needed for the demangled spelling.
+  static const size_t max_demangled_size = 42;
+  /// printf-style conversion specifier for this type.
+  static constexpr const char *spec = "%LaL";
+};
+
+/// Parse a floating-point literal of type Float.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Alloc, typename Derived>
 template <class Float>
 Node *AbstractManglingParser<Alloc, Derived>::parseFloatingLiteral() {
@@ -5841,6 +7293,9 @@ Node *AbstractManglingParser<Alloc, Derived>::parseFloatingLiteral() {
 }
 
 // <seq-id> ::= <0-9A-Z>+
+/// Parse a <seq-id> production into Out.
+/// \param Out Destination for the parsed integer or sequence id.
+/// \return True on success.
 template <typename Alloc, typename Derived>
 bool AbstractManglingParser<Alloc, Derived>::parseSeqId(size_t *Out) {
   if (!(look() >= '0' && look() <= '9') &&
@@ -5874,6 +7329,8 @@ bool AbstractManglingParser<Alloc, Derived>::parseSeqId(size_t *Out) {
 // <substitution> ::= So # ::std::basic_ostream<char,  std::char_traits<char> >
 // <substitution> ::= Sd # ::std::basic_iostream<char, std::char_traits<char> >
 // The St case is handled specially in parseNestedName.
+/// Parse a <substitution> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseSubstitution() {
   if (!consumeIf('S'))
@@ -5940,6 +7397,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSubstitution() {
 //                  ::= T <parameter-2 non-negative number> _
 //                  ::= TL <level-1> __
 //                  ::= TL <level-1> _ <parameter-2 non-negative number> _
+/// Parse a <template-param> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParam() {
   const char *Begin = First;
@@ -6010,6 +7469,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParam() {
 //                       ::= Tn <type>                   # non-type parameter
 //                       ::= Tt <template-param-decl>* E # template parameter
 //                       ::= Tp <template-param-decl>    # parameter pack
+/// Parse a <template-param-decl> production.
+/// \param Params The params.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParamDecl(
     TemplateParamList *Params) {
@@ -6093,6 +7555,8 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParamDecl(
 //                ::= J <template-arg>* E       # argument pack
 //                ::= LZ <encoding> E           # extension
 //                ::= <template-param-decl> <template-arg>
+/// Parse a <template-arg> production.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseTemplateArg() {
   switch (look()) {
@@ -6146,6 +7610,9 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateArg() {
 
 // <template-args> ::= I <template-arg>* [Q <requires-clause expr>] E
 //     extension, the abi says <template-arg>+
+/// Parse a <template-args> production.
+/// \param TagTemplates When true, register template args for substitution.
+/// \return The parsed AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *
 AbstractManglingParser<Derived, Alloc>::parseTemplateArgs(bool TagTemplates) {
@@ -6203,6 +7670,9 @@ AbstractManglingParser<Derived, Alloc>::parseTemplateArgs(bool TagTemplates) {
 // extension      ::= ___Z <encoding> _block_invoke_<decimal-digit>+
 // extension      ::= __alloc_token__Z <encoding>
 // extension      ::= __alloc_token_<decimal-digit>+__Z <encoding>
+/// Top-level entry point into the parser.
+/// \param ParseParams When false, stop before function parameter types.
+/// \return The root AST node, or nullptr on failure.
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parse(bool ParseParams) {
   bool AllocToken = consumeIf("__alloc_token_");
@@ -6248,17 +7718,25 @@ Node *AbstractManglingParser<Derived, Alloc>::parse(bool ParseParams) {
   return Ty;
 }
 
+/// Concrete Itanium mangling parser using allocator \p Alloc.
+/// Concrete Itanium mangling parser using allocator Alloc.
 template <typename Alloc>
 struct ManglingParser : AbstractManglingParser<ManglingParser<Alloc>, Alloc> {
+  /// Inherit the AbstractManglingParser constructors.
   using AbstractManglingParser<ManglingParser<Alloc>,
                                Alloc>::AbstractManglingParser;
 };
 
+/// Print the left-hand portion of \p N into this buffer.
+/// \param N AST node to print.
 inline void OutputBuffer::printLeft(const Node &N) { N.printLeft(*this); }
 
+/// Print the right-hand portion of \p N into this buffer.
+/// \param N AST node to print.
 inline void OutputBuffer::printRight(const Node &N) { N.printRight(*this); }
 
-DEMANGLE_NAMESPACE_END
+} // namespace itanium_demangle
+} // namespace llvm
 
 #if defined(__clang__)
 #pragma clang diagnostic pop

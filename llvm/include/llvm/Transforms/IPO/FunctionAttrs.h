@@ -29,11 +29,19 @@ class Function;
 class Module;
 
 /// Returns the memory access properties of this copy of the function.
+///
+/// \param F Function whose body is analyzed for memory effects.
+/// \param AAR Alias analysis results used to classify memory accesses.
+/// \return The memory access properties of this copy of the function.
 LLVM_ABI MemoryEffects computeFunctionBodyMemoryAccess(Function &F,
                                                        AAResults &AAR);
 
 /// Propagate function attributes for function summaries along the index's
 /// callgraph during thinlink
+///
+/// \param Index Combined module summary index whose call graph is walked.
+/// \param isPrevailing Callback that reports whether a summary is prevailing.
+/// \return True if any function attributes were propagated.
 LLVM_ABI bool thinLTOPropagateFunctionAttrs(
     ModuleSummaryIndex &Index,
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
@@ -50,12 +58,28 @@ LLVM_ABI bool thinLTOPropagateFunctionAttrs(
 /// the function and marks them with the nocapture attribute.
 struct PostOrderFunctionAttrsPass
     : OptionalPassInfoMixin<PostOrderFunctionAttrsPass> {
+  /// Construct a post-order function attributes pass.
+  ///
+  /// \param SkipNonRecursive If true, skip full attribute inference for
+  /// non-recursive single-node SCCs and only infer argument attributes.
   PostOrderFunctionAttrsPass(bool SkipNonRecursive = false)
       : SkipNonRecursive(SkipNonRecursive) {}
+
+  /// Run post-order function attribute inference over SCC \p C.
+  ///
+  /// \param C The SCC whose functions receive inferred attributes.
+  /// \param AM The CGSCC analysis manager.
+  /// \param CG The lazy call graph.
+  /// \param UR The CGSCC update result.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &C,
                                  CGSCCAnalysisManager &AM, LazyCallGraph &CG,
                                  CGSCCUpdateResult &UR);
 
+  /// Print this pass's pipeline representation to \p OS.
+  ///
+  /// \param OS Stream to write the pipeline string to.
+  /// \param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
@@ -77,6 +101,11 @@ private:
 class ReversePostOrderFunctionAttrsPass
     : public OptionalPassInfoMixin<ReversePostOrderFunctionAttrsPass> {
 public:
+  /// Run reverse post-order function attribute deduction over the module.
+  ///
+  /// \param M Module whose functions receive deduced attributes.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
@@ -91,6 +120,11 @@ public:
 class NoRecurseLTOInferencePass
     : public OptionalPassInfoMixin<NoRecurseLTOInferencePass> {
 public:
+  /// Run 'norecurse' attribute inference over the module during postlink LTO.
+  ///
+  /// \param M Module whose functions may receive the 'norecurse' attribute.
+  /// \param MAM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 } // end namespace llvm

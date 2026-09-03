@@ -24,6 +24,12 @@ class Loop;
 /// Performs Loop Predication Pass.
 class LoopPredicationPass : public OptionalPassInfoMixin<LoopPredicationPass> {
 public:
+  /// Run loop predication over the loop.
+  /// @param L Loop whose range checks may be widened.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

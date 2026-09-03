@@ -23,14 +23,39 @@ class StringSaver final {
   BumpPtrAllocator &Alloc;
 
 public:
+  /// Use \p Alloc to allocate copies of saved strings.
+  ///
+  /// \param Alloc Allocator that owns the stable storage for saved strings.
   StringSaver(BumpPtrAllocator &Alloc) : Alloc(Alloc) {}
 
+  /// Return the bump allocator used to store saved strings.
+  ///
+  /// \return The bump allocator that owns the stable storage for saved
+  /// strings.
   BumpPtrAllocator &getAllocator() const { return Alloc; }
 
-  // All returned strings are null-terminated: *save(S).end() == 0.
+  /// Copy \p S into stable storage and return a null-terminated \c StringRef.
+  ///
+  /// All returned strings are null-terminated: *save(S).end() == 0.
+  ///
+  /// \param S Null-terminated C string to copy into stable storage.
+  /// \return A null-terminated \c StringRef referencing the stable copy.
   StringRef save(const char *S) { return save(StringRef(S)); }
+  /// Copy \p S into stable storage owned by this saver and return a
+  /// \c StringRef referencing the copy.
+  ///
+  /// \param S String to copy into stable storage.
+  /// \return A null-terminated \c StringRef referencing the stable copy.
   LLVM_ABI StringRef save(StringRef S);
+  /// Copy \p S into stable storage and return a \c StringRef to the copy.
+  ///
+  /// \param S Twine to materialize and copy into stable storage.
+  /// \return A null-terminated \c StringRef referencing the stable copy.
   LLVM_ABI StringRef save(const Twine &S);
+  /// Copy \p S into stable storage and return a \c StringRef to the copy.
+  ///
+  /// \param S String to copy into stable storage.
+  /// \return A null-terminated \c StringRef referencing the stable copy.
   StringRef save(const std::string &S) { return save(StringRef(S)); }
 };
 
@@ -47,12 +72,32 @@ class UniqueStringSaver final {
   llvm::DenseSet<llvm::StringRef> Unique;
 
 public:
+  /// Construct a saver that stores unique string copies in \p Alloc.
+  ///
+  /// \param Alloc Allocator that owns the stable storage for saved strings.
   UniqueStringSaver(BumpPtrAllocator &Alloc) : Strings(Alloc) {}
 
-  // All returned strings are null-terminated: *save(S).end() == 0.
+  /// Save \p S once, reusing a prior copy when the string was already saved.
+  ///
+  /// All returned strings are null-terminated: *save(S).end() == 0.
+  ///
+  /// \param S Null-terminated C string to save uniquely.
+  /// \return A null-terminated \c StringRef to the unique stable copy.
   StringRef save(const char *S) { return save(StringRef(S)); }
+  /// Save \p S once, reusing a prior copy when the string was already saved.
+  ///
+  /// \param S String to save uniquely into stable storage.
+  /// \return A null-terminated \c StringRef to the unique stable copy.
   LLVM_ABI StringRef save(StringRef S);
+  /// Save \p S once, reusing a prior copy when the string was already saved.
+  ///
+  /// \param S Twine to materialize and save uniquely into stable storage.
+  /// \return A null-terminated \c StringRef to the unique stable copy.
   LLVM_ABI StringRef save(const Twine &S);
+  /// Save \p S once, reusing a prior copy when the string was already saved.
+  ///
+  /// \param S String to save uniquely into stable storage.
+  /// \return A null-terminated \c StringRef to the unique stable copy.
   StringRef save(const std::string &S) { return save(StringRef(S)); }
 };
 

@@ -26,6 +26,7 @@ class Error;
 /// Represents structure for holding and parsing .debug_pub* tables.
 class DWARFDebugPubTable {
 public:
+  /// One name lookup entry in a .debug_pub* set.
   struct Entry {
     /// Section offset from the beginning of the compilation unit.
     uint64_t SecOffset;
@@ -38,6 +39,8 @@ public:
     StringRef Name;
   };
 
+  /// One compilation-unit's name lookup set within a .debug_pub* table.
+  ///
   /// Each table consists of sets of variable length entries. Each set describes
   /// the names of global objects and functions, or global types, respectively,
   /// whose definitions are represented by debugging information entries owned
@@ -62,6 +65,7 @@ public:
     /// to represent that compilation unit.
     uint64_t Size;
 
+    /// The name lookup entries belonging to this set.
     std::vector<Entry> Entries;
   };
 
@@ -73,13 +77,26 @@ private:
   bool GnuStyle = false;
 
 public:
+  /// Construct an empty pubnames/pubtypes table.
   DWARFDebugPubTable() = default;
 
+  /// Parse .debug_pub* (or .debug_gnu_pub*) contents from \p Data.
+  ///
+  /// \param Data Section bytes to parse as a pubnames/pubtypes table.
+  /// \param GnuStyle True if parsing a GNU-style .debug_gnu_pub* section.
+  /// \param RecoverableErrorHandler Callback invoked for non-fatal parse
+  /// errors.
   LLVM_ABI void extract(DWARFDataExtractor Data, bool GnuStyle,
                         function_ref<void(Error)> RecoverableErrorHandler);
 
+  /// Dump the parsed pubnames/pubtypes sets to \p OS.
+  ///
+  /// \param OS Output stream to write the dump to.
   LLVM_ABI void dump(raw_ostream &OS) const;
 
+  /// Return the parsed name lookup sets in this table.
+  ///
+  /// \returns An ArrayRef of the parsed Sets.
   ArrayRef<Set> getData() { return Sets; }
 };
 

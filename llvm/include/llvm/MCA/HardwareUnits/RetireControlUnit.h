@@ -22,36 +22,40 @@
 namespace llvm {
 namespace mca {
 
-/// This class tracks which instructions are in-flight (i.e., dispatched but not
-/// retired) in the OoO backend.
-//
+/// Tracks which instructions are in-flight in the out-of-order backend.
+///
 /// This class checks on every cycle if/which instructions can be retired.
 /// Instructions are retired in program order.
 /// In the event of an instruction being retired, the pipeline that owns
 /// this RetireControlUnit (RCU) gets notified.
 ///
 /// On instruction retired, register updates are all architecturally
-/// committed, and any physicall registers previously allocated for the
+/// committed, and any physical registers previously allocated for the
 /// retired instruction are freed.
 struct RetireControlUnit : public HardwareUnit {
-  // A RUToken is created by the RCU for every instruction dispatched to the
-  // schedulers.  These "tokens" are managed by the RCU in its token Queue.
-  //
-  // On every cycle ('cycleEvent'), the RCU iterates through the token queue
-  // looking for any token with its 'Executed' flag set.  If a token has that
-  // flag set, then the instruction has reached the write-back stage and will
-  // be retired by the RCU.
-  //
-  // 'NumSlots' represents the number of entries consumed by the instruction in
-  // the reorder buffer. Those entries will become available again once the
-  // instruction is retired.
-  //
-  // Note that the size of the reorder buffer is defined by the scheduling
-  // model via field 'NumMicroOpBufferSize'.
+  /// A token representing a dispatched instruction in the RCU queue.
+  ///
+  /// A RUToken is created by the RCU for every instruction dispatched to the
+  /// schedulers.  These "tokens" are managed by the RCU in its token Queue.
+  ///
+  /// On every cycle ('cycleEvent'), the RCU iterates through the token queue
+  /// looking for any token with its 'Executed' flag set.  If a token has that
+  /// flag set, then the instruction has reached the write-back stage and will
+  /// be retired by the RCU.
+  ///
+  /// 'NumSlots' represents the number of entries consumed by the instruction in
+  /// the reorder buffer. Those entries will become available again once the
+  /// instruction is retired.
+  ///
+  /// Note that the size of the reorder buffer is defined by the scheduling
+  /// model via field 'NumMicroOpBufferSize'.
   struct RUToken {
+    /// Instruction reference associated with this token.
     InstRef IR;
-    unsigned NumSlots; // Slots reserved to this instruction.
-    bool Executed;     // True if the instruction is past the WB stage.
+    /// Number of reorder buffer slots reserved for this instruction.
+    unsigned NumSlots;
+    /// True if the instruction is past the write-back stage.
+    bool Executed;
   };
 
 private:
@@ -77,35 +81,51 @@ private:
   unsigned computeNextSlotIdx() const;
 
 public:
+  /// Construct a retire control unit from the scheduling model.
+  /// @param SM Machine scheduling model that defines reorder buffer size.
   LLVM_ABI RetireControlUnit(const MCSchedModel &SM);
 
+  /// Returns true if the reorder buffer currently holds no instructions.
+  /// @return True if the reorder buffer is empty.
   bool isEmpty() const { return AvailableEntries == NumROBEntries; }
 
+  /// Returns true if at least Quantity reorder buffer slots are available.
+  /// @param Quantity Number of slots requested; normalized to at least one.
+  /// @return True if enough reorder buffer slots are available.
   bool isAvailable(unsigned Quantity = 1) const {
     return AvailableEntries >= normalizeQuantity(Quantity);
   }
 
+  /// Returns the maximum number of instructions that may retire per cycle.
+  /// @return Maximum retire count per cycle, or 0 if unlimited.
   unsigned getMaxRetirePerCycle() const { return MaxRetirePerCycle; }
 
-  // Reserves a number of slots, and returns a new token reference.
+  /// Reserves reorder buffer slots and returns a new token identifier.
+  /// @param IS Instruction being dispatched to the schedulers.
+  /// @return Token identifier for the dispatched instruction.
   LLVM_ABI unsigned dispatch(const InstRef &IS);
 
-  // Return the current token from the RCU's circular token queue.
+  /// Returns the current token from the RCU's circular token queue.
+  /// @return Reference to the current RUToken.
   LLVM_ABI const RUToken &getCurrentToken() const;
 
+  /// Returns the next token after the current one without consuming it.
+  /// @return Reference to the next RUToken.
   LLVM_ABI const RUToken &peekNextToken() const;
 
-  // Advance the pointer to the next token in the circular token queue.
+  /// Advances the pointer to the next token in the circular token queue.
   LLVM_ABI void consumeCurrentToken();
 
-  // Update the RCU token to represent the executed state.
+  /// Marks the RCU token as executed after write-back completes.
+  /// @param TokenID Identifier of the token to update.
   LLVM_ABI void onInstructionExecuted(unsigned TokenID);
 
 #ifndef NDEBUG
+  /// Dumps the retire control unit state for debugging.
   void dump() const;
 #endif
 
-  // Assigned to instructions that are not handled by the RCU.
+  /// Token ID assigned to instructions that are not handled by the RCU.
   static const unsigned UnhandledTokenID = ~0U;
 };
 

@@ -19,8 +19,16 @@
 #include <string>
 
 namespace llvm {
+
+/// AVR architecture feature parsing helpers.
 namespace AVR {
 
+/// Maps an ELF EF_AVR_ARCH_* e_flags value to an AVR feature-set name.
+///
+/// \param EFlag AVR architecture flag from the ELF header (typically masked
+///        with EF_AVR_ARCH_MASK).
+/// \returns The corresponding feature-set name (e.g. "avr5", "xmega1"), or an
+///          Error if \p EFlag is unrecognized.
 LLVM_ABI Expected<std::string> getFeatureSetFromEFlag(const unsigned EFlag);
 
 } // namespace AVR

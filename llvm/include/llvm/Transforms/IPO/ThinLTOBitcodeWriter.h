@@ -23,6 +23,11 @@ namespace llvm {
 class Module;
 class raw_ostream;
 
+/// Pass that prepares a module for ThinLTO and writes bitcode.
+///
+/// Modules containing type metadata are split into regular and thin LTO parts
+/// when possible and written to a multi-module bitcode file. Modules without
+/// type metadata are written unmodified as a single module.
 class ThinLTOBitcodeWriterPass
     : public RequiredPassInfoMixin<ThinLTOBitcodeWriterPass> {
   raw_ostream &OS;
@@ -30,13 +35,24 @@ class ThinLTOBitcodeWriterPass
   const bool ShouldPreserveUseListOrder;
 
 public:
-  // Writes bitcode to OS. Also write thin link file to ThinLinkOS, if
-  // it's not nullptr.
+  /// Construct a ThinLTO bitcode writer that emits to \p OS.
+  ///
+  /// Also writes a thin link file to \p ThinLinkOS when it is not nullptr.
+  ///
+  /// \param OS Stream that receives the ThinLTO bitcode output.
+  /// \param ThinLinkOS Optional stream for the thin link file, or nullptr.
+  /// \param ShouldPreserveUseListOrder Whether to preserve use-list order in
+  ///        the written bitcode.
   ThinLTOBitcodeWriterPass(raw_ostream &OS, raw_ostream *ThinLinkOS,
                            bool ShouldPreserveUseListOrder = false)
       : OS(OS), ThinLinkOS(ThinLinkOS),
         ShouldPreserveUseListOrder(ShouldPreserveUseListOrder) {}
 
+  /// Prepare module \p M for ThinLTO and write its bitcode.
+  ///
+  /// \param M Module to prepare and write as ThinLTO bitcode.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

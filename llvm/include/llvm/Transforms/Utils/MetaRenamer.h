@@ -18,8 +18,16 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+/// Pass that renames everything with metasyntactic names.
+///
+/// Intended for use after llvm-reduce reduction to conceal the nature of the
+/// original program.
 struct MetaRenamerPass : OptionalPassInfoMixin<MetaRenamerPass> {
-  LLVM_ABI PreservedAnalyses run(Module &, ModuleAnalysisManager &);
+  /// Run the meta-renamer pass over the module.
+  /// @param M Module whose symbols should be renamed.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 } // namespace llvm
 

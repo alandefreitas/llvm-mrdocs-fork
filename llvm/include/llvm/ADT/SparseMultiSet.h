@@ -193,9 +193,11 @@ public:
   /// Construct an empty sparse multi-set.
   SparseMultiSet() = default;
   /// Copy construction is deleted.
-  SparseMultiSet(const SparseMultiSet &) = delete;
+  /// @param Unused Unused; copy construction is not supported.
+  SparseMultiSet(const SparseMultiSet &Unused) = delete;
   /// Copy assignment is deleted.
-  SparseMultiSet &operator=(const SparseMultiSet &) = delete;
+  /// @param Unused Unused; copy assignment is not supported.
+  SparseMultiSet &operator=(const SparseMultiSet &Unused) = delete;
   /// Free the sparse index array.
   ~SparseMultiSet() { free(Sparse); }
 
@@ -264,6 +266,7 @@ public:
 
   public:
     /// Return a reference to the current element for this key.
+    /// @return Reference to the current element.
     reference operator*() const {
       assert(isKeyed() && SMS->sparseIndex(SMS->Dense[Idx].Data) == SparseIdx &&
              "Dereferencing iterator of invalid key or index");
@@ -271,9 +274,12 @@ public:
       return SMS->Dense[Idx].Data;
     }
     /// Return a pointer to the current element for this key.
+    /// @return Pointer to the current element.
     pointer operator->() const { return &operator*(); }
 
     /// Return true if both iterators refer to the same element (or both end).
+    /// @param RHS Iterator to compare against.
+    /// @return True if both iterators refer to the same element (or both end).
     bool operator==(const iterator_base &RHS) const {
       // end compares equal
       if (SMS == RHS.SMS && Idx == RHS.Idx) {
@@ -287,9 +293,11 @@ public:
 
     /// Return true if the iterators refer to different elements.
     /// @param RHS Iterator to compare against.
+    /// @return True if the iterators refer to different elements.
     bool operator!=(const iterator_base &RHS) const { return !operator==(RHS); }
 
     /// Move to the previous element sharing this key (pre-decrement).
+    /// @return Reference to this iterator after moving.
     iterator_base &operator--() { // predecrement - Back up
       assert(isKeyed() && "Decrementing an invalid iterator");
       assert((isEnd() || !SMS->isHead(SMS->Dense[Idx])) &&
@@ -304,21 +312,24 @@ public:
       return *this;
     }
     /// Advance to the next element sharing this key (pre-increment).
+    /// @return Reference to this iterator after advancing.
     iterator_base &operator++() { // preincrement - Advance
       assert(!isEnd() && isKeyed() && "Incrementing an invalid/end iterator");
       Idx = Next();
       return *this;
     }
     /// Move to the previous element sharing this key (post-decrement).
+    /// @param Unused Unused postfix-discriminator parameter.
     /// @return Copy of the iterator before moving.
-    iterator_base operator--(int) { // postdecrement
+    iterator_base operator--(int Unused) { // postdecrement
       iterator_base I(*this);
       --*this;
       return I;
     }
     /// Advance to the next element sharing this key (post-increment).
+    /// @param Unused Unused postfix-discriminator parameter.
     /// @return Copy of the iterator before advancing.
-    iterator_base operator++(int) { // postincrement
+    iterator_base operator++(int Unused) { // postincrement
       iterator_base I(*this);
       ++*this;
       return I;
@@ -336,8 +347,10 @@ public:
 
   /// Returns an iterator past this container. Note that such an iterator cannot
   /// be decremented, but will compare equal to other end iterators.
+  /// @return Mutable past-the-end iterator.
   iterator end() { return iterator(this, SMSNode::INVALID, SMSNode::INVALID); }
   /// Return a const iterator past all elements in the set.
+  /// @return Const past-the-end iterator.
   const_iterator end() const {
     return const_iterator(this, SMSNode::INVALID, SMSNode::INVALID);
   }
@@ -346,6 +359,7 @@ public:
   ///
   /// This is not the same as BitVector::empty().
   ///
+  /// @return True if the set has no elements.
   bool empty() const { return size() == 0; }
 
   /// Returns the number of elements in the set.
@@ -353,6 +367,7 @@ public:
   /// This is not the same as BitVector::size() which returns the size of the
   /// universe.
   ///
+  /// @return Number of elements in the set.
   size_type size() const {
     assert(NumFree <= Dense.size() && "Out-of-bounds free entries");
     return Dense.size() - NumFree;
@@ -406,6 +421,8 @@ public:
 
   /// Returns the number of elements identified by Key. This will be linear in
   /// the number of elements of that key.
+  /// @param Key Key whose multiplicity is counted.
+  /// @return Number of elements identified by \p Key.
   size_type count(const KeyT &Key) const {
     unsigned Ret = 0;
     for (const_iterator It = find(Key); It != end(); ++It)
@@ -415,12 +432,17 @@ public:
   }
 
   /// Returns true if this set contains an element identified by Key.
+  /// @param Key Key to look up.
+  /// @return True if an element identified by \p Key is present.
   bool contains(const KeyT &Key) const { return find(Key) != end(); }
 
   /// Return the head and tail of the subset's list, otherwise returns end().
+  /// @param Key Key whose linked list of values is queried.
+  /// @return Iterator to the first element sharing \p Key, or end().
   iterator getHead(const KeyT &Key) { return find(Key); }
   /// Return an iterator to the last element sharing \p Key, or end().
   /// @param Key Key whose linked list of values is queried.
+  /// @return Iterator to the last element sharing \p Key, or end().
   iterator getTail(const KeyT &Key) {
     iterator I = find(Key);
     if (I != end())
@@ -431,6 +453,8 @@ public:
   /// The bounds of the range of items sharing Key K. First member is the head
   /// of the list, and the second member is a decrementable end iterator for
   /// that key.
+  /// @param K Key whose equal-range is returned.
+  /// @return Pair of iterators delimiting the equal-range for \p K.
   RangePair equal_range(const KeyT &K) {
     iterator B = find(K);
     iterator E = iterator(this, SMSNode::INVALID, B.SparseIdx);
@@ -439,6 +463,8 @@ public:
 
   /// Insert a new element at the tail of the subset list. Returns an iterator
   /// to the newly added entry.
+  /// @param Val Value to insert; its key determines the subset list.
+  /// @return Iterator to the newly inserted element.
   iterator insert(const ValueT &Val) {
     unsigned Idx = sparseIndex(Val);
     iterator I = findIndex(Idx);
@@ -486,6 +512,9 @@ public:
   ///      break;
   ///    I = erase(I);
   ///  }
+  /// @param I Valid iterator to the element to erase.
+  /// @return Iterator to the next element in the subset list, or a
+  ///         decrementable end iterator if the last element was erased.
   iterator erase(iterator I) {
     assert(I.isKeyed() && !I.isEnd() && !Dense[I.Idx].isTombstone() &&
            "erasing invalid/end/tombstone iterator");
@@ -502,6 +531,7 @@ public:
 
   /// Erase all elements with the given key. This invalidates all
   /// iterators of that key.
+  /// @param K Key whose elements are all removed.
   void eraseAll(const KeyT &K) {
     for (iterator I = find(K); I != end(); /* empty */)
       I = erase(I);

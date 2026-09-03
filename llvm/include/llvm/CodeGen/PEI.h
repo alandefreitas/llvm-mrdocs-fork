@@ -13,9 +13,14 @@
 
 namespace llvm {
 
+/// New PM pass that inserts function prologs and epilogs.
 class PrologEpilogInserterPass
     : public RequiredPassInfoMixin<PrologEpilogInserterPass> {
 public:
+  /// Insert prolog and epilog code into \p MF.
+  /// \param MF Machine function to instrument with prolog and epilog.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after inserting prologs and epilogs.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

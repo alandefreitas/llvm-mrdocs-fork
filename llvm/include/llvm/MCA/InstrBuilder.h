@@ -29,22 +29,37 @@
 namespace llvm {
 namespace mca {
 
+/// Error indicating that an mca::Instruction was recycled rather than newly
+/// created.
 class RecycledInstErr : public ErrorInfo<RecycledInstErr> {
   Instruction *RecycledInst;
 
 public:
+  /// RTTI identifier used by ErrorInfo::classID.
   LLVM_ABI static char ID;
 
+  /// Construct an error carrying recycled instruction \p Inst.
+  ///
+  /// \param Inst Recycled instruction that should be reused.
   explicit RecycledInstErr(Instruction *Inst) : RecycledInst(Inst) {}
-  // Always need to carry an Instruction
+  /// Deleted; a recycled instruction must always be provided.
   RecycledInstErr() = delete;
 
+  /// Return the recycled instruction carried by this error.
+  ///
+  /// \return Pointer to the recycled Instruction.
   Instruction *getInst() const { return RecycledInst; }
 
+  /// Write this error's message to \p OS.
+  ///
+  /// \param OS Stream to receive the message.
   void log(raw_ostream &OS) const override {
     OS << "Instruction is recycled\n";
   }
 
+  /// Convert this error to a \c std::error_code.
+  ///
+  /// \return An inconvertible error code; this error has no errno equivalent.
   std::error_code convertToErrorCode() const override {
     return llvm::inconvertibleErrorCode();
   }
@@ -104,10 +119,19 @@ class InstrBuilder {
   Error verifyInstrDesc(const InstrDesc &ID, const MCInst &MCI) const;
 
 public:
+  /// Construct an instruction builder for the given target and call model.
+  ///
+  /// \param STI Subtarget information providing the scheduling model.
+  /// \param MCII Target instruction information.
+  /// \param RI Target register information.
+  /// \param IA Optional instruction analysis for branch and idiom detection.
+  /// \param IM Instrument manager used for variant instruction descriptors.
+  /// \param CallLatency Latency assigned when a call has no known latency.
   LLVM_ABI InstrBuilder(const MCSubtargetInfo &STI, const MCInstrInfo &MCII,
                         const MCRegisterInfo &RI, const MCInstrAnalysis *IA,
                         const InstrumentManager &IM, unsigned CallLatency);
 
+  /// Clear cached instruction descriptors and first-call/return tracking.
   void clear() {
     Descriptors.clear();
     VariantDescriptors.clear();
@@ -117,8 +141,16 @@ public:
 
   /// Set a callback which is invoked to retrieve a recycled mca::Instruction
   /// or null if there isn't any.
+  ///
+  /// \param CB Callback that returns a recycled instruction for a descriptor,
+  /// or null if none is available.
   void setInstRecycleCallback(InstRecycleCallback CB) { InstRecycleCB = CB; }
 
+  /// Create an mca::Instruction for \p MCI using instruments in \p IVec.
+  ///
+  /// \param MCI Machine instruction to analyze.
+  /// \param IVec Instruments that may customize the instruction descriptor.
+  /// \return A new or recycled Instruction, or an error on failure.
   LLVM_ABI Expected<std::unique_ptr<Instruction>>
   createInstruction(const MCInst &MCI, const SmallVector<Instrument *> &IVec);
 };

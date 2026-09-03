@@ -55,22 +55,43 @@ class ScopedHashTableVal {
 
 public:
   /// Return the key for this binding.
+  ///
+  /// \return Const reference to the key.
   const K &getKey() const { return Key; }
   /// Return the bound value (const).
+  ///
+  /// \return Const reference to the value.
   const V &getValue() const { return Val; }
   /// Return the bound value.
+  ///
+  /// \return Reference to the value.
   V &getValue() { return Val; }
 
   /// Next older binding for the same key, or null.
+  ///
+  /// \return Pointer to the next older binding for this key, or null.
   ScopedHashTableVal *getNextForKey() { return NextForKey; }
   /// Next older binding for the same key, or null (const).
+  ///
+  /// \return Const pointer to the next older binding for this key, or null.
   const ScopedHashTableVal *getNextForKey() const { return NextForKey; }
   /// Next binding inserted in the same scope, or null.
+  ///
+  /// \return Pointer to the next binding in this scope, or null.
   ScopedHashTableVal *getNextInScope() { return NextInScope; }
   /// Previous binding inserted in the same scope, or null.
+  ///
+  /// \return Pointer to the previous binding in this scope, or null.
   ScopedHashTableVal *getPreInScope() { return PreInScope; }
 
   /// Allocate and link a new binding into the scope and per-key chains.
+  ///
+  /// \param nextInScope Next binding in this scope's insertion chain, or null.
+  /// \param nextForKey Previous newest binding for the same key, or null.
+  /// \param key Key to bind.
+  /// \param val Value to bind to \p key.
+  /// \param Allocator Allocator used to allocate the new node.
+  /// \return Pointer to the newly allocated binding.
   template <typename AllocatorTy>
   static ScopedHashTableVal *Create(ScopedHashTableVal *nextInScope,
                                     ScopedHashTableVal *nextForKey,
@@ -88,6 +109,8 @@ public:
   }
 
   /// Destroy this binding and return its storage to \p Allocator.
+  ///
+  /// \param Allocator Allocator that originally allocated this node.
   template <typename AllocatorTy> void Destroy(AllocatorTy &Allocator) {
     // Free memory referenced by the item.
     this->~ScopedHashTableVal();
@@ -96,6 +119,10 @@ public:
 
   /// Unlink \p ThisEntry from its scope list, advance the caller's pointer to
   /// the next per-key binding, and destroy the removed node.
+  ///
+  /// \param ThisEntry Reference to the binding pointer to unlink; updated to
+  ///        the next older binding for the same key.
+  /// \param Allocator Allocator used to deallocate the removed node.
   template <typename AllocatorTy>
   static void erase(ScopedHashTableVal<K, V> *&ThisEntry,
                     AllocatorTy &Allocator) {
@@ -127,18 +154,33 @@ class ScopedHashTableScope {
   ScopedHashTableVal<K, V> *LastValInScope;
 
 public:
+  /// Install this as the current scope for hash table \p HT.
+  ///
+  /// \param HT Hash table that this scope shadows.
   ScopedHashTableScope(ScopedHashTable<K, V, KInfo, AllocatorTy> &HT);
   /// Copy construction is deleted; scopes are not shareable.
-  ScopedHashTableScope(ScopedHashTableScope &) = delete;
+  ///
+  /// \param Unused Unused; copy construction is not supported.
+  ScopedHashTableScope(ScopedHashTableScope &Unused) = delete;
   /// Copy assignment is deleted.
-  ScopedHashTableScope &operator=(ScopedHashTableScope &) = delete;
+  ///
+  /// \param Unused Unused; copy assignment is not supported.
+  ScopedHashTableScope &operator=(ScopedHashTableScope &Unused) = delete;
   /// Pop this scope and destroy all bindings inserted into it.
   ~ScopedHashTableScope();
 
   /// Return the enclosing parent scope, or null at the outermost scope.
+  ///
+  /// \return Pointer to the parent scope, or null.
   ScopedHashTableScope *getParentScope() { return PrevScope; }
   /// Return the enclosing parent scope, or null at the outermost scope (const).
+  ///
+  /// \return Const pointer to the parent scope, or null.
   const ScopedHashTableScope *getParentScope() const { return PrevScope; }
+
+  /// Undo the latest binding of \p key, restoring any shadowed older value.
+  ///
+  /// \param key Key whose newest binding in this scope chain should be removed.
   void erase(const K &key);
 
 private:
@@ -160,35 +202,53 @@ class ScopedHashTableIterator {
 
 public:
   /// Construct an iterator positioned at binding \p node.
+  ///
+  /// \param node Binding to start from, or null for end.
   ScopedHashTableIterator(ScopedHashTableVal<K, V> *node) : Node(node) {}
 
   /// Dereference to the current bound value.
+  ///
+  /// \return Reference to the current bound value.
   V &operator*() const {
     assert(Node && "Dereference end()");
     return Node->getValue();
   }
   /// Access the current bound value through a pointer.
+  ///
+  /// \return Pointer to the current bound value.
   V *operator->() const {
     return &Node->getValue();
   }
 
   /// True if both iterators refer to the same binding node.
+  ///
+  /// \param RHS Iterator to compare against.
+  /// \return True if both iterators refer to the same node.
   bool operator==(const ScopedHashTableIterator &RHS) const {
     return Node == RHS.Node;
   }
   /// True if the iterators refer to different binding nodes.
+  ///
+  /// \param RHS Iterator to compare against.
+  /// \return True if the iterators refer to different nodes.
   bool operator!=(const ScopedHashTableIterator &RHS) const {
     return Node != RHS.Node;
   }
 
   /// Advance to the next older binding for this key.
+  ///
+  /// \return Reference to this iterator after advancing.
   inline ScopedHashTableIterator& operator++() {          // Preincrement
     assert(Node && "incrementing past end()");
     Node = Node->getNextForKey();
     return *this;
   }
   /// Post-increment; return the previous position.
-  ScopedHashTableIterator operator++(int) {        // Postincrement
+  ///
+  /// \param Unused Dummy parameter distinguishing post-increment from
+  ///        pre-increment.
+  /// \return Copy of the iterator before advancing.
+  ScopedHashTableIterator operator++(int Unused) {        // Postincrement
     ScopedHashTableIterator tmp = *this; ++*this; return tmp;
   }
 };
@@ -218,11 +278,17 @@ public:
   /// Construct an empty table with a default allocator.
   ScopedHashTable() = default;
   /// Construct an empty table that uses allocator \p A.
+  ///
+  /// \param A Allocator to own for subsequent node allocations.
   ScopedHashTable(AllocatorTy A) : AllocTy(A) {}
   /// Copy construction is deleted.
-  ScopedHashTable(const ScopedHashTable &) = delete;
+  ///
+  /// \param Unused Unused; copy construction is not supported.
+  ScopedHashTable(const ScopedHashTable &Unused) = delete;
   /// Copy assignment is deleted.
-  ScopedHashTable &operator=(const ScopedHashTable &) = delete;
+  ///
+  /// \param Unused Unused; copy assignment is not supported.
+  ScopedHashTable &operator=(const ScopedHashTable &Unused) = delete;
 
   /// Destroy the table; all scopes must already have been popped.
   ~ScopedHashTable() {
@@ -233,12 +299,18 @@ public:
   using AllocTy::getAllocator;
 
   /// Return 1 if the specified key is in the table, 0 otherwise.
+  ///
+  /// \param Key Key to test for presence.
+  /// \return 1 if \p Key is present, otherwise 0.
   size_type count(const K &Key) const {
     return TopLevelMap.count(Key);
   }
 
   /// Return the value currently bound to \p Key, or a default-constructed
   /// \c V if unbound.
+  ///
+  /// \param Key Key to look up.
+  /// \return The value bound to \p Key, or a default-constructed \c V.
   V lookup(const K &Key) const {
     auto I = TopLevelMap.find(Key);
     if (I != TopLevelMap.end())
@@ -248,6 +320,9 @@ public:
   }
 
   /// Insert \p Key / \p Val into the current scope.
+  ///
+  /// \param Key Key to bind.
+  /// \param Val Value to bind to \p Key.
   void insert(const K &Key, const V &Val) {
     insertIntoScope(CurScope, Key, Val);
   }
@@ -256,9 +331,14 @@ public:
   using iterator = ScopedHashTableIterator<K, V, KInfo>;
 
   /// Past-the-end iterator for per-key walks.
+  ///
+  /// \return An end iterator for per-key walks.
   iterator end() { return iterator(nullptr); }
 
   /// Begin iterating shadowed values for \p Key, newest first.
+  ///
+  /// \param Key Key whose shadowed value chain to walk.
+  /// \return Iterator to the newest binding for \p Key, or end() if unbound.
   iterator begin(const K &Key) {
     auto I = TopLevelMap.find(Key);
     if (I == TopLevelMap.end()) return end();
@@ -266,14 +346,22 @@ public:
   }
 
   /// Return the active scope, or null if none is installed.
+  ///
+  /// \return Pointer to the current scope, or null.
   ScopeTy *getCurScope() { return CurScope; }
   /// Return the active scope, or null if none is installed (const).
+  ///
+  /// \return Const pointer to the current scope, or null.
   const ScopeTy *getCurScope() const { return CurScope; }
 
   /// Insert \p Key / \p Val into scope \p S.
   ///
   /// \p S may differ from the current scope, but the new binding must not be
   /// inserted underneath an existing value for \p Key.
+  ///
+  /// \param S Scope that will own the new binding.
+  /// \param Key Key to bind.
+  /// \param Val Value to bind to \p Key.
   void insertIntoScope(ScopeTy *S, const K &Key, const V &Val) {
     assert(S && "No scope active!");
     ScopedHashTableVal<K, V> *&KeyEntry = TopLevelMap[Key];
@@ -283,14 +371,17 @@ public:
   }
 
   /// Undo the newest binding of \p key in the current scope.
+  ///
+  /// \param key Key whose newest binding should be removed.
   void erase(const K &key) { CurScope->erase(key); }
 };
 
-/// ScopedHashTableScope ctor - Install this as the current scope for the hash
-/// table.
+/// Install this as the current scope for the hash table.
+///
+/// \param HT Hash table that this scope shadows.
 template <typename K, typename V, typename KInfo, typename Allocator>
 ScopedHashTableScope<K, V, KInfo, Allocator>::
-  ScopedHashTableScope(ScopedHashTable<K, V, KInfo, Allocator> &ht) : HT(ht) {
+  ScopedHashTableScope(ScopedHashTable<K, V, KInfo, Allocator> &HT) : HT(HT) {
   PrevScope = HT.CurScope;
   HT.CurScope = this;
   LastValInScope = nullptr;
@@ -322,14 +413,16 @@ ScopedHashTableScope<K, V, KInfo, Allocator>::~ScopedHashTableScope() {
   }
 }
 
-/// Undo the latest binding of \p Key, restoring any shadowed older value.
+/// Undo the latest binding of \p key, restoring any shadowed older value.
 ///
 /// In the example at the beginning of this file, if we execute `HT.erase(0)`
 /// immediately after `HT.insert(0, 42);`, then the value associated with key
 /// "0" reverts to 0. This value is owned by "Scope1(HT)".
+///
+/// \param key Key whose newest binding in this scope chain should be removed.
 template <typename K, typename V, typename KInfo, typename Allocator>
-void ScopedHashTableScope<K, V, KInfo, Allocator>::erase(const K &Key) {
-  auto It = HT.TopLevelMap.find(Key);
+void ScopedHashTableScope<K, V, KInfo, Allocator>::erase(const K &key) {
+  auto It = HT.TopLevelMap.find(key);
   if (It == HT.TopLevelMap.end())
     return;
   ScopedHashTableVal<K, V> *&ThisEntry = It->second;

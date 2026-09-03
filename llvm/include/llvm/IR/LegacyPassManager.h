@@ -27,11 +27,16 @@ class Module;
 
 namespace legacy {
 
-// Whether or not -debug-pass has been specified. For use to check if it's
-// specified alongside the new PM.
+/// Return true if the \c -debug-pass command-line option has been specified.
+///
+/// Used to check whether legacy pass debugging is enabled alongside the new
+/// pass manager.
+/// @return True if \c -debug-pass was specified; false otherwise.
 LLVM_ABI bool debugPassSpecified();
 
+/// Internal implementation of the legacy module \c PassManager.
 class PassManagerImpl;
+/// Internal implementation of the legacy \c FunctionPassManager.
 class FunctionPassManagerImpl;
 
 /// PassManagerBase - An abstract interface to allow code to add passes to
@@ -39,13 +44,17 @@ class FunctionPassManagerImpl;
 /// it is.
 class LLVM_ABI PassManagerBase {
 public:
+  /// Destroy the pass manager and any passes it owns.
   virtual ~PassManagerBase();
 
-  /// Add a pass to the queue of passes to run.  This passes ownership of
-  /// the Pass to the PassManager.  When the PassManager is destroyed, the pass
-  /// will be destroyed as well, so there is no need to delete the pass.  This
-  /// may even destroy the pass right away if it is found to be redundant. This
-  /// implies that all passes MUST be allocated with 'new'.
+  /// Add a pass to the queue of passes to run.
+  ///
+  /// This passes ownership of the Pass to the PassManager. When the
+  /// PassManager is destroyed, the pass will be destroyed as well, so there is
+  /// no need to delete the pass. This may even destroy the pass right away if
+  /// it is found to be redundant. This implies that all passes MUST be
+  /// allocated with 'new'.
+  /// \param P Pass to enqueue; ownership is transferred to this manager.
   virtual void add(Pass *P) = 0;
 };
 
@@ -53,13 +62,19 @@ public:
 class LLVM_ABI PassManager : public PassManagerBase {
 public:
 
+  /// Construct an empty legacy module pass manager.
   PassManager();
+  /// Destroy the pass manager and any passes it owns.
   ~PassManager() override;
 
+  /// Add a pass to the queue of passes to run.
+  /// \param P Pass to enqueue; ownership is transferred to this manager.
   void add(Pass *P) override;
 
   /// run - Execute all of the passes scheduled for execution.  Keep track of
   /// whether any of the passes modifies the module, and if so, return true.
+  /// \param M Module on which to run the scheduled passes.
+  /// @return True if any pass modified the module; false otherwise.
   bool run(Module &M);
 
 private:
@@ -71,25 +86,35 @@ private:
 /// FunctionPassManager manages FunctionPasses.
 class LLVM_ABI FunctionPassManager : public PassManagerBase {
 public:
-  /// FunctionPassManager ctor - This initializes the pass manager.  It needs,
-  /// but does not take ownership of, the specified Module.
+  /// Construct a function pass manager for the given module.
+  ///
+  /// Initializes the pass manager. It needs, but does not take ownership of,
+  /// the specified Module.
+  /// \param M Module whose functions will be processed; not owned.
   explicit FunctionPassManager(Module *M);
+  /// Destroy the pass manager and any passes it owns.
   ~FunctionPassManager() override;
 
+  /// Add a pass to the queue of passes to run.
+  /// \param P Pass to enqueue; ownership is transferred to this manager.
   void add(Pass *P) override;
 
   /// run - Execute all of the passes scheduled for execution.  Keep
   /// track of whether any of the passes modifies the function, and if
   /// so, return true.
   ///
+  /// \param F Function on which to run the scheduled passes.
+  /// @return True if any pass modified the function; false otherwise.
   bool run(Function &F);
 
   /// doInitialization - Run all of the initializers for the function passes.
   ///
+  /// @return True if any initializer modified the module; false otherwise.
   bool doInitialization();
 
   /// doFinalization - Run all of the finalizers for the function passes.
   ///
+  /// @return True if any finalizer modified the module; false otherwise.
   bool doFinalization();
 
 private:
@@ -100,7 +125,29 @@ private:
 } // End legacy namespace
 
 // Create wrappers for C Binding types (see CBindingWrapping.h).
-DEFINE_STDCXX_CONVERSION_FUNCTIONS(legacy::PassManagerBase, LLVMPassManagerRef)
+/// Convert an opaque \c LLVMPassManagerRef to a \c PassManagerBase pointer.
+/// \param P Opaque C API pass-manager reference to unwrap.
+/// @return Pointer to the underlying \c PassManagerBase.
+inline legacy::PassManagerBase *unwrap(LLVMPassManagerRef P) {
+  return reinterpret_cast<legacy::PassManagerBase *>(P);
+}
+
+/// Convert a \c PassManagerBase pointer to an opaque \c LLVMPassManagerRef.
+/// \param P Pass manager to wrap for the C API.
+/// @return Opaque C API reference to \p P.
+inline LLVMPassManagerRef wrap(const legacy::PassManagerBase *P) {
+  return reinterpret_cast<LLVMPassManagerRef>(
+      const_cast<legacy::PassManagerBase *>(P));
+}
+
+/// Unwrap an opaque \c LLVMPassManagerRef as a pointer of type \p T.
+/// \param P Opaque C API pass-manager reference to unwrap.
+/// @return Pointer of type \p T to the underlying pass manager.
+template <typename T> inline T *unwrap(LLVMPassManagerRef P) {
+  T *Q = (T *)unwrap(P);
+  assert(Q && "Invalid cast!");
+  return Q;
+}
 
 } // End llvm namespace
 

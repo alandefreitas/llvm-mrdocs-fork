@@ -39,8 +39,11 @@ namespace mca {
 ///  * Event names start with prefix RS_
 ///  * Prefix RS_ is followed by a string describing the actual resource state.
 enum ResourceStateEvent {
+  /// Buffered resource has available slots, or is not buffered.
   RS_BUFFER_AVAILABLE,
+  /// Buffered resource has no available slots.
   RS_BUFFER_UNAVAILABLE,
+  /// Resource is reserved and cannot accept issue.
   RS_RESERVED
 };
 
@@ -50,16 +53,23 @@ class LLVM_ABI ResourceStrategy {
   ResourceStrategy &operator=(const ResourceStrategy &) = delete;
 
 public:
+  /// Construct a resource allocation strategy.
   ResourceStrategy() = default;
+  /// Destroy a resource allocation strategy.
   virtual ~ResourceStrategy();
 
   /// Selects a processor resource unit from a ReadyMask.
+  ///
+  /// \param ReadyMask Mask of currently available resource units.
+  /// \return Mask with a single bit set for the selected unit.
   virtual uint64_t select(uint64_t ReadyMask) = 0;
 
   /// Called by the ResourceManager when a processor resource group, or a
   /// processor resource with multiple units has become unavailable.
   ///
   /// The default strategy uses this information to bias its selection logic.
+  ///
+  /// \param ResourceMask Mask identifying the unavailable resource.
   virtual void used(uint64_t ResourceMask) {}
 };
 
@@ -118,12 +128,23 @@ class LLVM_ABI DefaultResourceStrategy final : public ResourceStrategy {
   uint64_t RemovedFromNextInSequence;
 
 public:
+  /// Construct a default strategy for the resource units in \p UnitMask.
+  ///
+  /// \param UnitMask Mask of resource units managed by this strategy.
   DefaultResourceStrategy(uint64_t UnitMask)
       : ResourceUnitMask(UnitMask), NextInSequenceMask(UnitMask),
         RemovedFromNextInSequence(0) {}
+  /// Destroy the default resource strategy.
   ~DefaultResourceStrategy() override = default;
 
+  /// Select a processor resource unit from the ready units in \p ReadyMask.
+  ///
+  /// \param ReadyMask Mask of currently available resource units.
+  /// \return Mask with a single bit set for the selected unit.
   uint64_t select(uint64_t ReadyMask) override;
+  /// Record that the resource identified by \p Mask has been used.
+  ///
+  /// \param Mask Mask of the resource unit or group that became unavailable.
   void used(uint64_t Mask) override;
 };
 
@@ -216,44 +237,97 @@ class ResourceState {
   }
 
 public:
+  /// Construct state for a processor resource from the scheduling model.
+  ///
+  /// \param Desc  Processor resource descriptor from the scheduling model.
+  /// \param Index Index of this resource in the processor model.
+  /// \param Mask  Resource mask identifying this unit or group.
+  /// \param SM    Scheduling model that defines available resources.
   LLVM_ABI ResourceState(const MCProcResourceDesc &Desc, unsigned Index,
                          uint64_t Mask, const MCSchedModel &SM);
 
+  /// Return the processor resource descriptor index for this state.
+  ///
+  /// \return Processor resource descriptor index.
   unsigned getProcResourceID() const { return ProcResourceDescIndex; }
+  /// Return the resource mask that identifies this unit or group.
+  ///
+  /// \return Resource mask for this unit or group.
   uint64_t getResourceMask() const { return ResourceMask; }
+  /// Return the mask of currently ready resource units.
+  ///
+  /// \return Mask of currently ready resource units.
   uint64_t getReadyMask() const { return ReadyMask; }
+  /// Return the buffer size configured for this resource.
+  ///
+  /// \return Buffer size configured for this resource.
   int getBufferSize() const { return BufferSize; }
 
+  /// Return true if this resource has a positive buffer size.
+  ///
+  /// \return True if this resource has a positive buffer size.
   bool isBuffered() const { return BufferSize > 0; }
+  /// Return true if this resource forces in-order execution.
+  ///
+  /// \return True if this resource forces in-order execution.
   bool isInOrder() const { return BufferSize == 1; }
 
   /// Returns true if this is an in-order dispatch/issue resource.
+  ///
+  /// \return True if this is an in-order dispatch/issue resource.
   bool isADispatchHazard() const { return BufferSize == 0; }
+  /// Return true if this resource is currently reserved.
+  ///
+  /// \return True if this resource is currently reserved.
   bool isReserved() const { return Unavailable; }
 
+  /// Mark this resource as reserved.
   void setReserved() { Unavailable = true; }
+  /// Clear the reserved flag on this resource.
   void clearReserved() { Unavailable = false; }
 
-  /// Returs true if this resource is not reserved, and if there are at least
+  /// Returns true if this resource is not reserved, and if there are at least
   /// `NumUnits` available units.
+  ///
+  /// \param NumUnits Minimum number of ready units required.
+  /// \return True if the resource is not reserved and has enough ready units.
   LLVM_ABI bool isReady(unsigned NumUnits = 1) const;
 
+  /// Return the number of currently ready resource units.
+  ///
+  /// \return Number of currently ready resource units.
   uint64_t getNumReadyUnits() const { return llvm::popcount(ReadyMask); }
 
+  /// Return true if this state describes a processor resource group.
+  ///
+  /// \return True if this state describes a processor resource group.
   bool isAResourceGroup() const { return IsAGroup; }
 
+  /// Return true if this resource mask contains the unit identified by \p ID.
+  ///
+  /// \param ID Resource mask bit of the unit to test for membership.
+  /// \return True if this resource mask contains the unit identified by \p ID.
   bool containsResource(uint64_t ID) const { return ResourceMask & ID; }
 
+  /// Mark the sub-resource identified by \p ID as used.
+  ///
+  /// \param ID Resource mask bit of the unit being consumed.
   void markSubResourceAsUsed(uint64_t ID) {
     assert(isSubResourceReady(ID));
     ReadyMask ^= ID;
   }
 
+  /// Release the previously used sub-resource identified by \p ID.
+  ///
+  /// \param ID Resource mask bit of the unit being freed.
   void releaseSubResource(uint64_t ID) {
     assert(!isSubResourceReady(ID));
     ReadyMask ^= ID;
   }
 
+  /// Return the number of units represented by this resource state.
+  ///
+  /// \return Number of units represented by this resource state.
   unsigned getNumUnits() const {
     return isAResourceGroup() ? 1U : llvm::popcount(ResourceSizeMask);
   }
@@ -267,12 +341,16 @@ public:
   /// is reserved.
   ///
   /// Returns RS_BUFFER_UNAVAILABLE if there are no available slots.
+  ///
+  /// \return RS_BUFFER_AVAILABLE, RS_RESERVED, or RS_BUFFER_UNAVAILABLE.
   LLVM_ABI ResourceStateEvent isBufferAvailable() const;
 
   /// Reserve a buffer slot.
   ///
   /// Returns true if the buffer is not full.
   /// It always returns true if BufferSize is set to zero.
+  ///
+  /// \return True if the buffer is not full, or if BufferSize is zero.
   bool reserveBuffer() {
     if (BufferSize <= 0)
       return true;
@@ -293,6 +371,7 @@ public:
   }
 
 #ifndef NDEBUG
+  /// Dump the resource state for debugging.
   void dump() const;
 #endif
 };
@@ -304,8 +383,10 @@ public:
 /// 'second' index is an index for a "sub-resource" (i.e. unit).
 typedef std::pair<uint64_t, uint64_t> ResourceRef;
 
-// First: a MCProcResourceDesc index identifying a buffered resource.
-// Second: max number of buffer entries used in this resource.
+/// Pair of a buffered resource index and the maximum buffer entries used.
+///
+/// First is a MCProcResourceDesc index identifying a buffered resource.
+/// Second is the max number of buffer entries used in this resource.
 typedef std::pair<unsigned, unsigned> BufferUsageEntry;
 
 /// A resource manager for processor resource units and groups.
@@ -391,11 +472,17 @@ class ResourceManager {
                                       uint64_t ResourceMask);
 
 public:
+  /// Construct a resource manager for the resources in scheduling model \p SM.
+  ///
+  /// \param SM Scheduling model that declares processor resources.
   LLVM_ABI ResourceManager(const MCSchedModel &SM);
+  /// Destroy the resource manager and its owned resource state.
   virtual ~ResourceManager() = default;
 
-  // Overrides the selection strategy for the resource at index ResourceID in
-  // the MCProcResourceDesc table.
+  /// Override the selection strategy for the resource at index ResourceID.
+  ///
+  /// \param S          Custom strategy to install; ownership is transferred.
+  /// \param ResourceID Index in the MCProcResourceDesc table.
   void setCustomStrategy(std::unique_ptr<ResourceStrategy> S,
                          unsigned ResourceID) {
     assert(ResourceID < ProcResID2Mask.size() &&
@@ -403,41 +490,82 @@ public:
     return setCustomStrategyImpl(std::move(S), ProcResID2Mask[ResourceID]);
   }
 
-  // Returns RS_BUFFER_AVAILABLE if buffered resources are not reserved, and if
-  // there are enough available slots in the buffers.
+  /// Check whether buffered resources in \p ConsumedBuffers can be dispatched.
+  ///
+  /// Returns RS_BUFFER_AVAILABLE if buffered resources are not reserved, and if
+  /// there are enough available slots in the buffers.
+  ///
+  /// \param ConsumedBuffers Bitmask of buffered resources required by the
+  ///                        instruction.
+  /// \return Availability status for the requested buffers.
   LLVM_ABI ResourceStateEvent canBeDispatched(uint64_t ConsumedBuffers) const;
 
-  // Return the processor resource identifier associated to this Mask.
+  /// Return the processor resource identifier associated with \p Mask.
+  ///
+  /// \param Mask Resource mask to resolve to a scheduling-model identifier.
+  /// \return Processor resource identifier for the given mask.
   LLVM_ABI unsigned resolveResourceMask(uint64_t Mask) const;
 
-  // Acquires a slot from every buffered resource in mask `ConsumedBuffers`.
-  // Units that are dispatch hazards (i.e. BufferSize=0) are marked as reserved.
+  /// Acquire a slot from every buffered resource in mask \p ConsumedBuffers.
+  ///
+  /// Units that are dispatch hazards (i.e. BufferSize=0) are marked as
+  /// reserved.
+  ///
+  /// \param ConsumedBuffers Bitmask of buffered resources to reserve.
   LLVM_ABI void reserveBuffers(uint64_t ConsumedBuffers);
 
-  // Releases a slot from every buffered resource in mask `ConsumedBuffers`.
-  // ConsumedBuffers is a bitmask of previously acquired buffers (using method
-  // `reserveBuffers`). Units that are dispatch hazards (i.e. BufferSize=0) are
-  // not automatically unreserved by this method.
+  /// Release a slot from every buffered resource in mask \p ConsumedBuffers.
+  ///
+  /// ConsumedBuffers is a bitmask of previously acquired buffers (using method
+  /// `reserveBuffers`). Units that are dispatch hazards (i.e. BufferSize=0) are
+  /// not automatically unreserved by this method.
+  ///
+  /// \param ConsumedBuffers Bitmask of previously reserved buffered resources.
   LLVM_ABI void releaseBuffers(uint64_t ConsumedBuffers);
 
-  // Reserve a processor resource. A reserved resource is not available for
-  // instruction issue until it is released.
+  /// Reserve a processor resource until it is explicitly released.
+  ///
+  /// A reserved resource is not available for instruction issue until it is
+  /// released.
+  ///
+  /// \param ResourceID Identifier of the processor resource to reserve.
   LLVM_ABI void reserveResource(uint64_t ResourceID);
 
-  // Release a previously reserved processor resource.
+  /// Release a previously reserved processor resource.
+  ///
+  /// \param ResourceID Identifier of the processor resource to release.
   LLVM_ABI void releaseResource(uint64_t ResourceID);
 
-  // Returns a zero mask if resources requested by Desc are all available during
-  // this cycle. It returns a non-zero mask value only if there are unavailable
-  // processor resources; each bit set in the mask represents a busy processor
-  // resource unit or a reserved processor resource group.
+  /// Check whether resources requested by \p Desc are available this cycle.
+  ///
+  /// Returns a zero mask if resources requested by Desc are all available
+  /// during this cycle. It returns a non-zero mask value only if there are
+  /// unavailable processor resources; each bit set in the mask represents a
+  /// busy processor resource unit or a reserved processor resource group.
+  ///
+  /// \param Desc Instruction descriptor whose resource requirements to check.
+  /// \return Zero if all requested resources are free; otherwise a busy mask.
   LLVM_ABI uint64_t checkAvailability(const InstrDesc &Desc) const;
 
+  /// Return the mask of all processor resource units on the target.
+  ///
+  /// \return Mask of all processor resource units on the target.
   uint64_t getProcResUnitMask() const { return ProcResUnitMask; }
+  /// Return the mask of processor resource units available this cycle.
+  ///
+  /// \return Mask of processor resource units available this cycle.
   uint64_t getAvailableProcResUnits() const { return AvailableProcResUnits; }
 
+  /// A selected pipeline resource paired with its release-at-cycles schedule.
   using ResourceWithCycles = std::pair<ResourceRef, ReleaseAtCycles>;
 
+  /// Issue an instruction onto the selected pipeline resources.
+  ///
+  /// Dispatches to \c fastIssueInstruction when used groups do not partially
+  /// overlap, otherwise to \c issueInstructionImpl.
+  ///
+  /// \param Desc  Instruction descriptor requesting resources.
+  /// \param Pipes Output vector filled with selected resources and cycle counts.
   void issueInstruction(const InstrDesc &Desc,
                         SmallVectorImpl<ResourceWithCycles> &Pipes) {
     if (Desc.HasPartiallyOverlappingGroups)
@@ -446,28 +574,40 @@ public:
     return fastIssueInstruction(Desc, Pipes);
   }
 
-  // Selects pipeline resources consumed by an instruction.
-  // This method works under the assumption that used group resources don't
-  // partially overlap. The logic is guaranteed to find a valid resource unit
-  // schedule, no matter in which order individual uses are processed. For that
-  // reason, the vector of resource uses is simply (and quickly) processed in
-  // sequence. The resulting schedule is eventually stored into vector `Pipes`.
+  /// Select pipeline resources for an instruction without overlapping groups.
+  ///
+  /// This method works under the assumption that used group resources don't
+  /// partially overlap. The logic is guaranteed to find a valid resource unit
+  /// schedule, no matter in which order individual uses are processed. For that
+  /// reason, the vector of resource uses is simply (and quickly) processed in
+  /// sequence. The resulting schedule is eventually stored into vector `Pipes`.
+  ///
+  /// \param Desc  Instruction descriptor requesting resources.
+  /// \param Pipes Output vector filled with selected resources and cycle counts.
   LLVM_ABI void
   fastIssueInstruction(const InstrDesc &Desc,
                        SmallVectorImpl<ResourceWithCycles> &Pipes);
 
-  // Selects pipeline resources consumed by an instruction.
-  // This method works under the assumption that used resource groups may
-  // partially overlap. This complicates the selection process, because the
-  // order in which uses are processed matters. The logic internally prioritizes
-  // groups which are more constrained than others.
+  /// Select pipeline resources for an instruction with overlapping groups.
+  ///
+  /// This method works under the assumption that used resource groups may
+  /// partially overlap. This complicates the selection process, because the
+  /// order in which uses are processed matters. The logic internally prioritizes
+  /// groups which are more constrained than others.
+  ///
+  /// \param Desc  Instruction descriptor requesting resources.
+  /// \param Pipes Output vector filled with selected resources and cycle counts.
   LLVM_ABI void
   issueInstructionImpl(const InstrDesc &Desc,
                        SmallVectorImpl<ResourceWithCycles> &Pipes);
 
+  /// Advance resource usage by one cycle and collect freed resources.
+  ///
+  /// \param ResourcesFreed Output vector of resource units that became free.
   LLVM_ABI void cycleEvent(SmallVectorImpl<ResourceRef> &ResourcesFreed);
 
 #ifndef NDEBUG
+  /// Dump the state of every managed resource for debugging.
   void dump() const {
     for (const std::unique_ptr<ResourceState> &Resource : Resources)
       Resource->dump();

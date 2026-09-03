@@ -31,6 +31,10 @@ namespace llvm {
 /// `instcombine` pass instead.
 class InstSimplifyPass : public OptionalPassInfoMixin<InstSimplifyPass> {
 public:
+  /// Run instruction simplification over the function.
+  /// @param F Function whose instructions may be simplified.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

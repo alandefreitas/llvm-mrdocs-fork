@@ -55,6 +55,11 @@ namespace llvm {
 
 class raw_ostream;
 
+/// Manages named debug counters that enable or skip instrumented events.
+///
+/// Register a counter with \c DEBUG_COUNTER, then call \c shouldExecute
+/// before the event. Chunk lists from \c -debug-counter select which
+/// counts execute.
 class DebugCounter {
 public:
   /// Struct to store counter info.
@@ -75,10 +80,17 @@ public:
     IntegerInclusiveIntervalUtils::IntervalList Chunks;
 
   public:
+    /// Construct a counter named \p Name with description \p Desc.
+    ///
+    /// Registers the counter with the singleton \c DebugCounter instance.
+    ///
+    /// \param Name Command-line name of the counter.
+    /// \param Desc Human-readable description shown in help text.
     CounterInfo(StringRef Name, StringRef Desc) : Name(Name), Desc(Desc) {
       DebugCounter::registerCounter(this);
     }
 
+    /// Reset this counter to its initial unset, inactive state.
     void reset() {
       Active = false;
       IsSet = false;
@@ -88,106 +100,181 @@ public:
     }
   };
 
+  /// Print \p Intervals to \p OS, separated by ':' characters.
+  ///
+  /// \param OS Stream that receives the printed chunk list.
+  /// \param Intervals Inclusive intervals to print.
   LLVM_ABI static void
   printChunks(raw_ostream &OS, ArrayRef<IntegerInclusiveInterval> Intervals);
 
   /// Return true on parsing error and print the error message on the
   /// llvm::errs()
+  ///
+  /// \param Str Chunk specification string to parse.
+  /// \param Res Parsed interval list written on success.
+  /// \return True on parsing error; false on success.
   LLVM_ABI static bool
   parseChunks(StringRef Str, IntegerInclusiveIntervalUtils::IntervalList &Res);
 
   /// Returns a reference to the singleton instance.
+  ///
+  /// \return Reference to the singleton DebugCounter instance.
   LLVM_ABI static DebugCounter &instance();
 
-  // Used by the command line option parser to push a new value it parsed.
-  LLVM_ABI void push_back(const std::string &);
+  /// Apply a parsed \c -debug-counter value to a registered counter.
+  ///
+  /// Used by the command-line option parser. \p Val has the form
+  /// \c counter=chunk_list.
+  ///
+  /// \param Val Option value of the form \c name=chunks.
+  LLVM_ABI void push_back(const std::string &Val);
 
-  // Register a counter with the specified counter information.
-  //
-  // FIXME: Currently, counter registration is required to happen before command
-  // line option parsing. The main reason to register counters is to produce a
-  // nice list of them on the command line, but i'm not sure this is worth it.
+  /// Register \p Info with the singleton debug-counter instance.
+  ///
+  /// Counter registration must currently happen before command-line option
+  /// parsing so that \c -debug-counter can list available counters.
+  ///
+  /// \param Info Counter to register.
   static void registerCounter(CounterInfo *Info) {
     instance().addCounter(Info);
   }
+  /// Increment \p Counter and return whether this count should execute.
+  ///
+  /// When query printing is enabled and the counter is set, writes the
+  /// decision to the debug stream.
+  ///
+  /// \param Counter Counter to increment and test.
+  /// \return True if this count should execute.
   LLVM_ABI static bool shouldExecuteImpl(CounterInfo &Counter);
 
+  /// Return true if the event gated by \p Counter should run.
+  ///
+  /// Returns true immediately when the counter is not active. Otherwise
+  /// increments the counter and returns whether the current count falls in
+  /// an enabled chunk.
+  ///
+  /// \param Counter Counter that gates the event.
+  /// \return True if the gated event should run.
   inline static bool shouldExecute(CounterInfo &Counter) {
     if (!Counter.Active)
       return true;
     return shouldExecuteImpl(Counter);
   }
 
-  // Return true if a given counter had values set (either programatically or on
-  // the command line).  This will return true even if those values are
-  // currently in a state where the counter will always execute.
+  /// Return true if \p Info has chunks set from the command line or in code.
+  ///
+  /// Returns true even when the current state would always execute.
+  ///
+  /// \param Info Counter to query.
+  /// \return True if \p Info has chunks set.
   static bool isCounterSet(CounterInfo &Info) { return Info.IsSet; }
 
+  /// Snapshot of a counter's count and current chunk index.
   struct CounterState {
+    /// Number of times the counter has been queried.
     int64_t Count;
+    /// Index of the chunk currently being considered.
     uint64_t ChunkIdx;
   };
 
-  // Return the state of a counter. This only works for set counters.
+  /// Return the current count and chunk index of set counter \p Info.
+  ///
+  /// \param Info Counter whose state is returned; must already be set.
+  /// \return The current count and chunk index of \p Info.
   static CounterState getCounterState(CounterInfo &Info) {
     return {Info.Count, Info.CurrChunkIdx};
   }
 
-  // Set a registered counter to a given state.
+  /// Restore registered counter \p Info to previously captured \p State.
+  ///
+  /// \param Info Registered counter to update.
+  /// \param State Count and chunk index to apply.
   static void setCounterState(CounterInfo &Info, CounterState State) {
     Info.Count = State.Count;
     Info.CurrChunkIdx = State.ChunkIdx;
   }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-  // Dump or print the current counter set into llvm::dbgs().
+  /// Print the current counter set to the debug stream.
   LLVM_DUMP_METHOD void dump() const;
 #endif
 
+  /// Print registered counters and their values to \p OS.
+  ///
+  /// \param OS Stream that receives the counter listing.
   LLVM_ABI void print(raw_ostream &OS) const;
 
-  // Get the counter info for a given named counter,
-  // or return null if none is found.
+  /// Return the counter named \p Name, or null if none is registered.
+  ///
+  /// \param Name Command-line name of the counter.
+  /// \return The counter named \p Name, or null if none is registered.
   CounterInfo *getCounterInfo(StringRef Name) const {
     return Counters.lookup(Name);
   }
 
-  // Return the number of registered counters.
+  /// Return the number of registered counters.
+  ///
+  /// \return The number of registered counters.
   unsigned int getNumCounters() const { return Counters.size(); }
 
-  // Return the name and description of the counter with the given info.
+  /// Return the name and description of counter \p Info.
+  ///
+  /// \param Info Counter whose name and description are returned.
+  /// \return The name and description of \p Info.
   std::pair<StringRef, StringRef> getCounterDesc(CounterInfo *Info) const {
     return {Info->Name, Info->Desc};
   }
 
-  // Iterate through the registered counters
+  /// Return an iterator to the first registered counter.
+  ///
+  /// \return An iterator to the first registered counter.
   MapVector<StringRef, CounterInfo *>::const_iterator begin() const {
     return Counters.begin();
   }
+  /// Return an iterator past the last registered counter.
+  ///
+  /// \return An iterator past the last registered counter.
   MapVector<StringRef, CounterInfo *>::const_iterator end() const {
     return Counters.end();
   }
 
+  /// Mark every registered counter as active.
   void activateAllCounters() {
     for (auto &[_, Counter] : Counters)
       Counter->Active = true;
   }
 
+  /// Reset every registered counter to its initial state.
   void resetAllCounters() {
     for (auto &[_, Counter] : Counters)
       Counter->reset();
   }
 
 protected:
+  /// Insert \p Info into the name-to-counter map.
+  ///
+  /// \param Info Counter to register.
   void addCounter(CounterInfo *Info) { Counters[Info->Name] = Info; }
+  /// Increment \p Info and return whether this count is in an enabled chunk.
+  ///
+  /// Always returns true when \p Info has no chunks. When past the last
+  /// chunk, returns false. If \c BreakOnLast is set and this is the last
+  /// count of the last chunk, triggers a debug trap.
+  ///
+  /// \param Info Counter to increment and test.
+  /// \return True if this count is in an enabled chunk.
   LLVM_ABI bool handleCounterIncrement(CounterInfo &Info);
 
+  /// Map from counter name to registered counter info.
   MapVector<StringRef, CounterInfo *> Counters;
 
+  /// Whether \c -print-debug-counter requested a summary at shutdown.
   bool ShouldPrintCounter = false;
 
+  /// Whether \c -print-debug-counter-queries logs each counter decision.
   bool ShouldPrintCounterQueries = false;
 
+  /// Whether \c -debug-counter-break-on-last traps on the last enabled count.
   bool BreakOnLast = false;
 };
 

@@ -75,10 +75,18 @@ class ListeningSocket {
 #endif // _WIN32
 
 public:
+  /// Destroys the listening socket and releases associated resources.
   LLVM_ABI ~ListeningSocket();
+  /// Move-constructs a ListeningSocket, transferring ownership from \p LS.
+  ///
+  /// \param LS ListeningSocket to move from.
   LLVM_ABI ListeningSocket(ListeningSocket &&LS);
+  /// Copy construction is deleted; ListeningSocket is move-only.
   ListeningSocket(const ListeningSocket &LS) = delete;
-  ListeningSocket &operator=(const ListeningSocket &) = delete;
+  /// Copy assignment is deleted; ListeningSocket is move-only.
+  ///
+  /// \param LS Unused; copy assignment is deleted.
+  ListeningSocket &operator=(const ListeningSocket &LS) = delete;
 
   /// Closes the FD, unlinks the socket file, and writes to PipeFD.
   ///
@@ -90,25 +98,30 @@ public:
   /// Once shutdown is called there is no way to reinitialize ListeningSocket.
   LLVM_ABI void shutdown();
 
-  /// Accepts an incoming connection on the listening socket. This method can
-  /// optionally either block until a connection is available or timeout after a
-  /// specified amount of time has passed. By default the method will block
-  /// until the socket has received a connection. If the accept timesout this
-  /// method will return std::errc:timed_out
+  /// Accepts an incoming connection on the listening socket.
+  ///
+  /// This method can optionally either block until a connection is available or
+  /// timeout after a specified amount of time has passed. By default the method
+  /// will block until the socket has received a connection. If the accept
+  /// timesout this method will return std::errc:timed_out
   ///
   /// \param Timeout An optional timeout duration in milliseconds. Setting
   /// Timeout to a negative number causes ::accept to block indefinitely
   ///
+  /// \return An accepted connection stream on success, or an error (including
+  /// timeout).
   LLVM_ABI Expected<std::unique_ptr<raw_socket_stream>> accept(
       const std::chrono::milliseconds &Timeout = std::chrono::milliseconds(-1));
 
-  /// Creates a listening socket bound to the specified file system path.
+  /// Creates a listening socket bound to the given file system path.
+  ///
   /// Handles the socket creation, binding, and immediately starts listening for
   /// incoming connections.
   ///
   /// \param SocketPath The file system path where the socket will be created
   /// \param MaxBacklog The max number of connections in a socket's backlog
   ///
+  /// \return A listening socket on success, or an error if creation fails.
   LLVM_ABI static Expected<ListeningSocket> createUnix(
       StringRef SocketPath,
       int MaxBacklog = llvm::hardware_concurrency().compute_thread_count());
@@ -118,6 +131,7 @@ public:
 //  raw_socket_stream
 //===----------------------------------------------------------------------===//
 
+/// A raw_fd_stream that communicates over a UNIX domain socket.
 class LLVM_ABI raw_socket_stream : public raw_fd_stream {
   uint64_t current_pos() const override { return 0; }
 #ifdef _WIN32
@@ -125,11 +139,19 @@ class LLVM_ABI raw_socket_stream : public raw_fd_stream {
 #endif // _WIN32
 
 public:
+  /// Constructs a stream around an already-connected socket file descriptor.
+  ///
+  /// \param SocketFD Open socket file descriptor to take ownership of.
   raw_socket_stream(int SocketFD);
+  /// Destroys the stream and closes the underlying socket.
   ~raw_socket_stream() override;
 
   /// Create a \p raw_socket_stream connected to the UNIX domain socket at \p
   /// SocketPath.
+  ///
+  /// \param SocketPath File system path of the UNIX domain socket to connect to.
+  ///
+  /// \return A connected stream on success, or an error if the connection fails.
   static Expected<std::unique_ptr<raw_socket_stream>>
   createConnectedUnix(StringRef SocketPath);
 
@@ -145,6 +167,8 @@ public:
   /// \param Size The number of bytes to be read
   /// \param Timeout An optional timeout duration in milliseconds
   ///
+  /// \return The number of bytes read on success, or -1 on error (including
+  /// timeout).
   ssize_t read(
       char *Ptr, size_t Size,
       const std::chrono::milliseconds &Timeout = std::chrono::milliseconds(-1));

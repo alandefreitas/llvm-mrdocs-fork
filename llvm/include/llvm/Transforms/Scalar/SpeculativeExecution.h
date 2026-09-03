@@ -68,18 +68,38 @@ namespace llvm {
 class BasicBlock;
 class TargetTransformInfo;
 
+/// Pass that hoists instructions to enable speculative execution.
+///
+/// Targets expensive branches (especially GPUs) by hoisting from simple
+/// if-then and if-then-else patterns. More aggressive than SimplifyCFG's
+/// speculation; later passes sink unused speculated code. When constructed
+/// with OnlyIfDivergentTarget, the pass is a nop unless the target reports
+/// branch divergence.
 class SpeculativeExecutionPass
     : public OptionalPassInfoMixin<SpeculativeExecutionPass> {
 public:
+  /// Construct a speculative-execution pass.
+  /// @param OnlyIfDivergentTarget When true, the pass is a nop unless the
+  /// target has branch divergence.
   LLVM_ABI SpeculativeExecutionPass(bool OnlyIfDivergentTarget = false);
 
+  /// Run speculative execution over the function.
+  /// @param F Function whose instructions may be hoisted for speculation.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
 
-  // Glue for old PM
+  /// Run the pass implementation using the given target transform info.
+  /// @param F Function to transform.
+  /// @param TTI Target transform info used for cost and divergence checks.
+  /// @return True if the function was changed.
   LLVM_ABI bool runImpl(Function &F, TargetTransformInfo *TTI);
 
 private:

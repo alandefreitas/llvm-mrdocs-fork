@@ -32,6 +32,8 @@ class RegionInfo;
 /// RegionPass is managed by RGPassManager.
 class LLVM_ABI RegionPass : public Pass {
 public:
+  /// Construct a region pass with Pass ID \p pid.
+  /// @param pid Static Pass ID for this pass instance.
   explicit RegionPass(char &pid) : Pass(PT_Region, pid) {}
 
   //===--------------------------------------------------------------------===//
@@ -57,10 +59,18 @@ public:
   Pass *createPrinterPass(raw_ostream &O,
                           const std::string &Banner) const override;
 
+  /// Bring \c Pass::doInitialization into scope for overload resolution.
   using llvm::Pass::doInitialization;
+  /// Bring \c Pass::doFinalization into scope for overload resolution.
   using llvm::Pass::doFinalization;
 
+  /// Perform initialization before processing regions.
+  /// @param R Region used for initialization context.
+  /// @param RGM Region pass manager that manages this pass.
+  /// @return True if the pass modifies the region nest during initialization.
   virtual bool doInitialization(Region *R, RGPassManager &RGM) { return false; }
+  /// Perform finalization after all regions have been processed.
+  /// @return True if the pass modifies the function during finalization.
   virtual bool doFinalization() { return false; }
   //@}
 
@@ -68,11 +78,18 @@ public:
   /// @name PassManager API
   ///
   //@{
+  /// Prepare the pass manager stack for this region pass.
+  /// @param PMS Stack of pass managers to search or update.
   void preparePassManager(PMStack &PMS) override;
 
+  /// Assign pass manager to manage this pass.
+  /// @param PMS Stack of pass managers to search or update.
+  /// @param PMT Preferred pass manager type for this pass.
   void assignPassManager(PMStack &PMS,
                          PassManagerType PMT = PMT_RegionPassManager) override;
 
+  /// Return what kind of Pass Manager can manage this pass.
+  /// @return \c PMT_RegionPassManager.
   PassManagerType getPotentialPassManagerType() const override {
     return PMT_RegionPassManager;
   }
@@ -81,6 +98,8 @@ public:
 protected:
   /// Optional passes call this function to check whether the pass should be
   /// skipped. This is the case when optimization bisect is over the limit.
+  /// @param R Region being considered for processing.
+  /// @return True if optional passes should skip region \p R.
   bool skipRegion(Region &R) const;
 };
 
@@ -91,33 +110,48 @@ class LLVM_ABI RGPassManager : public FunctionPass, public PMDataManager {
   Region *CurrentRegion;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+  /// Construct a region pass manager.
   explicit RGPassManager();
 
   /// Execute all of the passes scheduled for execution.
   ///
+  /// @param F Function whose regions are processed.
   /// @return True if any of the passes modifies the function.
   bool runOnFunction(Function &F) override;
 
   /// Pass Manager itself does not invalidate any analysis info.
   /// RGPassManager needs RegionInfo.
+  /// @param Info Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &Info) const override;
 
+  /// Return the name of this pass.
+  /// @return The name of this pass.
   StringRef getPassName() const override { return "Region Pass Manager"; }
 
+  /// Return this manager as a PMDataManager.
+  /// @return This manager as a PMDataManager.
   PMDataManager *getAsPMDataManager() override { return this; }
+  /// Return this manager as a Pass.
+  /// @return This manager as a Pass.
   Pass *getAsPass() override { return this; }
 
   /// Print passes managed by this manager.
+  /// @param Offset Indentation offset for the printed structure.
   void dumpPassStructure(unsigned Offset) override;
 
   /// Get passes contained by this manager.
+  /// @param N Index of the pass in this manager.
+  /// @return The contained region pass at index \p N.
   Pass *getContainedPass(unsigned N) {
     assert(N < PassVector.size() && "Pass number out of range!");
     Pass *FP = static_cast<Pass *>(PassVector[N]);
     return FP;
   }
 
+  /// Return the type of this pass manager.
+  /// @return \c PMT_RegionPassManager.
   PassManagerType getPassManagerType() const override {
     return PMT_RegionPassManager;
   }

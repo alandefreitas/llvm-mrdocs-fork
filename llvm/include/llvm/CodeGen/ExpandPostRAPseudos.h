@@ -13,13 +13,19 @@
 
 namespace llvm {
 
+/// New PM pass that expands post-RA pseudo instructions.
+///
+/// Pseudoinstructions must be expanded regardless of optimization level;
+/// otherwise later passes (e.g., AsmPrinter) will fail.
 class ExpandPostRAPseudosPass
     : public RequiredPassInfoMixin<ExpandPostRAPseudosPass> {
 public:
+  /// Expand post-RA pseudo instructions in \p MF.
+  /// \param MF Machine function whose post-RA pseudos are expanded.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after expanding post-RA pseudos.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
-  // We need to expand pseudoinstructions regardless of optimization level or
-  // otherwise later passes (e.g., AsmPrinter) will fail.
 };
 
 } // namespace llvm

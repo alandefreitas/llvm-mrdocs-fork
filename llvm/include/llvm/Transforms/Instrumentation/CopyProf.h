@@ -18,33 +18,54 @@
 
 namespace llvm {
 
-// Early-stage pass that instruments special member functions to call into the
-// CopyProf runtime.
+/// Early-stage pass that instruments special member functions to call into the
+/// CopyProf runtime.
 class CopyProfPass : public RequiredPassInfoMixin<CopyProfPass> {
 public:
+  /// Construct a CopyProf function pass.
   CopyProfPass() = default;
+  /// Run CopyProf instrumentation over the function.
+  /// @param F Function to instrument.
+  /// @param FAM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 
+  /// Return true; this pass cannot be skipped.
+  /// @return True.
   static bool isRequired() { return true; }
 };
 
-// Module-level pass that inserts the CopyProf runtime initialization
-// constructor and hooks it into @llvm.global_ctors.
+/// Module-level pass that inserts the CopyProf runtime initialization
+/// constructor and hooks it into @llvm.global_ctors.
 class ModuleCopyProfPass : public RequiredPassInfoMixin<ModuleCopyProfPass> {
 public:
+  /// Construct a CopyProf module pass.
   ModuleCopyProfPass() = default;
+  /// Run CopyProf module instrumentation over \p M.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
+  /// Return true; this pass cannot be skipped.
+  /// @return True.
   static bool isRequired() { return true; }
 };
 
-// Late-stage pass that instruments store instructions to detect whether an
-// object copy has been modified before it is destructed.
+/// Late-stage pass that instruments store instructions to detect whether an
+/// object copy has been modified before it is destructed.
 class CopyProfStoresPass : public RequiredPassInfoMixin<CopyProfStoresPass> {
 public:
+  /// Construct a CopyProf store-instrumentation pass.
   CopyProfStoresPass() = default;
+  /// Run CopyProf store instrumentation over the function.
+  /// @param F Function to instrument.
+  /// @param FAM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 
+  /// Return true; this pass cannot be skipped.
+  /// @return True.
   static bool isRequired() { return true; }
 };
 

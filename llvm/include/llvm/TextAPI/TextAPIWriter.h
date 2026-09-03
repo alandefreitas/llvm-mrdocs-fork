@@ -20,8 +20,10 @@ class raw_ostream;
 
 namespace MachO {
 
+/// Writes InterfaceFile attributes as TAPI text files.
 class TextAPIWriter {
 public:
+  /// Deleted default constructor; use static methods only.
   TextAPIWriter() = delete;
 
   /// Write TAPI text file contents into stream.
@@ -31,6 +33,7 @@ public:
   /// \param FileKind File format to write text file as. If not specified, it
   /// will read from File.
   /// \param Compact Whether to limit whitespace in text file.
+  /// \return An Error indicating success or failure of the write.
   LLVM_ABI static Error
   writeToStream(raw_ostream &OS, const InterfaceFile &File,
                 const FileType FileKind = FileType::Invalid,
@@ -39,6 +42,7 @@ public:
   /// Get TAPI FileType from the input string.
   ///
   /// \param FT String of input to map to FileType.
+  /// \return The matching FileType, or FileType::Invalid if unrecognized.
   static FileType parseFileType(const StringRef FT) {
     return StringSwitch<FileType>(FT)
         .Case("tbd-v1", FileType::TBD_V1)

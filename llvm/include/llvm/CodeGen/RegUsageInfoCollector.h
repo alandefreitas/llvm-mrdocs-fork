@@ -13,9 +13,18 @@
 
 namespace llvm {
 
+/// New PM pass that collects physical register usage for IPRA.
+///
+/// Iterates used physical registers in each function, builds a RegMask, and
+/// stores it in PhysicalRegisterUsageInfo for interprocedural register
+/// allocation.
 class RegUsageInfoCollectorPass
     : public RequiredPassInfoMixin<RegUsageInfoCollectorPass> {
 public:
+  /// Collect and store register usage information for \p MF.
+  /// \param MF Machine function whose physical register usage is collected.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after collecting register usage.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

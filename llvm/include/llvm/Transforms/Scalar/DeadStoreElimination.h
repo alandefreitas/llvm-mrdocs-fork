@@ -27,6 +27,10 @@ class Function;
 /// only the redundant stores that are local to a single Basic Block.
 class DSEPass : public OptionalPassInfoMixin<DSEPass> {
 public:
+  /// Run dead store elimination over the function.
+  /// @param F Function whose redundant stores may be eliminated.
+  /// @param FAM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

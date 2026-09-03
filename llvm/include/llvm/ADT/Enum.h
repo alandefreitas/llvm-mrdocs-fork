@@ -40,10 +40,12 @@
 
 namespace llvm {
 
-/// Compile-time data representation of enum entries. Only use for constexpr
-/// variables passed to BUILD_ENUM_STRINGS, do NOT access the created variable
-/// directly in code! The idea is that this is only used at compile-time to
-/// build a more compact and relocation-free representation in the binary.
+/// Compile-time data representation of enum entries.
+///
+/// Only use for constexpr variables passed to BUILD_ENUM_STRINGS, do NOT access
+/// the created variable directly in code! The idea is that this is only used at
+/// compile-time to build a more compact and relocation-free representation in
+/// the binary.
 template <typename T, unsigned NumStrs = 1> struct EnumStringDef {
   /// Alternate name strings for this enumerator (e.g. LLVM vs GNU spellings).
   std::array<std::string_view, NumStrs> Names;
@@ -68,11 +70,14 @@ template <typename T, unsigned NumStrs = 1> class EnumString {
 
 public:
   /// Return the name string at alternate-name index \p Idx.
+  /// \param Idx Alternate-name index; 0 is the primary spelling.
+  /// \return Name string at alternate-name index \p Idx.
   constexpr StringRef name(unsigned Idx = 0) const {
     assert(Idx < NumStrs);
     return {reinterpret_cast<const char *>(this) + NameOff[Idx], NameSize[Idx]};
   }
   /// Return the enumeration value for this entry.
+  /// \return Enumeration value associated with this entry.
   constexpr T value() const { return Value; }
 };
 
@@ -97,6 +102,7 @@ struct EnumStringsStorage {
   char Strs[StrLen];
 
   /// Build compact storage from the compile-time definition table \p Entries.
+  /// \param Entries Compile-time enumerator definitions to pack.
   constexpr EnumStringsStorage(const EnumStringDef<T, NumStrs> (&Entries)[N])
       : Data{}, Strs{} {
     unsigned StrIdx = 0;
@@ -118,15 +124,20 @@ struct EnumStringsStorage {
   }
 
   /// Return the number of enumerator entries.
+  /// \return Number of compact enumerator entries in this storage.
   constexpr size_t size() const { return N; }
   /// Return the entry at index \p Idx.
+  /// \param Idx Index of the compact enumerator entry.
+  /// \return Compact enumerator entry at \p Idx.
   const EnumString<T, NumStrs> &operator[](size_t Idx) const {
     assert(Idx < N);
     return Data[Idx];
   }
   /// Return a pointer to the first entry.
+  /// \return Pointer to the first compact enumerator entry.
   const EnumString<T, NumStrs> *begin() const { return std::begin(Data); }
   /// Return a pointer past the last entry.
+  /// \return Pointer one past the last compact enumerator entry.
   const EnumString<T, NumStrs> *end() const { return std::end(Data); }
 };
 
@@ -143,11 +154,15 @@ public:
   using EnumString = ::llvm::EnumString<T, NumStrs>;
 
   /// Construct a view over the compact storage table \p Table.
+  /// \param Table Compact storage produced by BUILD_ENUM_STRINGS.
   template <size_t N, size_t StrLen>
   EnumStrings(const EnumStringsStorage<T, NumStrs, N, StrLen> &Table)
       : EnumValues(Table.Data, N) {}
 
   /// Look up the name for \p Value, or an empty string if unknown.
+  /// \param Value Enumeration value to look up.
+  /// \param StrIdx Alternate-name index; 0 is the primary spelling.
+  /// \return Name string for \p Value, or an empty string if unknown.
   template <typename TValue>
   StringRef toString(TValue Value, unsigned StrIdx = 0) const {
     // TODO: optimize with binary search?
@@ -158,6 +173,9 @@ public:
   }
 
   /// Look up the name for \p Value, or a hexadecimal fallback if unknown.
+  /// \param Value Enumeration value to look up.
+  /// \param StrIdx Alternate-name index; 0 is the primary spelling.
+  /// \return Name string for \p Value, or a hexadecimal string if unknown.
   template <typename TValue>
   std::string toStringOrHex(TValue Value, unsigned StrIdx = 0) const {
     if (StringRef Str = toString(Value, StrIdx); !Str.empty())
@@ -166,12 +184,17 @@ public:
   }
 
   /// Return the number of enumerator entries.
+  /// \return Number of compact enumerator entries in this table.
   size_t size() const { return EnumValues.size(); }
   /// Return the entry at index \p Idx.
+  /// \param Idx Index of the compact enumerator entry.
+  /// \return Compact enumerator entry at \p Idx.
   const EnumString &operator[](size_t Idx) const { return EnumValues[Idx]; }
   /// Return a pointer to the first entry.
+  /// \return Pointer to the first compact enumerator entry.
   const EnumString *begin() const { return EnumValues.begin(); }
   /// Return a pointer past the last entry.
+  /// \return Pointer one past the last compact enumerator entry.
   const EnumString *end() const { return EnumValues.end(); }
 
 private:

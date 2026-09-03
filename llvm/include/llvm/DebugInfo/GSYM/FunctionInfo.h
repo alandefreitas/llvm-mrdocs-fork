@@ -30,7 +30,8 @@ class GsymCreator;
 class GsymReader;
 class GsymDataExtractor;
 
-/// Byte-size accounting for a FunctionInfo, broken down by field / InfoType.
+/// Byte-size accounting for a FunctionInfo by field and InfoType.
+///
 /// Populated by FunctionInfo::parseStatistics. Every value is a byte count and
 /// each on-disk byte of a FunctionInfo is attributed to exactly one member:
 ///   FunctionInfo = SizeAndName + LineTableInfo + InlineInfo + CallSiteInfo +
@@ -40,18 +41,26 @@ class GsymDataExtractor;
 /// (merged) breakdown and captures the MergedFunctionsInfo structural bytes:
 /// its own InfoType+InfoLength (8) plus Count (4) plus each FnSize (4).
 struct FunctionInfoStats {
+  /// Bytes for the Size and Name fixed header fields.
   uint64_t SizeAndName = 0;
+  /// Bytes for the optional LineTableInfo section, including its header.
   uint64_t LineTableInfo = 0;
+  /// Bytes for the optional InlineInfo section, including its header.
   uint64_t InlineInfo = 0;
+  /// Bytes for the optional CallSiteInfo section, including its header.
   uint64_t CallSiteInfo = 0;
+  /// Bytes for the optional MergedFunctionsInfo section, including its header.
   uint64_t MergedFuncInfo = 0;
+  /// Bytes for the EndOfList terminator (InfoType + InfoLength).
   uint64_t EndOfList = 0;
+  /// Structural MergedFunctionsInfo bytes for an inner (merged) breakdown.
   uint64_t InfoTypeInfoLengthCountAndFnSize = 0;
 };
 
-/// Function information in GSYM files encodes information for one contiguous
-/// address range. If a function has discontiguous address ranges, they will
-/// need to be encoded using multiple FunctionInfo objects.
+/// Encodes debug information for one contiguous function address range.
+///
+/// If a function has discontiguous address ranges, they will need to be
+/// encoded using multiple FunctionInfo objects.
 ///
 /// ENCODING
 ///
@@ -114,17 +123,27 @@ struct FunctionInfoStats {
 ///
 /// Where "N" is the number of tuples.
 struct FunctionInfo {
+  /// Contiguous address range covered by this function.
   AddressRange Range;
   gsym_strp_t Name; ///< String table offset in the string table.
+  /// Optional line table mapping addresses to source locations.
   std::optional<LineTable> OptLineTable;
+  /// Optional inline call stack information for this function.
   std::optional<InlineInfo> Inline;
+  /// Optional merged functions that share this address range.
   std::optional<MergedFunctionsInfo> MergedFunctions;
+  /// Optional call site information for this function.
   std::optional<CallSiteInfoCollection> CallSites;
   /// If we encode a FunctionInfo during segmenting so we know its size, we can
   /// cache that encoding here so we don't need to re-encode it when saving the
   /// GSYM file.
   SmallString<32> EncodingCache;
 
+  /// Construct a FunctionInfo for an address range and name.
+  ///
+  /// \param Addr The start address of the function.
+  /// \param Size The size in bytes of the function.
+  /// \param Name The string table offset of the function name.
   FunctionInfo(uint64_t Addr = 0, uint64_t Size = 0, gsym_strp_t Name = 0)
       : Range(Addr, Addr + Size), Name(Name) {}
 
@@ -190,6 +209,8 @@ struct FunctionInfo {
   /// to have to encode a FunctionInfo twice, so we can cache the encoded bytes
   /// and re-use then when calling FunctionInfo::encode(...).
   ///
+  /// \param GC The GsymCreator used when encoding this FunctionInfo.
+  ///
   /// \returns The size in bytes of the FunctionInfo if it were to be encoded
   /// into a byte stream.
   LLVM_ABI uint64_t cacheEncoding(GsymCreator &GC);
@@ -241,10 +262,20 @@ struct FunctionInfo {
   parseStatistics(GsymDataExtractor &Data, FunctionInfoStats &Stats,
                   FunctionInfoStats *MergedFuncInfoStats = nullptr);
 
+  /// Get the start address of this function.
+  ///
+  /// \returns The beginning of the function's address range.
   uint64_t startAddress() const { return Range.start(); }
+  /// Get the end address of this function.
+  ///
+  /// \returns The exclusive end of the function's address range.
   uint64_t endAddress() const { return Range.end(); }
+  /// Get the size of this function in bytes.
+  ///
+  /// \returns The length of the function's address range.
   uint64_t size() const { return Range.size(); }
 
+  /// Clear the address range, name, line table, and inline information.
   void clear() {
     Range = {0, 0};
     Name = 0;
@@ -253,14 +284,26 @@ struct FunctionInfo {
   }
 };
 
+/// Equality comparison operator for FunctionInfo.
+///
+/// \param LHS The left-hand FunctionInfo to compare.
+/// \param RHS The right-hand FunctionInfo to compare.
+/// \returns True if both FunctionInfo objects compare equal.
 inline bool operator==(const FunctionInfo &LHS, const FunctionInfo &RHS) {
   return LHS.Range == RHS.Range && LHS.Name == RHS.Name &&
          LHS.OptLineTable == RHS.OptLineTable && LHS.Inline == RHS.Inline &&
          LHS.CallSites == RHS.CallSites;
 }
+/// Inequality comparison operator for FunctionInfo.
+///
+/// \param LHS The left-hand FunctionInfo to compare.
+/// \param RHS The right-hand FunctionInfo to compare.
+/// \returns True if the FunctionInfo objects are not equal.
 inline bool operator!=(const FunctionInfo &LHS, const FunctionInfo &RHS) {
   return !(LHS == RHS);
 }
+/// Compare FunctionInfo objects for ordering by range and debug richness.
+///
 /// This sorting will order things consistently by address range first, but
 /// then followed by increasing levels of debug info like inline information
 /// and line tables. We might end up with a FunctionInfo from debug info that
@@ -277,6 +320,10 @@ inline bool operator!=(const FunctionInfo &LHS, const FunctionInfo &RHS) {
 /// that does not, so that within a single address range the entry with the
 /// most debug info always appears last. This ensures we are able to save the
 /// FunctionInfo with the most debug info into the GSYM file.
+///
+/// \param LHS The left-hand FunctionInfo to compare.
+/// \param RHS The right-hand FunctionInfo to compare.
+/// \returns True if \a LHS should sort before \a RHS.
 inline bool operator<(const FunctionInfo &LHS, const FunctionInfo &RHS) {
   // First sort by address range
   const bool LHSHasCallSites = LHS.CallSites.has_value();
@@ -285,6 +332,11 @@ inline bool operator<(const FunctionInfo &LHS, const FunctionInfo &RHS) {
          std::tie(RHS.Range, RHS.Inline, RHS.OptLineTable, RHSHasCallSites);
 }
 
+/// Stream a human-readable representation of \p R to \p OS.
+///
+/// \param OS Destination stream.
+/// \param R Function info to print.
+/// \returns The destination stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const FunctionInfo &R);
 
 } // namespace gsym

@@ -26,10 +26,15 @@
 
 namespace llvm {
 
+/// Maximum number of PHI nodes searched when looking for a matching duplicate.
 extern LLVM_ABI cl::opt<unsigned> SSAUpdaterPhiSearchLimit;
 
 template<typename T> class SSAUpdaterTraits;
 
+/// Core algorithm template for SSAUpdater and MachineSSAUpdater.
+///
+/// Implements PHI placement and available-value computation over a CFG subset
+/// for a set of known definitions.
 template<typename UpdaterT>
 class SSAUpdaterImpl {
 private:
@@ -86,6 +91,11 @@ private:
   BumpPtrAllocator Allocator;
 
 public:
+  /// Construct an SSA updater implementation.
+  ///
+  /// \param U Client updater that provides trait operations.
+  /// \param A Map of blocks to already-available values.
+  /// \param Ins Optional list that receives newly inserted PHI nodes.
   explicit SSAUpdaterImpl(UpdaterT *U, AvailableValsTy *A,
                           SmallVectorImpl<PhiT *> *Ins) :
     Updater(U), AvailableVals(A), InsertedPHIs(Ins) {}
@@ -93,6 +103,9 @@ public:
   /// GetValue - Check to see if AvailableVals has an entry for the specified BB and if so, return it.
   ///
   /// If not, construct SSA form by first calculating the required placement of PHIs and then inserting new PHIs where needed.
+  ///
+  /// \param BB Block for which an available SSA value is requested.
+  /// \return The available SSA value for \p BB.
   ValT GetValue(BlkT *BB) {
     SmallVector<BBInfo *, 100> BlockList;
     BBInfo *PseudoEntry = BuildBlockList(BB, &BlockList);
@@ -111,10 +124,16 @@ public:
     return BBMap[BB]->DefBB->AvailableVal;
   }
 
-  /// BuildBlockList - Starting from the specified basic block, traverse back
-  /// through its predecessors until reaching blocks with known values.
-  /// Create BBInfo structures for the blocks and append them to the block
-  /// list.
+  /// Build a worklist of blocks reachable backward from BB to known defs.
+  ///
+  /// Starting from the specified basic block, traverse back through its
+  /// predecessors until reaching blocks with known values. Create BBInfo
+  /// structures for the blocks and append them to the block list.
+  ///
+  /// \param BB Starting block from which to walk predecessors.
+  /// \param BlockList Output list of BBInfo nodes for blocks without known
+  /// values.
+  /// \return Pseudo-entry block that dominates the root defining blocks.
   BBInfo *BuildBlockList(BlkT *BB, BlockListTy *BlockList) {
     SmallVector<BBInfo *, 10> RootList;
     SmallVector<BBInfo *, 64> WorkList;
@@ -212,6 +231,10 @@ public:
   /// IntersectDominators - This is the dataflow lattice "meet" operation for finding dominators.
   ///
   /// Given two basic blocks, it walks up the dominator tree until it finds a common dominator of both. It uses the postorder number of the blocks to determine how to do that.
+  ///
+  /// \param Blk1 First block whose dominators are intersected.
+  /// \param Blk2 Second block whose dominators are intersected.
+  /// \return The nearest common dominator of Blk1 and Blk2.
   BBInfo *IntersectDominators(BBInfo *Blk1, BBInfo *Blk2) {
     while (Blk1 != Blk2) {
       while (Blk1->BlkNum < Blk2->BlkNum) {
@@ -228,16 +251,19 @@ public:
     return Blk1;
   }
 
-  /// FindDominators - Calculate the dominator tree for the subset of the CFG
-  /// corresponding to the basic blocks on the BlockList.  This uses the
-  /// algorithm from: "A Simple, Fast Dominance Algorithm" by Cooper, Harvey
-  /// and Kennedy, published in Software--Practice and Experience, 2001,
-  /// 4:1-10.  Because the CFG subset does not include any edges leading into
-  /// blocks that define the value, the results are not the usual dominator
-  /// tree.  The CFG subset has a single pseudo-entry node with edges to a set
-  /// of root nodes for blocks that define the value.  The dominators for this
-  /// subset CFG are not the standard dominators but they are adequate for
-  /// placing PHIs within the subset CFG.
+  /// Calculate the dominator tree for the CFG subset on the BlockList.
+  ///
+  /// This uses the algorithm from: "A Simple, Fast Dominance Algorithm" by
+  /// Cooper, Harvey and Kennedy, published in Software--Practice and
+  /// Experience, 2001, 4:1-10. Because the CFG subset does not include any
+  /// edges leading into blocks that define the value, the results are not the
+  /// usual dominator tree. The CFG subset has a single pseudo-entry node with
+  /// edges to a set of root nodes for blocks that define the value. The
+  /// dominators for this subset CFG are not the standard dominators but they
+  /// are adequate for placing PHIs within the subset CFG.
+  ///
+  /// \param BlockList Blocks for which dominators are computed.
+  /// \param PseudoEntry Pseudo-entry that dominates the root defining blocks.
   void FindDominators(BlockListTy *BlockList, BBInfo *PseudoEntry) {
     bool Changed;
     do {
@@ -276,10 +302,16 @@ public:
     } while (Changed);
   }
 
-  /// IsDefInDomFrontier - Search up the dominator tree from Pred to IDom for
-  /// any blocks containing definitions of the value.  If one is found, then
-  /// the successor of Pred is in the dominance frontier for the definition,
-  /// and this function returns true.
+  /// Return true if a definition lies on the dominator-tree path from Pred to IDom.
+  ///
+  /// Search up the dominator tree from Pred to IDom for any blocks containing
+  /// definitions of the value. If one is found, then the successor of Pred is
+  /// in the dominance frontier for the definition, and this function returns
+  /// true.
+  ///
+  /// \param Pred Predecessor block at which the upward search begins.
+  /// \param IDom Immediate dominator that terminates the search.
+  /// \return True if a definition is found on the path from Pred to IDom.
   bool IsDefInDomFrontier(const BBInfo *Pred, const BBInfo *IDom) {
     for (; Pred != IDom; Pred = Pred->IDom) {
       if (Pred->DefBB == Pred)
@@ -288,10 +320,14 @@ public:
     return false;
   }
 
-  /// FindPHIPlacement - PHIs are needed in the iterated dominance frontiers
-  /// of the known definitions.  Iteratively add PHIs in the dom frontiers
-  /// until nothing changes.  Along the way, keep track of the nearest
-  /// dominating definitions for non-PHI blocks.
+  /// Place PHIs in the iterated dominance frontiers of known definitions.
+  ///
+  /// PHIs are needed in the iterated dominance frontiers of the known
+  /// definitions. Iteratively add PHIs in the dom frontiers until nothing
+  /// changes. Along the way, keep track of the nearest dominating definitions
+  /// for non-PHI blocks.
+  ///
+  /// \param BlockList Blocks in which PHI placement is computed.
   void FindPHIPlacement(BlockListTy *BlockList) {
     bool Changed;
     do {
@@ -327,6 +363,9 @@ public:
   /// Check all predecessors and if all of them have the same AvailableVal use
   /// it as value for block represented by Info. Return true if singluar value
   /// is found.
+  ///
+  /// \param Info Block info whose predecessors are checked for a common value.
+  /// \return True if all predecessors share the same available value.
   bool FindSingularVal(BBInfo *Info) {
     if (!Info->NumPreds)
       return false;
@@ -346,11 +385,14 @@ public:
     return true;
   }
 
-  /// FindAvailableVal - If this block requires a PHI, first check if an
-  /// existing PHI matches the PHI placement and reaching definitions computed
-  /// earlier, and if not, create a new PHI.  Visit all the block's
-  /// predecessors to calculate the available value for each one and fill in
-  /// the incoming values for a new PHI.
+  /// Compute available values and insert or reuse PHIs for each block.
+  ///
+  /// If a block requires a PHI, first check if an existing PHI matches the PHI
+  /// placement and reaching definitions computed earlier, and if not, create a
+  /// new PHI. Visit all the block's predecessors to calculate the available
+  /// value for each one and fill in the incoming values for a new PHI.
+  ///
+  /// \param BlockList Blocks for which available values and PHIs are resolved.
   void FindAvailableVals(BlockListTy *BlockList) {
     // Go through the worklist in forward order (i.e., backward through the CFG)
     // and check if existing PHIs can be used.  If not, create empty PHIs where
@@ -413,6 +455,8 @@ public:
 
   /// FindExistingPHI - Look through the PHI nodes in a block to see if any of
   /// them match what is needed.
+  ///
+  /// \param BB Block whose existing PHI nodes are considered as candidates.
   void FindExistingPHI(BlkT *BB) {
     SmallVector<BBInfo *, 20> TaggedBlocks;
     // SSAUpdaterPhiSearchLimit is needed to guard against pathological cases
@@ -435,6 +479,11 @@ public:
 
   /// CheckIfPHIMatches - Check if a PHI node matches the placement and values
   /// in the BBMap.
+  ///
+  /// \param PHI Candidate PHI node to compare against the BBMap.
+  /// \param TaggedBlocks Blocks visited during the match; used to clear PHITags
+  /// on failure.
+  /// \return True if the PHI matches the placement and values in the BBMap.
   bool CheckIfPHIMatches(PhiT *PHI, BlockListTy &TaggedBlocks) {
     // Match failed: clear all the PHITag values. Only need to clear visited
     // blocks.
@@ -495,6 +544,8 @@ public:
 
   /// RecordMatchingPHIs - For each PHI node that matches, record it in both
   /// the BBMap and the AvailableVals mapping.
+  ///
+  /// \param TaggedBlocks Blocks whose PHITag identifies a matching PHI to record.
   void RecordMatchingPHIs(BlockListTy &TaggedBlocks) {
     for (BBInfo *Block : TaggedBlocks) {
       PhiT *PHI = Block->PHITag;

@@ -25,10 +25,15 @@
 namespace llvm {
 namespace orc {
 
+/// IR layer that supports profile-guided reoptimization of materialization
+/// units.
 class LLVM_ABI ReOptimizeLayer : public IRLayer, public ResourceManager {
 public:
+  /// Unique identifier for a reoptimizable materialization unit.
   using ReOptMaterializationUnitID = uint64_t;
 
+  /// Callback that injects profiling and reoptimization request code.
+  ///
   /// AddProfilerFunc will be called when ReOptimizeLayer emits the first
   /// version of a materialization unit in order to inject profiling code and
   /// reoptimization request code.
@@ -36,6 +41,8 @@ public:
       ReOptimizeLayer &Parent, ReOptMaterializationUnitID MUID,
       unsigned CurVersion, ThreadSafeModule &TSM)>;
 
+  /// Callback that reoptimizes a module from collected profile data.
+  ///
   /// ReOptimizeFunc will be called when ReOptimizeLayer reoptimization of a
   /// materialization unit was requested in order to reoptimize the IR module
   /// based on profile data. OldRT is the ResourceTracker that tracks the old
@@ -46,16 +53,25 @@ public:
       ReOptimizeLayer &Parent, ReOptMaterializationUnitID MUID,
       unsigned CurVersion, ResourceTrackerSP OldRT, ThreadSafeModule &TSM)>;
 
+  /// Construct a ReOptimizeLayer that emits to a base IR layer.
+  /// \param ES Execution session for this layer.
+  /// \param DL Data layout used for mangling.
+  /// \param BaseLayer IR layer to emit modules into.
+  /// \param RM Manager used to redirect symbols to reoptimized definitions.
   ReOptimizeLayer(ExecutionSession &ES, DataLayout &DL, IRLayer &BaseLayer,
                   RedirectableSymbolManager &RM)
       : IRLayer(ES, BaseLayer.getManglingOptions()), ES(ES), Mangle(ES, DL),
         BaseLayer(BaseLayer), RSManager(RM), ReOptFunc(identity),
         ProfilerFunc(reoptimizeIfCallFrequent) {}
 
+  /// Set the callback used when reoptimization is requested.
+  /// \param ReOptFunc New reoptimization function to use.
   void setReoptimizeFunc(ReOptimizeFunc ReOptFunc) {
     this->ReOptFunc = std::move(ReOptFunc);
   }
 
+  /// Set the callback used to inject profiling code on first emit.
+  /// \param ProfilerFunc New profiler injection function to use.
   void setAddProfilerFunc(AddProfilerFunc ProfilerFunc) {
     this->ProfilerFunc = std::move(ProfilerFunc);
   }
@@ -67,39 +83,73 @@ public:
   /// WARNING: For use with in-process JITs only.
   /// WARNING: Do not use if the ORC runtime is loaded, as this will introduce
   ///          duplicate definitions.
+  /// \param PlatformJD JITDylib that receives the lite runtime support.
+  /// \param DL Data layout used when defining support symbols.
+  /// \return Success, or an error if lite support cannot be added.
   Error addOrcRTLiteSupport(JITDylib &PlatformJD, const DataLayout &DL);
 
+  /// Register reoptimize runtime dispatch handlers on PlatformJD.
+  ///
   /// Registers reoptimize runtime dispatch handlers to given PlatformJD. The
   /// reoptimization request will not be handled if dispatch handler is not
   /// registered by using this function.
+  /// \param PlatformJD JITDylib that receives the dispatch handlers.
+  /// \return Success, or an error if the handlers cannot be registered.
   Error registerRuntimeFunctions(JITDylib &PlatformJD);
 
   /// Emits the given module. This should not be called by clients: it will be
   /// called by the JIT when a definition added via the add method is requested.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \param TSM Thread-safe module to emit, possibly with profiling injected.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             ThreadSafeModule TSM) override;
 
+  /// Call-count threshold that triggers reoptimization in the default profiler.
   static const uint64_t CallCountThreshold = 10;
 
   /// Basic AddProfilerFunc that reoptimizes the function when the call count
   /// exceeds CallCountThreshold.
+  /// \param Parent ReOptimizeLayer owning the materialization unit.
+  /// \param MUID Identifier of the materialization unit being profiled.
+  /// \param CurVersion Current version of the materialization unit.
+  /// \param TSM Thread-safe module into which profiling code is injected.
+  /// \return Success, or an error if profiling code cannot be injected.
   static Error reoptimizeIfCallFrequent(ReOptimizeLayer &Parent,
                                         ReOptMaterializationUnitID MUID,
                                         unsigned CurVersion,
                                         ThreadSafeModule &TSM);
 
+  /// ReOptimizeFunc that leaves the module unchanged.
+  /// \param Parent ReOptimizeLayer that requested reoptimization.
+  /// \param MUID Identifier of the materialization unit being reoptimized.
+  /// \param CurVersion Current version of the materialization unit.
+  /// \param OldRT Resource tracker for the previous definitions.
+  /// \param TSM Thread-safe module that would otherwise be reoptimized.
+  /// \return Success always.
   static Error identity(ReOptimizeLayer &Parent,
                         ReOptMaterializationUnitID MUID, unsigned CurVersion,
                         ResourceTrackerSP OldRT, ThreadSafeModule &TSM) {
     return Error::success();
   }
 
-  // Create IR reoptimize request fucntion call.
+  /// Insert an IR call that requests reoptimization at the given point.
+  /// \param M Module that will contain the reoptimize call.
+  /// \param IP Instruction before which the reoptimize call is inserted.
+  /// \param MUID Identifier of the materialization unit to reoptimize.
+  /// \param CurVersion Current version of the materialization unit.
   static void createReoptimizeCall(Module &M, Instruction &IP,
                                    ReOptMaterializationUnitID MUID,
                                    unsigned CurVersion);
 
+  /// Remove resources associated with the given key.
+  /// \param JD JITDylib that owns the resources.
+  /// \param K Resource key to remove.
+  /// \return Success, or an error if the resources cannot be removed.
   Error handleRemoveResources(JITDylib &JD, ResourceKey K) override;
+  /// Transfer resources from one key to another.
+  /// \param JD JITDylib that owns the resources.
+  /// \param DstK Destination resource key.
+  /// \param SrcK Source resource key.
   void handleTransferResources(JITDylib &JD, ResourceKey DstK,
                                ResourceKey SrcK) override;
 

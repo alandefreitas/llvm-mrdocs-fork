@@ -93,62 +93,92 @@
 #include "llvm/Transforms/Utils/SizeOpts.h"
 
 namespace llvm {
-// Map of potential specializations for each function. The FunctionSpecializer
-// keeps the discovered specialisation opportunities for the module in a single
-// vector, where the specialisations of each function form a contiguous range.
-// This map's value is the beginning and the end of that range.
+/// Map from functions to ranges of candidate specializations.
+///
+/// The FunctionSpecializer keeps the discovered specialisation opportunities
+/// for the module in a single vector, where the specialisations of each
+/// function form a contiguous range. This map's value is the beginning and the
+/// end of that range.
 using SpecMap = DenseMap<Function *, std::pair<unsigned, unsigned>>;
 
-// Just a shorter abbreviation to improve indentation.
+/// Instruction cost type used by specialization profitability estimates.
+///
+/// A shorter abbreviation of \c InstructionCost to improve indentation.
 using Cost = InstructionCost;
 
-// Map of known constants found during the specialization bonus estimation.
+/// Map of known constants found during specialization bonus estimation.
 using ConstMap = DenseMap<Value *, Constant *>;
 
-// Specialization signature, used to uniquely designate a specialization within
-// a function.
+/// Specialization signature uniquely designating a specialization of a
+/// function.
 struct SpecSig {
-  // Hashing support, used to distinguish between ordinary and empty keys.
+  /// Hashing key used to distinguish ordinary and empty map keys.
   unsigned Key = 0;
+  /// Formal arguments replaced by constants in this specialization.
   SmallVector<ArgInfo, 4> Args;
 
+  /// Return true if this signature equals \p Other.
+  ///
+  /// \param Other Signature to compare against.
+  /// \return True if the keys and argument lists match.
   bool operator==(const SpecSig &Other) const {
     if (Key != Other.Key)
       return false;
     return Args == Other.Args;
   }
 
+  /// Compute a hash code for specialization signature \p S.
+  ///
+  /// \param S Signature to hash.
+  /// \return A hash code derived from \p S.
   friend hash_code hash_value(const SpecSig &S) {
     return hash_combine(hash_value(S.Key), hash_combine_range(S.Args));
   }
 };
 
-// Specialization instance.
+/// A candidate specialization of a function for a given signature.
 struct Spec {
-  // Original function.
+  /// Original function being specialized.
   Function *F;
 
-  // Cloned function, a specialized version of the original one.
+  /// Cloned specialized version of the original function, if created.
   Function *Clone = nullptr;
 
-  // Specialization signature.
+  /// Signature identifying the constant arguments of this specialization.
   SpecSig Sig;
 
-  // Profitability of the specialization.
+  /// Profitability score of the specialization.
   unsigned Score;
 
-  // Number of instructions in the specialization.
+  /// Number of instructions in the specialized function.
   unsigned CodeSize;
 
-  // List of call sites, matching this specialization.
+  /// Call sites that match this specialization.
   SmallVector<CallBase *> CallSites;
 
+  /// Construct a specialization candidate from a copied signature.
+  ///
+  /// \param F Original function to specialize.
+  /// \param S Signature of constant arguments.
+  /// \param Score Profitability score of the specialization.
+  /// \param CodeSize Number of instructions in the specialization.
   Spec(Function *F, const SpecSig &S, unsigned Score, unsigned CodeSize)
       : F(F), Sig(S), Score(Score), CodeSize(CodeSize) {}
+  /// Construct a specialization candidate from a moved signature.
+  ///
+  /// \param F Original function to specialize.
+  /// \param S Signature of constant arguments.
+  /// \param Score Profitability score of the specialization.
+  /// \param CodeSize Number of instructions in the specialization.
   Spec(Function *F, const SpecSig &&S, unsigned Score, unsigned CodeSize)
       : F(F), Sig(S), Score(Score), CodeSize(CodeSize) {}
 };
 
+/// Estimates codesize and latency savings from specializing on constants.
+///
+/// Visits instructions while propagating known constants to measure how much
+/// code becomes dead and how much latency is saved, informing the
+/// specialization cost model.
 class InstCostVisitor : public InstVisitor<InstCostVisitor, Constant *> {
   std::function<BlockFrequencyInfo &(Function &)> GetBFI;
   Function *F;
@@ -170,19 +200,41 @@ class InstCostVisitor : public InstVisitor<InstCostVisitor, Constant *> {
   ConstMap::iterator LastVisited;
 
 public:
+  /// Construct a visitor for estimating specialization bonus on \p F.
+  ///
+  /// \param GetBFI Callback returning block frequency info for a function.
+  /// \param F Function whose specialization bonus is estimated.
+  /// \param DL Data layout used for constant folding and cost queries.
+  /// \param TTI Target transform info for instruction cost estimates.
+  /// \param Solver IPSCCP solver providing lattice values and executability.
   InstCostVisitor(std::function<BlockFrequencyInfo &(Function &)> GetBFI,
                   Function *F, const DataLayout &DL, TargetTransformInfo &TTI,
                   SCCPSolver &Solver)
       : GetBFI(GetBFI), F(F), DL(DL), TTI(TTI), Solver(Solver) {}
 
+  /// Return true if \p BB remains executable after constant propagation.
+  ///
+  /// \param BB Basic block to test for executability.
+  /// \return True if \p BB is executable and not marked dead.
   bool isBlockExecutable(BasicBlock *BB) const {
     return Solver.isBlockExecutable(BB) && !DeadBlocks.contains(BB);
   }
 
+  /// Estimate codesize savings from replacing argument \p A with constant \p C.
+  ///
+  /// \param A Formal argument specialized to a constant.
+  /// \param C Constant value substituted for \p A.
+  /// \return Estimated codesize savings as an instruction cost.
   LLVM_ABI Cost getCodeSizeSavingsForArg(Argument *A, Constant *C);
 
+  /// Estimate additional codesize savings from folding pending PHI nodes.
+  ///
+  /// \return Estimated codesize savings from pending PHI folds.
   LLVM_ABI Cost getCodeSizeSavingsFromPendingPHIs();
 
+  /// Estimate latency savings from replacing uses with known constants.
+  ///
+  /// \return Estimated latency savings as an instruction cost.
   LLVM_ABI Cost getLatencySavingsForKnownConstants();
 
 private:
@@ -228,6 +280,10 @@ private:
   Constant *visitBinaryOperator(BinaryOperator &I);
 };
 
+/// Clones functions specialized for constant call arguments under IPSCCP.
+///
+/// Discovers profitable specializations, creates clones, updates matching call
+/// sites, and cleans up functions that become dead after specialization.
 class FunctionSpecializer {
 
   /// The IPSCCP Solver.
@@ -251,6 +307,15 @@ class FunctionSpecializer {
   unsigned NGlobals = 0;
 
 public:
+  /// Construct a function specializer for module \p M.
+  ///
+  /// \param Solver IPSCCP solver providing constant lattice values.
+  /// \param M Module whose functions may be specialized.
+  /// \param FAM Function analysis manager used to invalidate analyses.
+  /// \param GetBFI Callback returning block frequency info for a function.
+  /// \param GetTLI Callback returning target library info for a function.
+  /// \param GetTTI Callback returning target transform info for a function.
+  /// \param GetAC Callback returning the assumption cache for a function.
   FunctionSpecializer(
       SCCPSolver &Solver, Module &M, FunctionAnalysisManager *FAM,
       std::function<BlockFrequencyInfo &(Function &)> GetBFI,
@@ -260,15 +325,27 @@ public:
       : Solver(Solver), M(M), FAM(FAM), GetBFI(GetBFI), GetTLI(GetTLI),
         GetTTI(GetTTI), GetAC(GetAC) {}
 
+  /// Destroy the specializer and release owned resources.
   LLVM_ABI ~FunctionSpecializer();
 
+  /// Run function specialization over the module and return true if changed.
+  ///
+  /// \return True if the module was modified.
   LLVM_ABI bool run();
 
+  /// Build an instruction-cost visitor for estimating bonus on \p F.
+  ///
+  /// \param F Function for which specialization savings are estimated.
+  /// \return An InstCostVisitor configured for \p F.
   InstCostVisitor getInstCostVisitorFor(Function *F) {
     auto &TTI = GetTTI(*F);
     return InstCostVisitor(GetBFI, F, M.getDataLayout(), TTI, Solver);
   }
 
+  /// Return true if \p F was fully specialized and marked dead.
+  ///
+  /// \param F Function to test for removal after specialization.
+  /// \return True if \p F is in the dead-functions set.
   bool isDeadFunction(Function *F) { return DeadFunctions.contains(F); }
 
 private:

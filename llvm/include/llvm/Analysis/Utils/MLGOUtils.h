@@ -28,8 +28,18 @@
 
 namespace llvm {
 
-/// Helper to check if a release-mode ML advisor has a valid model to execute.
-/// Overload for cl::opt<EnumType>.
+/// Check whether a release-mode ML advisor has a valid model to execute.
+///
+/// Overload for \c cl::opt<EnumType>.
+/// \param InteractiveChannelBaseName Base name of the interactive channel; if
+/// non-empty, the model is considered valid.
+/// \param SelectedModel Command-line option holding the currently selected
+/// model.
+/// \param DefaultModelVal Default model value; when neither an embedded nor an
+/// interactive model is available, validity requires \p SelectedModel to differ
+/// from this.
+/// \return True if an embedded, interactive, or non-default selected model is
+/// available.
 template <class CompiledModelType, class EnumType, bool ExternalStorage,
           class ParserClass>
 bool isReleaseModelValid(
@@ -41,8 +51,17 @@ bool isReleaseModelValid(
          SelectedModel != DefaultModelVal;
 }
 
-/// Helper to check if a release-mode ML advisor has a valid model to execute.
-/// Overload for plain EnumType.
+/// Check whether a release-mode ML advisor has a valid model to execute.
+///
+/// Overload for plain \c EnumType.
+/// \param InteractiveChannelBaseName Base name of the interactive channel; if
+/// non-empty, the model is considered valid.
+/// \param SelectedModel Currently selected model value.
+/// \param DefaultModelVal Default model value; when neither an embedded nor an
+/// interactive model is available, validity requires \p SelectedModel to differ
+/// from this.
+/// \return True if an embedded, interactive, or non-default selected model is
+/// available.
 template <class CompiledModelType, class EnumType>
 bool isReleaseModelValid(StringRef InteractiveChannelBaseName,
                          EnumType SelectedModel,
@@ -52,10 +71,23 @@ bool isReleaseModelValid(StringRef InteractiveChannelBaseName,
          SelectedModel != DefaultModelVal;
 }
 
-/// Helper to construct the appropriate MLModelRunner in release mode:
+/// Construct the appropriate MLModelRunner for release mode.
+///
+/// Chooses among:
 /// 1. InteractiveModelRunner if an interactive channel is specified.
 /// 2. EmitCModelRunner if MLIR lowering is enabled.
 /// 3. ReleaseModeModelRunner<CompiledModelType> otherwise.
+/// \param Ctx LLVM context used to construct the runner.
+/// \param InputFeatures Specs describing the model input tensors.
+/// \param DecisionName Name of the decision/output tensor.
+/// \param InteractiveChannelBaseName Base name for interactive pipes; if
+/// non-empty, an InteractiveModelRunner is created.
+/// \param InteractiveDecisionSpec TensorSpec for the interactive decision.
+/// \param CreateEmitCModelRunner Callable that builds an EmitC model runner
+/// when MLIR lowering is enabled.
+/// \param Options Options for the embedded release-mode model runner.
+/// \return A unique pointer to the constructed interactive, EmitC, or
+/// release-mode model runner.
 template <class CompiledModelType, bool HaveMLIRLowering, class CreateEmitCFunc>
 std::unique_ptr<MLModelRunner> createReleaseModeModelRunner(
     LLVMContext &Ctx, const std::vector<TensorSpec> &InputFeatures,

@@ -37,31 +37,59 @@ class LLVM_ABI SymbolTableDumpPlugin : public LinkGraphLinkingLayer::Plugin {
 public:
   /// Create a SymbolTableDumpPlugin that will append symbol information
   /// to the file at the given path.
+  /// @param Path Path of the file to append symbol table dumps to.
+  /// @return A shared SymbolTableDumpPlugin, or an error if the file cannot
+  ///         be opened.
   static Expected<std::shared_ptr<SymbolTableDumpPlugin>>
   Create(StringRef Path);
 
   /// Create a SymbolTableDumpPlugin. The resulting object is in an invalid
   /// state if, upon return, EC != std::error_code().
   /// Prefer SymbolTableDumpPlugin::Create.
+  /// @param Path Path of the file to append symbol table dumps to.
+  /// @param EC Set to a non-success code if the output file cannot be opened.
   SymbolTableDumpPlugin(StringRef Path, std::error_code &EC);
 
-  SymbolTableDumpPlugin(const SymbolTableDumpPlugin &) = delete;
-  SymbolTableDumpPlugin &operator=(const SymbolTableDumpPlugin &) = delete;
-  SymbolTableDumpPlugin(SymbolTableDumpPlugin &&) = delete;
-  SymbolTableDumpPlugin &operator=(SymbolTableDumpPlugin &&) = delete;
+  /// Copy construction is deleted.
+  /// @param Other Plugin that would be copied.
+  SymbolTableDumpPlugin(const SymbolTableDumpPlugin &Other) = delete;
+  /// Copy assignment is deleted.
+  /// @param Other Plugin that would be copied.
+  SymbolTableDumpPlugin &operator=(const SymbolTableDumpPlugin &Other) = delete;
+  /// Move construction is deleted.
+  /// @param Other Plugin that would be moved.
+  SymbolTableDumpPlugin(SymbolTableDumpPlugin &&Other) = delete;
+  /// Move assignment is deleted.
+  /// @param Other Plugin that would be moved.
+  SymbolTableDumpPlugin &operator=(SymbolTableDumpPlugin &&Other) = delete;
 
+  /// Install a post-allocation pass that dumps defined symbol addresses.
+  /// @param MR Materialization responsibility for the graph being linked.
+  /// @param G Link graph whose pass configuration may be modified.
+  /// @param Config Pass configuration to update.
   void modifyPassConfig(MaterializationResponsibility &MR,
                         jitlink::LinkGraph &G,
                         jitlink::PassConfiguration &Config) override;
 
+  /// No-op failure notification.
+  /// @param MR Materialization responsibility for the failed graph.
+  /// @return Success; this plugin has no failure-side effects.
   Error notifyFailed(MaterializationResponsibility &MR) override {
     return Error::success();
   }
 
+  /// No-op resource removal notification.
+  /// @param JD JITDylib whose resources are being removed.
+  /// @param K Key identifying the resources to remove.
+  /// @return Success; this plugin does not track resources to remove.
   Error notifyRemovingResources(JITDylib &JD, ResourceKey K) override {
     return Error::success();
   }
 
+  /// No-op resource transfer notification.
+  /// @param JD JITDylib whose resources are being transferred.
+  /// @param DstKey Destination resource key.
+  /// @param SrcKey Source resource key.
   void notifyTransferringResources(JITDylib &JD, ResourceKey DstKey,
                                    ResourceKey SrcKey) override {}
 
@@ -74,10 +102,15 @@ private:
 class LLVM_ABI DumpedSymbolTable {
 public:
   /// Create a DumpedSymbolTable from the given path.
+  /// @param Path Path of the dumped symbol table file to load.
+  /// @return A DumpedSymbolTable, or an error if the file cannot be loaded.
   static Expected<DumpedSymbolTable> Create(StringRef Path);
 
   /// Given a backtrace, try to symbolicate any unsymbolicated lines using the
   /// symbol addresses in the dumped symbol table.
+  /// @param Backtrace Backtrace text whose unsymbolicated lines should be
+  ///        resolved.
+  /// @return Backtrace text with unsymbolicated lines resolved where possible.
   std::string symbolicate(StringRef Backtrace);
 
 private:

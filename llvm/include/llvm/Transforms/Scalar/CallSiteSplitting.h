@@ -15,8 +15,16 @@ namespace llvm {
 
 class Function;
 
+/// Pass that splits call sites to expose constrained arguments.
+///
+/// When a call-site argument is predicated in the control flow, this pass
+/// tries to split the call site so later passes (inliner, jump threading,
+/// IPA-CP based cloning, and similar) see more constrained arguments.
 struct CallSiteSplittingPass : OptionalPassInfoMixin<CallSiteSplittingPass> {
-  /// Run the pass over the function.
+  /// Run call site splitting over the function.
+  /// @param F Function whose call sites may be split.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // end namespace llvm

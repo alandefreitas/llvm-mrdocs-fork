@@ -23,10 +23,11 @@
 
 namespace llvm {
 
-/// A HashNode is an entry in an OutlinedHashTree, holding a hash value
-/// and a collection of Successors (other HashNodes). If a HashNode has
-/// a positive terminal value (Terminals > 0), it signifies the end of
-/// a hash sequence with that occurrence count.
+/// An entry in an OutlinedHashTree.
+///
+/// A HashNode holds a hash value and a collection of Successors (other
+/// HashNodes). If a HashNode has a positive terminal value (Terminals > 0),
+/// it signifies the end of a hash sequence with that occurrence count.
 struct HashNode {
   /// The hash value of the node.
   stable_hash Hash = 0;
@@ -36,6 +37,7 @@ struct HashNode {
   DenseMap<stable_hash, std::unique_ptr<HashNode>> Successors;
 };
 
+/// A trie of stable hash sequences for outlined instruction sequences.
 class OutlinedHashTree {
 
   using EdgeCallbackFn =
@@ -46,11 +48,18 @@ class OutlinedHashTree {
   using HashSequencePair = std::pair<HashSequence, unsigned>;
 
 public:
-  /// Walks every edge and node in the OutlinedHashTree and calls CallbackEdge
-  /// for the edges and CallbackNode for the nodes with the stable_hash for
-  /// the source and the stable_hash of the sink for an edge. These generic
-  /// callbacks can be used to traverse a OutlinedHashTree for the purpose of
-  /// print debugging or serializing it.
+  /// Walk every edge and node in the outlined hash tree.
+  ///
+  /// Calls \p CallbackEdge for the edges and \p CallbackNode for the nodes
+  /// with the stable_hash for the source and the stable_hash of the sink for
+  /// an edge. These generic callbacks can be used to traverse an
+  /// OutlinedHashTree for the purpose of print debugging or serializing it.
+  ///
+  /// \param CallbackNode Called for each node visited during the walk.
+  /// \param CallbackEdge Called for each edge visited during the walk; may be
+  /// null.
+  /// \param SortedWalk When true, walk successors in a deterministic sorted
+  /// order.
   LLVM_ABI void walkGraph(NodeCallbackFn CallbackNode,
                           EdgeCallbackFn CallbackEdge = nullptr,
                           bool SortedWalk = false) const;
@@ -61,30 +70,50 @@ public:
     getRoot()->Successors.clear();
   }
 
-  /// \returns true if the hash tree has only the root node.
+  /// Returns true if the hash tree has only the root node.
+  ///
+  /// \return True if the hash tree has only the root node.
   bool empty() { return size() == 1; }
 
-  /// \returns the size of a OutlinedHashTree by traversing it. If
-  /// \p GetTerminalCountOnly is true, it only counts the terminal nodes
-  /// (meaning it returns the the number of hash sequences in the
-  /// OutlinedHashTree).
+  /// Returns the size of the outlined hash tree by traversing it.
+  ///
+  /// \param GetTerminalCountOnly When true, only count terminal nodes (the
+  /// number of hash sequences in the OutlinedHashTree).
+  /// \return The number of nodes, or the number of terminal sequences when
+  /// \p GetTerminalCountOnly is true.
   LLVM_ABI size_t size(bool GetTerminalCountOnly = false) const;
 
-  /// \returns the depth of a OutlinedHashTree by traversing it.
+  /// Returns the depth of the outlined hash tree by traversing it.
+  ///
+  /// \return The maximum depth of the outlined hash tree.
   LLVM_ABI size_t depth() const;
 
-  /// \returns the root hash node of a OutlinedHashTree.
+  /// Returns the root hash node of the outlined hash tree.
+  ///
+  /// \return Pointer to the root hash node.
   const HashNode *getRoot() const { return &Root; }
+  /// Returns the root hash node of the outlined hash tree.
+  ///
+  /// \return Pointer to the root hash node.
   HashNode *getRoot() { return &Root; }
 
-  /// Inserts a \p Sequence into the this tree. The last node in the sequence
-  /// will increase Terminals.
+  /// Insert a hash sequence into this tree.
+  ///
+  /// The last node in the sequence will increase Terminals.
+  ///
+  /// \param SequencePair Pair of the hash sequence and its occurrence count.
   LLVM_ABI void insert(const HashSequencePair &SequencePair);
 
-  /// Merge a \p OtherTree into this Tree.
+  /// Merge another outlined hash tree into this tree.
+  ///
+  /// \param OtherTree Tree whose sequences are merged into this one.
   LLVM_ABI void merge(const OutlinedHashTree *OtherTree);
 
-  /// \returns the matching count if \p Sequence exists in the OutlinedHashTree.
+  /// Returns the matching count if \p Sequence exists in the outlined hash
+  /// tree.
+  ///
+  /// \param Sequence Hash sequence to look up.
+  /// \return The occurrence count of \p Sequence, or std::nullopt if not found.
   LLVM_ABI std::optional<unsigned> find(const HashSequence &Sequence) const;
 
 private:

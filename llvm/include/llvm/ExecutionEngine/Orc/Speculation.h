@@ -27,17 +27,24 @@ namespace orc {
 
 class Speculator;
 
-// Track the Impls (JITDylib,Symbols) of Symbols while lazy call through
-// trampolines are created. Operations are guarded by locks tp ensure that Imap
-// stays in consistent state after read/write
-
+/// Tracks implementation symbols for lazy call-through trampolines.
+///
+/// Records the (JITDylib, Symbol) pairs of implementation symbols while lazy
+/// call-through trampolines are created. Operations are guarded by locks to
+/// ensure that the map stays in a consistent state after read/write.
 class ImplSymbolMap {
   friend class Speculator;
 
 public:
+  /// Pair of an implementation symbol name and the JITDylib that owns it.
   using AliaseeDetails = std::pair<SymbolStringPtr, JITDylib *>;
+  /// Alias / stub symbol name keyed in the implementation map.
   using Alias = SymbolStringPtr;
+  /// Map from alias symbols to their implementation details.
   using ImapTy = DenseMap<Alias, AliaseeDetails>;
+  /// Record implementation symbols for the given aliases in \p SrcJD.
+  /// \param ImplMaps Map from alias names to their implementation symbols.
+  /// \param SrcJD JITDylib that owns the implementation symbols.
   LLVM_ABI void trackImpls(SymbolAliasMap ImplMaps, JITDylib *SrcJD);
 
 private:
@@ -56,11 +63,14 @@ private:
   ImapTy Maps;
 };
 
-// Defines Speculator Concept,
+/// Coordinates speculative compilation of likely-called functions.
 class Speculator {
 public:
+  /// Executor address of a compiled function or stub.
   using TargetFAddr = ExecutorAddr;
+  /// Map from a function symbol to the set of likely callees.
   using FunctionCandidatesMap = DenseMap<SymbolStringPtr, SymbolNameSet>;
+  /// Map from a stub address to the set of likely callee symbols.
   using StubAddrLikelies = DenseMap<TargetFAddr, SymbolNameSet>;
 
 private:
@@ -119,23 +129,43 @@ private:
   }
 
 public:
+  /// Construct a Speculator bound to the given implementation map and session.
+  /// \param Impl Map of alias symbols to their implementation details.
+  /// \param ref Execution session used for speculative lookups.
   Speculator(ImplSymbolMap &Impl, ExecutionSession &ref)
       : AliaseeImplTable(Impl), ES(ref), GlobalSpecMap(0) {}
-  Speculator(const Speculator &) = delete;
-  Speculator(Speculator &&) = delete;
-  Speculator &operator=(const Speculator &) = delete;
-  Speculator &operator=(Speculator &&) = delete;
+  /// Speculators are not copy-constructible.
+  /// \param Other Instance that would be copied.
+  Speculator(const Speculator &Other) = delete;
+  /// Speculators are not move-constructible.
+  /// \param Other Instance that would be moved.
+  Speculator(Speculator &&Other) = delete;
+  /// Speculators are not copy-assignable.
+  /// \param Other Instance that would be copied.
+  Speculator &operator=(const Speculator &Other) = delete;
+  /// Speculators are not move-assignable.
+  /// \param Other Instance that would be moved.
+  Speculator &operator=(Speculator &&Other) = delete;
 
   /// Define symbols for this Speculator object (__orc_speculator) and the
   /// speculation runtime entry point symbol (__orc_speculate_for) in the
   /// given JITDylib.
+  /// \param JD JITDylib in which to define the speculation runtime symbols.
+  /// \param Mangle Mangler used to intern the runtime symbol names.
+  /// \return Success, or an error if the runtime symbols cannot be defined.
   LLVM_ABI Error addSpeculationRuntime(JITDylib &JD, MangleAndInterner &Mangle);
 
-  // Speculatively compile likely functions for the given Stub Address.
-  // destination of __orc_speculate_for jump
+  /// Speculatively compile likely functions for the given stub address.
+  ///
+  /// This is the destination of the `__orc_speculate_for` jump.
+  /// \param StubAddr Address of the stub whose likely callees should be
+  ///        compiled.
   void speculateFor(TargetFAddr StubAddr) { launchCompile(StubAddr); }
 
   // FIXME : Register with Stub Address, after JITLink Fix.
+  /// Register likely-callee candidates for the given symbols in \p JD.
+  /// \param Candidates Map from target symbols to their likely callees.
+  /// \param JD JITDylib in which to look up the target symbols.
   void registerSymbols(FunctionCandidatesMap Candidates, JITDylib *JD) {
     for (auto &SymPair : Candidates) {
       auto Target = SymPair.first;
@@ -158,6 +188,8 @@ public:
     }
   }
 
+  /// Return the execution session associated with this Speculator.
+  /// \return The execution session used for speculative lookups.
   ExecutionSession &getES() { return ES; }
 
 private:
@@ -168,18 +200,31 @@ private:
   StubAddrLikelies GlobalSpecMap;
 };
 
+/// IR layer that analyzes modules and registers speculation candidates.
 class LLVM_ABI IRSpeculationLayer : public IRLayer {
 public:
+  /// Optional map from IR function names to likely callee name sets.
   using IRlikiesStrRef =
       std::optional<DenseMap<StringRef, DenseSet<StringRef>>>;
+  /// Function that evaluates likely callees for an IR function.
   using ResultEval = std::function<IRlikiesStrRef(Function &)>;
+  /// Map from interned target symbols to sets of likely callee symbols.
   using TargetAndLikelies = DenseMap<SymbolStringPtr, SymbolNameSet>;
 
+  /// Construct an IR speculation layer.
+  /// \param ES Execution session for this layer.
+  /// \param BaseLayer Layer to emit modules to after analysis.
+  /// \param Spec Speculator that receives registered candidates.
+  /// \param Mangle Mangler used to intern IR names to JIT symbols.
+  /// \param Interpreter Analysis that produces likely-callee maps.
   IRSpeculationLayer(ExecutionSession &ES, IRLayer &BaseLayer, Speculator &Spec,
                      MangleAndInterner &Mangle, ResultEval Interpreter)
       : IRLayer(ES, BaseLayer.getManglingOptions()), NextLayer(BaseLayer),
         S(Spec), Mangle(Mangle), QueryAnalysis(Interpreter) {}
 
+  /// Emit the given module after registering speculation candidates.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \param TSM Thread-safe module to analyze and emit.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             ThreadSafeModule TSM) override;
 

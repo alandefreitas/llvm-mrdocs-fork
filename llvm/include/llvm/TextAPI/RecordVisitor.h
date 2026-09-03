@@ -23,11 +23,21 @@ namespace MachO {
 /// Base class for any usage of traversing over collected Records.
 class LLVM_ABI RecordVisitor {
 public:
+  /// Destroy the record visitor.
   virtual ~RecordVisitor();
 
-  virtual void visitGlobal(const GlobalRecord &) = 0;
-  virtual void visitObjCInterface(const ObjCInterfaceRecord &);
-  virtual void visitObjCCategory(const ObjCCategoryRecord &);
+  /// Visit a non-ObjC global record.
+  ///
+  /// \param GR The global record being visited.
+  virtual void visitGlobal(const GlobalRecord &GR) = 0;
+  /// Visit an Objective-C interface (class) record.
+  ///
+  /// \param ObjCR The Objective-C interface record being visited.
+  virtual void visitObjCInterface(const ObjCInterfaceRecord &ObjCR);
+  /// Visit an Objective-C category record.
+  ///
+  /// \param Cat The Objective-C category record being visited.
+  virtual void visitObjCCategory(const ObjCCategoryRecord &Cat);
 };
 
 /// Specialized RecordVisitor for collecting exported symbols
@@ -35,12 +45,27 @@ public:
 /// flat-namespaced library.
 class LLVM_ABI SymbolConverter : public RecordVisitor {
 public:
+  /// Construct a symbol converter for the given symbol set and target.
+  ///
+  /// \param Symbols The symbol set to populate with visited symbols.
+  /// \param T The target associated with the records being visited.
+  /// \param RecordUndefs Whether to record undefined symbols for flat-
+  /// namespaced libraries.
   SymbolConverter(SymbolSet *Symbols, const Target &T,
                   const bool RecordUndefs = false)
       : Symbols(Symbols), Targ(T), RecordUndefs(RecordUndefs) {}
-  void visitGlobal(const GlobalRecord &) override;
-  void visitObjCInterface(const ObjCInterfaceRecord &) override;
-  void visitObjCCategory(const ObjCCategoryRecord &) override;
+  /// Convert a non-ObjC global record into symbols.
+  ///
+  /// \param GR The global record being visited.
+  void visitGlobal(const GlobalRecord &GR) override;
+  /// Convert an Objective-C interface record into symbols.
+  ///
+  /// \param ObjCR The Objective-C interface record being visited.
+  void visitObjCInterface(const ObjCInterfaceRecord &ObjCR) override;
+  /// Convert an Objective-C category record into symbols.
+  ///
+  /// \param Cat The Objective-C category record being visited.
+  void visitObjCCategory(const ObjCCategoryRecord &Cat) override;
 
 private:
   void addIVars(const ArrayRef<ObjCIVarRecord *>, StringRef ContainerName);

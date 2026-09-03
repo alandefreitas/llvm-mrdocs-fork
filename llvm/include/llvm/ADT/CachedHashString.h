@@ -35,6 +35,8 @@ public:
   /// Construct from string \p S, computing its DenseMap hash.
   ///
   /// Explicit because hashing a string isn't free.
+  ///
+  /// \param S Non-owning string data.
   explicit CachedHashStringRef(StringRef S)
       : CachedHashStringRef(S, DenseMapInfo<StringRef>::getHashValue(S)) {}
 
@@ -48,19 +50,34 @@ public:
   }
 
   /// Return the wrapped string as a StringRef.
+  /// @return Non-owning view of the string data.
   StringRef val() const { return StringRef(P, Size); }
   /// Return a pointer to the first character.
+  /// @return Pointer to the first character of the string.
   const char *data() const { return P; }
   /// Return the string length in bytes.
+  /// @return Length of the string in bytes.
   uint32_t size() const { return Size; }
   /// Return the cached hash value.
+  /// @return Precomputed hash of the string.
   uint32_t hash() const { return Hash; }
 };
 
+/// DenseMapInfo specialization for CachedHashStringRef.
 template <> struct DenseMapInfo<CachedHashStringRef> {
+  /// Return the cached hash of \p S.
+  ///
+  /// \param S Key whose cached hash to return.
+  /// @return Precomputed hash stored in \p S.
   static unsigned getHashValue(const CachedHashStringRef &S) {
     return S.hash();
   }
+
+  /// Return true if \p LHS and \p RHS have equal hashes and string data.
+  ///
+  /// \param LHS Left-hand key.
+  /// \param RHS Right-hand key.
+  /// @return True if both keys have equal hashes and string data.
   static bool isEqual(const CachedHashStringRef &LHS,
                       const CachedHashStringRef &RHS) {
     return LHS.hash() == RHS.hash() &&
@@ -89,11 +106,15 @@ class CachedHashString {
 
 public:
   /// Construct by copying the null-terminated C string \p S.
+  ///
+  /// \param S Null-terminated string to own a copy of.
   explicit CachedHashString(const char *S) : CachedHashString(StringRef(S)) {}
 
   /// Construct by copying \p S and computing its DenseMap hash.
   ///
   /// Explicit because copying and hashing a string isn't free.
+  ///
+  /// \param S String data to own a copy of.
   explicit CachedHashString(StringRef S)
       : CachedHashString(S, DenseMapInfo<StringRef>::getHashValue(S)) {}
 
@@ -110,6 +131,8 @@ public:
   ///
   /// Ideally this class would not be copyable.  But SetVector requires copyable
   /// keys, and we want this to be usable there.
+  ///
+  /// \param Other String to copy.
   CachedHashString(const CachedHashString &Other)
       : Size(Other.Size), Hash(Other.Hash) {
     if (Other.isEmpty()) {
@@ -121,12 +144,17 @@ public:
   }
 
   /// Assign from \p Other using copy-and-swap.
+  ///
+  /// \param Other String to assign from (passed by value).
+  /// @return Reference to this string after assignment.
   CachedHashString &operator=(CachedHashString Other) {
     swap(*this, Other);
     return *this;
   }
 
   /// Move-construct, leaving \p Other in the empty-key state.
+  ///
+  /// \param Other String to move from.
   CachedHashString(CachedHashString &&Other) noexcept
       : P(Other.P), Size(Other.Size), Hash(Other.Hash) {
     Other.P = getEmptyKeyPtr();
@@ -139,20 +167,28 @@ public:
   }
 
   /// Return the owned string as a StringRef.
+  /// @return Non-owning view of the owned string data.
   StringRef val() const { return StringRef(P, Size); }
   /// Return the string length in bytes.
+  /// @return Length of the string in bytes.
   uint32_t size() const { return Size; }
   /// Return the cached hash value.
+  /// @return Precomputed hash of the string.
   uint32_t hash() const { return Hash; }
 
   /// Implicit conversion to a non-owning StringRef view.
+  /// @return Non-owning StringRef view of the owned string.
   operator StringRef() const { return val(); }
   /// Implicit conversion to a non-owning CachedHashStringRef.
+  /// @return Non-owning CachedHashStringRef view of this string.
   operator CachedHashStringRef() const {
     return CachedHashStringRef(val(), Hash);
   }
 
   /// Exchange owned storage and hash state between \p LHS and \p RHS.
+  ///
+  /// \param LHS First string to swap.
+  /// \param RHS Second string to swap.
   friend void swap(CachedHashString &LHS, CachedHashString &RHS) {
     using std::swap;
     swap(LHS.P, RHS.P);
@@ -161,8 +197,19 @@ public:
   }
 };
 
+/// DenseMapInfo specialization for CachedHashString.
 template <> struct DenseMapInfo<CachedHashString> {
+  /// Return the cached hash of \p S.
+  ///
+  /// \param S Key whose cached hash to return.
+  /// @return Precomputed hash stored in \p S.
   static unsigned getHashValue(const CachedHashString &S) { return S.hash(); }
+
+  /// Return true if \p LHS and \p RHS have equal hashes and string data.
+  ///
+  /// \param LHS Left-hand key.
+  /// \param RHS Right-hand key.
+  /// @return True if both keys have equal hashes and string data.
   static bool isEqual(const CachedHashString &LHS,
                       const CachedHashString &RHS) {
     if (LHS.hash() != RHS.hash())

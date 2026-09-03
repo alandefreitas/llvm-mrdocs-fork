@@ -134,19 +134,29 @@ class OutputAggregator;
 /// of FunctionInfo objects, see "llvm/DebugInfo/GSYM/FunctionInfo.h".
 class GsymCreator {
 protected:
-  // Private member variables require Mutex protections
+  /// Mutex that protects concurrent access to member variables.
   mutable std::mutex Mutex;
+  /// Function infos that will be encoded into the GSYM file.
   std::vector<FunctionInfo> Funcs;
+  /// String table builder that stores uniqued strings for the GSYM file.
   StringTableBuilder StrTab;
+  /// Backing storage for strings that were copied into the string table.
   StringSet<> StringStorage;
+  /// Map from file entries to their unique indexes in the file table.
   DenseMap<llvm::gsym::FileEntry, uint32_t> FileEntryToIndex;
-  // Needed for mapping string offsets back to the string stored in \a StrTab.
+  /// Map from string table offsets back to the strings stored in \a StrTab.
   DenseMap<uint64_t, CachedHashStringRef> StringOffsetMap;
+  /// File table entries referenced by function infos.
   std::vector<llvm::gsym::FileEntry> Files;
+  /// UUID of the original executable file this GSYM describes.
   std::vector<uint8_t> UUID;
+  /// Optional valid .text address ranges that functions must fall within.
   std::optional<AddressRanges> ValidTextRanges;
+  /// Optional base address used when encoding address offsets.
   std::optional<uint64_t> BaseAddress;
+  /// True if this creator represents a segment of another GsymCreator.
   bool IsSegment = false;
+  /// True if finalize() has been called and the creator is ready to save.
   bool Finalized = false;
 
   /// Get the first function start address.
@@ -244,6 +254,7 @@ protected:
   ///
   /// \param FE A file entry object that contains valid string table offsets
   /// from this object already.
+  /// \returns The unique file index for the inserted or existing file entry.
   LLVM_ABI uint32_t insertFileEntry(FileEntry FE);
 
   /// Fixup any string and file references by updating any file indexes and
@@ -272,6 +283,7 @@ protected:
   /// \param Path The path prefix to use when saving the GSYM files.
   /// \param ByteOrder The endianness to use when saving the file.
   /// \param SegmentSize The size in bytes to segment the GSYM file into.
+  /// \returns An error object that indicates success or failure of the save.
   LLVM_ABI llvm::Error saveSegments(StringRef Path, llvm::endianness ByteOrder,
                                     uint64_t SegmentSize) const;
 
@@ -312,13 +324,19 @@ protected:
   ///
   /// Used by createSegment() to create segment creators of the correct
   /// version type.
+  ///
+  /// \returns A unique pointer to a new empty GsymCreator of the same version.
   virtual std::unique_ptr<GsymCreator> createNew() const = 0;
 
 public:
+  /// Construct an empty GsymCreator ready to accept function infos.
   LLVM_ABI GsymCreator();
+  /// Destroy this GsymCreator and release its resources.
   virtual ~GsymCreator() = default;
 
   /// Get the size in bytes needed for encoding string offsets.
+  ///
+  /// \returns The size in bytes of each string table offset.
   virtual uint8_t getStringOffsetSize() const = 0;
 
   /// Save a GSYM file to a stand alone file.
@@ -397,6 +415,7 @@ public:
   ///
   /// \param YAMLFile The path to the YAML file containing call site
   /// information.
+  /// \returns An error object that indicates success or failure of the load.
   LLVM_ABI llvm::Error loadCallSitesFromYAML(StringRef YAMLFile);
 
   /// Organize merged FunctionInfo's
@@ -442,14 +461,21 @@ public:
 
   /// Get the current number of FunctionInfo objects contained in this
   /// object.
+  ///
+  /// \returns The number of FunctionInfo objects in this creator.
   LLVM_ABI size_t getNumFunctionInfos() const;
 
   /// Set valid .text address ranges that all functions must be contained in.
+  ///
+  /// \param TextRanges The address ranges that contain valid executable code.
   void SetValidTextRanges(AddressRanges &TextRanges) {
     ValidTextRanges = TextRanges;
   }
 
   /// Get the valid text ranges.
+  ///
+  /// \returns The optional valid text address ranges, or std::nullopt if none
+  ///          have been set.
   const std::optional<AddressRanges> GetValidTextRanges() const {
     return ValidTextRanges;
   }

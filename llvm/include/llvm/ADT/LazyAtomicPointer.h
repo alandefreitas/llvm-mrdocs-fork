@@ -16,9 +16,11 @@
 
 namespace llvm {
 
-/// Atomic pointer that's lock-free, but that can coordinate concurrent writes
-/// from a lazy generator. Should be reserved for cases where concurrent uses of
-/// a generator for the same storage is unlikely.
+/// Lock-free atomic pointer that coordinates concurrent writes from a lazy
+/// generator.
+///
+/// Should be reserved for cases where concurrent uses of a generator for the
+/// same storage is unlikely.
 ///
 /// The laziness comes in with \a loadOrGenerate(), which lazily calls the
 /// provided generator ONLY when the value is currently \c nullptr. With
@@ -47,10 +49,13 @@ template <class T> class LazyAtomicPointer {
 
 public:
   /// Store a value. Waits for concurrent \a loadOrGenerate() calls.
+  /// @param Value Pointer value to store.
   void store(T *Value) { return (void)exchange(Value); }
 
   /// Set a value. Return the old value. Waits for concurrent \a
   /// loadOrGenerate() calls.
+  /// @param Value Pointer value to store.
+  /// @return The previous pointer value.
   T *exchange(T *Value) {
     // Note: the call to compare_exchange_weak() fails "spuriously" if the
     // current value is \a getBusy(), causing the loop to spin.
@@ -62,6 +67,10 @@ public:
 
   /// Compare-exchange. Returns \c false if there is a concurrent \a
   /// loadOrGenerate() call, setting \p ExistingValue to \c nullptr.
+  /// @param ExistingValue On input, the expected current value; on failure,
+  /// updated to the actual current value (or \c nullptr if busy).
+  /// @param NewValue Pointer value to store on success.
+  /// @return True on success; false on failure or if busy.
   bool compare_exchange_weak(T *&ExistingValue, T *NewValue) {
     uintptr_t RawExistingValue = makeRaw(ExistingValue);
     if (Storage.compare_exchange_weak(RawExistingValue, makeRaw(NewValue)))
@@ -77,6 +86,10 @@ public:
 
   /// Compare-exchange. Keeps trying if there is a concurrent
   /// \a loadOrGenerate() call.
+  /// @param ExistingValue On input, the expected current value; on failure,
+  /// updated to the actual current value.
+  /// @param NewValue Pointer value to store on success.
+  /// @return True on success; false on failure.
   bool compare_exchange_strong(T *&ExistingValue, T *NewValue) {
     uintptr_t RawExistingValue = makeRaw(ExistingValue);
     const uintptr_t OriginalRawExistingValue = RawExistingValue;
@@ -97,6 +110,7 @@ public:
 
   /// Return the current stored value. Returns \a None if there is a concurrent
   /// \a loadOrGenerate() in flight.
+  /// @return The stored pointer, or \c nullptr if busy.
   T *load() const {
     uintptr_t RawValue = Storage.load();
     return RawValue == getBusy() ? nullptr : makePointer(RawValue);
@@ -106,6 +120,9 @@ public:
   /// Guarantees that only one thread's \p Generator will run.
   ///
   /// \pre \p Generator doesn't return \c nullptr.
+  /// @param Generator Callable that produces a non-null pointer when the
+  /// stored value is null.
+  /// @return Reference to the stored (or newly generated) value.
   T &loadOrGenerate(function_ref<T *()> Generator) {
     // Return existing value, if already set.
     uintptr_t Raw = Storage.load();
@@ -129,42 +146,53 @@ public:
   }
 
   /// Return true if a non-null pointer is currently stored.
+  /// @return True if a non-null pointer is currently stored.
   explicit operator bool() const { return load(); }
   /// Convert to the currently stored pointer, or null if busy.
+  /// @return The currently stored pointer, or \c nullptr if busy.
   operator T *() const { return load(); }
 
   /// Dereference the stored pointer; asserts if null or busy.
+  /// @return Reference to the pointee.
   T &operator*() const {
     T *P = load();
     assert(P && "Unexpected null dereference");
     return *P;
   }
   /// Access a member through the stored pointer; asserts if null or busy.
+  /// @return Pointer to the pointee.
   T *operator->() const { return &operator*(); }
 
   /// Construct a null lazy atomic pointer.
   LazyAtomicPointer() : Storage(0) {}
   /// Construct a null lazy atomic pointer from nullptr.
-  LazyAtomicPointer(std::nullptr_t) : Storage(0) {}
+  /// @param Null Unused nullptr literal used to select this overload.
+  LazyAtomicPointer(std::nullptr_t Null) : Storage(0) {}
   /// Construct holding \p Value.
   /// @param Value Initial pointer value.
   LazyAtomicPointer(T *Value) : Storage(makeRaw(Value)) {}
   /// Copy-construct by loading the current value from \p RHS.
+  /// @param RHS Source lazy atomic pointer to load from.
   LazyAtomicPointer(const LazyAtomicPointer &RHS)
       : Storage(makeRaw(RHS.load())) {}
 
   /// Store null into this pointer.
-  LazyAtomicPointer &operator=(std::nullptr_t) {
+  /// @param Null Unused nullptr literal used to select this overload.
+  /// @return Reference to this object.
+  LazyAtomicPointer &operator=(std::nullptr_t Null) {
     store(nullptr);
     return *this;
   }
   /// Store \p RHS into this pointer.
   /// @param RHS Pointer value to store.
+  /// @return Reference to this object.
   LazyAtomicPointer &operator=(T *RHS) {
     store(RHS);
     return *this;
   }
   /// Store the current value of \p RHS into this pointer.
+  /// @param RHS Source lazy atomic pointer to load from.
+  /// @return Reference to this object.
   LazyAtomicPointer &operator=(const LazyAtomicPointer &RHS) {
     store(RHS.load());
     return *this;

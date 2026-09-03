@@ -58,23 +58,29 @@ class Symbol;
 namespace orc {
 
 /// Base class for pools of compiler re-entry trampolines.
+///
 /// These trampolines are callable addresses that save all register state
 /// before calling a supplied function to return the trampoline landing
 /// address, then restore all state before jumping to that address. They
-/// are used by various ORC APIs to support lazy compilation
+/// are used by various ORC APIs to support lazy compilation.
 class LLVM_ABI TrampolinePool {
 public:
+  /// Callback invoked once a trampoline landing address has been resolved.
   using NotifyLandingResolvedFunction =
       unique_function<void(ExecutorAddr) const>;
 
+  /// Function used to resolve the landing address for a trampoline.
   using ResolveLandingFunction = unique_function<void(
       ExecutorAddr TrampolineAddr,
       NotifyLandingResolvedFunction OnLandingResolved) const>;
 
+  /// Destroy the trampoline pool.
   virtual ~TrampolinePool();
 
   /// Get an available trampoline address.
   /// Returns an error if no trampoline can be created.
+  /// @return An available trampoline address, or an error if none can be
+  ///         created.
   Expected<ExecutorAddr> getTrampoline() {
     std::lock_guard<std::mutex> Lock(TPMutex);
     if (AvailableTrampolines.empty()) {
@@ -88,24 +94,34 @@ public:
   }
 
   /// Returns the given trampoline to the pool for re-use.
+  /// @param TrampolineAddr Trampoline address previously obtained from the
+  ///        pool.
   void releaseTrampoline(ExecutorAddr TrampolineAddr) {
     std::lock_guard<std::mutex> Lock(TPMutex);
     AvailableTrampolines.push_back(TrampolineAddr);
   }
 
 protected:
+  /// Grow the pool by allocating and writing additional trampolines.
+  /// @return Success, or an error if allocation or protection fails.
   virtual Error grow() = 0;
 
+  /// Mutex protecting trampoline pool state.
   std::mutex TPMutex;
+  /// Free trampoline addresses available for reuse.
   std::vector<ExecutorAddr> AvailableTrampolines;
 };
 
 /// A trampoline pool for trampolines within the current process.
 template <typename ORCABI> class LocalTrampolinePool : public TrampolinePool {
 public:
-  /// Creates a LocalTrampolinePool with the given RunCallback function.
+  /// Creates a LocalTrampolinePool with the given resolve-landing callback.
+  ///
   /// Returns an error if this function is unable to correctly allocate, write
   /// and protect the resolver code block.
+  /// @param ResolveLanding Callback used to resolve trampoline landing
+  ///        addresses.
+  /// @return A new LocalTrampolinePool, or an error if setup fails.
   static Expected<std::unique_ptr<LocalTrampolinePool>>
   Create(ResolveLandingFunction ResolveLanding) {
     Error Err = Error::success();
@@ -204,19 +220,30 @@ private:
 /// Target-independent base class for compile callback management.
 class JITCompileCallbackManager {
 public:
+  /// Function type used to compile a lazy symbol on demand.
   using CompileFunction = std::function<ExecutorAddr()>;
 
+  /// Destroy the compile callback manager.
   virtual ~JITCompileCallbackManager() = default;
 
   /// Reserve a compile callback.
+  /// @param Compile Function invoked when the reserved trampoline is entered.
+  /// @return Address of the reserved compile trampoline, or an error on
+  ///         failure.
   LLVM_ABI Expected<ExecutorAddr> getCompileCallback(CompileFunction Compile);
 
   /// Execute the callback for the given trampoline id. Called by the JIT
   ///        to compile functions on demand.
+  /// @param TrampolineAddr Address of the trampoline whose callback should
+  ///        run.
+  /// @return The landing address produced by the compile callback.
   LLVM_ABI ExecutorAddr executeCompileCallback(ExecutorAddr TrampolineAddr);
 
 protected:
   /// Construct a JITCompileCallbackManager.
+  /// @param TP Trampoline pool used to allocate compile trampolines.
+  /// @param ES Execution session that owns callback state.
+  /// @param ErrorHandlerAddress Address invoked if a compile callback fails.
   JITCompileCallbackManager(std::unique_ptr<TrampolinePool> TP,
                             ExecutionSession &ES,
                             ExecutorAddr ErrorHandlerAddress)
@@ -224,6 +251,8 @@ protected:
         CallbacksJD(ES.createBareJITDylib("<Callbacks>")),
         ErrorHandlerAddress(ErrorHandlerAddress) {}
 
+  /// Install the trampoline pool used by this manager.
+  /// @param TP Trampoline pool to take ownership of.
   void setTrampolinePool(std::unique_ptr<TrampolinePool> TP) {
     this->TP = std::move(TP);
   }
@@ -243,6 +272,9 @@ template <typename ORCABI>
 class LocalJITCompileCallbackManager : public JITCompileCallbackManager {
 public:
   /// Create a new LocalJITCompileCallbackManager.
+  /// @param ES Execution session that owns the callback manager.
+  /// @param ErrorHandlerAddress Address invoked if a compile callback fails.
+  /// @return A new LocalJITCompileCallbackManager, or an error if setup fails.
   static Expected<std::unique_ptr<LocalJITCompileCallbackManager>>
   Create(ExecutionSession &ES, ExecutorAddr ErrorHandlerAddress) {
     Error Err = Error::success();
@@ -285,31 +317,53 @@ public:
   /// Map type for initializing the manager. See init.
   using StubInitsMap = StringMap<std::pair<ExecutorAddr, JITSymbolFlags>>;
 
+  /// Destroy the indirect stubs manager.
   ~IndirectStubsManager() override = default;
 
   /// Create a single stub with the given name, target address and flags.
+  /// @param StubName Name of the stub to create.
+  /// @param StubAddr Initial target address for the stub.
+  /// @param StubFlags JIT symbol flags for the stub.
+  /// @return Success, or an error if the stub cannot be created.
   virtual Error createStub(StringRef StubName, ExecutorAddr StubAddr,
                            JITSymbolFlags StubFlags) = 0;
 
   /// Create StubInits.size() stubs with the given names, target
   ///        addresses, and flags.
+  /// @param StubInits Map of stub names to initial addresses and flags.
+  /// @return Success, or an error if any stub cannot be created.
   virtual Error createStubs(const StubInitsMap &StubInits) = 0;
 
   /// Find the stub with the given name. If ExportedStubsOnly is true,
   ///        this will only return a result if the stub's flags indicate that it
   ///        is exported.
+  /// @param Name Stub name to look up.
+  /// @param ExportedStubsOnly If true, only return exported stubs.
+  /// @return The stub symbol definition, or an empty definition if not found.
   virtual ExecutorSymbolDef findStub(StringRef Name,
                                      bool ExportedStubsOnly) = 0;
 
   /// Find the implementation-pointer for the stub.
+  /// @param Name Stub name whose implementation pointer should be found.
+  /// @return The implementation-pointer symbol definition, or an empty
+  ///         definition if not found.
   virtual ExecutorSymbolDef findPointer(StringRef Name) = 0;
 
   /// Change the value of the implementation pointer for the stub.
+  /// @param Name Stub name whose implementation pointer should be updated.
+  /// @param NewAddr New target address to write into the pointer.
+  /// @return Success, or an error if the pointer cannot be updated.
   virtual Error updatePointer(StringRef Name, ExecutorAddr NewAddr) = 0;
 
-  /// --- RedirectableSymbolManager implementation ---
+  /// Redirect named symbols in \p JD to the destinations in \p NewDests.
+  /// @param JD JITDylib containing the symbols to redirect.
+  /// @param NewDests Map of symbol names to new destination definitions.
+  /// @return Success, or an error if redirection fails.
   Error redirect(JITDylib &JD, const SymbolMap &NewDests) override;
 
+  /// Emit redirectable symbols with the given initial destinations.
+  /// @param MR Materialization responsibility for the symbols being emitted.
+  /// @param InitialDests Map of symbol names to their initial destinations.
   void
   emitRedirectableSymbols(std::unique_ptr<MaterializationResponsibility> MR,
                           SymbolMap InitialDests) override;
@@ -318,11 +372,19 @@ private:
   void anchor() override;
 };
 
+/// Holds a block of locally allocated indirect stubs and their pointers.
 template <typename ORCABI> class LocalIndirectStubsInfo {
 public:
+  /// Construct info for an already-allocated stubs block.
+  /// @param NumStubs Number of stubs covered by \p StubsMem.
+  /// @param StubsMem Owning memory block for stubs and pointers.
   LocalIndirectStubsInfo(unsigned NumStubs, sys::OwningMemoryBlock StubsMem)
       : NumStubs(NumStubs), StubsMem(std::move(StubsMem)) {}
 
+  /// Allocate and initialize a local indirect stubs block.
+  /// @param MinStubs Minimum number of stubs required.
+  /// @param PageSize Page size used to size and align the allocation.
+  /// @return Info for the allocated stubs block, or an error on failure.
   static Expected<LocalIndirectStubsInfo> create(unsigned MinStubs,
                                                  unsigned PageSize) {
     auto ISAS = getIndirectStubsBlockSizes<ORCABI>(MinStubs, PageSize);
@@ -356,12 +418,20 @@ public:
     return LocalIndirectStubsInfo(ISAS.NumStubs, std::move(StubsAndPtrsMem));
   }
 
+  /// Return the number of stubs in this block.
+  /// @return The number of stubs in this block.
   unsigned getNumStubs() const { return NumStubs; }
 
+  /// Return a pointer to the stub at \p Idx.
+  /// @param Idx Zero-based stub index within this block.
+  /// @return Pointer to the stub at \p Idx.
   void *getStub(unsigned Idx) const {
     return static_cast<char *>(StubsMem.base()) + Idx * ORCABI::StubSize;
   }
 
+  /// Return a pointer to the implementation pointer slot at \p Idx.
+  /// @param Idx Zero-based pointer index within this block.
+  /// @return Pointer to the implementation pointer slot at \p Idx.
   void **getPtr(unsigned Idx) const {
     char *PtrsBase =
         static_cast<char *>(StubsMem.base()) + NumStubs * ORCABI::StubSize;
@@ -378,6 +448,11 @@ private:
 template <typename TargetT>
 class LocalIndirectStubsManager : public IndirectStubsManager {
 public:
+  /// Create a single stub with the given name, target address and flags.
+  /// @param StubName Name of the stub to create.
+  /// @param StubAddr Initial target address for the stub.
+  /// @param StubFlags JIT symbol flags for the stub.
+  /// @return Success, or an error if the stub cannot be created.
   Error createStub(StringRef StubName, ExecutorAddr StubAddr,
                    JITSymbolFlags StubFlags) override {
     std::lock_guard<std::mutex> Lock(StubsMutex);
@@ -389,6 +464,9 @@ public:
     return Error::success();
   }
 
+  /// Create stubs for each entry in \p StubInits.
+  /// @param StubInits Map of stub names to initial addresses and flags.
+  /// @return Success, or an error if any stub cannot be created.
   Error createStubs(const StubInitsMap &StubInits) override {
     std::lock_guard<std::mutex> Lock(StubsMutex);
     if (auto Err = reserveStubs(StubInits.size()))
@@ -401,6 +479,10 @@ public:
     return Error::success();
   }
 
+  /// Find the stub with the given name.
+  /// @param Name Stub name to look up.
+  /// @param ExportedStubsOnly If true, only return exported stubs.
+  /// @return The stub symbol definition, or an empty definition if not found.
   ExecutorSymbolDef findStub(StringRef Name, bool ExportedStubsOnly) override {
     std::lock_guard<std::mutex> Lock(StubsMutex);
     auto I = StubIndexes.find(Name);
@@ -416,6 +498,10 @@ public:
     return StubSymbol;
   }
 
+  /// Find the implementation-pointer for the stub.
+  /// @param Name Stub name whose implementation pointer should be found.
+  /// @return The implementation-pointer symbol definition, or an empty
+  ///         definition if not found.
   ExecutorSymbolDef findPointer(StringRef Name) override {
     std::lock_guard<std::mutex> Lock(StubsMutex);
     auto I = StubIndexes.find(Name);
@@ -428,6 +514,10 @@ public:
     return ExecutorSymbolDef(PtrAddr, I->second.second);
   }
 
+  /// Change the value of the implementation pointer for the stub.
+  /// @param Name Stub name whose implementation pointer should be updated.
+  /// @param NewAddr New target address to write into the pointer.
+  /// @return Success, or an error if the pointer cannot be updated.
   Error updatePointer(StringRef Name, ExecutorAddr NewAddr) override {
     using AtomicIntPtr = std::atomic<uintptr_t>;
 
@@ -480,6 +570,10 @@ private:
 /// The given target triple will determine the ABI, and the given
 /// ErrorHandlerAddress will be used by the resulting compile callback
 /// manager if a compile callback fails.
+/// @param T Target triple used to select the local callback ABI.
+/// @param ES Execution session that owns the callback manager.
+/// @param ErrorHandlerAddress Address invoked if a compile callback fails.
+/// @return A local compile callback manager, or an error if creation fails.
 LLVM_ABI Expected<std::unique_ptr<JITCompileCallbackManager>>
 createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
                                   ExecutorAddr ErrorHandlerAddress);
@@ -487,6 +581,8 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
 /// Create a local indirect stubs manager builder.
 ///
 /// The given target triple will determine the ABI.
+/// @param T Target triple used to select the local stubs ABI.
+/// @return A builder that constructs local IndirectStubsManager instances.
 LLVM_ABI std::function<std::unique_ptr<IndirectStubsManager>()>
 createLocalIndirectStubsManagerBuilder(const Triple &T);
 
@@ -495,25 +591,38 @@ createLocalIndirectStubsManagerBuilder(const Triple &T);
 ///
 ///   Usage example: Turn a trampoline address into a function pointer constant
 /// for use in a stub.
+/// @param FT Function type used to form the typed address constant.
+/// @param Addr Absolute address to embed in the constant.
+/// @return An IR constant of type \p FT pointing at \p Addr.
 LLVM_ABI Constant *createIRTypedAddress(FunctionType &FT, ExecutorAddr Addr);
 
 /// Create a function pointer with the given type, name, and initializer
 ///        in the given Module.
+/// @param PT Pointer type of the implementation pointer global.
+/// @param M Module in which to create the global.
+/// @param Name Name of the implementation pointer global.
+/// @param Initializer Optional initializer for the global.
+/// @return The newly created implementation pointer global.
 LLVM_ABI GlobalVariable *createImplPointer(PointerType &PT, Module &M,
                                            const Twine &Name,
                                            Constant *Initializer);
 
 /// Turn a function declaration into a stub function that makes an
 ///        indirect call using the given function pointer.
+/// @param F Function declaration to rewrite as an indirect stub.
+/// @param ImplPointer Function pointer value used for the indirect call.
 LLVM_ABI void makeStub(Function &F, Value &ImplPointer);
 
-/// Promotes private symbols to global hidden, and renames to prevent clashes
-/// with other promoted symbols. The same SymbolPromoter instance should be
-/// used for all symbols to be added to a single JITDylib.
+/// Promotes private symbols to global hidden and renames them uniquely.
+///
+/// The same SymbolPromoter instance should be used for all symbols to be added
+/// to a single JITDylib.
 class SymbolLinkagePromoter {
 public:
   /// Promote symbols in the given module. Returns the set of global values
   /// that have been renamed/promoted.
+  /// @param M Module whose private symbols should be promoted.
+  /// @return The set of global values that have been renamed/promoted.
   LLVM_ABI std::vector<GlobalValue *> operator()(Module &M);
 
 private:
@@ -532,15 +641,29 @@ private:
 /// modules with these utilities, all decls should be cloned (and added to a
 /// single VMap) before any bodies are moved. This will ensure that references
 /// between functions all refer to the versions in the new module.
+/// @param Dst Destination module for the new declaration.
+/// @param F Function whose declaration should be cloned.
+/// @param VMap Optional mapping updated with the original-to-clone
+///        correspondence.
+/// @return The cloned function declaration in \p Dst.
 LLVM_ABI Function *cloneFunctionDecl(Module &Dst, const Function &F,
                                      ValueToValueMapTy *VMap = nullptr);
 
 /// Clone a global variable declaration into a new module.
+/// @param Dst Destination module for the new variable declaration.
+/// @param GV Global variable whose declaration should be cloned.
+/// @param VMap Optional mapping updated with the original-to-clone
+///        correspondence.
+/// @return The cloned global variable declaration in \p Dst.
 LLVM_ABI GlobalVariable *
 cloneGlobalVariableDecl(Module &Dst, const GlobalVariable &GV,
                         ValueToValueMapTy *VMap = nullptr);
 
 /// Clone a global alias declaration into a new module.
+/// @param Dst Destination module for the new alias declaration.
+/// @param OrigA Alias whose declaration should be cloned.
+/// @param VMap Mapping updated with the original-to-clone correspondence.
+/// @return The cloned global alias declaration in \p Dst.
 LLVM_ABI GlobalAlias *cloneGlobalAliasDecl(Module &Dst,
                                            const GlobalAlias &OrigA,
                                            ValueToValueMapTy &VMap);
@@ -567,6 +690,11 @@ LLVM_ABI GlobalAlias *cloneGlobalAliasDecl(Module &Dst,
 ///
 /// This is based on disassembly and should be considered "best effort". It may
 /// silently fail to add relocations.
+/// @param Sym Symbol whose definition may need self-relocations.
+/// @param G Link graph containing \p Sym.
+/// @param Disassembler Disassembler used to inspect the symbol's code.
+/// @param MIA Instruction analysis used to find PC-relative address forms.
+/// @return Success, or an error if relocation introduction fails.
 LLVM_ABI Error addFunctionPointerRelocationsToCurrentSymbol(
     jitlink::Symbol &Sym, jitlink::LinkGraph &G, MCDisassembler &Disassembler,
     MCInstrAnalysis &MIA);

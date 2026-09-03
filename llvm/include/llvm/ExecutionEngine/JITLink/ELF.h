@@ -23,6 +23,9 @@ namespace jitlink {
 /// Note: The graph does not take ownership of the underlying buffer, nor copy
 /// its contents. The caller is responsible for ensuring that the object buffer
 /// outlives the graph.
+/// \param ObjectBuffer Buffer containing the ELF relocatable object.
+/// \param SSP Symbol string pool used to intern symbol names in the graph.
+/// \return A LinkGraph for the object, or an error if parsing fails.
 LLVM_ABI Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromELFObject(MemoryBufferRef ObjectBuffer,
                              std::shared_ptr<orc::SymbolStringPool> SSP);
@@ -31,6 +34,8 @@ createLinkGraphFromELFObject(MemoryBufferRef ObjectBuffer,
 ///
 /// Uses conservative defaults for GOT and stub handling based on the target
 /// platform.
+/// \param G Link graph to link.
+/// \param Ctx JITLink context providing memory management and callbacks.
 LLVM_ABI void link_ELF(std::unique_ptr<LinkGraph> G,
                        std::unique_ptr<JITLinkContext> Ctx);
 

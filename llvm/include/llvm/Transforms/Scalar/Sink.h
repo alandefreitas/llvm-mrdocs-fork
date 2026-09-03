@@ -23,6 +23,10 @@ class Function;
 /// Move instructions into successor blocks when possible.
 class SinkingPass : public OptionalPassInfoMixin<SinkingPass> {
 public:
+  /// Run code sinking over the function.
+  /// @param F Function whose instructions may be sunk into successors.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

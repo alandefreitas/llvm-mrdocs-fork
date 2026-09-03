@@ -20,15 +20,30 @@
 namespace llvm {
 namespace sys {
 
-/// Returns a string representation of the errno value, using whatever
-/// thread-safe variant of strerror() is available.  Be sure to call this
-/// immediately after the function that set errno, or errno may have been
-/// overwritten by an intervening call.
+/// Returns a string representation of the errno value.
+///
+/// Uses whatever thread-safe variant of strerror() is available. Be sure to
+/// call this immediately after the function that set errno, or errno may have
+/// been overwritten by an intervening call.
+///
+/// \returns A string describing the current errno value.
 LLVM_ABI std::string StrError();
 
 /// Like the no-argument version above, but uses \p errnum instead of errno.
+///
+/// \param errnum Error number to convert to a string.
+/// \returns A string describing the given error number.
 LLVM_ABI std::string StrError(int errnum);
 
+/// Invokes \p F with \p As, retrying when interrupted by a signal.
+///
+/// Clears errno, calls \p F, and repeats while the result equals \p Fail and
+/// errno is EINTR.
+///
+/// \param Fail Value that indicates the call failed.
+/// \param F Callable to invoke.
+/// \param As Arguments forwarded to \p F.
+/// \returns The result of the last call to \p F that did not fail with EINTR.
 template <typename FailT, typename Fun, typename... Args>
 inline decltype(auto) RetryAfterSignal(const FailT &Fail, const Fun &F,
                                        const Args &... As) {

@@ -31,14 +31,17 @@
 
 namespace llvm {
 
-/// Writer for instrumentation based profile data.
+/// Trait for serializing instrumentation profile records into an on-disk hash
+/// table.
 class InstrProfRecordWriterTrait;
 class ProfOStream;
 class MemoryBuffer;
 class raw_fd_ostream;
 
+/// Writer for instrumentation based profile data.
 class InstrProfWriter {
 public:
+  /// Map from function hash to instrumentation profile record.
   using ProfilingData = SmallDenseMap<uint64_t, InstrProfRecord>;
 
 private:
@@ -91,8 +94,22 @@ private:
   memprof::MemProfSummaryBuilder MemProfSumBuilder;
 
 public:
-  // For memprof testing, random hotness can be assigned to the contexts if
-  // MemprofGenerateRandomHotness is enabled.
+  /// Construct an instrumentation profile writer.
+  ///
+  /// For memprof testing, random hotness can be assigned to the contexts if
+  /// \p MemprofGenerateRandomHotness is enabled.
+  /// \param Sparse If true, omit zero-count records from the output.
+  /// \param TemporalProfTraceReservoirSize Maximum number of temporal traces
+  ///        retained via reservoir sampling.
+  /// \param MaxTemporalProfTraceLength Maximum length of a single temporal
+  ///        profile trace.
+  /// \param WritePrevVersion If true, write the previous indexed format for
+  ///        forward compatibility.
+  /// \param MemProfVersionRequested MemProf indexed format version to write.
+  /// \param MemProfFullSchema If true, serialize the full MemProf schema.
+  /// \param MemprofGenerateRandomHotness If true, assign random MemProf
+  ///        hotness for testing.
+  /// \param RandomSeed Seed used when generating random MemProf hotness.
   LLVM_ABI InstrProfWriter(bool Sparse = false,
                            uint64_t TemporalProfTraceReservoirSize = 0,
                            uint64_t MaxTemporalProfTraceLength = 0,
@@ -103,66 +120,114 @@ public:
                            bool MemProfFullSchema = false,
                            bool MemprofGenerateRandomHotness = false,
                            unsigned RandomSeed = 0);
+  /// Destroy the writer and release owned resources.
   LLVM_ABI ~InstrProfWriter();
 
+  /// Return the map of function names to profile data.
+  /// @return Mutable map from function name to profiling data.
   StringMap<ProfilingData> &getProfileData() { return FunctionData; }
 
-  /// Add function counts for the given function. If there are already counts
-  /// for this function and the hash and number of counts match, each counter is
-  /// summed. Optionally scale counts by \p Weight.
+  /// Add function counts for the given function.
+  ///
+  /// If there are already counts for this function and the hash and number of
+  /// counts match, each counter is summed. Optionally scale counts by
+  /// \p Weight.
+  /// \param I Named profile record to add or merge.
+  /// \param Weight Scale factor applied to the record's counters.
+  /// \param Warn Callback invoked for non-fatal merge warnings.
   LLVM_ABI void addRecord(NamedInstrProfRecord &&I, uint64_t Weight,
                           function_ref<void(Error)> Warn);
+  /// Add function counts for the given function with weight 1.
+  ///
+  /// If there are already counts for this function and the hash and number of
+  /// counts match, each counter is summed.
+  /// \param I Named profile record to add or merge.
+  /// \param Warn Callback invoked for non-fatal merge warnings.
   void addRecord(NamedInstrProfRecord &&I, function_ref<void(Error)> Warn) {
     addRecord(std::move(I), 1, Warn);
   }
+  /// Record a vtable name for inclusion in the profile.
+  /// \param VTableName Vtable name string to store.
   void addVTableName(StringRef VTableName) { VTableNames.insert(VTableName); }
 
-  /// Add \p SrcTraces using reservoir sampling where \p SrcStreamSize is the
-  /// total number of temporal profiling traces the source has seen.
+  /// Add temporal profile traces using reservoir sampling.
+  ///
+  /// \p SrcStreamSize is the total number of temporal profiling traces the
+  /// source has seen.
+  /// \param SrcTraces Temporal traces to merge into this writer.
+  /// \param SrcStreamSize Total number of traces observed by the source.
   LLVM_ABI void
   addTemporalProfileTraces(SmallVectorImpl<TemporalProfTraceTy> &SrcTraces,
                            uint64_t SrcStreamSize);
 
-  /// Add the entire MemProfData \p Incoming to the writer context.
+  /// Add the entire MemProf data set to the writer context.
+  /// \param Incoming MemProf data to merge into this writer.
+  /// \param Warn Callback invoked for non-fatal merge warnings.
+  /// @return True on success, or false if a frame or call stack could not be
+  ///         merged.
   LLVM_ABI bool addMemProfData(memprof::IndexedMemProfData Incoming,
                                function_ref<void(Error)> Warn);
 
-  // Add a binary id to the binary ids list.
+  /// Append binary IDs to the writer's binary ID list.
+  /// \param BIs Build IDs to add.
   LLVM_ABI void addBinaryIds(ArrayRef<llvm::object::BuildID> BIs);
 
+  /// Set the data-access profile data owned by this writer.
+  /// \param DataAccessProfile Data-access profile to take ownership of.
   LLVM_ABI void addDataAccessProfData(
       std::unique_ptr<memprof::DataAccessProfData> DataAccessProfile);
 
   /// Merge existing function counts from the given writer.
+  /// \param IPW Writer whose records are merged into this one.
+  /// \param Warn Callback invoked for non-fatal merge warnings.
   LLVM_ABI void mergeRecordsFromWriter(InstrProfWriter &&IPW,
                                        function_ref<void(Error)> Warn);
 
-  /// Write the profile to \c OS
+  /// Write the profile to \c OS.
+  /// \param OS File stream that receives the binary profile.
+  /// @return Success, or an error if the binary profile cannot be written.
   LLVM_ABI Error write(raw_fd_ostream &OS);
 
-  /// Write the profile to a string output stream \c OS
+  /// Write the profile to a string output stream \c OS.
+  /// \param OS String stream that receives the binary profile.
+  /// @return Success, or an error if the binary profile cannot be written.
   LLVM_ABI Error write(raw_string_ostream &OS);
 
-  /// Write the profile in text format to \c OS
+  /// Write the profile in text format to \c OS.
+  /// \param OS File stream that receives the text profile.
+  /// @return Success, or an error if the text profile cannot be written.
   LLVM_ABI Error writeText(raw_fd_ostream &OS);
 
-  /// Write temporal profile trace data to the header in text format to \c OS
+  /// Write temporal profile trace data to the header in text format.
+  /// \param OS File stream that receives the text header data.
+  /// \param Symtab Symbol table used to resolve function names.
   LLVM_ABI void writeTextTemporalProfTraceData(raw_fd_ostream &OS,
                                                InstrProfSymtab &Symtab);
 
+  /// Validate that a profile record is consistent before writing.
+  /// \param Func Profile record to validate.
+  /// @return Success, or an error if the record is inconsistent.
   LLVM_ABI Error validateRecord(const InstrProfRecord &Func);
 
-  /// Write \c Record in text format to \c OS
+  /// Write a single profile record in text format to \c OS.
+  /// \param Name Function name for the record.
+  /// \param Hash Function hash identifying the record variant.
+  /// \param Counters Profile counters and value data to emit.
+  /// \param Symtab Symbol table used to resolve names.
+  /// \param OS File stream that receives the text record.
   LLVM_ABI static void writeRecordInText(StringRef Name, uint64_t Hash,
                                          const InstrProfRecord &Counters,
                                          InstrProfSymtab &Symtab,
                                          raw_fd_ostream &OS);
 
   /// Write the profile, returning the raw data. For testing.
+  /// @return Memory buffer containing the serialized profile data.
   LLVM_ABI std::unique_ptr<MemoryBuffer> writeBuffer();
 
   /// Update the attributes of the current profile from the attributes
   /// specified. An error is returned if IR and FE profiles are mixed.
+  /// \param Other Profile kind attributes to merge into this writer.
+  /// @return Success, or an error if the profile kinds are incompatible.
   Error mergeProfileKind(const InstrProfKind Other) {
     // If the kind is unset, this is the first profile we are merging so just
     // set it to the given type.
@@ -207,22 +272,43 @@ public:
     return Error::success();
   }
 
+  /// Return the attributes of the profile held by this writer.
+  /// @return Combined InstrProfKind flags for the profile held by this writer.
   InstrProfKind getProfileKind() const { return ProfileKind; }
 
+  /// Return true if the profile uses single-byte coverage counters.
+  /// @return True if the profile uses single-byte coverage counters.
   bool hasSingleByteCoverage() const {
     return static_cast<bool>(ProfileKind & InstrProfKind::SingleByteCoverage);
   }
 
-  // Internal interfaces for testing purpose only.
+  /// Set the endianness used when writing value-profiling data.
+  ///
+  /// Internal interface for testing purpose only.
+  /// \param Endianness Endianness applied to value profile payloads.
   LLVM_ABI void setValueProfDataEndianness(llvm::endianness Endianness);
+  /// Set whether the writer emits a sparse profile.
+  ///
+  /// Internal interface for testing purpose only.
+  /// \param Sparse If true, omit zero-count records from the output.
   LLVM_ABI void setOutputSparse(bool Sparse);
+  /// Set the MemProf indexed format version to write.
+  /// \param Version MemProf version requested for output.
   void setMemProfVersionRequested(memprof::IndexedVersion Version) {
     MemProfVersionRequested = Version;
   }
+  /// Set whether to serialize the full MemProf schema.
+  /// \param Full If true, write the full schema instead of the partial one.
   void setMemProfFullSchema(bool Full) { MemProfFullSchema = Full; }
 
-  // Compute the overlap b/w this object and Other. Program level result is
-  // stored in Overlap and function level result is stored in FuncLevelOverlap.
+  /// Compute profile overlap between this writer and \p Other.
+  ///
+  /// Program-level results are stored in \p Overlap and function-level results
+  /// in \p FuncLevelOverlap.
+  /// \param Other Named profile record compared against this writer.
+  /// \param Overlap Program-level overlap statistics to update.
+  /// \param FuncLevelOverlap Function-level overlap statistics to update.
+  /// \param FuncFilter Filters controlling which functions are compared.
   LLVM_ABI void overlapRecord(NamedInstrProfRecord &&Other,
                               OverlapStats &Overlap,
                               OverlapStats &FuncLevelOverlap,

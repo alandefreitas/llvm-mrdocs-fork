@@ -13,9 +13,16 @@
 
 namespace llvm {
 
+/// New PM pass that implements the custom lowering used by the shadow stack GC.
+///
+/// Only runs on functions which opt in to the shadow stack collector.
 class ShadowStackGCLoweringPass
     : public RequiredPassInfoMixin<ShadowStackGCLoweringPass> {
 public:
+  /// Lower shadow-stack GC roots in module \p M.
+  /// \param M Module whose shadow-stack GC functions are lowered.
+  /// \param MAM Module analysis manager providing required analyses.
+  /// \return The set of analyses preserved after lowering shadow-stack GC roots.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 

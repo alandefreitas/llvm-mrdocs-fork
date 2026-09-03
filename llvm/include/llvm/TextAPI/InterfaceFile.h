@@ -52,43 +52,87 @@ enum class ObjCConstraintType : unsigned {
 /// Reference to an interface file.
 class InterfaceFileRef {
 public:
+  /// Construct an empty interface file reference.
   InterfaceFileRef() = default;
 
+  /// Construct an interface file reference with an install name.
+  ///
+  /// \param InstallName The install name of the referenced library.
   InterfaceFileRef(StringRef InstallName) : InstallName(InstallName) {}
 
+  /// Construct an interface file reference with an install name and targets.
+  ///
+  /// \param InstallName The install name of the referenced library.
+  /// \param Targets The list of targets that apply to this reference.
   InterfaceFileRef(StringRef InstallName, const TargetList Targets)
       : InstallName(InstallName), Targets(std::move(Targets)) {}
 
+  /// Get the install name of the referenced library.
+  ///
+  /// \return The install name.
   StringRef getInstallName() const { return InstallName; };
 
+  /// Add a target to this reference.
+  ///
+  /// \param Target The target to add.
   LLVM_ABI void addTarget(const Target &Target);
+  /// Add a range of targets to this reference.
+  ///
+  /// \param Targets The collection of targets to add.
   template <typename RangeT> void addTargets(RangeT &&Targets) {
     for (const auto &Target : Targets)
       addTarget(Target(Target));
   }
 
+  /// Check whether this reference contains the given target.
+  ///
+  /// \param Targ The target to look up.
+  /// \return True if the target is present.
   bool hasTarget(Target &Targ) const {
     return llvm::is_contained(Targets, Targ);
   }
 
+  /// Iterator over the targets in this reference.
   using const_target_iterator = TargetList::const_iterator;
+  /// Range of all targets in this reference.
   using const_target_range = llvm::iterator_range<const_target_iterator>;
+  /// Get the range of all targets.
+  ///
+  /// \return A range over every target in this reference.
   const_target_range targets() const { return {Targets}; }
 
+  /// Get the architectures covered by this reference.
+  ///
+  /// \return The set of architectures derived from the targets.
   ArchitectureSet getArchitectures() const {
     return mapToArchitectureSet(Targets);
   }
 
+  /// Get the platforms covered by this reference.
+  ///
+  /// \return The set of platforms derived from the targets.
   PlatformSet getPlatforms() const { return mapToPlatformSet(Targets); }
 
+  /// Compare two interface file references for equality.
+  ///
+  /// \param O The other reference to compare against.
+  /// \return True if both references have the same install name and targets.
   bool operator==(const InterfaceFileRef &O) const {
     return std::tie(InstallName, Targets) == std::tie(O.InstallName, O.Targets);
   }
 
+  /// Compare two interface file references for inequality.
+  ///
+  /// \param O The other reference to compare against.
+  /// \return True if the references are not equal.
   bool operator!=(const InterfaceFileRef &O) const {
     return std::tie(InstallName, Targets) != std::tie(O.InstallName, O.Targets);
   }
 
+  /// Compare two interface file references for ordering.
+  ///
+  /// \param O The other reference to compare against.
+  /// \return True if this reference sorts before \p O.
   bool operator<(const InterfaceFileRef &O) const {
     return std::tie(InstallName, Targets) < std::tie(O.InstallName, O.Targets);
   }
@@ -105,9 +149,13 @@ namespace MachO {
 /// Defines the interface file.
 class InterfaceFile {
 public:
+  /// Construct an interface file from an existing symbol set.
+  ///
+  /// \param InputSymbols The symbol set to take ownership of.
   InterfaceFile(std::unique_ptr<SymbolSet> &&InputSymbols)
       : SymbolsSet(std::move(InputSymbols)) {}
 
+  /// Construct an empty interface file.
   InterfaceFile() : SymbolsSet(std::make_unique<SymbolSet>()){};
   /// Set the path from which this file was generated (if applicable).
   ///
@@ -152,6 +200,7 @@ public:
   /// Determine if target triple slice exists in file.
   ///
   /// \param Targ the value to find.
+  /// \return True if the target is present in the file.
   bool hasTarget(const Target &Targ) const {
     return llvm::is_contained(Targets, Targ);
   }
@@ -166,77 +215,124 @@ public:
       addTarget(Target(Target_));
   }
 
+  /// Iterator over the targets in the interface file.
   using const_target_iterator = TargetList::const_iterator;
+  /// Range of all targets in the interface file.
   using const_target_range = llvm::iterator_range<const_target_iterator>;
+  /// Get the range of all targets.
+  ///
+  /// \return A range over every target in the file.
   const_target_range targets() const { return {Targets}; }
 
+  /// Filtered iterator over targets in the interface file.
   using const_filtered_target_iterator =
       llvm::filter_iterator<const_target_iterator,
                             std::function<bool(const Target &)>>;
+  /// Range of filtered targets in the interface file.
   using const_filtered_target_range =
       llvm::iterator_range<const_filtered_target_iterator>;
+  /// Get the range of targets filtered by architecture set.
+  ///
+  /// \param Archs The architectures to include.
+  /// \return A filtered range of matching targets.
   LLVM_ABI const_filtered_target_range targets(ArchitectureSet Archs) const;
 
   /// Set the install name of the library.
+  ///
+  /// \param InstallName_ The install name of the library.
   void setInstallName(StringRef InstallName_) {
     InstallName = std::string(InstallName_);
   }
 
   /// Get the install name of the library.
+  ///
+  /// \return The install name of the library.
   StringRef getInstallName() const { return InstallName; }
 
   /// Set the current version of the library.
+  ///
+  /// \param Version The current version.
   void setCurrentVersion(PackedVersion Version) { CurrentVersion = Version; }
 
   /// Get the current version of the library.
+  ///
+  /// \return The current version.
   PackedVersion getCurrentVersion() const { return CurrentVersion; }
 
   /// Set the compatibility version of the library.
+  ///
+  /// \param Version The compatibility version.
   void setCompatibilityVersion(PackedVersion Version) {
     CompatibilityVersion = Version;
   }
 
   /// Get the compatibility version of the library.
+  ///
+  /// \return The compatibility version.
   PackedVersion getCompatibilityVersion() const { return CompatibilityVersion; }
 
   /// Set the Swift ABI version of the library.
+  ///
+  /// \param Version The Swift ABI version.
   void setSwiftABIVersion(uint8_t Version) { SwiftABIVersion = Version; }
 
   /// Get the Swift ABI version of the library.
+  ///
+  /// \return The Swift ABI version.
   uint8_t getSwiftABIVersion() const { return SwiftABIVersion; }
 
   /// Specify if the library uses two-level namespace (or flat namespace).
+  ///
+  /// \param V True if the library uses two-level namespace.
   void setTwoLevelNamespace(bool V = true) { IsTwoLevelNamespace = V; }
 
   /// Check if the library uses two-level namespace.
+  ///
+  /// \return True if the library uses two-level namespace.
   bool isTwoLevelNamespace() const { return IsTwoLevelNamespace; }
 
   /// Specify if the library is an OS library but not shared cache eligible.
+  ///
+  /// \param V True if the library is not shared cache eligible.
   void setOSLibNotForSharedCache(bool V = true) {
     IsOSLibNotForSharedCache = V;
   }
 
   /// Check if the library is an OS library that is not shared cache eligible.
+  ///
+  /// \return True if the library is not shared cache eligible.
   bool isOSLibNotForSharedCache() const { return IsOSLibNotForSharedCache; }
 
   /// Specify if the library is application extension safe (or not).
+  ///
+  /// \param V True if the library is application extension safe.
   void setApplicationExtensionSafe(bool V = true) { IsAppExtensionSafe = V; }
 
   /// Check if the library is application extension safe.
+  ///
+  /// \return True if the library is application extension safe.
   bool isApplicationExtensionSafe() const { return IsAppExtensionSafe; }
 
   /// Check if the library has simulator support.
+  ///
+  /// \return True if the library has simulator support.
   bool hasSimulatorSupport() const { return HasSimSupport; }
 
   /// Specify if the library has simulator support.
+  ///
+  /// \param V True if the library has simulator support.
   void setSimulatorSupport(bool V = true) { HasSimSupport = V; }
 
   /// Set the Objective-C constraint.
+  ///
+  /// \param Constraint The Objective-C constraint to apply.
   void setObjCConstraint(ObjCConstraintType Constraint) {
     ObjcConstraint = Constraint;
   }
 
   /// Get the Objective-C constraint.
+  ///
+  /// \return The Objective-C constraint applied to this library.
   ObjCConstraintType getObjCConstraint() const { return ObjcConstraint; }
 
   /// Set the parent umbrella frameworks.
@@ -291,6 +387,8 @@ public:
   LLVM_ABI void addDocument(std::shared_ptr<InterfaceFile> &&Document);
 
   /// Returns the pointer to parent document if exists or nullptr otherwise.
+  ///
+  /// \return The parent document, or nullptr if none.
   InterfaceFile *getParent() const { return Parent; }
 
   /// Get the list of inlined libraries.
@@ -317,6 +415,7 @@ public:
   /// \param Kind The kind of global symbol to record.
   /// \param Name The name of the symbol.
   /// \param ObjCIF The ObjCInterface symbol type, if applicable.
+  /// \return The matching symbol, or std::nullopt if not found.
   std::optional<const Symbol *>
   getSymbol(EncodeKind Kind, StringRef Name,
             ObjCIFSymbolKind ObjCIF = ObjCIFSymbolKind::None) const {
@@ -326,6 +425,11 @@ public:
   }
 
   /// Add a symbol to the symbols list or extend an existing one.
+  ///
+  /// \param Kind The kind of global symbol to record.
+  /// \param Name The name of the symbol.
+  /// \param Targets The range of targets the symbol is defined in.
+  /// \param Flags The properties the symbol holds.
   template <typename RangeT, typename ElT = std::remove_reference_t<
                                  decltype(*std::begin(std::declval<RangeT>()))>>
   void addSymbol(EncodeKind Kind, StringRef Name, RangeT &&Targets,
@@ -359,14 +463,28 @@ public:
   /// \return The number of symbols the file holds.
   size_t symbolsCount() const { return SymbolsSet->size(); }
 
+  /// Range of all symbols in the interface file.
   using const_symbol_range = SymbolSet::const_symbol_range;
+  /// Range of filtered symbols in the interface file.
   using const_filtered_symbol_range = SymbolSet::const_filtered_symbol_range;
 
+  /// Range that contains all symbols.
+  ///
+  /// \return A range over every symbol in the file.
   const_symbol_range symbols() const { return SymbolsSet->symbols(); };
+  /// Range that contains all defined and exported symbols.
+  ///
+  /// \return A filtered range of defined, non-reexported symbols.
   const_filtered_symbol_range exports() const { return SymbolsSet->exports(); };
+  /// Range that contains all reexported symbols.
+  ///
+  /// \return A filtered range of reexported symbols.
   const_filtered_symbol_range reexports() const {
     return SymbolsSet->reexports();
   };
+  /// Range that contains all undefined symbols.
+  ///
+  /// \return A filtered range of undefined symbols.
   const_filtered_symbol_range undefineds() const {
     return SymbolsSet->undefineds();
   };
@@ -385,8 +503,9 @@ public:
   LLVM_ABI llvm::Expected<std::unique_ptr<InterfaceFile>>
   remove(Architecture Arch) const;
 
-  /// Merge Interfaces for the same library. The following library attributes
-  /// must match.
+  /// Merge Interfaces for the same library.
+  ///
+  /// The following library attributes must match.
   /// * Install name, Current & Compatibility version,
   /// * Two-level namespace enablement, and App extension enablement.
   ///
@@ -410,12 +529,21 @@ public:
   LLVM_ABI void setFromBinaryAttrs(const RecordsSlice::BinaryAttrs &BA,
                                    const Target &Targ);
 
+  /// Compare two interface files for linking-compatible equality.
+  ///
   /// The equality is determined by attributes that impact linking
   /// compatibilities. Path, & FileKind are irrelevant since these by
   /// itself should not impact linking.
   /// This is an expensive operation.
+  ///
+  /// \param O The other interface file to compare against.
+  /// \return True if both files are equal for linking purposes.
   LLVM_ABI bool operator==(const InterfaceFile &O) const;
 
+  /// Compare two interface files for inequality.
+  ///
+  /// \param O The other interface file to compare against.
+  /// \return True if the files are not equal for linking purposes.
   bool operator!=(const InterfaceFile &O) const { return !(*this == O); }
 
 private:
@@ -450,7 +578,13 @@ private:
   InterfaceFile *Parent = nullptr;
 };
 
-// Keep containers that hold InterfaceFileRefs in sorted order and uniqued.
+/// Insert or find an InterfaceFileRef by install name in a sorted container.
+///
+/// Keeps containers that hold InterfaceFileRefs in sorted order and uniqued.
+///
+/// \param Container The sorted container of InterfaceFileRef entries.
+/// \param InstallName The install name to look up or insert.
+/// \return Iterator to the existing or newly inserted entry.
 template <typename C>
 typename C::iterator addEntry(C &Container, StringRef InstallName) {
   auto I = partition_point(Container, [=](const InterfaceFileRef &O) {

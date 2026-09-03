@@ -47,46 +47,80 @@ namespace gsym {
 
 class GsymReader {
 protected:
+  /// Owning memory buffer that holds the GSYM file bytes.
   std::unique_ptr<MemoryBuffer> MemBuffer;
+  /// Byte order of the GSYM data in MemBuffer.
   llvm::endianness Endian;
   /// Parsed GlobalData entries, keyed by type. Populated by
   /// parseHeaderAndGlobalDataEntries().
   std::map<GlobalInfoType, GlobalData> GlobalDataSections;
+  /// Address-offset table bytes in host endianness for binary search.
   ArrayRef<uint8_t> AddrOffsets;
+  /// Host-endian copy of AddrOffsets when the file endianness differs.
   std::vector<uint8_t> SwappedAddrOffsets;
+  /// Data extractor over the address-info offsets table.
   GsymDataExtractor AddrInfoOffsetsData;
+  /// Data extractor over the file entry table.
   GsymDataExtractor FileEntryData;
+  /// String table for resolving string offsets in GSYM data.
   StringTable StrTab;
 
+  /// Construct a GsymReader that owns \a Buffer with the given endianness.
+  ///
+  /// \param Buffer Memory buffer holding the GSYM file bytes; ownership is
+  /// transferred to this object.
+  /// \param Endian Byte order of the GSYM data in \a Buffer.
   LLVM_ABI GsymReader(std::unique_ptr<MemoryBuffer> Buffer,
                       llvm::endianness Endian);
 
 public:
+  /// Move-construct a GsymReader, transferring ownership of internal state.
+  ///
+  /// \param RHS The GsymReader to move from.
   GsymReader(GsymReader &&RHS) = default;
+  /// Destroy this GsymReader and release owned resources.
   virtual ~GsymReader() = default;
 
+  /// Return true if the GSYM data is little-endian.
+  ///
+  /// \returns True if the GSYM data is little-endian.
   bool isLittleEndian() const { return Endian == llvm::endianness::little; }
 
   /// Get the GSYM version for this reader.
+  ///
+  /// \returns The GSYM format version.
   virtual uint16_t getVersion() const = 0;
 
   /// Get the base address of this GSYM file.
+  ///
+  /// \returns The base address used for address offsets.
   virtual uint64_t getBaseAddress() const = 0;
 
   /// Get the number of addresses in this GSYM file.
+  ///
+  /// \returns The number of entries in the address table.
   virtual uint64_t getNumAddresses() const = 0;
 
   /// Get the address offset byte size for this GSYM file.
+  ///
+  /// \returns The size in bytes of each address-table offset entry.
   virtual uint8_t getAddressOffsetSize() const = 0;
 
   /// Get the address info offset byte size for this GSYM file.
+  ///
+  /// \returns The size in bytes of each address-info offset entry.
   virtual uint8_t getAddressInfoOffsetSize() const = 0;
 
   /// Get the string offset byte size for this GSYM file.
+  ///
+  /// \returns The size in bytes of each string-table offset.
   virtual uint8_t getStringOffsetSize() const = 0;
 
   /// Get the raw UUID bytes for this GSYM file, or an empty ref if none.
+  ///
   /// In v1 the UUID lives in the header; in v2 it is an optional data section.
+  ///
+  /// \returns The UUID bytes, or an empty StringRef if none is present.
   virtual StringRef getUUID() const = 0;
 
   /// Construct a GsymReader from a file on disk.
@@ -203,7 +237,15 @@ public:
   /// \param  OS The output stream to dump to.
   virtual void dump(raw_ostream &OS) = 0;
 
-  enum class StatisticsFormat { Text, JSON, PrettyJSON };
+  /// Output format for dumpStatistics().
+  enum class StatisticsFormat {
+    /// Human-readable plain text.
+    Text,
+    /// Dense JSON without extra whitespace.
+    JSON,
+    /// Indented, human-readable JSON.
+    PrettyJSON
+  };
 
   /// Dump statistics about the GSYM data contained in this object.
   ///
@@ -542,6 +584,9 @@ protected:
   /// Get the function data and address given an address index.
   ///
   /// \param AddrIdx A address index from the address table.
+  ///
+  /// \param[out] FuncStartAddr A virtual address that is the base address of
+  /// the function that is used for decoding the FunctionInfo.
   ///
   /// \returns An expected FunctionInfo that contains the function info object
   /// or an error object that indicates reason for failing to lookup the

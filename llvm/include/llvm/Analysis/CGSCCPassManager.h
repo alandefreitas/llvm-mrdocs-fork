@@ -111,6 +111,7 @@ class Module;
 /// Extern template declaration for the analysis set for this IR unit.
 extern template class LLVM_TEMPLATE_ABI AllAnalysesOn<LazyCallGraph::SCC>;
 
+/// Explicit instantiation of the CGSCC analysis manager.
 extern template class LLVM_TEMPLATE_ABI
     AnalysisManager<LazyCallGraph::SCC, LazyCallGraph &>;
 
@@ -126,6 +127,12 @@ using CGSCCAnalysisManager =
 // Explicit specialization and instantiation declarations for the pass manager.
 // See the comments on the definition of the specialization for details on how
 // it differs from the primary template.
+/// Run the CGSCC pass manager over SCC \p InitialC.
+/// @param InitialC SCC to run passes over.
+/// @param AM CGSCC analysis manager.
+/// @param G Lazy call graph containing \p InitialC.
+/// @param UR Structure for communicating call graph updates.
+/// @return The analyses preserved after running all passes.
 template <>
 LLVM_ABI PreservedAnalyses
 PassManager<LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
@@ -151,11 +158,20 @@ struct RequireAnalysisPass<AnalysisT, LazyCallGraph::SCC, CGSCCAnalysisManager,
     : RequiredPassInfoMixin<RequireAnalysisPass<
           AnalysisT, LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
           CGSCCUpdateResult &>> {
+  /// Force \c AnalysisT to be available for SCC \p C.
+  /// @param C SCC to run over.
+  /// @param AM CGSCC analysis manager used to request the analysis.
+  /// @param CG Lazy call graph forwarded to \c getResult.
+  /// @param UR CGSCC update result (unused).
+  /// @return All analyses preserved.
   PreservedAnalyses run(LazyCallGraph::SCC &C, CGSCCAnalysisManager &AM,
-                        LazyCallGraph &CG, CGSCCUpdateResult &) {
+                        LazyCallGraph &CG, CGSCCUpdateResult &UR) {
     (void)AM.template getResult<AnalysisT>(C, CG);
     return PreservedAnalyses::all();
   }
+  /// Print this pass as \c require<AnalysisName>.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps analysis class names to pass names.
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
     auto ClassName = AnalysisT::name();
@@ -168,15 +184,21 @@ struct RequireAnalysisPass<AnalysisT, LazyCallGraph::SCC, CGSCCAnalysisManager,
 using CGSCCAnalysisManagerModuleProxy =
     InnerAnalysisManagerProxy<CGSCCAnalysisManager, Module>;
 
+/// Specialized result for \c CGSCCAnalysisManagerModuleProxy.
+///
 /// We need a specialized result for the \c CGSCCAnalysisManagerModuleProxy so
 /// it can have access to the call graph in order to walk all the SCCs when
 /// invalidating things.
 template <> class CGSCCAnalysisManagerModuleProxy::Result {
 public:
+  /// Construct a result owning \p InnerAM and referencing call graph \p G.
+  /// @param InnerAM CGSCC analysis manager to manage.
+  /// @param G Lazy call graph used when invalidating SCC analyses.
   explicit Result(CGSCCAnalysisManager &InnerAM, LazyCallGraph &G)
       : InnerAM(&InnerAM), G(&G) {}
 
   /// Accessor for the analysis manager.
+  /// @return The CGSCC analysis manager owned by this result.
   CGSCCAnalysisManager &getManager() { return *InnerAM; }
 
   /// Handler for invalidation of the Module.
@@ -189,6 +211,10 @@ public:
   /// Regardless of whether this analysis is marked as preserved, all of the
   /// analyses in the \c CGSCCAnalysisManager are potentially invalidated based
   /// on the set of preserved analyses.
+  /// @param M Module being invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if the proxy result itself should be invalidated.
   LLVM_ABI bool invalidate(Module &M, const PreservedAnalyses &PA,
                            ModuleAnalysisManager::Invalidator &Inv);
 
@@ -199,6 +225,9 @@ private:
 
 /// Provide a specialized run method for the \c CGSCCAnalysisManagerModuleProxy
 /// so it can pass the lazy call graph to the result.
+/// @param IR Module to analyze.
+/// @param AM Module analysis manager providing the lazy call graph.
+/// @return A result that owns invalidation for the CGSCC analysis manager.
 template <>
 LLVM_ABI CGSCCAnalysisManagerModuleProxy::Result
 CGSCCAnalysisManagerModuleProxy::run(Module &M, ModuleAnalysisManager &AM);
@@ -207,6 +236,7 @@ CGSCCAnalysisManagerModuleProxy::run(Module &M, ModuleAnalysisManager &AM);
 // template.
 extern template class InnerAnalysisManagerProxy<CGSCCAnalysisManager, Module>;
 
+/// Explicit instantiation of the module-to-SCC outer analysis proxy.
 extern template class LLVM_TEMPLATE_ABI OuterAnalysisManagerProxy<
     ModuleAnalysisManager, LazyCallGraph::SCC, LazyCallGraph &>;
 
@@ -279,6 +309,8 @@ struct CGSCCUpdateResult {
   /// passes over the new SCC.
   PreservedAnalyses CrossSCCPA;
 
+  /// Inliner history of SCC-mutating edges used to avoid infinite inlining.
+  ///
   /// A hacky area where the inliner can retain history about inlining
   /// decisions that mutated the call graph's SCC structure in order to avoid
   /// infinite inlining. See the comments in the inliner's CG update logic.
@@ -315,21 +347,32 @@ struct CGSCCUpdateResult {
 class ModuleToPostOrderCGSCCPassAdaptor
     : public RequiredPassInfoMixin<ModuleToPostOrderCGSCCPassAdaptor> {
 public:
+  /// Type-erased CGSCC pass concept used by this adaptor.
   using PassConceptT =
       detail::PassConcept<LazyCallGraph::SCC, CGSCCAnalysisManager,
                           LazyCallGraph &, CGSCCUpdateResult &>;
 
+  /// Construct an adaptor that runs \p Pass over each SCC in post-order.
+  /// @param Pass CGSCC pass to run.
   explicit ModuleToPostOrderCGSCCPassAdaptor(PassConceptT::unique_ptr Pass)
       : Pass(std::move(Pass)) {}
 
+  /// Move-construct an adaptor, transferring its nested pass.
+  /// @param Arg Adaptor to move from.
   ModuleToPostOrderCGSCCPassAdaptor(ModuleToPostOrderCGSCCPassAdaptor &&Arg)
       : Pass(std::move(Arg.Pass)) {}
 
+  /// Swap the nested passes of two adaptors.
+  /// @param LHS First adaptor.
+  /// @param RHS Second adaptor.
   friend void swap(ModuleToPostOrderCGSCCPassAdaptor &LHS,
                    ModuleToPostOrderCGSCCPassAdaptor &RHS) {
     std::swap(LHS.Pass, RHS.Pass);
   }
 
+  /// Assign from \p RHS using copy-and-swap.
+  /// @param RHS Adaptor to assign from.
+  /// @return A reference to this adaptor.
   ModuleToPostOrderCGSCCPassAdaptor &
   operator=(ModuleToPostOrderCGSCCPassAdaptor RHS) {
     swap(*this, RHS);
@@ -337,8 +380,14 @@ public:
   }
 
   /// Runs the CGSCC pass across every SCC in the module.
+  /// @param M Module whose SCCs are processed.
+  /// @param AM Module analysis manager.
+  /// @return The analyses preserved after running over all SCCs.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
+  /// Print this adaptor and its nested CGSCC pass as a pipeline.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
     OS << "cgscc(";
@@ -352,6 +401,8 @@ private:
 
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
+/// @param Pass CGSCC pass to wrap.
+/// @return A module-to-CGSCC adaptor wrapping \p Pass.
 template <typename CGSCCPassT>
 ModuleToPostOrderCGSCCPassAdaptor
 createModuleToPostOrderCGSCCPassAdaptor(CGSCCPassT &&Pass) {
@@ -372,18 +423,30 @@ createModuleToPostOrderCGSCCPassAdaptor(CGSCCPassT &&Pass) {
 class FunctionAnalysisManagerCGSCCProxy
     : public AnalysisInfoMixin<FunctionAnalysisManagerCGSCCProxy> {
 public:
+  /// Proxy result holding a \c FunctionAnalysisManager for an SCC.
   class Result {
   public:
+    /// Construct an empty result with no function analysis manager.
     explicit Result() : FAM(nullptr) {}
+    /// Construct a result that proxies \p FAM.
+    /// @param FAM Function analysis manager to expose.
     explicit Result(FunctionAnalysisManager &FAM) : FAM(&FAM) {}
 
+    /// Update the proxied function analysis manager to \p FAM.
+    /// @param FAM Function analysis manager to expose.
     void updateFAM(FunctionAnalysisManager &FAM) { this->FAM = &FAM; }
     /// Accessor for the analysis manager.
+    /// @return The function analysis manager proxied by this result.
     FunctionAnalysisManager &getManager() {
       assert(FAM);
       return *FAM;
     }
 
+    /// Invalidate function analyses for SCC \p C as needed.
+    /// @param C SCC whose function analyses may be invalidated.
+    /// @param PA Set of analyses preserved by the transform.
+    /// @param Inv Invalidator for resolving analysis dependencies.
+    /// @return True if the proxy result itself should be invalidated.
     LLVM_ABI bool invalidate(LazyCallGraph::SCC &C, const PreservedAnalyses &PA,
                              CGSCCAnalysisManager::Invalidator &Inv);
 
@@ -392,8 +455,12 @@ public:
   };
 
   /// Computes the \c FunctionAnalysisManager and stores it in the result proxy.
+  /// @param C SCC to associate with the proxy result.
+  /// @param AM CGSCC analysis manager providing outer analyses.
+  /// @param CG Lazy call graph containing \p C.
+  /// @return A proxy result exposing the function analysis manager.
   LLVM_ABI Result run(LazyCallGraph::SCC &C, CGSCCAnalysisManager &AM,
-                      LazyCallGraph &);
+                      LazyCallGraph &CG);
 
 private:
   friend AnalysisInfoMixin<FunctionAnalysisManagerCGSCCProxy>;
@@ -401,6 +468,7 @@ private:
   LLVM_ABI static AnalysisKey Key;
 };
 
+/// Explicit instantiation of the CGSCC-to-function outer analysis proxy.
 extern template class LLVM_TEMPLATE_ABI
     OuterAnalysisManagerProxy<CGSCCAnalysisManager, Function>;
 
@@ -414,6 +482,13 @@ using CGSCCAnalysisManagerFunctionProxy =
 /// routine provides a helper that updates the call graph in those ways
 /// including returning whether any changes were made and populating a CG
 /// update result struct for the overall CGSCC walk.
+/// @param G Lazy call graph to update.
+/// @param C SCC currently being processed.
+/// @param N Call graph node for the function that was transformed.
+/// @param AM CGSCC analysis manager.
+/// @param UR Structure for communicating call graph updates.
+/// @param FAM Function analysis manager.
+/// @return The SCC that should be considered current after the update.
 LLVM_ABI LazyCallGraph::SCC &updateCGAndAnalysisManagerForFunctionPass(
     LazyCallGraph &G, LazyCallGraph::SCC &C, LazyCallGraph::Node &N,
     CGSCCAnalysisManager &AM, CGSCCUpdateResult &UR,
@@ -425,6 +500,13 @@ LLVM_ABI LazyCallGraph::SCC &updateCGAndAnalysisManagerForFunctionPass(
 /// routine provides a helper that updates the call graph in those ways
 /// including returning whether any changes were made and populating a CG
 /// update result struct for the overall CGSCC walk.
+/// @param G Lazy call graph to update.
+/// @param C SCC currently being processed.
+/// @param N Call graph node involved in the update.
+/// @param AM CGSCC analysis manager.
+/// @param UR Structure for communicating call graph updates.
+/// @param FAM Function analysis manager.
+/// @return The SCC that should be considered current after the update.
 LLVM_ABI LazyCallGraph::SCC &updateCGAndAnalysisManagerForCGSCCPass(
     LazyCallGraph &G, LazyCallGraph::SCC &C, LazyCallGraph::Node &N,
     CGSCCAnalysisManager &AM, CGSCCUpdateResult &UR,
@@ -441,32 +523,53 @@ LLVM_ABI LazyCallGraph::SCC &updateCGAndAnalysisManagerForCGSCCPass(
 class CGSCCToFunctionPassAdaptor
     : public RequiredPassInfoMixin<CGSCCToFunctionPassAdaptor> {
 public:
+  /// Type-erased function pass concept used by this adaptor.
   using PassConceptT = detail::PassConcept<Function, FunctionAnalysisManager>;
 
+  /// Construct an adaptor that runs \p Pass over each function in an SCC.
+  /// @param Pass Function pass to run.
+  /// @param EagerlyInvalidate Whether to eagerly invalidate function analyses.
+  /// @param NoRerun Whether to skip re-running on unchanged functions.
   explicit CGSCCToFunctionPassAdaptor(typename PassConceptT::unique_ptr Pass,
                                       bool EagerlyInvalidate, bool NoRerun)
       : Pass(std::move(Pass)), EagerlyInvalidate(EagerlyInvalidate),
         NoRerun(NoRerun) {}
 
+  /// Move-construct an adaptor, transferring its nested pass.
+  /// @param Arg Adaptor to move from.
   CGSCCToFunctionPassAdaptor(CGSCCToFunctionPassAdaptor &&Arg)
       : Pass(std::move(Arg.Pass)), EagerlyInvalidate(Arg.EagerlyInvalidate),
         NoRerun(Arg.NoRerun) {}
 
+  /// Swap the nested passes of two adaptors.
+  /// @param LHS First adaptor.
+  /// @param RHS Second adaptor.
   friend void swap(CGSCCToFunctionPassAdaptor &LHS,
                    CGSCCToFunctionPassAdaptor &RHS) {
     std::swap(LHS.Pass, RHS.Pass);
   }
 
+  /// Assign from \p RHS using copy-and-swap.
+  /// @param RHS Adaptor to assign from.
+  /// @return A reference to this adaptor.
   CGSCCToFunctionPassAdaptor &operator=(CGSCCToFunctionPassAdaptor RHS) {
     swap(*this, RHS);
     return *this;
   }
 
   /// Runs the function pass across every function in the module.
+  /// @param C SCC whose functions are processed.
+  /// @param AM CGSCC analysis manager.
+  /// @param CG Lazy call graph containing \p C.
+  /// @param UR Structure for communicating call graph updates.
+  /// @return The analyses preserved after running over all functions.
   LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &C,
                                  CGSCCAnalysisManager &AM, LazyCallGraph &CG,
                                  CGSCCUpdateResult &UR);
 
+  /// Print this adaptor and its nested function pass as a pipeline.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
     OS << "function";
@@ -493,6 +596,10 @@ private:
 
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
+/// @param Pass Function pass to wrap.
+/// @param EagerlyInvalidate Whether to eagerly invalidate function analyses.
+/// @param NoRerun Whether to skip re-running on unchanged functions.
+/// @return A CGSCC-to-function adaptor wrapping \p Pass.
 template <typename FunctionPassT>
 CGSCCToFunctionPassAdaptor
 createCGSCCToFunctionPassAdaptor(FunctionPassT &&Pass,
@@ -504,17 +611,24 @@ createCGSCCToFunctionPassAdaptor(FunctionPassT &&Pass,
                                     EagerlyInvalidate, NoRerun);
 }
 
-// A marker to determine if function passes should be run on a function within a
-// CGSCCToFunctionPassAdaptor. This is used to prevent running an expensive
-// function pass (manager) on a function multiple times if SCC mutations cause a
-// function to be visited multiple times and the function is not modified by
-// other SCC passes.
+/// Analysis marking that function passes should be skipped for a function.
+///
+/// Used by \c CGSCCToFunctionPassAdaptor to avoid re-running an expensive
+/// function pass (manager) on a function multiple times when SCC mutations
+/// cause a function to be visited again and other SCC passes have not modified
+/// it.
 class ShouldNotRunFunctionPassesAnalysis
     : public AnalysisInfoMixin<ShouldNotRunFunctionPassesAnalysis> {
 public:
+  /// Analysis key for \c ShouldNotRunFunctionPassesAnalysis.
   LLVM_ABI static AnalysisKey Key;
+  /// Empty result; presence of the analysis is the signal.
   struct Result {};
 
+  /// Compute the marker result for function \p F.
+  /// @param F Function being analyzed.
+  /// @param FAM Function analysis manager (unused).
+  /// @return An empty marker result.
   Result run(Function &F, FunctionAnalysisManager &FAM) { return Result(); }
 };
 
@@ -535,20 +649,33 @@ public:
 class DevirtSCCRepeatedPass
     : public OptionalPassInfoMixin<DevirtSCCRepeatedPass> {
 public:
+  /// Type-erased CGSCC pass concept used by this adaptor.
   using PassConceptT =
       detail::PassConcept<LazyCallGraph::SCC, CGSCCAnalysisManager,
                           LazyCallGraph &, CGSCCUpdateResult &>;
 
+  /// Construct a repeater that runs \p Pass up to \p MaxIterations times.
+  /// @param Pass CGSCC pass to run on each iteration.
+  /// @param MaxIterations Upper bound on repetition when indirect calls are
+  /// refined.
   explicit DevirtSCCRepeatedPass(PassConceptT::unique_ptr Pass,
                                  int MaxIterations)
       : Pass(std::move(Pass)), MaxIterations(MaxIterations) {}
 
   /// Runs the wrapped pass up to \c MaxIterations on the SCC, iterating
   /// whenever an indirect call is refined.
+  /// @param InitialC SCC to process.
+  /// @param AM CGSCC analysis manager.
+  /// @param CG Lazy call graph containing \p InitialC.
+  /// @param UR Structure for communicating call graph updates.
+  /// @return The analyses preserved after the repeated runs.
   LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &InitialC,
                                  CGSCCAnalysisManager &AM, LazyCallGraph &CG,
                                  CGSCCUpdateResult &UR);
 
+  /// Print this adaptor and its nested CGSCC pass as a pipeline.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
     OS << "devirt<" << MaxIterations << ">(";
@@ -563,6 +690,10 @@ private:
 
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
+/// @param Pass CGSCC pass to wrap and potentially repeat.
+/// @param MaxIterations Upper bound on repetition when indirect calls are
+/// refined.
+/// @return A repeater that runs \p Pass up to \p MaxIterations times.
 template <typename CGSCCPassT>
 DevirtSCCRepeatedPass createDevirtSCCRepeatedPass(CGSCCPassT &&Pass,
                                                   int MaxIterations) {

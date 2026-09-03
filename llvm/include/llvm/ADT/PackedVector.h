@@ -89,12 +89,15 @@ public:
     /// Store \p val into the referenced packed element.
     ///
     /// \param val Value that fits in \c BitNum bits.
+    /// \return This reference.
     reference &operator=(T val) {
       Vec.setValue(Vec.Bits, Idx, val);
       return *this;
     }
 
     /// Read the referenced packed element as type \c T.
+    ///
+    /// \return The packed element value.
     operator T() const { return Vec.getValue(Vec.Bits, Idx); }
   };
 
@@ -107,9 +110,13 @@ public:
       : Bits(size * BitNum), NumElements(size) {}
 
   /// Return true if the vector contains no elements.
+  ///
+  /// \return True if there are no packed elements.
   bool empty() const { return NumElements == 0; }
 
   /// Return the number of packed elements.
+  ///
+  /// \return The element count.
   unsigned size() const { return NumElements; }
 
   /// Remove all elements and release bit storage.
@@ -132,6 +139,8 @@ public:
   void reserve(unsigned N) { Bits.reserve(N * BitNum); }
 
   /// Clear every packed bit without changing the element count.
+  ///
+  /// \return This vector.
   PackedVector &reset() {
     Bits.reset();
     return *this;
@@ -148,34 +157,43 @@ public:
   /// Return a mutable proxy for the element at \p Idx.
   ///
   /// \param Idx Zero-based element index.
+  /// \return Mutable reference proxy for the element.
   reference operator[](unsigned Idx) { return reference(*this, Idx); }
 
   /// Return a copy of the packed element at \p Idx.
   ///
   /// \param Idx Zero-based element index.
+  /// \return The packed element value.
   T operator[](unsigned Idx) const { return getValue(Bits, Idx); }
 
   /// Return true if both vectors have identical packed bit patterns.
   ///
   /// \param RHS Vector to compare against.
+  /// \return True if the bit patterns match.
   bool operator==(const PackedVector &RHS) const { return Bits == RHS.Bits; }
 
   /// Return true if the packed bit patterns differ.
   ///
   /// \param RHS Vector to compare against.
+  /// \return True if the bit patterns differ.
   bool operator!=(const PackedVector &RHS) const { return Bits != RHS.Bits; }
 
   /// Bitwise-or each packed bit with the corresponding bit in \p RHS.
   ///
   /// \param RHS Vector whose bits are or-ed into this vector.
+  /// \return This vector.
   PackedVector &operator|=(const PackedVector &RHS) {
     Bits |= RHS.Bits;
     return *this;
   }
 
   /// Access the underlying bit vector used for packed storage.
+  ///
+  /// \return Const reference to the packed bit storage.
   const BitVectorTy &raw_bits() const { return Bits; }
   /// Access the underlying bit vector used for packed storage.
+  ///
+  /// \return Mutable reference to the packed bit storage.
   BitVectorTy &raw_bits() { return Bits; }
 };
 

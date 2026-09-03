@@ -58,73 +58,118 @@ constexpr char AssemblerDirectiveBegin[] = ".amd_amdgpu_hsa_metadata";
 
 /// Access qualifiers.
 enum class AccessQualifier : uint8_t {
+  /// Default access (no explicit qualifier).
   Default   = 0,
+  /// Read-only access.
   ReadOnly  = 1,
+  /// Write-only access.
   WriteOnly = 2,
+  /// Read-write access.
   ReadWrite = 3,
+  /// Unknown or unspecified access qualifier.
   Unknown   = 0xff
 };
 
 /// Address space qualifiers.
 enum class AddressSpaceQualifier : uint8_t {
+  /// Private address space.
   Private  = 0,
+  /// Global address space.
   Global   = 1,
+  /// Constant address space.
   Constant = 2,
+  /// Local (shared) address space.
   Local    = 3,
+  /// Generic address space.
   Generic  = 4,
+  /// Region address space.
   Region   = 5,
+  /// Unknown or unspecified address space.
   Unknown  = 0xff
 };
 
 /// Value kinds.
 enum class ValueKind : uint8_t {
+  /// Passed by value.
   ByValue                = 0,
+  /// Global memory buffer pointer.
   GlobalBuffer           = 1,
+  /// Dynamically sized shared-memory pointer.
   DynamicSharedPointer   = 2,
+  /// Sampler object.
   Sampler                = 3,
+  /// Image object.
   Image                  = 4,
+  /// Pipe object.
   Pipe                   = 5,
+  /// Queue object.
   Queue                  = 6,
+  /// Hidden X component of the global offset.
   HiddenGlobalOffsetX    = 7,
+  /// Hidden Y component of the global offset.
   HiddenGlobalOffsetY    = 8,
+  /// Hidden Z component of the global offset.
   HiddenGlobalOffsetZ    = 9,
+  /// Hidden unused/none argument.
   HiddenNone             = 10,
+  /// Hidden printf buffer pointer.
   HiddenPrintfBuffer     = 11,
+  /// Hidden default queue pointer.
   HiddenDefaultQueue     = 12,
+  /// Hidden completion-action pointer.
   HiddenCompletionAction = 13,
+  /// Hidden multi-grid synchronization argument.
   HiddenMultiGridSyncArg = 14,
+  /// Hidden hostcall buffer pointer.
   HiddenHostcallBuffer   = 15,
+  /// Unknown or unspecified value kind.
   Unknown                = 0xff
 };
 
 /// Value types. This is deprecated and only remains for compatibility parsing
 /// of old metadata.
 enum class ValueType : uint8_t {
+  /// Structure type.
   Struct  = 0,
+  /// Signed 8-bit integer.
   I8      = 1,
+  /// Unsigned 8-bit integer.
   U8      = 2,
+  /// Signed 16-bit integer.
   I16     = 3,
+  /// Unsigned 16-bit integer.
   U16     = 4,
+  /// 16-bit floating-point.
   F16     = 5,
+  /// Signed 32-bit integer.
   I32     = 6,
+  /// Unsigned 32-bit integer.
   U32     = 7,
+  /// 32-bit floating-point.
   F32     = 8,
+  /// Signed 64-bit integer.
   I64     = 9,
+  /// Unsigned 64-bit integer.
   U64     = 10,
+  /// 64-bit floating-point.
   F64     = 11,
+  /// Unknown or unspecified value type.
   Unknown = 0xff
 };
 
 //===----------------------------------------------------------------------===//
 // Kernel Metadata.
 //===----------------------------------------------------------------------===//
+/// Kernel metadata definitions and in-memory representations.
 namespace Kernel {
 
 //===----------------------------------------------------------------------===//
 // Kernel Attributes Metadata.
 //===----------------------------------------------------------------------===//
+/// Kernel attributes metadata.
 namespace Attrs {
 
+/// Keys for kernel attributes metadata fields.
 namespace Key {
 /// Key for Kernel::Attr::Metadata::mReqdWorkGroupSize.
 constexpr char ReqdWorkGroupSize[] = "ReqdWorkGroupSize";
@@ -151,11 +196,15 @@ struct Metadata final {
   /// Default constructor.
   Metadata() = default;
 
+  /// Returns whether kernel attributes metadata is empty.
+  ///
   /// \returns True if kernel attributes metadata is empty, false otherwise.
   bool empty() const {
     return !notEmpty();
   }
 
+  /// Returns whether kernel attributes metadata is not empty.
+  ///
   /// \returns True if kernel attributes metadata is not empty, false otherwise.
   bool notEmpty() const {
     return !mReqdWorkGroupSize.empty() || !mWorkGroupSizeHint.empty() ||
@@ -168,8 +217,10 @@ struct Metadata final {
 //===----------------------------------------------------------------------===//
 // Kernel Argument Metadata.
 //===----------------------------------------------------------------------===//
+/// Kernel argument metadata.
 namespace Arg {
 
+/// Keys for kernel argument metadata fields.
 namespace Key {
 /// Key for Kernel::Arg::Metadata::mName.
 constexpr char Name[] = "Name";
@@ -243,8 +294,10 @@ struct Metadata final {
 //===----------------------------------------------------------------------===//
 // Kernel Code Properties Metadata.
 //===----------------------------------------------------------------------===//
+/// Kernel code properties metadata.
 namespace CodeProps {
 
+/// Keys for kernel code properties metadata fields.
 namespace Key {
 /// Key for Kernel::CodeProps::Metadata::mKernargSegmentSize.
 constexpr char KernargSegmentSize[] = "KernargSegmentSize";
@@ -277,6 +330,8 @@ struct Metadata final {
   /// Size in bytes of the kernarg segment memory. Kernarg segment memory
   /// holds the values of the arguments to the kernel. Required.
   uint64_t mKernargSegmentSize = 0;
+  /// Fixed group segment size in bytes for a workgroup.
+  ///
   /// Size in bytes of the group segment memory required by a workgroup.
   /// This value does not include any dynamically allocated group segment memory
   /// that may be added when the kernel is dispatched. Required.
@@ -309,12 +364,16 @@ struct Metadata final {
   /// Default constructor.
   Metadata() = default;
 
+  /// Returns whether kernel code properties metadata is empty.
+  ///
   /// \returns True if kernel code properties metadata is empty, false
   /// otherwise.
   bool empty() const {
     return !notEmpty();
   }
 
+  /// Returns whether kernel code properties metadata is not empty.
+  ///
   /// \returns True if kernel code properties metadata is not empty, false
   /// otherwise.
   bool notEmpty() const {
@@ -327,8 +386,10 @@ struct Metadata final {
 //===----------------------------------------------------------------------===//
 // Kernel Debug Properties Metadata.
 //===----------------------------------------------------------------------===//
+/// Kernel debug properties metadata.
 namespace DebugProps {
 
+/// Keys for kernel debug properties metadata fields.
 namespace Key {
 /// Key for Kernel::DebugProps::Metadata::mDebuggerABIVersion.
 constexpr char DebuggerABIVersion[] = "DebuggerABIVersion";
@@ -354,10 +415,14 @@ struct Metadata final {
   /// First fixed VGPR reserved. Must be uint16_t(-1) if
   /// mDebuggerABIVersion is not set or mReservedFirstVGPR is 0. Optional.
   uint16_t mReservedFirstVGPR = uint16_t(-1);
+  /// Fixed SGPR index of the scratch V# buffer.
+  ///
   /// Fixed SGPR of the first of 4 SGPRs used to hold the scratch V# used
   /// for the entire kernel execution. Must be uint16_t(-1) if
   /// mDebuggerABIVersion is not set or SGPR not used or not known. Optional.
   uint16_t mPrivateSegmentBufferSGPR = uint16_t(-1);
+  /// Fixed SGPR index of the wave scratch offset.
+  ///
   /// Fixed SGPR used to hold the wave scratch offset for the entire
   /// kernel execution. Must be uint16_t(-1) if mDebuggerABIVersion is not set
   /// or SGPR is not used or not known. Optional.
@@ -366,12 +431,16 @@ struct Metadata final {
   /// Default constructor.
   Metadata() = default;
 
+  /// Returns whether kernel debug properties metadata is empty.
+  ///
   /// \returns True if kernel debug properties metadata is empty, false
   /// otherwise.
   bool empty() const {
     return !notEmpty();
   }
 
+  /// Returns whether kernel debug properties metadata is not empty.
+  ///
   /// \returns True if kernel debug properties metadata is not empty, false
   /// otherwise.
   bool notEmpty() const {
@@ -381,6 +450,7 @@ struct Metadata final {
 
 } // end namespace DebugProps
 
+/// Keys for kernel metadata fields.
 namespace Key {
 /// Key for Kernel::Metadata::mName.
 constexpr char Name[] = "Name";
@@ -425,6 +495,7 @@ struct Metadata final {
 
 } // end namespace Kernel
 
+/// Keys for top-level HSA metadata fields.
 namespace Key {
 /// Key for HSA::Metadata::mVersion.
 constexpr char Version[] = "Version";
@@ -448,9 +519,17 @@ struct Metadata final {
 };
 
 /// Converts \p String to \p HSAMetadata.
+///
+/// \param String Input HSA metadata string.
+/// \param HSAMetadata Output in-memory HSA metadata.
+/// \returns A std::error_code indicating success or failure.
 LLVM_ABI std::error_code fromString(StringRef String, Metadata &HSAMetadata);
 
 /// Converts \p HSAMetadata to \p String.
+///
+/// \param HSAMetadata Input in-memory HSA metadata.
+/// \param String Output HSA metadata string.
+/// \returns A std::error_code indicating success or failure.
 LLVM_ABI std::error_code toString(Metadata HSAMetadata, std::string &String);
 
 //===----------------------------------------------------------------------===//
@@ -473,6 +552,7 @@ constexpr char AssemblerDirectiveEnd[] = ".end_amdgpu_metadata";
 //===----------------------------------------------------------------------===//
 // PAL metadata.
 //===----------------------------------------------------------------------===//
+/// PAL (Platform Abstraction Layer) metadata definitions.
 namespace PALMD {
 
 /// PAL metadata (old linear format) assembler directive.
@@ -486,41 +566,74 @@ constexpr char AssemblerDirectiveEnd[] = ".end_amdgpu_pal_metadata";
 
 /// PAL metadata keys.
 enum Key : uint32_t {
+  /// Compute program resource register 1.
   R_2E12_COMPUTE_PGM_RSRC1 = 0x2e12,
+  /// LS shader program resource register 1.
   R_2D4A_SPI_SHADER_PGM_RSRC1_LS = 0x2d4a,
+  /// HS shader program resource register 1.
   R_2D0A_SPI_SHADER_PGM_RSRC1_HS = 0x2d0a,
+  /// ES shader program resource register 1.
   R_2CCA_SPI_SHADER_PGM_RSRC1_ES = 0x2cca,
+  /// GS shader program resource register 1.
   R_2C8A_SPI_SHADER_PGM_RSRC1_GS = 0x2c8a,
+  /// VS shader program resource register 1.
   R_2C4A_SPI_SHADER_PGM_RSRC1_VS = 0x2c4a,
+  /// PS shader program resource register 1.
   R_2C0A_SPI_SHADER_PGM_RSRC1_PS = 0x2c0a,
+  /// Compute dispatch initiator register.
   R_2E00_COMPUTE_DISPATCH_INITIATOR = 0x2e00,
+  /// PS input enable register.
   R_A1B3_SPI_PS_INPUT_ENA = 0xa1b3,
+  /// PS input address register.
   R_A1B4_SPI_PS_INPUT_ADDR = 0xa1b4,
+  /// PS input control register.
   R_A1B6_SPI_PS_IN_CONTROL = 0xa1b6,
+  /// VGT shader stages enable register.
   R_A2D5_VGT_SHADER_STAGES_EN = 0xa2d5,
 
+  /// Number of VGPRs used by the LS shader.
   LS_NUM_USED_VGPRS = 0x10000021,
+  /// Number of VGPRs used by the HS shader.
   HS_NUM_USED_VGPRS = 0x10000022,
+  /// Number of VGPRs used by the ES shader.
   ES_NUM_USED_VGPRS = 0x10000023,
+  /// Number of VGPRs used by the GS shader.
   GS_NUM_USED_VGPRS = 0x10000024,
+  /// Number of VGPRs used by the VS shader.
   VS_NUM_USED_VGPRS = 0x10000025,
+  /// Number of VGPRs used by the PS shader.
   PS_NUM_USED_VGPRS = 0x10000026,
+  /// Number of VGPRs used by the CS shader.
   CS_NUM_USED_VGPRS = 0x10000027,
 
+  /// Number of SGPRs used by the LS shader.
   LS_NUM_USED_SGPRS = 0x10000028,
+  /// Number of SGPRs used by the HS shader.
   HS_NUM_USED_SGPRS = 0x10000029,
+  /// Number of SGPRs used by the ES shader.
   ES_NUM_USED_SGPRS = 0x1000002a,
+  /// Number of SGPRs used by the GS shader.
   GS_NUM_USED_SGPRS = 0x1000002b,
+  /// Number of SGPRs used by the VS shader.
   VS_NUM_USED_SGPRS = 0x1000002c,
+  /// Number of SGPRs used by the PS shader.
   PS_NUM_USED_SGPRS = 0x1000002d,
+  /// Number of SGPRs used by the CS shader.
   CS_NUM_USED_SGPRS = 0x1000002e,
 
+  /// Scratch size in bytes for the LS shader.
   LS_SCRATCH_SIZE = 0x10000044,
+  /// Scratch size in bytes for the HS shader.
   HS_SCRATCH_SIZE = 0x10000045,
+  /// Scratch size in bytes for the ES shader.
   ES_SCRATCH_SIZE = 0x10000046,
+  /// Scratch size in bytes for the GS shader.
   GS_SCRATCH_SIZE = 0x10000047,
+  /// Scratch size in bytes for the VS shader.
   VS_SCRATCH_SIZE = 0x10000048,
+  /// Scratch size in bytes for the PS shader.
   PS_SCRATCH_SIZE = 0x10000049,
+  /// Scratch size in bytes for the CS shader.
   CS_SCRATCH_SIZE = 0x1000004a
 };
 

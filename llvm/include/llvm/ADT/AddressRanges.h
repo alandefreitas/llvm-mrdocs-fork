@@ -30,36 +30,46 @@ public:
     assert(Start <= End);
   }
   /// Return the inclusive start address.
+  /// @return Inclusive start address of this range.
   uint64_t start() const { return Start; }
   /// Return the exclusive end address.
+  /// @return Exclusive end address of this range.
   uint64_t end() const { return End; }
   /// Return the number of addresses in the range.
+  /// @return Number of addresses in [start(), end()).
   uint64_t size() const { return End - Start; }
   /// Return true if the range contains no addresses.
+  /// @return True if the range is empty.
   uint64_t empty() const { return size() == 0; }
   /// Return true if \p Addr lies in [start(), end()).
   /// @param Addr Address to test.
+  /// @return True if \p Addr is in this range.
   bool contains(uint64_t Addr) const { return Start <= Addr && Addr < End; }
   /// Return true if this range fully contains \p R.
   /// @param R Range that must lie entirely inside this one.
+  /// @return True if \p R is fully contained.
   bool contains(const AddressRange &R) const {
     return Start <= R.Start && R.End <= End;
   }
   /// Return true if this range and \p R share any address.
   /// @param R Range to test for overlap.
+  /// @return True if the ranges overlap.
   bool intersects(const AddressRange &R) const {
     return Start < R.End && R.Start < End;
   }
   /// Return true if both ranges have the same start and end.
   /// @param R Range to compare against.
+  /// @return True if the ranges are equal.
   bool operator==(const AddressRange &R) const {
     return Start == R.Start && End == R.End;
   }
   /// Return true if the ranges differ in start or end.
   /// @param R Range to compare against.
+  /// @return True if the ranges are not equal.
   bool operator!=(const AddressRange &R) const { return !(*this == R); }
   /// Order ranges by (start, end) lexicographically.
   /// @param R Range to compare against.
+  /// @return True if this range is ordered before \p R.
   bool operator<(const AddressRange &R) const {
     return std::make_pair(Start, End) < std::make_pair(R.Start, R.End);
   }
@@ -69,11 +79,11 @@ private:
   uint64_t End = 0;
 };
 
-/// The AddressRangesBase class presents the base functionality for the
-/// normalized address ranges collection. This class keeps a sorted vector
-/// of AddressRange-like objects and can perform searches efficiently.
-/// The address ranges are always sorted and never contain any invalid,
-/// empty or intersected address ranges.
+/// Base class for sorted, non-overlapping address range collections.
+///
+/// This class keeps a sorted vector of AddressRange-like objects and can
+/// perform searches efficiently. The address ranges are always sorted and
+/// never contain any invalid, empty or intersected address ranges.
 
 template <typename T> class AddressRangesBase {
 protected:
@@ -86,14 +96,17 @@ public:
   /// Remove all ranges from the collection.
   void clear() { Ranges.clear(); }
   /// Return true if the collection holds no ranges.
+  /// @return True if no ranges are stored.
   bool empty() const { return Ranges.empty(); }
   /// Return true if some stored range contains \p Addr.
   /// @param Addr Address to look up.
+  /// @return True if a stored range contains \p Addr.
   bool contains(uint64_t Addr) const {
     return find(Addr, Addr + 1) != Ranges.end();
   }
   /// Return true if some stored range fully contains \p Range.
   /// @param Range Address range to look up.
+  /// @return True if a stored range fully contains \p Range.
   bool contains(AddressRange Range) const {
     return find(Range.start(), Range.end()) != Ranges.end();
   }
@@ -101,10 +114,12 @@ public:
   /// @param Capacity Minimum number of entries to reserve.
   void reserve(size_t Capacity) { Ranges.reserve(Capacity); }
   /// Return the number of stored ranges.
+  /// @return Number of stored ranges.
   size_t size() const { return Ranges.size(); }
 
   /// Return the stored entry that contains \p Addr, if any.
   /// @param Addr Address to look up.
+  /// @return Containing entry, or std::nullopt if none.
   std::optional<T> getRangeThatContains(uint64_t Addr) const {
     typename Collection::const_iterator It = find(Addr, Addr + 1);
     if (It == Ranges.end())
@@ -114,12 +129,15 @@ public:
   }
 
   /// Return an iterator to the first stored range.
+  /// @return Const iterator to the first range.
   typename Collection::const_iterator begin() const { return Ranges.begin(); }
   /// Return an iterator past the last stored range.
+  /// @return Const iterator past the last range.
   typename Collection::const_iterator end() const { return Ranges.end(); }
 
   /// Return the range entry at index \p I.
   /// @param I Zero-based index into the sorted collection.
+  /// @return Const reference to the entry at \p I.
   const T &operator[](size_t I) const {
     assert(I < Ranges.size());
     return Ranges[I];
@@ -127,6 +145,7 @@ public:
 
   /// Return true if both collections store the same ranges in order.
   /// @param RHS Collection to compare against.
+  /// @return True if the collections are equal.
   bool operator==(const AddressRangesBase &RHS) const {
     return Ranges == RHS.Ranges;
   }
@@ -154,7 +173,8 @@ protected:
   }
 };
 
-/// The AddressRanges class helps normalize address range collections.
+/// Address range collection that merges intersecting and adjacent ranges.
+///
 /// This class keeps a sorted vector of AddressRange objects and can perform
 /// insertions and searches efficiently. Intersecting([100,200), [150,300))
 /// and adjacent([100,200), [200,300)) address ranges are combined during
@@ -190,6 +210,7 @@ public:
 class AddressRangeValuePair {
 public:
   /// Convert to the address range portion of this pair.
+  /// @return The address range stored in this pair.
   explicit operator AddressRange() const { return Range; }
 
   /// The address range covered by this entry.
@@ -201,18 +222,19 @@ public:
 /// Return true if \p LHS and \p RHS have the same range and value.
 /// @param LHS First pair.
 /// @param RHS Second pair.
+/// @return True if both pairs have the same range and value.
 inline bool operator==(const AddressRangeValuePair &LHS,
                        const AddressRangeValuePair &RHS) {
   return LHS.Range == RHS.Range && LHS.Value == RHS.Value;
 }
 
-/// AddressRangesMap class maps values to the address ranges.
-/// It keeps normalized address ranges and corresponding values.
-/// This class keeps a sorted vector of AddressRangeValuePair objects
-/// and can perform insertions and searches efficiently.
-/// Intersecting([100,200), [150,300)) ranges splitted into non-conflicting
-/// parts([100,200), [200,300)). Adjacent([100,200), [200,300)) address
-/// ranges are not combined during insertion.
+/// Map of integer values onto normalized, non-overlapping address ranges.
+///
+/// This class keeps a sorted vector of AddressRangeValuePair objects and can
+/// perform insertions and searches efficiently. Intersecting([100,200),
+/// [150,300)) ranges are split into non-conflicting parts([100,200),
+/// [200,300)). Adjacent([100,200), [200,300)) address ranges are not combined
+/// during insertion.
 class AddressRangesMap : public AddressRangesBase<AddressRangeValuePair> {
 public:
   /// Map \p Value onto \p Range, splitting around any existing coverage.

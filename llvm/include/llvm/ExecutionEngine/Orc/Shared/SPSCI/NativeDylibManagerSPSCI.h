@@ -33,14 +33,18 @@ inline constexpr char NativeDylibManagerInstanceName[] =
 /// Open the dylib at the given path with the given mode flags; returns a
 /// handle to it.
 struct DylibMgrOpen {
+  /// Name of the DylibMgrOpen SPS wrapper function.
   static constexpr char Name[] = "orc_rt_ci_sps_NativeDylibManager_load";
+  /// SPS signature for DylibMgrOpen.
   using SPSSig = shared::SPSExpected<shared::SPSExecutorAddr>(
       shared::SPSExecutorAddr, shared::SPSString, uint64_t);
 };
 
 /// Resolve the given lookup set within the given dylib.
 struct DylibMgrResolve {
+  /// Name of the DylibMgrResolve SPS wrapper function.
   static constexpr char Name[] = "orc_rt_ci_sps_NativeDylibManager_lookup";
+  /// SPS signature for DylibMgrResolve.
   using SPSSig = shared::SPSExpected<
       shared::SPSSequence<shared::SPSOptional<shared::SPSExecutorAddr>>>(
       shared::SPSExecutorAddr, shared::SPSExecutorAddr,

@@ -15,9 +15,9 @@
 
 namespace llvm {
 
-/// Invariant opcodes: All instruction sets have these as their low opcodes.
-///
+/// Namespace holding the target-independent instruction opcode enumerators.
 namespace TargetOpcode {
+/// Invariant opcodes: All instruction sets have these as their low opcodes.
 enum {
 #define HANDLE_TARGET_OPCODE(OPC) OPC,
 #define HANDLE_TARGET_OPCODE_MARKER(IDENT, OPC) IDENT = OPC,
@@ -27,16 +27,27 @@ enum {
 
 /// Check whether the given Opcode is a generic opcode that is not supposed
 /// to appear after ISel.
+///
+/// \param Opcode Instruction opcode to classify.
+/// \returns true if \p Opcode is a generic opcode which is not supposed to
+/// appear after ISel.
 inline bool isPreISelGenericOpcode(unsigned Opcode) {
   return Opcode >= TargetOpcode::PRE_ISEL_GENERIC_OPCODE_START &&
          Opcode <= TargetOpcode::PRE_ISEL_GENERIC_OPCODE_END;
 }
 
 /// Check whether the given Opcode is a target-specific opcode.
+///
+/// \param Opcode Instruction opcode to classify.
+/// \returns true if \p Opcode is a target-specific opcode.
 inline bool isTargetSpecificOpcode(unsigned Opcode) {
   return Opcode > TargetOpcode::PRE_ISEL_GENERIC_OPCODE_END;
 }
 
+/// Check whether the given Opcode is an optimization hint that is not
+/// supposed to appear after ISel.
+///
+/// \param Opcode Instruction opcode to classify.
 /// \returns true if \p Opcode is an optimization hint opcode which is not
 /// supposed to appear after ISel.
 inline bool isPreISelGenericOptimizationHint(unsigned Opcode) {

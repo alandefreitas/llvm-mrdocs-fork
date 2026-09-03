@@ -11,9 +11,15 @@ namespace llvm::sandboxir {
 /// passes.
 class PrintInstructionCount final : public RegionPass {
 public:
+  /// Construct a PrintInstructionCount pass.
+  /// \param AuxArg Unused; must be empty.
   PrintInstructionCount(StringRef AuxArg) : RegionPass("null") {
     assert(AuxArg.empty() && "This pass ignores aux arg!");
   }
+  /// Print the number of instructions in \p R to stdout.
+  /// \param R Region whose instructions are counted.
+  /// \param A Analyses available to the pass.
+  /// \returns False; this pass never modifies the IR.
   bool runOnRegion(Region &R, const Analyses &A) final {
     outs() << "InstructionCount: " << llvm::size(R) << "\n";
     return false;

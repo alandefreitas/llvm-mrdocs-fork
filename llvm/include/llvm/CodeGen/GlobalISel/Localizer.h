@@ -30,6 +30,8 @@ namespace llvm {
 // Forward declarations.
 class AnalysisUsage;
 
+/// Legacy pass that localizes constant-like instructions near their uses.
+///
 /// This pass implements the localization mechanism described at the
 /// top of this file. One specificity of the implementation is that
 /// it will materialize one and only one instance of a constant per
@@ -39,26 +41,54 @@ class AnalysisUsage;
 /// related predecessor.
 class LLVM_ABI LocalizerLegacy : public MachineFunctionPass {
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct the legacy GlobalISel localizer pass.
   LocalizerLegacy();
 
+  /// Return the name of this pass.
+  ///
+  /// \return A string identifying this pass as "Localizer".
   StringRef getPassName() const override { return "Localizer"; }
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Localization expects the function to be in SSA form.
+  ///
+  /// \return Properties requiring the function to be in SSA form.
   MachineFunctionProperties getRequiredProperties() const override {
     return MachineFunctionProperties().setIsSSA();
   }
 
+  /// Declare required and preserved analyses for this pass.
+  ///
+  /// \param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Localize constant-like instructions in \p MF near their uses.
+  ///
+  /// \param MF Machine function whose constants are localized.
+  /// \return True if the machine function was modified.
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
+/// New PM pass that localizes constant-like instructions near their uses.
 class LocalizerPass : public RequiredPassInfoMixin<LocalizerPass> {
 public:
+  /// Localize constant-like instructions in \p MF near their uses.
+  ///
+  /// \param MF Machine function whose constants are localized.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   PreservedAnalyses run(MachineFunction &MF,
                         MachineFunctionAnalysisManager &MFAM);
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Localization expects the function to be in SSA form.
+  ///
+  /// \return Properties requiring the function to be in SSA form.
   MachineFunctionProperties getRequiredProperties() const {
     return MachineFunctionProperties().setIsSSA();
   }

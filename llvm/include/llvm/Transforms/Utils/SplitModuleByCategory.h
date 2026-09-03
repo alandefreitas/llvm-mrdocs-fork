@@ -23,6 +23,8 @@ namespace llvm {
 class Module;
 class Function;
 
+/// Splits a module into parts by transitive reachability from entry points.
+///
 /// Splits the given module \p M into parts. Each output part is passed to
 /// \p Callback for further possible processing. Each part corresponds to a
 /// subset of the module that is transitively reachable from some entry point
@@ -55,6 +57,12 @@ class Function;
 ///
 /// Recursion and other cycles in the input Module (e.g. directly or mutually
 /// recursive functions, or self-referencing global variables) are supported.
+///
+/// \param M Module to split.
+/// \param EntryPointCategorizer Maps each function to an entry-point group id,
+/// or std::nullopt if the function is not an entry point.
+/// \param Callback Invoked once per output part with that part's module.
+/// \return Success, or an error propagated from \p Callback.
 LLVM_ABI Error splitModuleTransitiveFromEntryPoints(
     std::unique_ptr<Module> M,
     function_ref<std::optional<int>(const Function &F)> EntryPointCategorizer,

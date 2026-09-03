@@ -38,6 +38,7 @@
 #include "llvm/Support/SuffixTreeNode.h"
 
 namespace llvm {
+/// A suffix tree for fast repeated-substring queries over unsigned integers.
 class SuffixTree {
 public:
   /// Each element is an integer representing an instruction in the module.
@@ -185,26 +186,51 @@ public:
 
   public:
     /// Return the current repeated substring.
+    ///
+    /// \returns The current repeated substring.
     RepeatedSubstring &operator*() { return RS; }
 
+    /// Advance to the next repeated substring.
+    ///
+    /// \returns A reference to this iterator after advancing.
     RepeatedSubstringIterator &operator++() {
       advance();
       return *this;
     }
 
+    /// Advance to the next repeated substring and return the previous position.
+    ///
+    /// \param I Dummy parameter distinguishing post-increment.
+    ///
+    /// \returns A copy of the iterator before advancing.
     RepeatedSubstringIterator operator++(int I) {
       RepeatedSubstringIterator It(*this);
       advance();
       return It;
     }
 
+    /// Return true if this iterator and \p Other refer to the same node.
+    ///
+    /// \param Other Iterator to compare against.
+    ///
+    /// \returns True if both iterators refer to the same node.
     bool operator==(const RepeatedSubstringIterator &Other) const {
       return N == Other.N;
     }
+    /// Return true if this iterator and \p Other refer to different nodes.
+    ///
+    /// \param Other Iterator to compare against.
+    ///
+    /// \returns True if the iterators refer to different nodes.
     bool operator!=(const RepeatedSubstringIterator &Other) const {
       return !(*this == Other);
     }
 
+    /// Construct an iterator starting at internal node \p N.
+    ///
+    /// \param N Node to start from, or nullptr for a past-the-end iterator.
+    /// \param LeafNodes Leaf nodes of the suffix tree, used when considering
+    /// leaf descendants.
     RepeatedSubstringIterator(
         SuffixTreeInternalNode *N,
         const std::vector<SuffixTreeLeafNode *> &LeafNodes = {})
@@ -219,8 +245,15 @@ public:
     }
   };
 
+  /// Iterator type over repeated substrings in the tree.
   using iterator = RepeatedSubstringIterator;
+  /// Return an iterator to the first repeated substring.
+  ///
+  /// \returns An iterator to the first repeated substring.
   iterator begin() { return iterator(Root, LeafNodes); }
+  /// Return an iterator past the last repeated substring.
+  ///
+  /// \returns An iterator past the last repeated substring.
   iterator end() { return iterator(nullptr); }
 };
 

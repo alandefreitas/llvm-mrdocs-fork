@@ -20,6 +20,11 @@
 
 namespace llvm::xray {
 
+/// RecordVisitor that pretty-prints an FDR block of records for humans.
+///
+/// Formats a sequence of FDR records as a readable block, using a RecordPrinter
+/// for individual record text and inserting section markers between record
+/// kinds.
 class LLVM_ABI BlockPrinter : public RecordVisitor {
   enum class State {
     Start,
@@ -36,21 +41,61 @@ class LLVM_ABI BlockPrinter : public RecordVisitor {
   State CurrentState = State::Start;
 
 public:
+  /// Construct a block printer writing to \p O via record printer \p P.
+  /// \param O Output stream that receives formatted block text.
+  /// \param P Printer used to format individual FDR records.
   explicit BlockPrinter(raw_ostream &O, RecordPrinter &P) : OS(O), RP(P) {}
 
-  Error visit(BufferExtents &) override;
-  Error visit(WallclockRecord &) override;
-  Error visit(NewCPUIDRecord &) override;
-  Error visit(TSCWrapRecord &) override;
-  Error visit(CustomEventRecord &) override;
-  Error visit(CallArgRecord &) override;
-  Error visit(PIDRecord &) override;
-  Error visit(NewBufferRecord &) override;
-  Error visit(EndBufferRecord &) override;
-  Error visit(FunctionRecord &) override;
-  Error visit(CustomEventRecordV5 &) override;
-  Error visit(TypedEventRecord &) override;
+  /// Visit a buffer-extents record and open a new formatted block.
+  /// \param R Buffer extents record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(BufferExtents &R) override;
+  /// Visit a wall-clock record and print it as part of the preamble.
+  /// \param R Wall-clock record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(WallclockRecord &R) override;
+  /// Visit a new-CPU-ID record and print it as metadata in the block body.
+  /// \param R New CPU ID record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(NewCPUIDRecord &R) override;
+  /// Visit a TSC-wrap record and print it as metadata in the block body.
+  /// \param R TSC wrap record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(TSCWrapRecord &R) override;
+  /// Visit a custom-event record and print it like a function event.
+  /// \param R Custom event record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(CustomEventRecord &R) override;
+  /// Visit a call-argument record and print it after its function record.
+  /// \param R Call argument record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(CallArgRecord &R) override;
+  /// Visit a PID record and print it as part of the preamble.
+  /// \param R PID record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(PIDRecord &R) override;
+  /// Visit a new-buffer record and print the preamble section header.
+  /// \param R New buffer record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(NewBufferRecord &R) override;
+  /// Visit an end-of-buffer record and mark the formatted block as finished.
+  /// \param R End-of-buffer record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(EndBufferRecord &R) override;
+  /// Visit a function record and print it as a function call line.
+  /// \param R Function record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(FunctionRecord &R) override;
+  /// Visit a v5 custom-event record and print it like a function event.
+  /// \param R V5 custom event record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(CustomEventRecordV5 &R) override;
+  /// Visit a typed-event record and print it like a function event.
+  /// \param R Typed event record being visited.
+  /// \return Success, or an error if printing failed.
+  Error visit(TypedEventRecord &R) override;
 
+  /// Reset the printer state so the next visit starts a new block.
   void reset() { CurrentState = State::Start; }
 };
 

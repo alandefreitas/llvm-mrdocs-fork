@@ -57,11 +57,15 @@ public:
   IndexedMap() = default;
 
   /// Construct an empty map that uses \p Val as the null / missing sentinel.
+  ///
+  /// \param Val Sentinel value stored in slots that have no mapped entry.
   explicit IndexedMap(const T &Val) : NullVal(Val) {}
 
   /// Return a mutable reference to the value at key \p N.
   ///
   /// \pre \c inBounds(N) is true.
+  /// \param N Key whose mapped value is accessed.
+  /// \return Mutable reference to the value mapped to \p N.
   typename StorageT::reference operator[](IndexT N) {
     assert(ToIndex(N) < Storage.size() && "index out of bounds!");
     return Storage[ToIndex(N)];
@@ -70,21 +74,29 @@ public:
   /// Return a const reference to the value at key \p N.
   ///
   /// \pre \c inBounds(N) is true.
+  /// \param N Key whose mapped value is accessed.
+  /// \return Const reference to the value mapped to \p N.
   typename StorageT::const_reference operator[](IndexT N) const {
     assert(ToIndex(N) < Storage.size() && "index out of bounds!");
     return Storage[ToIndex(N)];
   }
 
   /// Reserve storage capacity for at least \p S mapped slots.
+  ///
+  /// \param S Number of mapped slots to reserve capacity for.
   void reserve(typename StorageT::size_type S) { Storage.reserve(S); }
 
   /// Resize to \p S slots, filling new entries with the null sentinel.
+  ///
+  /// \param S New number of indexed slots; new entries get the null sentinel.
   void resize(typename StorageT::size_type S) { Storage.resize(S, NullVal); }
 
   /// Remove all entries, leaving the map empty.
   void clear() { Storage.clear(); }
 
   /// Ensure the map has space for key \p N (and all smaller indices).
+  ///
+  /// \param N Key that must fit in storage after this call.
   void grow(IndexT N) {
     unsigned NewSize = ToIndex(N) + 1;
     if (NewSize > Storage.size())
@@ -92,9 +104,14 @@ public:
   }
 
   /// Return true if key \p N falls within the current storage size.
+  ///
+  /// \param N Key to test against the allocated index range.
+  /// \return True if \p N is within the allocated index range.
   bool inBounds(IndexT N) const { return ToIndex(N) < Storage.size(); }
 
   /// Return the number of indexed slots currently allocated.
+  ///
+  /// \return Number of indexed slots currently allocated.
   typename StorageT::size_type size() const { return Storage.size(); }
 };
 

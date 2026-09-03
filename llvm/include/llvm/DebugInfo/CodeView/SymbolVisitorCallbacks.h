@@ -15,24 +15,49 @@
 namespace llvm {
 namespace codeview {
 
+/// Callback interface invoked while visiting CodeView symbol records.
 class SymbolVisitorCallbacks {
   friend class CVSymbolVisitor;
 
 public:
+  /// Destroy the symbol visitor callbacks.
   virtual ~SymbolVisitorCallbacks() = default;
 
   /// Action to take on unknown symbols. By default, they are ignored.
+  ///
+  /// \param Record The unknown symbol record being visited.
+  ///
+  /// \returns An Error if visitation should abort, otherwise success.
   virtual Error visitUnknownSymbol(CVSymbol &Record) {
     return Error::success();
   }
 
+  /// Called when visitation of a symbol record begins at a known offset.
+  ///
   /// Paired begin/end actions for all symbols. Receives all record data,
-  /// including the fixed-length record prefix.  visitSymbolBegin() should
+  /// including the fixed-length record prefix. visitSymbolBegin() should
   /// return the type of the Symbol, or an error if it cannot be determined.
+  ///
+  /// \param Record The symbol record being visited.
+  /// \param Offset Byte offset of \p Record within its symbol stream.
+  ///
+  /// \returns An Error if visitation should abort, otherwise success.
   virtual Error visitSymbolBegin(CVSymbol &Record, uint32_t Offset) {
     return Error::success();
   }
+
+  /// Called when visitation of a symbol record begins without a stream offset.
+  ///
+  /// \param Record The symbol record being visited.
+  ///
+  /// \returns An Error if visitation should abort, otherwise success.
   virtual Error visitSymbolBegin(CVSymbol &Record) { return Error::success(); }
+
+  /// Called when visitation of a symbol record ends.
+  ///
+  /// \param Record The symbol record whose visitation is complete.
+  ///
+  /// \returns An Error if visitation should abort, otherwise success.
   virtual Error visitSymbolEnd(CVSymbol &Record) { return Error::success(); }
 
 #define SYMBOL_RECORD(EnumName, EnumVal, Name)                                 \

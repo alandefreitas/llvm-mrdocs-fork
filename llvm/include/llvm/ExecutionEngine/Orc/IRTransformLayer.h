@@ -27,19 +27,35 @@ namespace orc {
 /// before operating on the module.
 class LLVM_ABI IRTransformLayer : public IRLayer {
 public:
+  /// Functor that transforms a thread-safe module before it is emitted.
   using TransformFunction = unique_function<Expected<ThreadSafeModule>(
       ThreadSafeModule, MaterializationResponsibility &R)>;
 
+  /// Construct an IRTransformLayer that transforms modules before emitting
+  /// them to a base layer.
+  /// \param ES Execution session for this layer.
+  /// \param BaseLayer IR layer to emit transformed modules into.
+  /// \param Transform Transform applied to each module; defaults to
+  ///        identityTransform.
   IRTransformLayer(ExecutionSession &ES, IRLayer &BaseLayer,
                    TransformFunction Transform = identityTransform);
 
+  /// Replace the transform applied to modules before emission.
+  /// \param Transform New transform function to use.
   void setTransform(TransformFunction Transform) {
     this->Transform = std::move(Transform);
   }
 
+  /// Apply the configured transform and emit the result to the base layer.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \param TSM Thread-safe module to transform and emit.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             ThreadSafeModule TSM) override;
 
+  /// Return the given module unchanged.
+  /// \param TSM Thread-safe module to pass through.
+  /// \param R Materialization responsibility for the definitions being emitted.
+  /// \return The given thread-safe module, unmodified.
   static ThreadSafeModule identityTransform(ThreadSafeModule TSM,
                                             MaterializationResponsibility &R) {
     return TSM;

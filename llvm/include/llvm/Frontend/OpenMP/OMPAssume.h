@@ -41,6 +41,8 @@ static constexpr AssumptionClauseMappingInfo AssumptionClauseMappings[] = {
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 };
 
+/// Return a string listing all known assume clause options.
+/// \return A string that lists every known assume clause option.
 inline std::string getAllAssumeClauseOptions() {
   std::string S;
   for (const AssumptionClauseMappingInfo &ACMI : AssumptionClauseMappings)

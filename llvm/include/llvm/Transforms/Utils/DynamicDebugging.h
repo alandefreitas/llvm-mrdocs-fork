@@ -15,10 +15,11 @@
 namespace llvm {
 class Module;
 
-/// Modify \p M to prepare it for dynamic debugging before running
-/// optimizations. Return a clone of the module which references global
+/// Prepare a module for dynamic debugging before running optimizations.
+///
+/// Modifies \p M and returns a clone of the module which references global
 /// values in \p M. The names of the cloned function definitions in this
-/// module are prefixed with “__dyndbg.”.
+/// module are prefixed with "__dyndbg.".
 ///
 /// \p M requires debug info. Note any instrumentation in \p M will be
 /// cloned into the returned module.
@@ -57,6 +58,11 @@ class Module;
 /// |   return loc.promo()                         |
 /// | }                                            |
 /// +----------------------------------------------+
+///
+/// \param M Module to prepare; must contain debug info.
+/// \param PromotionSuffix Unique suffix appended to promoted local
+/// GlobalValue aliases.
+/// \return A clone of the module which references global values in \p M.
 LLVM_ABI std::unique_ptr<Module>
 prepareForDynamicDebugging(Module *M, StringRef PromotionSuffix);
 } // namespace llvm

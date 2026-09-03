@@ -43,40 +43,81 @@
 
 namespace llvm {
 
-enum class ReplacementType { Format, Literal };
+/// Kind of segment produced when parsing a formatv format string.
+enum class ReplacementType {
+  Format, ///< A replacement field that formats a parameter.
+  Literal ///< Literal text copied to the output unchanged.
+};
 
+/// A parsed segment of a formatv format string.
 struct ReplacementItem {
+  /// Construct a literal-text replacement from \p Literal.
+  ///
+  /// \param Literal Literal text to emit unchanged.
   explicit ReplacementItem(StringRef Literal)
       : Type(ReplacementType::Literal), Spec(Literal) {}
+  /// Construct a parameter-replacement field.
+  ///
+  /// \param Spec Full replacement-field text, including braces.
+  /// \param Index Parameter index to format.
+  /// \param Width Field width in characters; 0 means no padding.
+  /// \param Where Alignment of the value within the field.
+  /// \param Pad Pad character for unused space in the field.
+  /// \param Options Type-dependent format options after the colon.
   ReplacementItem(StringRef Spec, unsigned Index, unsigned Width,
                   AlignStyle Where, char Pad, StringRef Options)
       : Type(ReplacementType::Format), Spec(Spec), Index(Index), Width(Width),
         Where(Where), Pad(Pad), Options(Options) {}
 
+  /// Whether this item is a format field or literal text.
   ReplacementType Type;
+  /// Spec text for this item (literal contents or the full `{...}` field).
   StringRef Spec;
+  /// Parameter index for a format field; unused for literals.
   unsigned Index = 0;
+  /// Field width in characters; 0 means no padding.
   unsigned Width = 0;
+  /// Alignment of the formatted value within the field.
   AlignStyle Where = AlignStyle::Right;
+  /// Pad character for unused space in the field.
   char Pad = 0;
+  /// Type-dependent format options from the replacement field.
   StringRef Options;
 };
 
+/// Type-erased base for formatv result objects.
 class formatv_object_base {
 protected:
+  /// Format string containing replacement fields and literal text.
   StringRef Fmt;
+  /// Type-erased functors that format each parameter.
   ArrayRef<support::detail::FormatFunctorRef> Adapters;
+  /// When true, parse and validate the format string in assert-enabled builds.
   bool Validate;
 
+  /// Construct a base object from \p Fmt, \p Adapters, and \p Validate.
+  ///
+  /// \param Fmt Format string containing replacement fields.
+  /// \param Adapters Type-erased formatters for each parameter.
+  /// \param Validate Whether to validate the format string in debug builds.
   formatv_object_base(StringRef Fmt,
                       ArrayRef<support::detail::FormatFunctorRef> Adapters,
                       bool Validate)
       : Fmt(Fmt), Adapters(Adapters), Validate(Validate) {}
 
+  /// Deleted copy constructor; formatv objects are move-only.
+  ///
+  /// \param rhs Unused; copy construction is not supported.
   formatv_object_base(formatv_object_base const &rhs) = delete;
+  /// Move-construct from \p rhs.
+  ///
+  /// \param rhs Object to move from.
   formatv_object_base(formatv_object_base &&rhs) = default;
 
 public:
+  /// Write the formatted string to \p S.
+  ///
+  /// \param S Stream that receives the formatted output.
   void format(raw_ostream &S) const {
     const auto Replacements = parseFormatString(Fmt, Adapters.size(), Validate);
     for (const auto &R : Replacements) {
@@ -96,27 +137,48 @@ public:
     }
   }
 
-  // Parse and optionally validate format string (in debug builds).
+  /// Parse and optionally validate a format string.
+  ///
+  /// \param Fmt Format string to parse.
+  /// \param NumArgs Number of replacement parameters supplied by the caller.
+  /// \param Validate When true, check the format string in assert-enabled
+  ///        builds.
+  /// \return Parsed replacement items in order of appearance.
   LLVM_ABI static SmallVector<ReplacementItem, 2>
   parseFormatString(StringRef Fmt, size_t NumArgs, bool Validate);
 
+  /// Convert the formatted result to a \c std::string.
+  ///
+  /// \return The formatted string.
   std::string str() const {
     std::string Result;
     raw_string_ostream(Result) << *this;
     return Result;
   }
 
+  /// Convert the formatted result to a \c SmallString of capacity \p N.
+  ///
+  /// \tparam N Inline capacity of the returned \c SmallString.
+  /// \return The formatted string as a \c SmallString.
   template <unsigned N> SmallString<N> sstr() const {
     SmallString<N> Result;
     raw_svector_ostream(Result) << *this;
     return Result;
   }
 
+  /// Convert the formatted result to a \c SmallString of capacity \p N.
+  ///
+  /// \tparam N Inline capacity of the returned \c SmallString.
+  /// \return The formatted string as a \c SmallString.
   template <unsigned N> operator SmallString<N>() const { return sstr<N>(); }
 
+  /// Convert the formatted result to a \c std::string.
+  ///
+  /// \return The formatted string.
   operator std::string() const { return str(); }
 };
 
+/// Owning formatv result that stores parameters and type-erased adapters.
 template <typename Tuple> class formatv_object : public formatv_object_base {
   // Storage for the parameter adapters.  Since the base class erases the type
   // of the parameters, we have to own the storage for the parameters here, and
@@ -139,14 +201,25 @@ template <typename Tuple> class formatv_object : public formatv_object_base {
   };
 
 public:
+  /// Construct a formatv object from \p Fmt, \p Params, and \p Validate.
+  ///
+  /// \param Fmt Format string containing replacement fields.
+  /// \param Params Tuple of type-erased parameter adapters.
+  /// \param Validate Whether to validate the format string in debug builds.
   formatv_object(StringRef Fmt, Tuple &&Params, bool Validate)
       : formatv_object_base(Fmt, ParameterPointers, Validate),
         Parameters(std::move(Params)) {
     ParameterPointers = std::apply(create_adapters(), Parameters);
   }
 
+  /// Deleted copy constructor; formatv objects are move-only.
+  ///
+  /// \param rhs Unused; copy construction is not supported.
   formatv_object(formatv_object const &rhs) = delete;
 
+  /// Move-construct from \p rhs, rebinding adapters to the new storage.
+  ///
+  /// \param rhs Object to move from.
   formatv_object(formatv_object &&rhs)
       : formatv_object_base(std::move(rhs)),
         Parameters(std::move(rhs.Parameters)) {
@@ -155,94 +228,95 @@ public:
   }
 };
 
-// Format text given a format string and replacement parameters.
-//
-// ===General Description===
-//
-// Formats textual output.  `Fmt` is a string consisting of one or more
-// replacement sequences with the following grammar:
-//
-// rep_field ::= "{" [index] ["," layout] [":" format] "}"
-// index     ::= <non-negative integer>
-// layout    ::= [[[char]loc]width]
-// format    ::= <any string not containing "{" or "}">
-// char      ::= <any character except "{" or "}">
-// loc       ::= "-" | "=" | "+"
-// width     ::= <positive integer>
-//
-// index   - An optional non-negative integer specifying the index of the item
-//           in the parameter pack to print. Any other value is invalid. If its
-//           not specified, it will be automatically assigned a value based on
-//           the order of rep_field seen in the format string. Note that mixing
-//           automatic and explicit index in the same call is an error and will
-//           fail validation in assert-enabled builds.
-// layout  - A string controlling how the field is laid out within the available
-//           space.
-// format  - A type-dependent string used to provide additional options to
-//           the formatting operation.  Refer to the documentation of the
-//           various individual format providers for per-type options.
-// char    - The padding character.  Defaults to ' ' (space).  Only valid if
-//           `loc` is also specified.
-// loc     - Where to print the formatted text within the field.  Only valid if
-//           `width` is also specified.
-//           '-' : The field is left aligned within the available space.
-//           '=' : The field is centered within the available space.
-//           '+' : The field is right aligned within the available space (this
-//                 is the default).
-// width   - The width of the field within which to print the formatted text.
-//           If this is less than the required length then the `char` and `loc`
-//           fields are ignored, and the field is printed with no leading or
-//           trailing padding.  If this is greater than the required length,
-//           then the text is output according to the value of `loc`, and padded
-//           as appropriate on the left and/or right by `char`.
-//
-// ===Special Characters===
-//
-// The characters '{' and '}' are reserved and cannot appear anywhere within a
-// replacement sequence.  Outside of a replacement sequence, in order to print
-// a literal '{' it must be doubled as "{{".
-//
-// ===Parameter Indexing===
-//
-// `index` specifies the index of the parameter in the parameter pack to format
-// into the output.  Note that it is possible to refer to the same parameter
-// index multiple times in a given format string.  This makes it possible to
-// output the same value multiple times without passing it multiple times to the
-// function. For example:
-//
-//   formatv("{0} {1} {0}", "a", "bb")
-//
-// would yield the string "abba".  This can be convenient when it is expensive
-// to compute the value of the parameter, and you would otherwise have had to
-// save it to a temporary.
-//
-// ===Formatter Search===
-//
-// For a given parameter of type T, the following steps are executed in order
-// until a match is found:
-//
-//   1. If the parameter is of class type, and inherits from format_adapter,
-//      Then format() is invoked on it to produce the formatted output.  The
-//      implementation should write the formatted text into `Stream`.
-//   2. If there is a suitable template specialization of format_provider<>
-//      for type T containing a method whose signature is:
-//      void format(const T &Obj, raw_ostream &Stream, StringRef Options)
-//      Then this method is invoked as described in Step 1.
-//   3. If an appropriate operator<< for raw_ostream exists, it will be used.
-//      For this to work, (raw_ostream& << const T&) must return raw_ostream&.
-//
-// If a match cannot be found through either of the above methods, a compiler
-// error is generated.
-//
-// ===Invalid Format String Handling===
-//
-// In the case of a format string which does not match the grammar described
-// above, the output is undefined.  With asserts enabled, LLVM will trigger an
-// assertion.  Otherwise, it will try to do something reasonable, but in general
-// the details of what that is are undefined.
-//
-
-// formatv() with validation enable/disable controlled by the first argument.
+/// Format text given a format string and replacement parameters.
+///
+/// Formats textual output.  `Fmt` is a string consisting of one or more
+/// replacement sequences with the following grammar:
+///
+/// rep_field ::= "{" [index] ["," layout] [":" format] "}"
+/// index     ::= <non-negative integer>
+/// layout    ::= [[[char]loc]width]
+/// format    ::= <any string not containing "{" or "}">
+/// char      ::= <any character except "{" or "}">
+/// loc       ::= "-" | "=" | "+"
+/// width     ::= <positive integer>
+///
+/// index   - An optional non-negative integer specifying the index of the item
+///           in the parameter pack to print. Any other value is invalid. If its
+///           not specified, it will be automatically assigned a value based on
+///           the order of rep_field seen in the format string. Note that mixing
+///           automatic and explicit index in the same call is an error and will
+///           fail validation in assert-enabled builds.
+/// layout  - A string controlling how the field is laid out within the available
+///           space.
+/// format  - A type-dependent string used to provide additional options to
+///           the formatting operation.  Refer to the documentation of the
+///           various individual format providers for per-type options.
+/// char    - The padding character.  Defaults to ' ' (space).  Only valid if
+///           `loc` is also specified.
+/// loc     - Where to print the formatted text within the field.  Only valid if
+///           `width` is also specified.
+///           '-' : The field is left aligned within the available space.
+///           '=' : The field is centered within the available space.
+///           '+' : The field is right aligned within the available space (this
+///                 is the default).
+/// width   - The width of the field within which to print the formatted text.
+///           If this is less than the required length then the `char` and `loc`
+///           fields are ignored, and the field is printed with no leading or
+///           trailing padding.  If this is greater than the required length,
+///           then the text is output according to the value of `loc`, and padded
+///           as appropriate on the left and/or right by `char`.
+///
+/// ===Special Characters===
+///
+/// The characters '{' and '}' are reserved and cannot appear anywhere within a
+/// replacement sequence.  Outside of a replacement sequence, in order to print
+/// a literal '{' it must be doubled as "{{".
+///
+/// ===Parameter Indexing===
+///
+/// `index` specifies the index of the parameter in the parameter pack to format
+/// into the output.  Note that it is possible to refer to the same parameter
+/// index multiple times in a given format string.  This makes it possible to
+/// output the same value multiple times without passing it multiple times to the
+/// function. For example:
+///
+///   formatv("{0} {1} {0}", "a", "bb")
+///
+/// would yield the string "abba".  This can be convenient when it is expensive
+/// to compute the value of the parameter, and you would otherwise have had to
+/// save it to a temporary.
+///
+/// ===Formatter Search===
+///
+/// For a given parameter of type T, the following steps are executed in order
+/// until a match is found:
+///
+///   1. If the parameter is of class type, and inherits from format_adapter,
+///      Then format() is invoked on it to produce the formatted output.  The
+///      implementation should write the formatted text into `Stream`.
+///   2. If there is a suitable template specialization of format_provider<>
+///      for type T containing a method whose signature is:
+///      void format(const T &Obj, raw_ostream &Stream, StringRef Options)
+///      Then this method is invoked as described in Step 1.
+///   3. If an appropriate operator<< for raw_ostream exists, it will be used.
+///      For this to work, (raw_ostream& << const T&) must return raw_ostream&.
+///
+/// If a match cannot be found through either of the above methods, a compiler
+/// error is generated.
+///
+/// ===Invalid Format String Handling===
+///
+/// In the case of a format string which does not match the grammar described
+/// above, the output is undefined.  With asserts enabled, LLVM will trigger an
+/// assertion.  Otherwise, it will try to do something reasonable, but in general
+/// the details of what that is are undefined.
+///
+/// \param Validate Whether to validate the format string in assert-enabled
+///        builds.
+/// \param Fmt Format string containing replacement fields.
+/// \param Vals Values substituted into \p Fmt.
+/// \return A \c formatv_object that can be streamed or converted to a string.
 template <typename... Ts>
 inline auto formatv(bool Validate, const char *Fmt, Ts &&...Vals) {
   auto Params = std::make_tuple(
@@ -250,7 +324,11 @@ inline auto formatv(bool Validate, const char *Fmt, Ts &&...Vals) {
   return formatv_object<decltype(Params)>(Fmt, std::move(Params), Validate);
 }
 
-// formatv() with validation enabled.
+/// Format text with format-string validation enabled.
+///
+/// \param Fmt Format string containing replacement fields.
+/// \param Vals Values substituted into \p Fmt.
+/// \return A \c formatv_object that can be streamed or converted to a string.
 template <typename... Ts> inline auto formatv(const char *Fmt, Ts &&...Vals) {
   return formatv<Ts...>(true, Fmt, std::forward<Ts>(Vals)...);
 }

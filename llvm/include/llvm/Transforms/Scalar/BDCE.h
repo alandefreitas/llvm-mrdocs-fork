@@ -22,8 +22,16 @@ namespace llvm {
 
 class Function;
 
-// The Bit-Tracking Dead Code Elimination pass.
+/// Bit-Tracking Dead Code Elimination pass.
+///
+/// Some instructions (shifts, some ands, ors, etc.) kill some of their input
+/// bits. This pass tracks those dead bits and removes instructions that
+/// compute only dead bits.
 struct BDCEPass : OptionalPassInfoMixin<BDCEPass> {
+  /// Run bit-tracking dead code elimination over the function.
+  /// @param F Function to eliminate dead code from.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

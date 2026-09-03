@@ -22,10 +22,16 @@
 
 namespace llvm {
 
+/// Ordered sequence of (location, callee) pairs used as matching anchors.
 using AnchorList = std::vector<std::pair<LineLocation, FunctionId>>;
+/// Location-to-callee map of matching anchors extracted from IR or a profile.
 using AnchorMap = std::map<LineLocation, FunctionId>;
 
-// Sample profile matching - fuzzy match.
+/// Fuzzy-matches a sample profile to IR when locations or names have drifted.
+///
+/// Recovers AutoFDO and CSSPGO samples after code changes by aligning callsite
+/// anchors and, optionally, matching unmatched IR functions to unused profile
+/// entries via the call graph.
 class SampleProfileMatcher {
   Module &M;
   SampleProfileReader &Reader;
@@ -112,6 +118,16 @@ class SampleProfileMatcher {
       "unknown.indirect.callee";
 
 public:
+  /// Construct a matcher for \p M using profiles from \p Reader.
+  ///
+  /// \param M Module whose functions are matched against the profile.
+  /// \param Reader Sample profile reader providing the input profile.
+  /// \param CG Call graph used to visit functions in top-down order.
+  /// \param ProbeManager Probe manager for probe-based profiles, or null.
+  /// \param LTOPhase Current ThinLTO or FullLTO phase of this compilation.
+  /// \param SymMap Loader map of originally matched function symbols.
+  /// \param PSL Profile symbol list from the reader, if present.
+  /// \param FuncNameToProfNameMap Map filled with IR-to-profile name matches.
   SampleProfileMatcher(
       Module &M, SampleProfileReader &Reader, LazyCallGraph &CG,
       const PseudoProbeManager *ProbeManager, ThinOrFullLTOPhase LTOPhase,
@@ -121,7 +137,16 @@ public:
       : M(M), Reader(Reader), CG(CG), ProbeManager(ProbeManager),
         LTOPhase(LTOPhase), FuncNameToProfNameMap(&FuncNameToProfNameMap),
         SymbolMap(&SymMap), PSL(PSL) {};
+  /// Match functions in the module against the sample profile.
+  ///
+  /// Walks the call graph top-down, fuzzy-matches stale locations, salvages
+  /// unused profiles when enabled, and reports profile-staleness statistics.
   LLVM_ABI void runOnModule();
+  /// Release temporary matching tables after matching is complete.
+  ///
+  /// Leaves \c FuncMappings and \c FlattenedProfiles intact: the former is
+  /// consumed by the sample loader, and the latter owns names referenced by
+  /// \c FuncNameToProfNameMap.
   void clearMatchingData() {
     // Do not clear FuncMappings, it stores IRLoc to ProfLoc remappings which
     // will be used for sample loader.

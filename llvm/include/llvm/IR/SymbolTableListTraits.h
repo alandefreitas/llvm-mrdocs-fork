@@ -48,22 +48,33 @@ class ValueSymbolTable;
 template <typename NodeTy> struct SymbolTableListParentType {};
 
 #define DEFINE_SYMBOL_TABLE_PARENT_TYPE(NODE, PARENT)                          \
-  template <> struct SymbolTableListParentType<NODE> { using type = PARENT; };
+  template <> struct SymbolTableListParentType<NODE> {                         \
+    /** The type of the object that owns a list of this node type. */ \
+    using type = PARENT;                                                       \
+  };
+/// Maps Instruction nodes to their BasicBlock parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(Instruction, BasicBlock)
+/// Maps BasicBlock nodes to their Function parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(BasicBlock, Function)
+/// Maps Argument nodes to their Function parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(Argument, Function)
+/// Maps Function nodes to their Module parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(Function, Module)
+/// Maps GlobalVariable nodes to their Module parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(GlobalVariable, Module)
+/// Maps GlobalAlias nodes to their Module parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(GlobalAlias, Module)
+/// Maps GlobalIFunc nodes to their Module parent.
 DEFINE_SYMBOL_TABLE_PARENT_TYPE(GlobalIFunc, Module)
 #undef DEFINE_SYMBOL_TABLE_PARENT_TYPE
 
 template <typename NodeTy, typename... Args> class SymbolTableList;
 
-// ValueSubClass   - The type of objects that I hold, e.g. Instruction.
-// ItemParentClass - The type of object that owns the list, e.g. BasicBlock.
-// OptionsT        - Extra options to ilist nodes.
-//
+/// Traits that keep parent links and symbol tables in sync with list changes.
+///
+/// \tparam ValueSubClass The type of objects held in the list, e.g. Instruction.
+/// Extra \c Args are forwarded as options to the underlying ilist nodes.
+/// The parent type is determined via \a SymbolTableListParentType.
 template <typename ValueSubClass, typename... Args>
 class SymbolTableListTraits : public ilist_alloc_traits<ValueSubClass> {
   using ListTy = SymbolTableList<ValueSubClass, Args...>;
@@ -72,6 +83,7 @@ class SymbolTableListTraits : public ilist_alloc_traits<ValueSubClass> {
       typename SymbolTableListParentType<ValueSubClass>::type;
 
 public:
+  /// Default-construct traits for a symbol table-backed list.
   SymbolTableListTraits() = default;
 
 private:
@@ -96,24 +108,50 @@ private:
   }
 
 public:
+  /// Add \p V to this list and update its parent and symbol table entry.
+  /// @param V Node being inserted into the list.
   void addNodeToList(ValueSubClass *V);
+  /// Remove \p V from this list and clear its parent and symbol table entry.
+  /// @param V Node being removed from the list.
   void removeNodeFromList(ValueSubClass *V);
+  /// Move nodes in [\p first, \p last) from another list into this list.
+  /// @param L2 Traits of the list the nodes are transferred from.
+  /// @param first Start of the transferred node range.
+  /// @param last End of the transferred node range.
   void transferNodesFromList(SymbolTableListTraits &L2, iterator first,
                              iterator last);
   // private:
+  /// Reassign the symbol-table owner and migrate named entries between tables.
+  ///
+  /// Called when the parent of a list changes (for example, a basic block
+  /// moves to a different function). Removes named entries from the old
+  /// symbol table and reinserts them into the new one.
+  /// @param Dest Pointer to the parent/owner field being reassigned.
+  /// @param Src New parent/owner value to assign through \p Dest.
   template<typename TPtr>
-  void setSymTabObject(TPtr *, TPtr);
+  void setSymTabObject(TPtr *Dest, TPtr Src);
+  /// Identity conversion when the symbol table is already a pointer.
+  /// @param P Symbol table pointer to return unchanged.
+  /// @return The same symbol table pointer.
   static ValueSymbolTable *toPtr(ValueSymbolTable *P) { return P; }
+  /// Address-of conversion when the symbol table is stored by value.
+  /// @param R Symbol table reference whose address is returned.
+  /// @return A pointer to the symbol table stored by value.
   static ValueSymbolTable *toPtr(ValueSymbolTable &R) { return &R; }
 };
 
 // The SymbolTableListTraits template is explicitly instantiated for the
 // following data types, so add extern template statements to prevent implicit
 // instantiation.
+/// Explicit instantiation declaration for BasicBlock list traits.
 extern template class LLVM_TEMPLATE_ABI SymbolTableListTraits<BasicBlock>;
+/// Explicit instantiation declaration for Function list traits.
 extern template class LLVM_TEMPLATE_ABI SymbolTableListTraits<Function>;
+/// Explicit instantiation declaration for GlobalAlias list traits.
 extern template class LLVM_TEMPLATE_ABI SymbolTableListTraits<GlobalAlias>;
+/// Explicit instantiation declaration for GlobalIFunc list traits.
 extern template class LLVM_TEMPLATE_ABI SymbolTableListTraits<GlobalIFunc>;
+/// Explicit instantiation declaration for GlobalVariable list traits.
 extern template class LLVM_TEMPLATE_ABI SymbolTableListTraits<GlobalVariable>;
 
 /// List that automatically updates parent links and symbol tables.

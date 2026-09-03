@@ -14,10 +14,10 @@
 
 namespace llvm {
 
-/// The utility class that helps computing the index of the object inside trie
-/// from its hash. The generator can be configured with the number of bits
-/// used for each level of trie structure with \c NumRootsBits and \c
-/// NumSubtrieBits.
+/// Utility that computes trie child indexes from successive hash bit slices.
+///
+/// The generator can be configured with the number of bits used for each
+/// level of trie structure with \c NumRootBits and \c NumSubtrieBits.
 /// For example, try computing indexes for a 16-bit hash 0x1234 with 8-bit root
 /// and 4-bit sub-trie:
 ///
@@ -39,6 +39,7 @@ struct TrieHashIndexGenerator {
   std::optional<size_t> StartBit = std::nullopt;
 
   /// Return how many bits will be used for the current index.
+  /// @return Number of bits for the current level's index.
   size_t getNumBits() const {
     assert(StartBit);
     size_t TotalNumBits = Bytes.size() * 8;
@@ -48,6 +49,7 @@ struct TrieHashIndexGenerator {
   }
 
   /// Advance to the next trie level and return its child index.
+  /// @return Child index for the next level, or \ref end when bits are exhausted.
   size_t next() {
     if (!StartBit) {
       // Compute index for root when StartBit is not set.
@@ -69,6 +71,9 @@ struct TrieHashIndexGenerator {
   /// For example, if the object is known to have \c Index on a level that
   /// already consumes the first \p Bit bits of the hash, start generation from
   /// that level.
+  /// @param Index Child index to return as the hint for this level.
+  /// @param Bit Number of hash bits already consumed before this level.
+  /// @return The provided \p Index as the child index for this level.
   size_t hint(unsigned Index, unsigned Bit) {
     assert(Bit < Bytes.size() * 8);
     assert(Bit == 0 || (Bit - NumRootBits) % NumSubtrieBits == 0);
@@ -77,15 +82,22 @@ struct TrieHashIndexGenerator {
   }
 
   /// Index at the current level for a hash that collides on leading bits.
+  /// @param CollidingBits Hash bytes that share a prefix with the current hash.
+  /// @return Child index at the current level for \p CollidingBits.
   size_t getCollidingBits(ArrayRef<uint8_t> CollidingBits) const {
     assert(StartBit);
     return getIndex(CollidingBits, *StartBit, NumSubtrieBits);
   }
 
   /// Sentinel index returned when all hash bits have been consumed.
+  /// @return \c SIZE_MAX as the end-of-hash sentinel index.
   size_t end() const { return SIZE_MAX; }
 
   /// Compute a trie child index from hash bytes at a bit offset.
+  /// @param Bytes Hash bytes to read.
+  /// @param StartBit Bit offset into \p Bytes at which to begin.
+  /// @param NumBits Number of bits to consume for the index.
+  /// @return Trie child index formed from the selected bit slice.
   static size_t getIndex(ArrayRef<uint8_t> Bytes, size_t StartBit,
                          size_t NumBits) {
     assert(StartBit < Bytes.size() * 8);

@@ -104,20 +104,26 @@ class scc_iterator : public iterator_facade_base<
 public:
   /// Return an iterator positioned at the first SCC of \p G.
   /// @param G Graph to traverse.
+  /// @return SCC iterator positioned at the first SCC of \p G.
   static scc_iterator begin(const GraphT &G) {
     return scc_iterator(GT::getEntryNode(G));
   }
   /// Return the past-the-end SCC iterator for \p G.
-  static scc_iterator end(const GraphT &) { return scc_iterator(); }
+  /// @param G Graph whose end iterator is requested.
+  /// @return Past-the-end SCC iterator for \p G.
+  static scc_iterator end(const GraphT &G) { return scc_iterator(); }
 
   /// Direct loop termination test which is more efficient than
   /// comparison with \c end().
+  /// @return True if this iterator is past the last SCC.
   bool isAtEnd() const {
     assert(!CurrentSCC.empty() || VisitStack.empty());
     return CurrentSCC.empty();
   }
 
   /// Return true when both iterators are at the same DFS/SCC state.
+  /// @param x Iterator to compare with.
+  /// @return True if both iterators share the same DFS stack and current SCC.
   bool operator==(const scc_iterator &x) const {
     return VisitStack == x.VisitStack && CurrentSCC == x.CurrentSCC;
   }
@@ -130,6 +136,7 @@ public:
   }
 
   /// Return a reference to the nodes in the current SCC.
+  /// @return Const reference to the vector of nodes in the current SCC.
   reference operator*() const {
     assert(!CurrentSCC.empty() && "Dereferencing END SCC iterator!");
     return CurrentSCC;
@@ -139,10 +146,13 @@ public:
   ///
   /// If the SCC has more than one node, this is trivially true.  If not, it may
   /// still contain a cycle if the node has an edge back to itself.
+  /// @return True if the current SCC contains a cycle.
   bool hasCycle() const;
 
   /// This informs the \c scc_iterator that the specified \c Old node
   /// has been deleted, and \c New is to be used in its place.
+  /// @param Old Node that has been deleted.
+  /// @param New Node that replaces \p Old.
   void ReplaceNode(NodeRef Old, NodeRef New) {
     assert(nodeVisitNumbers.count(Old) && "Old not in scc_iterator?");
     // Do the assignment in two steps, in case 'New' is not yet in the map, and
@@ -235,15 +245,21 @@ bool scc_iterator<GraphT, GT>::hasCycle() const {
   }
 
 /// Construct the begin iterator for a deduced graph type T.
+/// @param G Graph to traverse.
+/// @return SCC iterator positioned at the first SCC of \p G.
 template <class T> scc_iterator<T> scc_begin(const T &G) {
   return scc_iterator<T>::begin(G);
 }
 
 /// Construct the end iterator for a deduced graph type T.
+/// @param G Graph whose end iterator is requested.
+/// @return Past-the-end SCC iterator for \p G.
 template <class T> scc_iterator<T> scc_end(const T &G) {
   return scc_iterator<T>::end(G);
 }
 
+/// Reorder nodes of a directed SCC by decreasing edge weight.
+///
 /// Sort the nodes of a directed SCC in the decreasing order of the edge
 /// weights. The instantiating GraphT type should have weighted edge type
 /// declared in its graph traits in order to use this iterator.
@@ -307,6 +323,7 @@ public:
   scc_member_iterator(const NodesType &InputNodes);
 
   /// Return the SCC nodes ordered by decreasing edge weight.
+  /// @return Mutable reference to the reordered SCC node list.
   NodesType &operator*() { return Nodes; }
 };
 

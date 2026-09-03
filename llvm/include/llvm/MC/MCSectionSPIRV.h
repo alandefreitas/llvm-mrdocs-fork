@@ -18,6 +18,7 @@
 
 namespace llvm {
 
+/// This represents a section in a SPIR-V object file.
 class MCSectionSPIRV final : public MCSection {
   friend class MCContext;
 

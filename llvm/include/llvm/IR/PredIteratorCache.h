@@ -21,9 +21,10 @@
 
 namespace llvm {
 
-/// PredIteratorCache - This class is an extremely trivial cache for
-/// predecessor iterator queries.  This is useful for code that repeatedly
-/// wants the predecessor list for the same blocks.
+/// Extremely trivial cache for predecessor iterator queries.
+///
+/// This is useful for code that repeatedly wants the predecessor list for the
+/// same blocks.
 class PredIteratorCache {
   /// Cached list of predecessors, allocated in Memory.
   DenseMap<BasicBlock *, ArrayRef<BasicBlock *>> BlockToPredsMap;
@@ -32,7 +33,13 @@ class PredIteratorCache {
   BumpPtrAllocator Memory;
 
 public:
+  /// Return the number of predecessors of \p BB.
+  /// \param BB Basic block whose predecessor count is requested.
+  /// \return Number of predecessors of \p BB.
   size_t size(BasicBlock *BB) { return get(BB).size(); }
+  /// Return the cached predecessor list for \p BB.
+  /// \param BB Basic block whose predecessors are requested.
+  /// \return Cached array of predecessor basic blocks for \p BB.
   ArrayRef<BasicBlock *> get(BasicBlock *BB) {
     ArrayRef<BasicBlock *> &Entry = BlockToPredsMap[BB];
     if (Entry.data())

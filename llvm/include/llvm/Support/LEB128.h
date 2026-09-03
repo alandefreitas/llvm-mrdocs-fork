@@ -19,8 +19,12 @@
 
 namespace llvm {
 
-/// Utility function to encode a SLEB128 value to an output stream. Returns
-/// the length in bytes of the encoded value.
+/// Utility function to encode a SLEB128 value to an output stream.
+///
+/// \param Value The signed value to encode.
+/// \param OS The output stream to write the encoded bytes to.
+/// \param PadTo If non-zero, pad the encoding to at least this many bytes.
+/// \return The length in bytes of the encoded value.
 inline unsigned encodeSLEB128(int64_t Value, raw_ostream &OS,
                               unsigned PadTo = 0) {
   bool More;
@@ -47,8 +51,12 @@ inline unsigned encodeSLEB128(int64_t Value, raw_ostream &OS,
   return Count;
 }
 
-/// Utility function to encode a SLEB128 value to a buffer. Returns
-/// the length in bytes of the encoded value.
+/// Utility function to encode a SLEB128 value to a buffer.
+///
+/// \param Value The signed value to encode.
+/// \param p The buffer to write the encoded bytes to.
+/// \param PadTo If non-zero, pad the encoding to at least this many bytes.
+/// \return The length in bytes of the encoded value.
 inline unsigned encodeSLEB128(int64_t Value, uint8_t *p, unsigned PadTo = 0) {
   uint8_t *orig_p = p;
   unsigned Count = 0;
@@ -74,8 +82,12 @@ inline unsigned encodeSLEB128(int64_t Value, uint8_t *p, unsigned PadTo = 0) {
   return (unsigned)(p - orig_p);
 }
 
-/// Utility function to encode a ULEB128 value to an output stream. Returns
-/// the length in bytes of the encoded value.
+/// Utility function to encode a ULEB128 value to an output stream.
+///
+/// \param Value The unsigned value to encode.
+/// \param OS The output stream to write the encoded bytes to.
+/// \param PadTo If non-zero, pad the encoding to at least this many bytes.
+/// \return The length in bytes of the encoded value.
 inline unsigned encodeULEB128(uint64_t Value, raw_ostream &OS,
                               unsigned PadTo = 0) {
   unsigned Count = 0;
@@ -98,8 +110,12 @@ inline unsigned encodeULEB128(uint64_t Value, raw_ostream &OS,
   return Count;
 }
 
-/// Utility function to encode a ULEB128 value to a buffer. Returns
-/// the length in bytes of the encoded value.
+/// Utility function to encode a ULEB128 value to a buffer.
+///
+/// \param Value The unsigned value to encode.
+/// \param p The buffer to write the encoded bytes to.
+/// \param PadTo If non-zero, pad the encoding to at least this many bytes.
+/// \return The length in bytes of the encoded value.
 inline unsigned encodeULEB128(uint64_t Value, uint8_t *p,
                               unsigned PadTo = 0) {
   uint8_t *orig_p = p;
@@ -127,6 +143,12 @@ inline unsigned encodeULEB128(uint64_t Value, uint8_t *p,
 ///
 /// If \p error is non-null, it will point to a static error message,
 /// if an error occurred. It will not be modified on success.
+///
+/// \param p Pointer to the ULEB128-encoded bytes.
+/// \param n If non-null, set to the number of bytes consumed.
+/// \param end Optional end of buffer; decoding stops with an error if reached.
+/// \param error If non-null, receives a static error message on failure.
+/// \return The decoded unsigned value, or 0 on error.
 inline uint64_t decodeULEB128(const uint8_t *p, unsigned *n = nullptr,
                               const uint8_t *end = nullptr,
                               const char **error = nullptr) {
@@ -166,6 +188,12 @@ inline uint64_t decodeULEB128(const uint8_t *p, unsigned *n = nullptr,
 ///
 /// If \p error is non-null, it will point to a static error message,
 /// if an error occurred. It will not be modified on success.
+///
+/// \param p Pointer to the SLEB128-encoded bytes.
+/// \param n If non-null, set to the number of bytes consumed.
+/// \param end Optional end of buffer; decoding stops with an error if reached.
+/// \param error If non-null, receives a static error message on failure.
+/// \return The decoded signed value, or 0 on error.
 inline int64_t decodeSLEB128(const uint8_t *p, unsigned *n = nullptr,
                              const uint8_t *end = nullptr,
                              const char **error = nullptr) {
@@ -209,6 +237,12 @@ inline int64_t decodeSLEB128(const uint8_t *p, unsigned *n = nullptr,
   return Value;
 }
 
+/// Decode a ULEB128 value and advance the pointer past the encoded bytes.
+///
+/// \param p Pointer to the encoded bytes; advanced by the number of bytes read.
+/// \param end Optional end of buffer; decoding stops with an error if reached.
+/// \param error If non-null, receives a static error message on failure.
+/// \return The decoded unsigned value, or 0 on error.
 inline uint64_t decodeULEB128AndInc(const uint8_t *&p, const uint8_t *end,
                                     const char **error = nullptr) {
   unsigned n;
@@ -217,6 +251,12 @@ inline uint64_t decodeULEB128AndInc(const uint8_t *&p, const uint8_t *end,
   return ret;
 }
 
+/// Decode a SLEB128 value and advance the pointer past the encoded bytes.
+///
+/// \param p Pointer to the encoded bytes; advanced by the number of bytes read.
+/// \param end Optional end of buffer; decoding stops with an error if reached.
+/// \param error If non-null, receives a static error message on failure.
+/// \return The decoded signed value, or 0 on error.
 inline int64_t decodeSLEB128AndInc(const uint8_t *&p, const uint8_t *end,
                                    const char **error = nullptr) {
   unsigned n;
@@ -225,11 +265,19 @@ inline int64_t decodeSLEB128AndInc(const uint8_t *&p, const uint8_t *end,
   return ret;
 }
 
+/// Decode a ULEB128 value and advance the pointer, without bounds checking.
+///
+/// \param p Pointer to the encoded bytes; advanced by the number of bytes read.
+/// \return The decoded unsigned value.
 inline uint64_t decodeULEB128AndIncUnsafe(const uint8_t *&p) {
   return decodeULEB128AndInc(p, nullptr);
 }
 
 /// Overwrite a ULEB128 value and keep the original length.
+///
+/// \param bufLoc Pointer to the existing ULEB128 encoding to overwrite.
+/// \param val The new unsigned value to encode in place.
+/// \return The remaining bits of \p val after writing the final byte.
 inline uint64_t overwriteULEB128(uint8_t *bufLoc, uint64_t val) {
   while (*bufLoc & 0x80) {
     *bufLoc++ = 0x80 | (val & 0x7f);
@@ -239,8 +287,18 @@ inline uint64_t overwriteULEB128(uint8_t *bufLoc, uint64_t val) {
   return val;
 }
 
-enum class LEB128Sign { Unsigned, Signed };
+/// Whether to encode with signed or unsigned LEB128.
+enum class LEB128Sign {
+  /// Encode as unsigned LEB128 (ULEB128).
+  Unsigned,
+  /// Encode as signed LEB128 (SLEB128).
+  Signed
+};
 
+/// Append a LEB128-encoded value to a byte buffer.
+///
+/// \param Buffer The buffer to append the encoded bytes to.
+/// \param Value The value to encode according to \p Sign.
 template <LEB128Sign Sign, typename T, typename U = char,
           unsigned MaxLEB128SizeBytes = 16>
 inline void appendLEB128(SmallVectorImpl<U> &Buffer, T Value) {
@@ -257,9 +315,15 @@ inline void appendLEB128(SmallVectorImpl<U> &Buffer, T Value) {
 }
 
 /// Utility function to get the size of the ULEB128-encoded value.
+///
+/// \param Value The unsigned value whose encoded size is computed.
+/// \return The number of bytes needed to encode \p Value as ULEB128.
 LLVM_ABI extern unsigned getULEB128Size(uint64_t Value);
 
 /// Utility function to get the size of the SLEB128-encoded value.
+///
+/// \param Value The signed value whose encoded size is computed.
+/// \return The number of bytes needed to encode \p Value as SLEB128.
 LLVM_ABI extern unsigned getSLEB128Size(int64_t Value);
 
 } // namespace llvm

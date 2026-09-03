@@ -49,11 +49,12 @@ namespace llvm {
 ///   LDBG("debug_type", 2) << "Bitset contains: " << Bitset;
 #define LDBG(...) _GET_LDBG_MACRO(__VA_ARGS__)(__VA_ARGS__)
 
-/// LDBG_OS() is a macro that behaves like LDBG() but instead of directly using
-/// it to stream the output, it takes a callback function that will be called
-/// with a raw_ostream.
-/// This is useful when you need to pass a `raw_ostream` to a helper function to
-/// be able to print (when the `<<` operator is not available).
+/// Invoke a callback with a prefixed debug `raw_ostream`, like LDBG().
+///
+/// Behaves like LDBG() but instead of streaming directly, it takes a callback
+/// that will be called with a raw_ostream. This is useful when you need to pass
+/// a `raw_ostream` to a helper function to be able to print (when the `<<`
+/// operator is not available).
 ///
 /// E.g.,
 ///   LDBG_OS([&] (raw_ostream &Os) {
@@ -79,7 +80,7 @@ namespace llvm {
 #define __LLVM_FILE_NAME__ ::llvm::impl::getShortFileName(__FILE__)
 #endif
 
-// Everything below are implementation details of the macros above.
+/// Implementation details for the LDBG() and LDBG_OS() macros.
 namespace impl {
 
 /// This macro expands to the stream to use for output, we use a macro to allow
@@ -103,6 +104,14 @@ namespace impl {
 
 /// This macro is the core of the LDBG() implementation. It is used to print the
 /// debug output with the given stream, level, type, file, and line number.
+///
+/// \param STREAM Underlying \c raw_ostream that receives the output.
+/// \param LEVEL_OR_TYPE Debug level when an integer, or type when a string
+///        (paired with \p TYPE_OR_LEVEL).
+/// \param TYPE_OR_LEVEL Debug type when a string, or level when an integer
+///        (paired with \p LEVEL_OR_TYPE).
+/// \param FILE Source file name shown in the prefix.
+/// \param LINE Source line number shown in the prefix.
 #define LDBG_STREAM_LEVEL_TYPE_FILE_AND_LINE(STREAM, LEVEL_OR_TYPE,            \
                                              TYPE_OR_LEVEL, FILE, LINE)        \
   for (bool _c = ::llvm::DebugFlag && ::llvm::impl::ldbgIsCurrentDebugType(    \
@@ -116,6 +125,13 @@ namespace impl {
 
 /// These macros are helpers to implement LDBG() with an increasing amount of
 /// optional arguments made explicit.
+///
+/// \param STREAM Underlying \c raw_ostream that receives the output.
+/// \param LEVEL_OR_TYPE Debug level when an integer, or type when a string
+///        (paired with \p TYPE_OR_LEVEL).
+/// \param TYPE_OR_LEVEL Debug type when a string, or level when an integer
+///        (paired with \p LEVEL_OR_TYPE).
+/// \param FILE Source file name shown in the prefix.
 #define LDBG_STREAM_LEVEL_TYPE_AND_FILE(STREAM, LEVEL_OR_TYPE, TYPE_OR_LEVEL,  \
                                         FILE)                                  \
   LDBG_STREAM_LEVEL_TYPE_FILE_AND_LINE(STREAM, LEVEL_OR_TYPE, TYPE_OR_LEVEL,   \
@@ -123,18 +139,25 @@ namespace impl {
 #define LDGB_STREAM_LEVEL_AND_TYPE(STREAM, LEVEL_OR_TYPE, TYPE_OR_LEVEL)       \
   LDBG_STREAM_LEVEL_TYPE_AND_FILE(STREAM, LEVEL_OR_TYPE, TYPE_OR_LEVEL,        \
                                   __LLVM_FILE_NAME__)
-/// This macro is a helper when LDBG() is called with 2 arguments.
-/// In this case we want to force the first argument to be the type for
-/// consistency in the codebase.
-/// We trick this by casting the first argument to a (const char *) which
-/// won't compile with an int.
+/// Expand LDBG() when both a debug type and a level are provided.
+///
+/// When LDBG() is called with 2 arguments, the first argument is forced to be
+/// the type for consistency in the codebase. We trick this by casting the first
+/// argument to a (const char *) which won't compile with an int.
+///
+/// \param TYPE Debug type string (cast to \c const char *).
+/// \param LEVEL Verbosity level required for the output.
 #define LDBG_TYPE_AND_LEVEL(TYPE, LEVEL)                                       \
   LDGB_STREAM_LEVEL_AND_TYPE(LDBG_STREAM, static_cast<const char *>(TYPE),     \
                              (LEVEL))
 
-/// When a single argument is provided. This can be either a level or the debug
-/// type. If a level is provided, we default the debug type to DEBUG_TYPE, if a
-/// string is provided, we default the level to 1.
+/// Expand LDBG() when a single level-or-type argument is provided.
+///
+/// The argument can be either a level or the debug type. If a level is
+/// provided, we default the debug type to DEBUG_TYPE; if a string is provided,
+/// we default the level to 1.
+///
+/// \param LEVEL_OR_TYPE Either a debug level (int) or a debug type (string).
 #define LDBG_LEVEL_OR_TYPE(LEVEL_OR_TYPE)                                      \
   LDGB_STREAM_LEVEL_AND_TYPE(LDBG_STREAM, (LEVEL_OR_TYPE),                     \
                              LDBG_GET_DEFAULT_TYPE_OR_LEVEL(LEVEL_OR_TYPE))
@@ -159,6 +182,15 @@ namespace impl {
 
 /// This macro is the core of the LDBG_OS() macros. It is used to print the
 /// debug output with the given stream, level, type, file, and line number.
+///
+/// \param TYPE_OR_LEVEL Debug type when a string, or level when an integer
+///        (paired with \p LEVEL_OR_TYPE).
+/// \param LEVEL_OR_TYPE Debug level when an integer, or type when a string
+///        (paired with \p TYPE_OR_LEVEL).
+/// \param CALLBACK Callable invoked with the prefixed debug stream.
+/// \param STREAM Underlying \c raw_ostream that receives the output.
+/// \param FILE Source file name shown in the prefix.
+/// \param LINE Source line number shown in the prefix.
 #define LDBG_OS_IMPL(TYPE_OR_LEVEL, LEVEL_OR_TYPE, CALLBACK, STREAM, FILE,     \
                      LINE)                                                     \
   if (::llvm::DebugFlag &&                                                     \
@@ -183,12 +215,17 @@ namespace impl {
 // General Helpers for the implementation above
 // ----------------------------------------------------------------------------
 
-/// Return the stringified macro as a StringRef.
+/// Return \p Str as a StringRef, stripping surrounding quotes if present.
+///
 /// Also, strip out potential surrounding quotes: this comes from an artifact of
 /// the macro stringification, if DEBUG_TYPE is undefined we get the string
 /// "DEBUG_TYPE", however if it is defined we get the string with the quotes.
 /// For example if DEBUG_TYPE is "foo", we get "\"foo\"" but we want to return
 /// "foo" here.
+///
+/// \param Str Null-terminated string, possibly wrapped in quotes by
+///        stringification.
+/// \return \p Str as a StringRef, without surrounding quotes when present.
 constexpr ::llvm::StringRef strip_quotes(const char *Str) {
   ::llvm::StringRef S(Str);
   if (Str[0] == '"' && Str[S.size() - 1] == '"')
@@ -196,10 +233,13 @@ constexpr ::llvm::StringRef strip_quotes(const char *Str) {
   return S;
 }
 
-/// Helper to provide the default level (=1) or type (=DEBUG_TYPE). This is used
-/// when a single argument is passed to LDBG() (or LDBG_OS()), if it is an
-/// integer we return DEBUG_TYPE and if it is a string we return 1.
-/// When DEBUG_TYPE is not defined, we return the current file name instead.
+/// Provide the default level (=1) or type (=DEBUG_TYPE) for a single argument.
+///
+/// Used when a single argument is passed to LDBG() (or LDBG_OS()): if it is an
+/// integer we return DEBUG_TYPE and if it is a string we return 1. When
+/// DEBUG_TYPE is not defined, we return the current file name instead.
+///
+/// \param LEVEL_OR_TYPE Either a debug level (int) or a debug type (string).
 #define LDBG_GET_DEFAULT_TYPE_OR_LEVEL(LEVEL_OR_TYPE)                          \
   [](auto LevelOrType) {                                                       \
     if constexpr (std::is_integral_v<decltype(LevelOrType)>) {                 \
@@ -216,6 +256,8 @@ constexpr ::llvm::StringRef strip_quotes(const char *Str) {
 
 /// Helpers to get DEBUG_TYPE as a StringRef, even when DEBUG_TYPE is not
 /// defined (in which case it expands to "DEBUG_TYPE")
+///
+/// \param X Token to stringize (typically \c DEBUG_TYPE).
 #define LDBG_GET_DEBUG_TYPE_STR__(X) #X
 #define LDBG_GET_DEBUG_TYPE_STR_(X) LDBG_GET_DEBUG_TYPE_STR__(X)
 #define LDBG_GET_DEBUG_TYPE_STR() LDBG_GET_DEBUG_TYPE_STR_(DEBUG_TYPE)
@@ -266,6 +308,14 @@ class LLVM_ABI raw_ldbg_ostream final : public raw_ostream {
   }
 
 public:
+  /// Construct a prefixing debug stream writing through to \p Os.
+  ///
+  /// \param Prefix Text inserted at the start of each line.
+  /// \param Os Underlying stream that receives the prefixed output.
+  /// \param ShouldPrefixNextString If true, emit \p Prefix before the next
+  ///        write.
+  /// \param ShouldEmitNewLineOnDestruction If true, write a newline when this
+  ///        stream is destroyed.
   explicit raw_ldbg_ostream(std::string Prefix, raw_ostream &Os,
                             bool ShouldPrefixNextString = true,
                             bool ShouldEmitNewLineOnDestruction = false)
@@ -274,16 +324,21 @@ public:
         ShouldEmitNewLineOnDestruction(ShouldEmitNewLineOnDestruction) {
     SetUnbuffered();
   }
+  /// Optionally emit a trailing newline, then destroy the stream.
   ~raw_ldbg_ostream() final {
     if (ShouldEmitNewLineOnDestruction)
       Os << '\n';
   }
 
   /// Forward the current_pos method to the underlying stream.
+  ///
+  /// \return The current write position of the underlying stream.
   uint64_t current_pos() const final { return Os.tell(); }
 
   /// Some of the `<<` operators expect an lvalue, so we trick the type
   /// system.
+  ///
+  /// \return A reference to this stream.
   raw_ldbg_ostream &asLvalue() { return *this; }
 };
 
@@ -292,10 +347,25 @@ class RAIINewLineStream final : public raw_ostream {
   raw_ostream &Os;
 
 public:
+  /// Construct a stream that writes through to \p Os and emits a newline on
+  /// destruction.
+  ///
+  /// \param Os Underlying stream that receives all writes.
   RAIINewLineStream(raw_ostream &Os) : Os(Os) { SetUnbuffered(); }
+  /// Emit a trailing newline to the underlying stream.
   ~RAIINewLineStream() override { Os << '\n'; }
+  /// Forward \p Size bytes from \p Ptr to the underlying stream.
+  ///
+  /// \param Ptr Start of the bytes to write.
+  /// \param Size Number of bytes to write.
   void write_impl(const char *Ptr, size_t Size) final { Os.write(Ptr, Size); }
+  /// Return the current write position of the underlying stream.
+  ///
+  /// \return The current write position of the underlying stream.
   uint64_t current_pos() const final { return Os.tell(); }
+  /// Return this stream as an lvalue for use with `<<` operators.
+  ///
+  /// \return A reference to this stream.
   RAIINewLineStream &asLvalue() { return *this; }
 };
 

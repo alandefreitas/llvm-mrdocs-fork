@@ -15,12 +15,23 @@ namespace llvm {
 
 class TargetMachine;
 
+/// New PM pass that combines interleaved loads into wide loads.
+///
+/// Identifies interleaved load patterns and combines them into wide loads that
+/// InterleavedAccessPass can detect and lower to target-specific intrinsics.
 class InterleavedLoadCombinePass
     : public OptionalPassInfoMixin<InterleavedLoadCombinePass> {
   const TargetMachine *TM;
 
 public:
+  /// Construct an interleaved-load-combine pass for target machine \p TM.
+  /// \param TM Target machine used when combining interleaved loads.
   explicit InterleavedLoadCombinePass(const TargetMachine &TM) : TM(&TM) {}
+
+  /// Combine interleaved loads into wide loads in function \p F.
+  /// \param F Function whose interleaved loads are combined.
+  /// \param FAM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

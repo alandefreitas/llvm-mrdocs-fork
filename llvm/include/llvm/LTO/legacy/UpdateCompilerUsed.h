@@ -20,10 +20,15 @@ namespace llvm {
 class Module;
 class TargetMachine;
 
+/// Create or update the magic "llvm.compiler_used" global in a module.
+///
 /// Find all globals in \p TheModule that are referenced in
 /// \p AsmUndefinedRefs, as well as the user-supplied functions definitions that
 /// are also libcalls, and create or update the magic "llvm.compiler_used"
 /// global in \p TheModule.
+/// \param TheModule Module whose llvm.compiler_used global is created or updated.
+/// \param TM Target machine used to identify libcalls and mangle symbol names.
+/// \param AsmUndefinedRefs Set of mangled symbol names referenced from assembly.
 LLVM_ABI void updateCompilerUsed(Module &TheModule, const TargetMachine &TM,
                                  const StringSet<> &AsmUndefinedRefs);
 }

@@ -22,6 +22,8 @@ class Loop;
 class StringRef;
 class raw_ostream;
 
+/// Pass that unswitches loops with loop-invariant branch or switch conditions.
+///
 /// This pass transforms loops that contain branches or switches on loop-
 /// invariant conditions to have multiple loops. For example, it turns the left
 /// into the right code:
@@ -71,13 +73,25 @@ class SimpleLoopUnswitchPass
   bool Trivial;
 
 public:
+  /// Construct a simple loop unswitch pass.
+  /// @param NonTrivial When true, also perform non-trivial unswitching.
+  /// @param Trivial When true, perform trivial unswitching.
   SimpleLoopUnswitchPass(bool NonTrivial = false, bool Trivial = true)
       : NonTrivial(NonTrivial), Trivial(Trivial) {}
 
+  /// Run simple loop unswitching over the loop.
+  /// @param L Loop to unswitch.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);
 
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
@@ -88,6 +102,7 @@ public:
 struct ShouldRunExtraSimpleLoopUnswitch
     : public ShouldRunExtraPasses<ShouldRunExtraSimpleLoopUnswitch>,
       public AnalysisInfoMixin<ShouldRunExtraSimpleLoopUnswitch> {
+  /// Analysis key used to identify this analysis in the pass manager.
   LLVM_ABI static AnalysisKey Key;
 };
 

@@ -38,12 +38,18 @@ class RandomNumberGenerator {
   using generator_type = std::mt19937_64;
 
 public:
+  /// Type of values produced by this generator.
   using result_type = generator_type::result_type;
 
   /// Returns a random number in the range [0, Max).
+  /// \returns A random number in the range [0, Max).
   LLVM_ABI result_type operator()();
 
+  /// Returns the smallest value this generator can produce.
+  /// \returns The smallest value this generator can produce.
   static constexpr result_type min() { return generator_type::min(); }
+  /// Returns the largest value this generator can produce.
+  /// \returns The largest value this generator can produce.
   static constexpr result_type max() { return generator_type::max(); }
 
 private:
@@ -62,7 +68,16 @@ private:
   friend class Module;
 };
 
-// Get random vector of specified size
+/// Fills a buffer with random bytes from the operating system.
+///
+/// On Windows this uses CryptGenRandom; elsewhere it reads from
+/// /dev/urandom. This is not the deterministic generator provided by
+/// \c RandomNumberGenerator.
+///
+/// \param Buffer Destination buffer to fill.
+/// \param Size Number of bytes to write into \p Buffer.
+/// \returns A default-constructed error_code on success, or an error on
+/// failure.
 LLVM_ABI std::error_code getRandomBytes(void *Buffer, size_t Size);
 }
 

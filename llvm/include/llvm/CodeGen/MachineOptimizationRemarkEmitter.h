@@ -31,6 +31,13 @@ class MachineInstr;
 /// that are used by machine passes.
 class DiagnosticInfoMIROptimization : public DiagnosticInfoOptimizationBase {
 public:
+  /// Construct a MIR optimization remark of kind \p Kind.
+  ///
+  /// \param Kind Diagnostic kind
+  /// \param PassName Name of the pass emitting this diagnostic
+  /// \param RemarkName Textual identifier for the remark
+  /// \param Loc Debug location for the remark
+  /// \param MBB Machine basic block that the optimization operates in
   DiagnosticInfoMIROptimization(enum DiagnosticKind Kind, const char *PassName,
                                 StringRef RemarkName,
                                 const DiagnosticLocation &Loc,
@@ -42,14 +49,24 @@ public:
   /// MI-specific kinds of diagnostic Arguments.
   struct MachineArgument : public DiagnosticInfoOptimizationBase::Argument {
     /// Print an entire MachineInstr.
+    ///
+    /// \param Key Argument key name
+    /// \param MI Machine instruction to stringify
     LLVM_ABI MachineArgument(StringRef Key, const MachineInstr &MI);
   };
 
+  /// Return true if \p DI is a MIR optimization remark.
+  ///
+  /// \param DI Diagnostic to test
+  /// \return True if \p DI is a MIR optimization remark
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() >= DK_FirstMachineRemark &&
            DI->getKind() <= DK_LastMachineRemark;
   }
 
+  /// Return the machine basic block this remark refers to.
+  ///
+  /// \return Machine basic block associated with this remark
   const MachineBasicBlock *getBlock() const { return MBB; }
 
 private:
@@ -59,22 +76,32 @@ private:
 /// Diagnostic information for applied optimization remarks.
 class MachineOptimizationRemark : public DiagnosticInfoMIROptimization {
 public:
-  /// \p PassName is the name of the pass emitting this diagnostic. If this name
+  /// Construct an applied optimization remark for the given pass and block.
+  ///
+  /// \param PassName Name of the pass emitting this diagnostic. If this name
   /// matches the regular expression given in -Rpass=, then the diagnostic will
-  /// be emitted.  \p RemarkName is a textual identifier for the remark.  \p
-  /// Loc is the debug location and \p MBB is the block that the optimization
-  /// operates in.
+  /// be emitted.
+  /// \param RemarkName Textual identifier for the remark
+  /// \param Loc Debug location for the remark
+  /// \param MBB Machine basic block that the optimization operates in
   MachineOptimizationRemark(const char *PassName, StringRef RemarkName,
                             const DiagnosticLocation &Loc,
                             const MachineBasicBlock *MBB)
       : DiagnosticInfoMIROptimization(DK_MachineOptimizationRemark, PassName,
                                       RemarkName, Loc, MBB) {}
 
+  /// Return true if \p DI is a MachineOptimizationRemark.
+  ///
+  /// \param DI Diagnostic to test
+  /// \return True if \p DI is a MachineOptimizationRemark
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_MachineOptimizationRemark;
   }
 
+  /// Return true if this remark is enabled by -Rpass=.
+  ///
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
+  /// \return True if passed-optimization remarks are enabled for this pass
   bool isEnabled() const override {
     const Function &Fn = getFunction();
     LLVMContext &Ctx = Fn.getContext();
@@ -85,22 +112,32 @@ public:
 /// Diagnostic information for missed-optimization remarks.
 class MachineOptimizationRemarkMissed : public DiagnosticInfoMIROptimization {
 public:
-  /// \p PassName is the name of the pass emitting this diagnostic. If this name
+  /// Construct a missed-optimization remark for the given pass and block.
+  ///
+  /// \param PassName Name of the pass emitting this diagnostic. If this name
   /// matches the regular expression given in -Rpass-missed=, then the
-  /// diagnostic will be emitted.  \p RemarkName is a textual identifier for the
-  /// remark.  \p Loc is the debug location and \p MBB is the block that the
-  /// optimization operates in.
+  /// diagnostic will be emitted.
+  /// \param RemarkName Textual identifier for the remark
+  /// \param Loc Debug location for the remark
+  /// \param MBB Machine basic block that the optimization operates in
   MachineOptimizationRemarkMissed(const char *PassName, StringRef RemarkName,
                                   const DiagnosticLocation &Loc,
                                   const MachineBasicBlock *MBB)
       : DiagnosticInfoMIROptimization(DK_MachineOptimizationRemarkMissed,
                                       PassName, RemarkName, Loc, MBB) {}
 
+  /// Return true if \p DI is a MachineOptimizationRemarkMissed.
+  ///
+  /// \param DI Diagnostic to test
+  /// \return True if \p DI is a MachineOptimizationRemarkMissed
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_MachineOptimizationRemarkMissed;
   }
 
+  /// Return true if this remark is enabled by -Rpass-missed=.
+  ///
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
+  /// \return True if missed-optimization remarks are enabled for this pass
   bool isEnabled() const override {
     const Function &Fn = getFunction();
     LLVMContext &Ctx = Fn.getContext();
@@ -111,28 +148,43 @@ public:
 /// Diagnostic information for optimization analysis remarks.
 class MachineOptimizationRemarkAnalysis : public DiagnosticInfoMIROptimization {
 public:
-  /// \p PassName is the name of the pass emitting this diagnostic. If this name
+  /// Construct an optimization analysis remark for the given pass and block.
+  ///
+  /// \param PassName Name of the pass emitting this diagnostic. If this name
   /// matches the regular expression given in -Rpass-analysis=, then the
-  /// diagnostic will be emitted.  \p RemarkName is a textual identifier for the
-  /// remark.  \p Loc is the debug location and \p MBB is the block that the
-  /// optimization operates in.
+  /// diagnostic will be emitted.
+  /// \param RemarkName Textual identifier for the remark
+  /// \param Loc Debug location for the remark
+  /// \param MBB Machine basic block that the optimization operates in
   MachineOptimizationRemarkAnalysis(const char *PassName, StringRef RemarkName,
                                     const DiagnosticLocation &Loc,
                                     const MachineBasicBlock *MBB)
       : DiagnosticInfoMIROptimization(DK_MachineOptimizationRemarkAnalysis,
                                       PassName, RemarkName, Loc, MBB) {}
 
+  /// Construct an analysis remark deriving location from instruction \p MI.
+  ///
+  /// \param PassName Name of the pass emitting this diagnostic
+  /// \param RemarkName Textual identifier for the remark
+  /// \param MI Instruction used to derive debug location and basic block
   MachineOptimizationRemarkAnalysis(const char *PassName, StringRef RemarkName,
                                     const MachineInstr *MI)
       : DiagnosticInfoMIROptimization(DK_MachineOptimizationRemarkAnalysis,
                                       PassName, RemarkName, MI->getDebugLoc(),
                                       MI->getParent()) {}
 
+  /// Return true if \p DI is a MachineOptimizationRemarkAnalysis.
+  ///
+  /// \param DI Diagnostic to test
+  /// \return True if \p DI is a MachineOptimizationRemarkAnalysis
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_MachineOptimizationRemarkAnalysis;
   }
 
+  /// Return true if this remark is enabled by -Rpass-analysis=.
+  ///
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
+  /// \return True if analysis remarks are enabled for this pass
   bool isEnabled() const override {
     const Function &Fn = getFunction();
     LLVMContext &Ctx = Fn.getContext();
@@ -140,8 +192,8 @@ public:
   }
 };
 
-/// Extend llvm::ore:: with MI-specific helper names.
 namespace ore {
+/// Alias for machine-instruction diagnostic arguments.
 using MNV = DiagnosticInfoMIROptimization::MachineArgument;
 }
 
@@ -153,18 +205,33 @@ using MNV = DiagnosticInfoMIROptimization::MachineArgument;
 /// enabled in the LLVM context.
 class MachineOptimizationRemarkEmitter {
 public:
+  /// Construct an emitter for \p MF using optional block frequencies \p MBFI.
+  ///
+  /// \param MF Machine function remarks are emitted for
+  /// \param MBFI Block frequency info used for hotness, or null
   MachineOptimizationRemarkEmitter(MachineFunction &MF,
                                    MachineBlockFrequencyInfo *MBFI)
       : MF(MF), MBFI(MBFI) {}
 
-  MachineOptimizationRemarkEmitter(MachineOptimizationRemarkEmitter &&) =
+  /// Move-construct an optimization remark emitter.
+  ///
+  /// \param Arg Emitter to move from
+  MachineOptimizationRemarkEmitter(MachineOptimizationRemarkEmitter &&Arg) =
       default;
 
   /// Handle invalidation events in the new pass manager.
+  ///
+  /// \param MF Machine function whose analyses may be invalidated
+  /// \param PA Set of analyses preserved by the invalidating pass
+  /// \param Inv Invalidator used to invalidate dependent analyses
+  /// \return True if this result should be invalidated because MBFI was
+  /// invalidated
   LLVM_ABI bool invalidate(MachineFunction &MF, const PreservedAnalyses &PA,
                            MachineFunctionAnalysisManager::Invalidator &Inv);
 
   /// Emit an optimization remark.
+  ///
+  /// \param OptDiag Optimization diagnostic to emit
   LLVM_ABI void emit(DiagnosticInfoOptimizationBase &OptDiag);
 
   /// Whether we allow for extra compile-time budget to perform more
@@ -174,6 +241,10 @@ public:
   /// that are normally too noisy.  In this mode, we can use the extra analysis
   /// (1) to filter trivial false positives or (2) to provide more context so
   /// that non-trivial false positives can be quickly detected by the user.
+  ///
+  /// \param PassName Name of the pass requesting extra analysis
+  /// \return True if a remark streamer is active or remarks are enabled for
+  /// \p PassName
   bool allowExtraAnalysis(StringRef PassName) const {
     return (
         MF.getFunction().getContext().getLLVMRemarkStreamer() ||
@@ -183,8 +254,12 @@ public:
 
   /// Take a lambda that returns a remark which will be emitted.  Second
   /// argument is only used to restrict this to functions.
+  ///
+  /// \param RemarkBuilder Callable that returns a remark to emit
+  /// \param EnableIf Unused; SFINAE restriction to callable types
   template <typename T>
-  void emit(T RemarkBuilder, decltype(RemarkBuilder()) * = nullptr) {
+  void emit(T RemarkBuilder, decltype(RemarkBuilder()) *EnableIf = nullptr) {
+    (void)EnableIf;
     // Avoid building the remark unless we know there are at least *some*
     // remarks enabled. We can't currently check whether remarks are requested
     // for the calling pass since that requires actually building the remark.
@@ -199,6 +274,9 @@ public:
     }
   }
 
+  /// Return the machine block frequency info used for hotness, or null.
+  ///
+  /// \return Block frequency info, or null if hotness was not requested
   MachineBlockFrequencyInfo *getBFI() {
     return MBFI;
   }
@@ -228,7 +306,13 @@ class MachineOptimizationRemarkEmitterAnalysis
   LLVM_ABI static AnalysisKey Key;
 
 public:
+  /// Provide the result typedef for this analysis pass.
   using Result = MachineOptimizationRemarkEmitter;
+  /// Run the analysis pass over a machine function and produce an ORE.
+  ///
+  /// \param MF Machine function to analyze
+  /// \param MFAM Machine function analysis manager
+  /// \return Optimization remark emitter for \p MF
   LLVM_ABI Result run(MachineFunction &MF,
                       MachineFunctionAnalysisManager &MFAM);
 };
@@ -243,17 +327,29 @@ class LLVM_ABI MachineOptimizationRemarkEmitterPass
   std::unique_ptr<MachineOptimizationRemarkEmitter> ORE;
 
 public:
+  /// Construct the machine optimization remark emitter pass.
   MachineOptimizationRemarkEmitterPass();
 
+  /// Compute the optimization remark emitter for \p MF.
+  ///
+  /// \param MF Machine function to analyze
+  /// \return False; this analysis does not modify the function
   bool runOnMachineFunction(MachineFunction &MF) override;
 
+  /// Declare analyses required and preserved by this pass.
+  ///
+  /// \param AU Analysis usage object to update
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Return the optimization remark emitter for the last run function.
+  ///
+  /// \return Reference to the emitter produced by the last run
   MachineOptimizationRemarkEmitter &getORE() {
     assert(ORE && "pass not run yet");
     return *ORE;
   }
 
+  /// Pass identification, replacement for typeid.
   static char ID;
 };
 }

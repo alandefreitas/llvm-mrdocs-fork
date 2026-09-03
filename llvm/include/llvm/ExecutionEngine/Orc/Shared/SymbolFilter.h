@@ -18,35 +18,67 @@ namespace llvm {
 namespace orc {
 
 namespace shared {
+/// SPS tag type for BloomFilter as an initialized flag, counts, shift, and
+/// table.
 using SPSBloomFilter =
     SPSTuple<bool, uint32_t, uint32_t, uint32_t, SPSSequence<uint64_t>>;
 }
 
+/// Probabilistic set of symbol names for cheap membership tests.
 class BloomFilter {
 public:
+  /// Hash function type mapping a symbol name to a 32-bit hash.
   using HashFunc = std::function<uint32_t(StringRef)>;
 
+  /// Construct an uninitialized bloom filter.
   BloomFilter() = default;
-  BloomFilter(BloomFilter &&) noexcept = default;
-  BloomFilter &operator=(BloomFilter &&) noexcept = default;
-  BloomFilter(const BloomFilter &) = delete;
-  BloomFilter &operator=(const BloomFilter &) = delete;
 
+  /// Move-construct a bloom filter.
+  /// @param Other Filter to move from.
+  BloomFilter(BloomFilter &&Other) noexcept = default;
+
+  /// Move-assign a bloom filter.
+  /// @param Other Filter to move from.
+  /// @return Reference to this filter.
+  BloomFilter &operator=(BloomFilter &&Other) noexcept = default;
+
+  /// Copy construction is deleted.
+  /// @param Other Filter that would be copied.
+  BloomFilter(const BloomFilter &Other) = delete;
+
+  /// Copy assignment is deleted.
+  /// @param Other Filter that would be copied.
+  BloomFilter &operator=(const BloomFilter &Other) = delete;
+
+  /// Construct and initialize a filter sized for \p SymbolCount symbols.
+  /// @param SymbolCount Expected number of symbols to store.
+  /// @param FalsePositiveRate Target false-positive rate in (0, 1).
+  /// @param hashFn Hash function used for symbol names.
   BloomFilter(uint32_t SymbolCount, float FalsePositiveRate, HashFunc hashFn)
       : HashFn(std::move(hashFn)) {
     initialize(SymbolCount, FalsePositiveRate);
   }
+
+  /// Return true if this filter has been initialized.
+  /// @return True if the filter has been initialized.
   bool isInitialized() const { return Initialized; }
 
+  /// Insert \p Sym into the filter.
+  /// @param Sym Symbol name to add.
   void add(StringRef Sym) {
     assert(Initialized);
     addHash(HashFn(Sym));
   }
 
+  /// Return true if \p Sym may be present in the filter.
+  /// @param Sym Symbol name to test.
+  /// @return True if \p Sym may be present; false if it is definitely absent.
   bool mayContain(StringRef Sym) const {
     return !isEmpty() && testHash(HashFn(Sym));
   }
 
+  /// Return true if no symbols have been recorded in the filter.
+  /// @return True if the filter contains no symbols.
   bool isEmpty() const { return SymbolCount == 0; }
 
 private:
@@ -94,23 +126,35 @@ private:
   }
 };
 
+/// Builder for BloomFilter instances from a list of symbol names.
 class BloomFilterBuilder {
 public:
+  /// Hash function type used when constructing the filter.
   using HashFunc = BloomFilter::HashFunc;
 
+  /// Construct a builder with default false-positive rate and hash function.
   BloomFilterBuilder() = default;
 
+  /// Set the target false-positive rate for the built filter.
+  /// @param Rate Desired false-positive rate in (0, 1).
+  /// @return Reference to this builder.
   BloomFilterBuilder &setFalsePositiveRate(float Rate) {
     assert(Rate > 0.0f && Rate < 1.0f);
     FalsePositiveRate = Rate;
     return *this;
   }
 
+  /// Set the hash function used when adding and querying symbols.
+  /// @param Fn Hash function to use.
+  /// @return Reference to this builder.
   BloomFilterBuilder &setHashFunction(HashFunc Fn) {
     HashFn = std::move(Fn);
     return *this;
   }
 
+  /// Build a bloom filter containing all of \p Symbols.
+  /// @param Symbols Non-empty list of symbol names to insert.
+  /// @return A bloom filter containing every symbol in \p Symbols.
   BloomFilter build(ArrayRef<StringRef> Symbols) const {
     assert(!Symbols.empty() && "Cannot build filter from empty symbol list.");
     BloomFilter F(static_cast<uint32_t>(Symbols.size()), FalsePositiveRate,
@@ -133,20 +177,32 @@ private:
 
 namespace shared {
 
+/// SPS serialization traits for BloomFilter.
 template <> class SPSSerializationTraits<SPSBloomFilter, BloomFilter> {
 public:
+  /// Return the serialized size of \p Filter.
+  /// @param Filter Filter to measure.
+  /// @return Number of bytes needed to serialize \p Filter.
   static size_t size(const BloomFilter &Filter) {
     return SPSBloomFilter::AsArgList::size(
         Filter.Initialized, Filter.SymbolCount, Filter.BloomSize,
         Filter.BloomShift, Filter.BloomTable);
   }
 
+  /// Serialize \p Filter into \p OB.
+  /// @param OB Output buffer.
+  /// @param Filter Filter to serialize.
+  /// @return True on success, false if serialization fails.
   static bool serialize(SPSOutputBuffer &OB, const BloomFilter &Filter) {
     return SPSBloomFilter::AsArgList::serialize(
         OB, Filter.Initialized, Filter.SymbolCount, Filter.BloomSize,
         Filter.BloomShift, Filter.BloomTable);
   }
 
+  /// Deserialize a BloomFilter from \p IB into \p Filter.
+  /// @param IB Input buffer.
+  /// @param Filter Destination filter.
+  /// @return True on success, false if deserialization fails.
   static bool deserialize(SPSInputBuffer &IB, BloomFilter &Filter) {
     bool IsInitialized;
     uint32_t SymbolCount = 0, BloomSize = 0, BloomShift = 0;

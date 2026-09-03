@@ -20,6 +20,7 @@
 
 namespace llvm {
 namespace jitlink {
+/// JITLink utilities for AArch64 relocatable objects.
 namespace aarch64 {
 
 /// Represents aarch64 fixups and other aarch64-specific edge kinds.
@@ -418,46 +419,67 @@ enum EdgeKind_aarch64 : Edge::Kind {
 };
 
 /// Returns a string name for the given aarch64 edge. For debugging purposes
-/// only
+/// only.
+/// \param K Edge kind to name.
+/// \return A human-readable name for \p K.
 LLVM_ABI const char *getEdgeKindName(Edge::Kind K);
 
-// Returns whether the Instr is LD/ST (imm12)
+/// Return true if \p Instr is an LD/ST (imm12) instruction.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is an LD/ST (imm12) instruction.
 inline bool isLoadStoreImm12(uint32_t Instr) {
   constexpr uint32_t LoadStoreImm12Mask = 0x3b000000;
   return (Instr & LoadStoreImm12Mask) == 0x39000000;
 }
 
+/// Return true if \p Instr is a test-and-branch (imm14) instruction.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is a test-and-branch (imm14) instruction.
 inline bool isTestAndBranchImm14(uint32_t Instr) {
   constexpr uint32_t TestAndBranchImm14Mask = 0x7e000000;
   return (Instr & TestAndBranchImm14Mask) == 0x36000000;
 }
 
+/// Return true if \p Instr is a conditional branch (imm19) instruction.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is a conditional branch (imm19) instruction.
 inline bool isCondBranchImm19(uint32_t Instr) {
   constexpr uint32_t CondBranchImm19Mask = 0xfe000000;
   return (Instr & CondBranchImm19Mask) == 0x54000000;
 }
 
+/// Return true if \p Instr is a compare-and-branch (imm19) instruction.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is a compare-and-branch (imm19) instruction.
 inline bool isCompAndBranchImm19(uint32_t Instr) {
   constexpr uint32_t CompAndBranchImm19Mask = 0x7e000000;
   return (Instr & CompAndBranchImm19Mask) == 0x34000000;
 }
 
+/// Return true if \p Instr is an ADR instruction.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is an ADR instruction.
 inline bool isADR(uint32_t Instr) {
   constexpr uint32_t ADRMask = 0x9f000000;
   return (Instr & ADRMask) == 0x10000000;
 }
 
+/// Return true if \p Instr is an LDR literal instruction.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is an LDR literal instruction.
 inline bool isLDRLiteral(uint32_t Instr) {
   constexpr uint32_t LDRLitMask = 0x3b000000;
   return (Instr & LDRLitMask) == 0x18000000;
 }
 
-// Returns the amount the address operand of LD/ST (imm12)
-// should be shifted right by.
-//
-// The shift value varies by the data size of LD/ST instruction.
-// For instance, LDH instructoin needs the address to be shifted
-// right by 1.
+/// Return the right-shift amount for an LD/ST (imm12) address operand.
+///
+/// The shift value varies by the data size of the LD/ST instruction.
+/// For instance, an LDH instruction needs the address to be shifted
+/// right by 1.
+/// \param Instr Encoded AArch64 LD/ST (imm12) instruction.
+/// \return The right-shift amount for the address operand, or 0 if \p Instr is
+/// not an LD/ST (imm12) instruction.
 inline unsigned getPageOffset12Shift(uint32_t Instr) {
   constexpr uint32_t Vec128Mask = 0x04800000;
 
@@ -473,16 +495,20 @@ inline unsigned getPageOffset12Shift(uint32_t Instr) {
   return 0;
 }
 
-// Returns whether the Instr is MOVK/MOVZ (imm16) with a zero immediate field
+/// Return true if \p Instr is MOVK/MOVZ (imm16) with a zero immediate field.
+/// \param Instr Encoded AArch64 instruction word to classify.
+/// \return True if \p Instr is MOVK/MOVZ (imm16) with a zero immediate field.
 inline bool isMoveWideImm16(uint32_t Instr) {
   constexpr uint32_t MoveWideImm16Mask = 0x5f9fffe0;
   return (Instr & MoveWideImm16Mask) == 0x52800000;
 }
 
-// Returns the amount the address operand of MOVK/MOVZ (imm16)
-// should be shifted right by.
-//
-// The shift value is specfied in the assembly as LSL #<shift>.
+/// Return the right-shift amount for a MOVK/MOVZ (imm16) address operand.
+///
+/// The shift value is specified in the assembly as LSL #<shift>.
+/// \param Instr Encoded AArch64 MOVK/MOVZ (imm16) instruction.
+/// \return The right-shift amount for the imm16 operand, or 0 if \p Instr is
+/// not a MOVK/MOVZ (imm16) instruction.
 inline unsigned getMoveWide16Shift(uint32_t Instr) {
   if (isMoveWideImm16(Instr)) {
     uint32_t ImplicitShift = (Instr >> 21) & 0b11;
@@ -493,6 +519,11 @@ inline unsigned getMoveWide16Shift(uint32_t Instr) {
 }
 
 /// Apply fixup expression for edge to block content.
+/// \param G Link graph containing the block.
+/// \param B Block whose content should be fixed up.
+/// \param E Edge describing the fixup to apply.
+/// \param GOTSymbol Optional GOT section symbol for GOT-relative fixups.
+/// \return Success, or an error if the fixup cannot be applied.
 inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
                         const Symbol *GOTSymbol) {
   using namespace support;
@@ -719,6 +750,11 @@ LLVM_ABI extern const char PointerJumpStubContent[12];
 ///   alignment: 64-bit
 ///   alignment-offset: 0
 ///   address: highest allowable (~7U)
+/// \param G Link graph to create the pointer in.
+/// \param PointerSection Section that will hold the pointer block.
+/// \param InitialTarget Optional symbol for an initial Pointer64 edge.
+/// \param InitialAddend Addend for the optional initial Pointer64 edge.
+/// \return An anonymous symbol pointing at the new pointer block.
 inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
                                       Symbol *InitialTarget = nullptr,
                                       uint64_t InitialAddend = 0) {
@@ -735,6 +771,10 @@ inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
 ///   alignment: 32-bit
 ///   alignment-offset: 0
 ///   address: highest allowable: (~11U)
+/// \param G Link graph to create the stub block in.
+/// \param StubSection Section that will hold the stub.
+/// \param PointerSymbol Symbol of the in-memory pointer to jump through.
+/// \return The newly created jump stub block.
 inline Block &createPointerJumpStubBlock(LinkGraph &G, Section &StubSection,
                                          Symbol &PointerSymbol) {
   auto &B = G.createContentBlock(StubSection, PointerJumpStubContent,
@@ -748,6 +788,10 @@ inline Block &createPointerJumpStubBlock(LinkGraph &G, Section &StubSection,
 /// an anonymous symbol pointing to it. Return the anonymous symbol.
 ///
 /// The stub block will be created by createPointerJumpStubBlock.
+/// \param G Link graph to create the stub in.
+/// \param StubSection Section that will hold the stub.
+/// \param PointerSymbol Symbol of the in-memory pointer to jump through.
+/// \return An anonymous symbol pointing at the new jump stub.
 inline Symbol &createAnonymousPointerJumpStub(LinkGraph &G,
                                               Section &StubSection,
                                               Symbol &PointerSymbol) {
@@ -765,6 +809,10 @@ inline Symbol &createAnonymousPointerJumpStub(LinkGraph &G,
 LLVM_ABI extern const char ReentryTrampolineContent[8];
 
 /// Create a block of N reentry trampolines.
+/// \param G Link graph to create the trampoline block in.
+/// \param TrampolineSection Section that will hold the trampoline.
+/// \param ReentrySymbol Symbol that the trampoline should call.
+/// \return The newly created reentry trampoline block.
 inline Block &createReentryTrampolineBlock(LinkGraph &G,
                                            Section &TrampolineSection,
                                            Symbol &ReentrySymbol) {
@@ -774,6 +822,11 @@ inline Block &createReentryTrampolineBlock(LinkGraph &G,
   return B;
 }
 
+/// Create an anonymous symbol pointing at a reentry trampoline.
+/// \param G Link graph to create the trampoline in.
+/// \param TrampolineSection Section that will hold the trampoline.
+/// \param ReentrySymbol Symbol that the trampoline should call.
+/// \return An anonymous symbol pointing at the reentry trampoline.
 inline Symbol &createAnonymousReentryTrampoline(LinkGraph &G,
                                                 Section &TrampolineSection,
                                                 Symbol &ReentrySymbol) {
@@ -785,13 +838,22 @@ inline Symbol &createAnonymousReentryTrampoline(LinkGraph &G,
 /// Global Offset Table Builder.
 class GOTTableManager : public TableManager<GOTTableManager> {
 public:
+  /// Return the name of the GOT section.
+  /// \return The section name string "$__GOT".
   static StringRef getSectionName() { return "$__GOT"; }
 
+  /// Construct a GOT table manager, registering any existing GOT entries.
+  /// \param G Link graph that may already contain a GOT section.
   GOTTableManager(LinkGraph &G) {
     if ((GOTSection = G.findSectionByName(getSectionName())))
       registerExistingEntries();
   }
 
+  /// Visit an edge and transform GOT/TLVP request edges into real fixups.
+  /// \param G Link graph being processed.
+  /// \param B Block containing the edge.
+  /// \param E Edge that may request a GOT or TLVP entry.
+  /// \return True if the edge was transformed.
   bool visitEdge(LinkGraph &G, Block *B, Edge &E) {
     Edge::Kind KindToSet = Edge::Invalid;
     const char *BlockWorkingMem = B->getContent().data();
@@ -842,6 +904,10 @@ public:
     return true;
   }
 
+  /// Create a GOT entry pointing at \p Target.
+  /// \param G Link graph to create the entry in.
+  /// \param Target Symbol that the GOT entry should reference.
+  /// \return An anonymous symbol pointing at the new GOT entry.
   Symbol &createEntry(LinkGraph &G, Symbol &Target) {
     return createAnonymousPointer(G, getGOTSection(G), &Target);
   }
@@ -862,13 +928,23 @@ private:
 /// Procedure Linkage Table Builder.
 class PLTTableManager : public TableManager<PLTTableManager> {
 public:
+  /// Return the name of the stubs section.
+  /// \return The section name string "$__STUBS".
   static StringRef getSectionName() { return "$__STUBS"; }
 
+  /// Construct a PLT table manager using \p GOT for stub targets.
+  /// \param G Link graph that may already contain a stubs section.
+  /// \param GOT GOT table manager used to resolve stub pointer targets.
   PLTTableManager(LinkGraph &G, GOTTableManager &GOT) : GOT(GOT) {
     if ((StubsSection = G.findSectionByName(getSectionName())))
       registerExistingEntries();
   }
 
+  /// Visit an edge and redirect external branches through a PLT stub.
+  /// \param G Link graph being processed.
+  /// \param B Block containing the edge.
+  /// \param E Edge that may need a PLT stub.
+  /// \return True if the edge was redirected through a stub.
   bool visitEdge(LinkGraph &G, Block *B, Edge &E) {
     if (E.getKind() == aarch64::Branch26PCRel && !E.getTarget().isDefined()) {
       DEBUG_WITH_TYPE("jitlink", {
@@ -882,12 +958,19 @@ public:
     return false;
   }
 
+  /// Create a PLT stub that jumps to \p Target via a GOT entry.
+  /// \param G Link graph to create the stub in.
+  /// \param Target External symbol that the stub should reach.
+  /// \return An anonymous symbol pointing at the new PLT stub.
   Symbol &createEntry(LinkGraph &G, Symbol &Target) {
     return createAnonymousPointerJumpStub(G, getStubsSection(G),
                                           GOT.getEntryForTarget(G, Target));
   }
 
 public:
+  /// Return the stubs section, creating it if it does not already exist.
+  /// \param G Link graph that owns the stubs section.
+  /// \return The stubs section for this link graph.
   Section &getStubsSection(LinkGraph &G) {
     if (!StubsSection)
       StubsSection = &G.createSection(getSectionName(),
@@ -895,15 +978,21 @@ public:
     return *StubsSection;
   }
 
+  /// Register stub entries that already exist in the link graph.
   LLVM_ABI void registerExistingEntries();
 
+  /// GOT table manager used to obtain GOT entries for stub targets.
   GOTTableManager &GOT;
+  /// Section holding PLT stub entries, if one has been created.
   Section *StubsSection = nullptr;
 };
 
 /// Returns the name of the pointer signing function section.
+/// \return The name of the pointer signing function section.
 LLVM_ABI const char *getPointerSigningFunctionSectionName();
 
+/// Create an empty pointer signing function for the link graph.
+///
 /// Creates a pointer signing function section, block, and symbol to reserve
 /// space for a signing function for this LinkGraph. Clients should insert this
 /// pass in the post-prune phase, and add the paired
@@ -912,8 +1001,12 @@ LLVM_ABI const char *getPointerSigningFunctionSectionName();
 /// No new Pointer64Auth edges can be inserted into the graph between when this
 /// pass is run and when the pass below runs (since there will not be sufficient
 /// space reserved in the signing function to write the signing code for them).
+/// \param G Link graph to reserve a pointer signing function for.
+/// \return Success, or an error if the signing function cannot be created.
 LLVM_ABI Error createEmptyPointerSigningFunction(LinkGraph &G);
 
+/// Lower Pointer64Authenticated edges into a pointer signing function.
+///
 /// Given a LinkGraph containing Pointer64Authenticated edges, transform those
 /// edges to Pointer64 and add signing code to the pointer signing function
 /// (which must already have been created by the
@@ -922,6 +1015,8 @@ LLVM_ABI Error createEmptyPointerSigningFunction(LinkGraph &G);
 /// This function will add a $__ptrauth_sign section with finalization-lifetime
 /// containing an anonymous function that will sign all pointers in the graph.
 /// An allocation action will be added to run this function during finalization.
+/// \param G Link graph whose authenticated pointer edges should be lowered.
+/// \return Success, or an error if authenticated edges cannot be lowered.
 LLVM_ABI Error lowerPointer64AuthEdgesToSigningFunction(LinkGraph &G);
 
 } // namespace aarch64

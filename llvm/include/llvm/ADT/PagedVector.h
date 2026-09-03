@@ -76,17 +76,23 @@ public:
 
   // Forbid copy and move as we do not need them for the current use case.
   /// Copy construction is deleted; pages are not shareable across vectors.
-  PagedVector(const PagedVector &) = delete;
+  /// @param Other Unused; this constructor is deleted.
+  PagedVector(const PagedVector &Other) = delete;
   /// Move construction is deleted; pages are not shareable across vectors.
-  PagedVector(PagedVector &&) = delete;
+  /// @param Other Unused; this constructor is deleted.
+  PagedVector(PagedVector &&Other) = delete;
   /// Copy assignment is deleted; pages are not shareable across vectors.
-  PagedVector &operator=(const PagedVector &) = delete;
+  /// @param Other Unused; this assignment is deleted.
+  PagedVector &operator=(const PagedVector &Other) = delete;
   /// Move assignment is deleted; pages are not shareable across vectors.
-  PagedVector &operator=(PagedVector &&) = delete;
+  /// @param Other Unused; this assignment is deleted.
+  PagedVector &operator=(PagedVector &&Other) = delete;
 
   /// Look up an element at position `Index`.
   /// If the associated page is not filled, it will be filled with default
   /// constructed elements.
+  /// @param Index Zero-based element index; must be less than size().
+  /// @return Reference to the element at \p Index.
   T &operator[](size_t Index) const {
     assert(Index < Size);
     assert(Index / PageSize < PageToDataPtrs.size());
@@ -104,16 +110,20 @@ public:
 
   /// Return the capacity of the vector. I.e. the maximum size it can be
   /// expanded to with the resize method without allocating more pages.
+  /// @return Maximum size reachable via resize without allocating more pages.
   [[nodiscard]] size_t capacity() const {
     return PageToDataPtrs.size() * PageSize;
   }
 
   /// Return the size of the vector.
+  /// @return Number of logical elements in the vector.
   [[nodiscard]] size_t size() const { return Size; }
 
-  /// Resize the vector. Notice that the constructor of the elements will not
-  /// be invoked until an element of a given page is accessed, at which point
-  /// all the elements of the page will be constructed.
+  /// Resize the vector to \p NewSize elements.
+  ///
+  /// Notice that the constructor of the elements will not be invoked until an
+  /// element of a given page is accessed, at which point all the elements of
+  /// the page will be constructed.
   ///
   /// If the new size is smaller than the current size, the elements of the
   /// pages that are not needed anymore will be destroyed, however, elements of
@@ -121,6 +131,7 @@ public:
   ///
   /// For these reason the usage of this vector is discouraged if you rely
   /// on the construction / destructor of the elements to be invoked.
+  /// @param NewSize New logical size of the vector.
   void resize(size_t NewSize) {
     if (NewSize == 0) {
       clear();
@@ -152,6 +163,7 @@ public:
   }
 
   /// Return true if the vector holds no logical elements.
+  /// @return True if size() is zero.
   [[nodiscard]] bool empty() const { return Size == 0; }
 
   /// Clear the vector, i.e. clear the allocated pages, the whole page
@@ -200,6 +212,7 @@ public:
     ///
     /// When incrementing the iterator, we skip the elements which have not
     /// been materialized yet.
+    /// @return Reference to this iterator after advancing.
     MaterializedIterator &operator++() {
       ++ElementIdx;
       if (ElementIdx % PageSize == 0) {
@@ -213,14 +226,16 @@ public:
     }
 
     /// Advance to the next materialized element (post-increment).
+    /// @param Unused Unused postfix-discriminator parameter.
     /// @return Copy of the iterator before advancing.
-    MaterializedIterator operator++(int) {
+    MaterializedIterator operator++(int Unused) {
       MaterializedIterator Copy = *this;
       ++*this;
       return Copy;
     }
 
     /// Return a const reference to the current materialized element.
+    /// @return Const reference to the element at the current position.
     T const &operator*() const {
       assert(ElementIdx < PV->Size);
       assert(PV->PageToDataPtrs[ElementIdx / PageSize]);
@@ -229,15 +244,22 @@ public:
     }
 
     /// Equality operator.
+    /// @param LHS Left-hand iterator.
+    /// @param RHS Right-hand iterator.
+    /// @return True if \p LHS and \p RHS refer to the same element.
     friend bool operator==(const MaterializedIterator &LHS,
                            const MaterializedIterator &RHS) {
       return LHS.equals(RHS);
     }
 
     /// Return the logical index of the element this iterator refers to.
+    /// @return Zero-based logical index of the current element.
     [[nodiscard]] size_t getIndex() const { return ElementIdx; }
 
     /// Return true when the iterators do not refer to the same element.
+    /// @param LHS Left-hand iterator.
+    /// @param RHS Right-hand iterator.
+    /// @return True if \p LHS and \p RHS refer to different elements.
     friend bool operator!=(const MaterializedIterator &LHS,
                            const MaterializedIterator &RHS) {
       return !(LHS == RHS);
@@ -263,6 +285,7 @@ public:
   /// This includes all the elements belonging to allocated pages,
   /// even if they have not been accessed yet. It's enough to access
   /// one element of a page to materialize all the elements of the page.
+  /// @return Iterator to the first materialized element, or end if none.
   MaterializedIterator materialized_begin() const {
     // Look for the first valid page.
     for (size_t ElementIdx = 0; ElementIdx < Size; ElementIdx += PageSize)
@@ -273,11 +296,13 @@ public:
   }
 
   /// Return an iterator past the last logical element (materialized end).
+  /// @return Past-the-end materialized iterator.
   MaterializedIterator materialized_end() const {
     return MaterializedIterator(this, Size);
   }
 
   /// Return the half-open range of all currently materialized elements.
+  /// @return Iterator range covering [materialized_begin(), materialized_end()).
   [[nodiscard]] llvm::iterator_range<MaterializedIterator>
   materialized() const {
     return {materialized_begin(), materialized_end()};

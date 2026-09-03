@@ -54,6 +54,8 @@ public:
   /// The encoding of a callback with regards to the underlying instruction.
   struct CallbackInfo {
 
+    /// Encoding vector type for callback callee and argument mappings.
+    ///
     /// For direct/indirect calls the parameter encoding is empty. If it is not,
     /// the abstract call site represents a callback. In that case, the first
     /// element of the encoding vector represents which argument of the call
@@ -65,6 +67,7 @@ public:
     /// clang/source argument numbers (starting at 1). The -1 entries represent
     /// unknown values that are passed to the callee.
     using ParameterEncodingTy = SmallVector<int, 0>;
+    /// Parameter encoding for this call site; empty unless it is a callback.
     ParameterEncodingTy ParameterEncoding;
 
   };
@@ -96,6 +99,7 @@ public:
   /// If the use is not a callee use of a call or invoke instruction, the
   /// callback metadata is used to determine the argument <-> parameter mapping
   /// as well as the callee of the abstract call site.
+  /// \param U Operand use that may identify an abstract call site.
   LLVM_ABI AbstractCallSite(const Use *U);
 
   /// Add operand uses of \p CB that represent callback uses into
@@ -103,27 +107,34 @@ public:
   ///
   /// All uses added to \p CallbackUses can be used to create abstract call
   /// sites for which AbstractCallSite::isCallbackCall() will return true.
+  /// \param CB Call base whose operands are inspected for callback uses.
+  /// \param CallbackUses Output vector that receives the callback operand uses.
   LLVM_ABI static void
   getCallbackUses(const CallBase &CB,
                   SmallVectorImpl<const Use *> &CallbackUses);
 
   /// Conversion operator to conveniently check for a valid/initialized ACS.
+  /// @return True if this ACS is valid and initialized.
   explicit operator bool() const { return CB != nullptr; }
 
   /// Return the underlying instruction.
+  /// @return The underlying call base instruction.
   CallBase *getInstruction() const { return CB; }
 
   /// Return true if this ACS represents a direct call.
+  /// @return True if this ACS represents a direct call.
   bool isDirectCall() const {
     return !isCallbackCall() && !CB->isIndirectCall();
   }
 
   /// Return true if this ACS represents an indirect call.
+  /// @return True if this ACS represents an indirect call.
   bool isIndirectCall() const {
     return !isCallbackCall() && CB->isIndirectCall();
   }
 
   /// Return true if this ACS represents a callback call.
+  /// @return True if this ACS represents a callback call.
   bool isCallbackCall() const {
     // For a callback call site the callee is ALWAYS stored first in the
     // transitive values vector. Thus, a non-empty vector indicates a callback.
@@ -131,11 +142,15 @@ public:
   }
 
   /// Return true if @p UI is the use that defines the callee of this ACS.
+  /// \param UI User iterator whose underlying use may define the callee.
+  /// @return True if \p UI is the use that defines the callee of this ACS.
   bool isCallee(Value::const_user_iterator UI) const {
     return isCallee(&UI.getUse());
   }
 
   /// Return true if @p U is the use that defines the callee of this ACS.
+  /// \param U Use that may define the callee of this abstract call site.
+  /// @return True if \p U is the use that defines the callee of this ACS.
   bool isCallee(const Use *U) const {
     if (!isCallbackCall())
       return CB->isCallee(U);
@@ -153,6 +168,7 @@ public:
   }
 
   /// Return the number of parameters of the callee.
+  /// @return The number of parameters of the callee.
   unsigned getNumArgOperands() const {
     if (!isCallbackCall())
       return CB->arg_size();
@@ -162,12 +178,19 @@ public:
 
   /// Return the operand index of the underlying instruction associated with @p
   /// Arg.
+  /// \param Arg Function argument whose corresponding call operand index is
+  /// returned.
+  /// @return The operand index of the underlying instruction associated with
+  /// \p Arg.
   int getCallArgOperandNo(Argument &Arg) const {
     return getCallArgOperandNo(Arg.getArgNo());
   }
 
   /// Return the operand index of the underlying instruction associated with
   /// the function parameter number @p ArgNo or -1 if there is none.
+  /// \param ArgNo Callee parameter index to look up.
+  /// @return The operand index associated with parameter \p ArgNo, or -1 if
+  /// there is none.
   int getCallArgOperandNo(unsigned ArgNo) const {
     if (!isCallbackCall())
       return ArgNo;
@@ -176,12 +199,17 @@ public:
   }
 
   /// Return the operand of the underlying instruction associated with @p Arg.
+  /// \param Arg Function argument whose corresponding call operand is returned.
+  /// @return The operand of the underlying instruction associated with \p Arg.
   Value *getCallArgOperand(Argument &Arg) const {
     return getCallArgOperand(Arg.getArgNo());
   }
 
   /// Return the operand of the underlying instruction associated with the
   /// function parameter number @p ArgNo or nullptr if there is none.
+  /// \param ArgNo Callee parameter index to look up.
+  /// @return The operand associated with parameter \p ArgNo, or nullptr if
+  /// there is none.
   Value *getCallArgOperand(unsigned ArgNo) const {
     if (!isCallbackCall())
       return CB->getArgOperand(ArgNo);
@@ -193,6 +221,8 @@ public:
 
   /// Return the operand index of the underlying instruction associated with the
   /// callee of this ACS. Only valid for callback calls!
+  /// @return The operand index of the underlying instruction associated with
+  /// the callee.
   int getCallArgOperandNoForCallee() const {
     assert(isCallbackCall());
     assert(CI.ParameterEncoding.size() && CI.ParameterEncoding[0] >= 0);
@@ -201,6 +231,7 @@ public:
 
   /// Return the use of the callee value in the underlying instruction. Only
   /// valid for callback calls!
+  /// @return The use of the callee value in the underlying instruction.
   const Use &getCalleeUseForCallback() const {
     int CalleeArgIdx = getCallArgOperandNoForCallee();
     assert(CalleeArgIdx >= 0 &&
@@ -209,6 +240,7 @@ public:
   }
 
   /// Return the pointer to function that is being called.
+  /// @return The pointer to the function that is being called.
   Value *getCalledOperand() const {
     if (!isCallbackCall())
       return CB->getCalledOperand();
@@ -217,6 +249,8 @@ public:
 
   /// Return the function being called if this is a direct call, otherwise
   /// return null (if it's an indirect call).
+  /// @return The function being called if this is a direct call, otherwise
+  /// nullptr.
   Function *getCalledFunction() const {
     Value *V = getCalledOperand();
     return V ? dyn_cast<Function>(V->stripPointerCasts()) : nullptr;
@@ -224,6 +258,8 @@ public:
 };
 
 /// Apply function Func to each CB's callback call site.
+/// \param CB Call base whose callback call sites are visited.
+/// \param Func Callable invoked with each callback \c AbstractCallSite.
 template <typename UnaryFunction>
 void forEachCallbackCallSite(const CallBase &CB, UnaryFunction Func) {
   SmallVector<const Use *, 4u> CallbackUses;
@@ -236,6 +272,8 @@ void forEachCallbackCallSite(const CallBase &CB, UnaryFunction Func) {
 }
 
 /// Apply function Func to each CB's callback function.
+/// \param CB Call base whose callback callees are visited.
+/// \param Func Callable invoked with each callback \c Function *.
 template <typename UnaryFunction>
 void forEachCallbackFunction(const CallBase &CB, UnaryFunction Func) {
   forEachCallbackCallSite(CB, [&Func](AbstractCallSite &ACS) {

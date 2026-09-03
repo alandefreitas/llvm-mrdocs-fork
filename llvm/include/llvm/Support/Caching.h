@@ -21,19 +21,26 @@
 
 namespace llvm {
 
-/// This class wraps an output stream for a file. Most clients should just be
-/// able to return an instance of this base class from the stream callback, but
-/// if a client needs to perform some action after the stream is written to,
-/// that can be done by deriving from this class and overriding the destructor
-/// or the commit() method.
+/// This class wraps an output stream for a file.
+///
+/// Most clients should just be able to return an instance of this base class
+/// from the stream callback, but if a client needs to perform some action after
+/// the stream is written to, that can be done by deriving from this class and
+/// overriding the destructor or the commit() method.
 class CachedFileStream {
 public:
+  /// Construct a cached file stream wrapping \p OS.
+  ///
+  /// \param OS Output stream to write file contents to.
+  /// \param OSPath Path of the object file associated with this stream.
   CachedFileStream(std::unique_ptr<raw_pwrite_stream> OS,
                    std::string OSPath = "")
       : OS(std::move(OS)), ObjectPathName(OSPath) {}
 
   /// Must be called exactly once after the writes to OS have been completed
   /// but before the CachedFileStream object is destroyed.
+  ///
+  /// \return Success, or an error if commit was already called.
   virtual Error commit() {
     if (Committed)
       return createStringError(make_error_code(std::errc::invalid_argument),
@@ -43,9 +50,13 @@ public:
     return Error::success();
   }
 
+  /// Whether commit() has already been called.
   bool Committed = false;
+  /// Stream to write the file contents to.
   std::unique_ptr<raw_pwrite_stream> OS;
+  /// Path of the object file associated with this stream.
   std::string ObjectPathName;
+  /// Destroy the stream, aborting if commit() was never called.
   virtual ~CachedFileStream() {
     if (!Committed)
       report_fatal_error("CachedFileStream was not committed.\n");
@@ -58,14 +69,16 @@ public:
 using AddStreamFn = std::function<Expected<std::unique_ptr<CachedFileStream>>(
     unsigned Task, const Twine &ModuleName)>;
 
-/// This is a callable that manages file caching operations. It accepts a task
-/// ID \p Task, a unique key \p Key, and a module name \p ModuleName, and
-/// returns AddStreamFn(). This function determines whether a cache hit or miss
-/// occurs and handles the appropriate actions.
+/// This is a callable that manages file caching operations.
+///
+/// It accepts a task ID \p Task, a unique key \p Key, and a module name
+/// \p ModuleName, and returns AddStreamFn(). This function determines whether a
+/// cache hit or miss occurs and handles the appropriate actions.
 using FileCacheFunction = std::function<Expected<AddStreamFn>(
     unsigned Task, StringRef Key, const Twine &ModuleName)>;
 
 /// This type represents a file cache system that manages caching of files.
+///
 /// It encapsulates a caching function and the directory path where the cache is
 /// stored. To request an item from the cache, pass a unique string as the Key.
 /// For hits, the cached file will be added to the link and this function will
@@ -79,21 +92,36 @@ using FileCacheFunction = std::function<Expected<AddStreamFn>(
 ///
 /// if (AddStreamFn AddStream = Cache(Task, Key, ModuleName))
 ///   ProduceContent(AddStream);
-///
-/// CacheDirectoryPath stores the directory path where cached files are kept.
 struct FileCache {
+  /// Construct a file cache from a cache function and directory path.
+  ///
+  /// \param CacheFn Callable that performs cache lookup and insertion.
+  /// \param DirectoryPath Path of the directory that stores cached files.
   FileCache(FileCacheFunction CacheFn, const std::string &DirectoryPath)
       : CacheFunction(std::move(CacheFn)), CacheDirectoryPath(DirectoryPath) {}
+  /// Construct an empty, invalid file cache.
   FileCache() = default;
 
+  /// Look up \p Key in the cache, returning a stream callback on a miss.
+  ///
+  /// \param Task Task identifier passed through to cache callbacks.
+  /// \param Key Unique cache key for the requested file.
+  /// \param ModuleName Unique module identifier for the bitcode being cached.
+  /// \return An empty AddStreamFn on a hit, or a stream callback on a miss.
   Expected<AddStreamFn> operator()(unsigned Task, StringRef Key,
                                    const Twine &ModuleName) {
     assert(isValid() && "Invalid cache function");
     return CacheFunction(Task, Key, ModuleName);
   }
+  /// Return the directory path where cached files are stored.
+  ///
+  /// \return The cache directory path.
   const std::string &getCacheDirectoryPath() const {
     return CacheDirectoryPath;
   }
+  /// Return true if this cache has a valid cache function.
+  ///
+  /// \return True if this cache has a valid cache function.
   bool isValid() const { return static_cast<bool>(CacheFunction); }
 
 private:
@@ -108,11 +136,20 @@ using AddBufferFn = std::function<void(unsigned Task, const Twine &ModuleName,
                                        std::unique_ptr<MemoryBuffer> MB)>;
 
 /// Create a local file system cache which uses the given cache name, temporary
-/// file prefix, cache directory and file callback.  This function does not
-/// immediately create the cache directory if it does not yet exist; this is
-/// done lazily the first time a file is added.  The cache name appears in error
-/// messages for errors during caching. The temporary file prefix is used in the
-/// temporary file naming scheme used when writing files atomically.
+/// file prefix, cache directory and file callback.
+///
+/// This function does not immediately create the cache directory if it does not
+/// yet exist; this is done lazily the first time a file is added. The cache
+/// name appears in error messages for errors during caching. The temporary file
+/// prefix is used in the temporary file naming scheme used when writing files
+/// atomically.
+///
+/// \param CacheNameRef Name used in error messages during caching.
+/// \param TempFilePrefixRef Prefix for temporary files written atomically.
+/// \param CacheDirectoryPathRef Directory in which cached files are stored.
+/// \param AddBuffer Callback invoked with the file contents on a cache hit, or
+/// after a miss is written and committed.
+/// \return A FileCache for the given directory, or an error on failure.
 LLVM_ABI Expected<FileCache> localCache(
     const Twine &CacheNameRef, const Twine &TempFilePrefixRef,
     const Twine &CacheDirectoryPathRef,

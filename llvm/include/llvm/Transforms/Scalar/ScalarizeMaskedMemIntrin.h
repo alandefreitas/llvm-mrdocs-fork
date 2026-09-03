@@ -20,8 +20,17 @@
 
 namespace llvm {
 
+/// Pass that scalarizes masked memory intrinsics unsupported by the target.
+///
+/// Replaces those intrinsics with a chain of basic blocks that handle each
+/// element one-by-one when the corresponding mask bit is set.
 struct ScalarizeMaskedMemIntrinPass
     : public RequiredPassInfoMixin<ScalarizeMaskedMemIntrinPass> {
+  /// Run masked-memory intrinsic scalarization over the function.
+  /// @param F Function whose unsupported masked memory intrinsics may be
+  /// scalarized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // end namespace llvm

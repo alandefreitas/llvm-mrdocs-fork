@@ -44,6 +44,7 @@ public:
   /// Mark \p Node visited; second is true if it was not already present.
   ///
   /// \param Node Graph node identified by GraphTraits::getNumber.
+  /// @return Pair of nullopt and whether \p Node was newly marked visited.
   std::pair<std::nullopt_t, bool> insert(NodeRef Node) {
     unsigned Idx = GraphTraits<NodeRef>::getNumber(Node);
     if (Idx >= Data.size())
@@ -119,23 +120,35 @@ public:
 
   public:
     /// Return true if both iterators refer to the same node.
+    ///
+    /// \param X Iterator to compare with.
+    /// @return True if both iterators refer to the same node.
     bool operator==(const iterator &X) const { return V == X.V; }
     /// Return true if the iterators refer to different nodes.
+    ///
+    /// \param X Iterator to compare with.
+    /// @return True if the iterators refer to different nodes.
     bool operator!=(const iterator &X) const { return !(*this == X); }
 
     /// Return the current node.
+    /// @return Reference to the current node.
     reference operator*() const { return V; }
     /// Return a pointer to the current node storage.
+    /// @return Pointer to the current node storage.
     pointer operator->() const { return &V; }
 
     /// Advance to the next node in post-order.
+    /// @return Reference to this iterator after advancing.
     iterator &operator++() { // Preincrement
       V = POT->next();
       return *this;
     }
 
     /// Advance to the next node, returning the prior iterator value.
-    iterator operator++(int) { // Postincrement
+    ///
+    /// \param Unused Unused postfix-discriminator parameter.
+    /// @return Copy of the iterator before advancing.
+    iterator operator++(int Unused) { // Postincrement
       iterator tmp = *this;
       ++*this;
       return tmp;
@@ -147,9 +160,12 @@ protected:
   PostOrderTraversalBase() = default;
 
   /// Return this object cast to the CRTP derived type.
+  /// @return Pointer to this object as the derived CRTP type.
   DerivedT *derived() { return static_cast<DerivedT *>(this); }
 
   /// Initialize post-order traversal at given start node.
+  ///
+  /// \param Start Root node where the walk begins.
   void init(NodeRef Start) {
     if (derived()->insertEdge(std::optional<NodeRef>(), Start)) {
       VisitStack.emplace_back(Start, make_range(GraphTraits::child_begin(Start),
@@ -183,22 +199,30 @@ private:
 
 public:
   /// Iterator to the current post-order node, or end if none remain.
+  /// @return Iterator to the current node, or end if the stack is empty.
   iterator begin() {
     if (VisitStack.empty())
       return iterator(); // We don't even want to see the start node.
     return iterator(*derived(), VisitStack.back().Node);
   }
   /// Past-the-end iterator for this traversal.
+  /// @return Singular end iterator for this traversal.
   iterator end() { return iterator(); }
 
   // Methods that are intended to be overridden by sub-classes.
 
   /// Add edge and return whether To should be visited. From is nullopt for the
   /// root node.
+  ///
+  /// \param From Predecessor node, or nullopt for the traversal root.
+  /// \param To Successor being considered.
+  /// @return True if \p To should be visited.
   bool insertEdge(std::optional<NodeRef> From, NodeRef To);
 
   /// Callback just before the iterator moves to the next block.
-  void finishPostorder(NodeRef) {}
+  ///
+  /// \param Node Node that has finished post-order visitation.
+  void finishPostorder(NodeRef Node) {}
 };
 
 /// Post-order traversal of a graph.
@@ -224,6 +248,8 @@ public:
 
   /// Post-order traversal of the graph starting at the root node using an
   /// internal storage.
+  ///
+  /// \param G Graph whose entry node starts the walk.
   PostOrderTraversal(const GraphT &G) {
     this->init(GraphTraits<GraphT>::getEntryNode(G));
   }
@@ -232,6 +258,7 @@ public:
   ///
   /// \param From Predecessor node, or nullopt for the traversal root.
   /// \param To Successor being considered.
+  /// @return True if \p To was newly inserted and should be visited.
   bool insertEdge(std::optional<NodeRef> From, NodeRef To) {
     return Visited.insert(To).second;
   }
@@ -262,6 +289,7 @@ public:
   ///
   /// \param From Predecessor node, or nullopt for the traversal root.
   /// \param To Successor being considered.
+  /// @return True if \p To was newly inserted and should be visited.
   bool insertEdge(std::optional<NodeRef> From, NodeRef To) {
     return Visited.insert(To).second;
   }
@@ -271,6 +299,9 @@ public:
 //
 /// Post-order traversal of a graph. Note: this returns a PostOrderTraversal,
 /// not an iterator range; \see PostOrderTraversal.
+///
+/// \param G Graph whose entry node starts the walk.
+/// @return Post-order traversal object starting at the entry of \p G.
 template <class T> auto post_order(const T &G) {
   return PostOrderTraversal<T>(G);
 }
@@ -278,6 +309,7 @@ template <class T> auto post_order(const T &G) {
 ///
 /// \param G Graph to traverse.
 /// \param S Visited-set provided by the caller.
+/// @return Post-order traversal that records visits in \p S.
 template <class T, class SetType> auto post_order_ext(const T &G, SetType &S) {
   return PostOrderExtTraversal<T, SetType>(G, S);
 }
@@ -285,6 +317,7 @@ template <class T, class SetType> auto post_order_ext(const T &G, SetType &S) {
 ///
 /// \param G Graph whose inverse edges are walked.
 /// \param S Visited-set provided by the caller.
+/// @return Post-order traversal of the inverse of \p G using \p S.
 template <class T, class SetType>
 auto inverse_post_order_ext(const T &G, SetType &S) {
   return PostOrderExtTraversal<Inverse<T>, SetType>(G, S);
@@ -346,12 +379,16 @@ public:
 
   // Because we want a reverse post order, use reverse iterators from the vector
   /// Iterator to the first node in reverse post-order.
+  /// @return Mutable reverse iterator at the first node.
   rpo_iterator begin() { return Blocks.rbegin(); }
   /// Const iterator to the first node in reverse post-order.
+  /// @return Const reverse iterator at the first node.
   const_rpo_iterator begin() const { return Blocks.rbegin(); }
   /// Past-the-end reverse-post-order iterator.
+  /// @return Mutable past-the-end reverse iterator.
   rpo_iterator end() { return Blocks.rend(); }
   /// Const past-the-end reverse-post-order iterator.
+  /// @return Const past-the-end reverse iterator.
   const_rpo_iterator end() const { return Blocks.rend(); }
 };
 

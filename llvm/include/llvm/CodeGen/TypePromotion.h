@@ -21,12 +21,23 @@ namespace llvm {
 class Function;
 class TargetMachine;
 
+/// New PM pass that promotes small integer types that would otherwise be
+/// promoted during legalization.
+///
+/// Works around SelectionDAG limitations for cyclic regions by promoting
+/// non-wrapping or safely wrapping instruction trees rooted at icmp operands.
 class TypePromotionPass : public OptionalPassInfoMixin<TypePromotionPass> {
 private:
   const TargetMachine *TM;
 
 public:
+  /// Construct a TypePromotion pass for target machine \p TM.
+  /// \param TM Target machine used when deciding which types to promote.
   TypePromotionPass(const TargetMachine &TM) : TM(&TM) {}
+  /// Promote small integer types in \p F when profitable for the target.
+  /// \param F Function whose values may be type-promoted.
+  /// \param AM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after type promotion.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

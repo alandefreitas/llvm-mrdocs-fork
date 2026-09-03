@@ -22,7 +22,9 @@ namespace llvm {
 template <typename T, typename... Ts> struct AlignedCharArrayUnion {
   // Work around "internal compiler error: Segmentation fault" with GCC 7.5,
   // apparently caused by alignas(Ts...).
+  /// The strictest alignment among \c T and the pack \c Ts.
   static constexpr std::size_t Align = std::max({alignof(T), alignof(Ts)...});
+  /// Storage large enough and aligned enough to hold any of \c T or the pack \c Ts.
   alignas(Align) char buffer[std::max({sizeof(T), sizeof(Ts)...})];
 };
 

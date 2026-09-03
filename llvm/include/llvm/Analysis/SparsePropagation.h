@@ -35,20 +35,26 @@ template <class LatticeKey, class LatticeVal,
           class KeyInfo = LatticeKeyInfo<LatticeKey>>
 class SparseSolver;
 
-/// AbstractLatticeFunction - This class is implemented by the dataflow instance
-/// to specify what the lattice values are and how they handle merges etc.  This
-/// gives the client the power to compute lattice values from instructions,
-/// constants, etc.  The current requirement is that lattice values must be
-/// copyable.  At the moment, nothing tries to avoid copying.  Additionally,
-/// lattice keys must be able to be used as keys of a mapping data structure.
-/// Internally, the generic solver currently uses a DenseMap to map lattice keys
-/// to lattice values.  If the lattice key is a non-standard type, a
-/// specialization of DenseMapInfo must be provided.
+/// Abstract lattice interface for sparse conditional propagation.
+///
+/// This class is implemented by the dataflow instance to specify what the
+/// lattice values are and how they handle merges etc.  This gives the client
+/// the power to compute lattice values from instructions, constants, etc.  The
+/// current requirement is that lattice values must be copyable.  At the moment,
+/// nothing tries to avoid copying.  Additionally, lattice keys must be able to
+/// be used as keys of a mapping data structure. Internally, the generic solver
+/// currently uses a DenseMap to map lattice keys to lattice values.  If the
+/// lattice key is a non-standard type, a specialization of DenseMapInfo must be
+/// provided.
 template <class LatticeKey, class LatticeVal> class AbstractLatticeFunction {
 private:
   LatticeVal UndefVal, OverdefinedVal, UntrackedVal;
 
 public:
+  /// Construct a lattice function with the given special lattice values.
+  /// @param undefVal Lattice value representing undefined.
+  /// @param overdefinedVal Lattice value representing overdefined.
+  /// @param untrackedVal Lattice value representing untracked keys.
   AbstractLatticeFunction(LatticeVal undefVal, LatticeVal overdefinedVal,
                           LatticeVal untrackedVal) {
     UndefVal = undefVal;
@@ -56,58 +62,86 @@ public:
     UntrackedVal = untrackedVal;
   }
 
+  /// Destroy this abstract lattice function.
   virtual ~AbstractLatticeFunction() = default;
 
+  /// Return the lattice value representing undefined.
+  /// @return Lattice value used for undefined.
   LatticeVal getUndefVal()       const { return UndefVal; }
+  /// Return the lattice value representing overdefined.
+  /// @return Lattice value used for overdefined.
   LatticeVal getOverdefinedVal() const { return OverdefinedVal; }
+  /// Return the lattice value representing untracked keys.
+  /// @return Lattice value used for untracked keys.
   LatticeVal getUntrackedVal()   const { return UntrackedVal; }
 
-  /// IsUntrackedValue - If the specified LatticeKey is obviously uninteresting
-  /// to the analysis (i.e., it would always return UntrackedVal), this
+  /// Return true if \p Key is obviously uninteresting to the analysis.
+  ///
+  /// If the specified LatticeKey would always return UntrackedVal, this
   /// function can return true to avoid pointless work.
+  /// @param Key Lattice key to test for untracked status.
+  /// @return True if \p Key is always untracked by this analysis.
   virtual bool IsUntrackedValue(LatticeKey Key) { return false; }
 
-  /// ComputeLatticeVal - Compute and return a LatticeVal corresponding to the
-  /// given LatticeKey.
+  /// Compute and return a LatticeVal corresponding to the given LatticeKey.
+  /// @param Key Lattice key whose value should be computed.
+  /// @return Lattice value computed for \p Key.
   virtual LatticeVal ComputeLatticeVal(LatticeKey Key) {
     return getOverdefinedVal();
   }
 
-  /// IsSpecialCasedPHI - Given a PHI node, determine whether this PHI node is
-  /// one that the we want to handle through ComputeInstructionState.
+  /// Return true if \p PN should be handled via ComputeInstructionState.
+  /// @param PN PHI node to test for special-case handling.
+  /// @return True if \p PN needs special-case transfer handling.
   virtual bool IsSpecialCasedPHI(PHINode *PN) { return false; }
 
-  /// MergeValues - Compute and return the merge of the two specified lattice
-  /// values.  Merging should only move one direction down the lattice to
-  /// guarantee convergence (toward overdefined).
+  /// Compute and return the merge of the two specified lattice values.
+  ///
+  /// Merging should only move one direction down the lattice to guarantee
+  /// convergence (toward overdefined).
+  /// @param X First lattice value to merge.
+  /// @param Y Second lattice value to merge.
+  /// @return Lattice value that is the merge of \p X and \p Y.
   virtual LatticeVal MergeValues(LatticeVal X, LatticeVal Y) {
     return getOverdefinedVal(); // always safe, never useful.
   }
 
-  /// ComputeInstructionState - Compute the LatticeKeys that change as a result
-  /// of executing instruction \p I. Their associated LatticeVals are store in
-  /// \p ChangedValues.
+  /// Compute the LatticeKeys that change as a result of executing \p I.
+  ///
+  /// Their associated LatticeVals are stored in \p ChangedValues.
+  /// @param I Instruction whose transfer function should be applied.
+  /// @param ChangedValues Map filled with updated lattice key/value pairs.
+  /// @param SS Sparse solver providing current lattice state.
   virtual void ComputeInstructionState(
       Instruction &I, SmallDenseMap<LatticeKey, LatticeVal, 16> &ChangedValues,
       SparseSolver<LatticeKey, LatticeVal> &SS) = 0;
 
-  /// PrintLatticeVal - Render the given LatticeVal to the specified stream.
+  /// Render the given LatticeVal to the specified stream.
+  /// @param LV Lattice value to print.
+  /// @param OS Stream to write to.
   virtual void PrintLatticeVal(LatticeVal LV, raw_ostream &OS);
 
-  /// PrintLatticeKey - Render the given LatticeKey to the specified stream.
+  /// Render the given LatticeKey to the specified stream.
+  /// @param Key Lattice key to print.
+  /// @param OS Stream to write to.
   virtual void PrintLatticeKey(LatticeKey Key, raw_ostream &OS);
 
-  /// GetValueFromLatticeVal - If the given LatticeVal is representable as an
-  /// LLVM value, return it; otherwise, return nullptr. If a type is given, the
-  /// returned value must have the same type. This function is used by the
-  /// generic solver in attempting to resolve branch and switch conditions.
+  /// Return an LLVM value for \p LV when it is representable as one.
+  ///
+  /// Otherwise, return nullptr. If a type is given, the returned value must
+  /// have the same type. This function is used by the generic solver in
+  /// attempting to resolve branch and switch conditions.
+  /// @param LV Lattice value to convert.
+  /// @param Ty Optional required type of the returned value.
+  /// @return LLVM Value representing \p LV, or nullptr if none exists.
   virtual Value *GetValueFromLatticeVal(LatticeVal LV, Type *Ty = nullptr) {
     return nullptr;
   }
 };
 
-/// SparseSolver - This class is a general purpose solver for Sparse Conditional
-/// Propagation with a programmable lattice function.
+/// General-purpose sparse conditional propagation solver.
+///
+/// Solves sparse conditional propagation with a programmable lattice function.
 template <class LatticeKey, class LatticeVal, class KeyInfo>
 class SparseSolver {
 
@@ -134,47 +168,64 @@ class SparseSolver {
   std::set<Edge> KnownFeasibleEdges;
 
 public:
+  /// Construct a solver that uses the given lattice function.
+  /// @param Lattice Lattice function that defines values and transfer rules.
   explicit SparseSolver(
       AbstractLatticeFunction<LatticeKey, LatticeVal> *Lattice)
       : LatticeFunc(Lattice) {}
-  SparseSolver(const SparseSolver &) = delete;
-  SparseSolver &operator=(const SparseSolver &) = delete;
+  /// Deleted copy constructor; SparseSolver is not copyable.
+  /// @param Other Unused; copy construction is deleted.
+  SparseSolver(const SparseSolver &Other) = delete;
+  /// Deleted copy assignment; SparseSolver is not copyable.
+  /// @param Other Unused; copy assignment is deleted.
+  SparseSolver &operator=(const SparseSolver &Other) = delete;
 
   /// Solve - Solve for constants and executable blocks.
   void Solve();
 
+  /// Print the current lattice state to \p OS.
+  /// @param OS Stream to write to.
   void Print(raw_ostream &OS) const;
 
-  /// getExistingValueState - Return the LatticeVal object corresponding to the
-  /// given value from the ValueState map. If the value is not in the map,
-  /// UntrackedVal is returned, unlike the getValueState method.
+  /// Return the LatticeVal for \p Key from ValueState, or UntrackedVal.
+  ///
+  /// Unlike getValueState, if the value is not in the map, UntrackedVal is
+  /// returned without initializing a new entry.
+  /// @param Key Lattice key to look up.
+  /// @return Existing lattice value for \p Key, or UntrackedVal if absent.
   LatticeVal getExistingValueState(LatticeKey Key) const {
     auto I = ValueState.find(Key);
     return I != ValueState.end() ? I->second : LatticeFunc->getUntrackedVal();
   }
 
-  /// getValueState - Return the LatticeVal object corresponding to the given
-  /// value from the ValueState map. If the value is not in the map, its state
-  /// is initialized.
+  /// Return the LatticeVal for \p Key, initializing it if missing.
+  /// @param Key Lattice key whose state should be returned.
+  /// @return Lattice value for \p Key, creating an entry when needed.
   LatticeVal getValueState(LatticeKey Key);
 
-  /// isEdgeFeasible - Return true if the control flow edge from the 'From'
-  /// basic block to the 'To' basic block is currently feasible.  If
-  /// AggressiveUndef is true, then this treats values with unknown lattice
+  /// Return true if the control flow edge from \p From to \p To is feasible.
+  ///
+  /// If AggressiveUndef is true, then this treats values with unknown lattice
   /// values as undefined.  This is generally only useful when solving the
   /// lattice, not when querying it.
+  /// @param From Source basic block of the edge.
+  /// @param To Destination basic block of the edge.
+  /// @param AggressiveUndef When true, treat unknown lattice values as undef.
+  /// @return True if the edge from \p From to \p To is currently feasible.
   bool isEdgeFeasible(BasicBlock *From, BasicBlock *To,
                       bool AggressiveUndef = false);
 
-  /// isBlockExecutable - Return true if there are any known feasible
-  /// edges into the basic block.  This is generally only useful when
-  /// querying the lattice.
+  /// Return true if there are any known feasible edges into \p BB.
+  ///
+  /// This is generally only useful when querying the lattice.
+  /// @param BB Basic block to test for executable incoming edges.
+  /// @return True if \p BB is known to be executable.
   bool isBlockExecutable(BasicBlock *BB) const {
     return BBExecutable.count(BB);
   }
 
-  /// MarkBlockExecutable - This method can be used by clients to mark all of
-  /// the blocks that are known to be intrinsically live in the processed unit.
+  /// Mark \p BB as intrinsically live in the processed unit.
+  /// @param BB Basic block known to be executable.
   void MarkBlockExecutable(BasicBlock *BB);
 
 private:

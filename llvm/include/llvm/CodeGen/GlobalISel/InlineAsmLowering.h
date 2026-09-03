@@ -25,24 +25,28 @@ class Register;
 class TargetLowering;
 class Value;
 
+/// Interface for lowering LLVM inline asm to GlobalISel MIR.
 class LLVM_ABI InlineAsmLowering {
   const TargetLowering *TLI;
 
   virtual void anchor();
 
 public:
-  /// Lower the given inline asm call instruction
-  /// \p GetOrCreateVRegs is a callback to materialize a register for the
-  /// input and output operands of the inline asm
+  /// Lower the given inline asm call instruction.
+  /// \param MIRBuilder Builder used to insert the inline asm lowering.
+  /// \param CB Call or invoke instruction representing the inline asm.
+  /// \param GetOrCreateVRegs Callback to materialize a register for the
+  ///        input and output operands of the inline asm.
   /// \return True if the lowering succeeds, false otherwise.
   bool lowerInlineAsm(MachineIRBuilder &MIRBuilder, const CallBase &CB,
                       std::function<ArrayRef<Register>(const Value &Val)>
                           GetOrCreateVRegs) const;
 
   /// Lower the specified operand into the Ops vector.
-  /// \p Val is the IR input value to be lowered
-  /// \p Constraint is the user supplied constraint string
-  /// \p Ops is the vector to be filled with the lowered operands
+  /// \param Val IR input value to be lowered.
+  /// \param Constraint User-supplied constraint string.
+  /// \param Ops Vector to be filled with the lowered operands.
+  /// \param MIRBuilder Builder used to insert supporting instructions.
   /// \return True if the lowering succeeds, false otherwise.
   virtual bool lowerAsmOperandForConstraint(Value *Val, StringRef Constraint,
                                             std::vector<MachineOperand> &Ops,
@@ -50,15 +54,20 @@ public:
 
 protected:
   /// Getter for generic TargetLowering class.
+  /// \return Pointer to the TargetLowering used by this lowering.
   const TargetLowering *getTLI() const { return TLI; }
 
   /// Getter for target specific TargetLowering class.
+  /// \return Pointer to the TargetLowering cast to \p XXXTargetLowering.
   template <class XXXTargetLowering> const XXXTargetLowering *getTLI() const {
     return static_cast<const XXXTargetLowering *>(TLI);
   }
 
 public:
+  /// Construct an InlineAsmLowering using the target's TargetLowering.
+  /// \param TLI Target lowering info providing target hooks.
   InlineAsmLowering(const TargetLowering *TLI) : TLI(TLI) {}
+  /// Virtual destructor for polymorphic InlineAsmLowering subclasses.
   virtual ~InlineAsmLowering() = default;
 };
 

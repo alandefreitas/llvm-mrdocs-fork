@@ -23,6 +23,8 @@ namespace llvm {
 
 class MachineCycleInfo;
 
+/// Alternative analysis pass that computes machine block frequencies on demand.
+///
 /// This is an alternative analysis pass to MachineBlockFrequencyInfo.
 /// The difference is that with this pass, the block frequencies are not
 /// computed when the analysis pass is executed but rather when the BFI result
@@ -51,21 +53,31 @@ private:
   MachineBlockFrequencyInfo &calculateIfNotAvailable() const;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct a LazyMachineBlockFrequencyInfoPass.
   LazyMachineBlockFrequencyInfoPass();
 
   /// Compute and return the block frequencies.
+  /// @return Block frequency info, computed on demand if needed.
   MachineBlockFrequencyInfo &getBFI() { return calculateIfNotAvailable(); }
 
   /// Compute and return the block frequencies.
+  /// @return Const block frequency info, computed on demand if needed.
   const MachineBlockFrequencyInfo &getBFI() const {
     return calculateIfNotAvailable();
   }
 
+  /// Declare the analyses required and preserved by this pass.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Set up lazy BFI analysis for machine function \p F.
+  /// @param F Machine function to analyze.
+  /// @return False; this analysis pass does not modify the function.
   bool runOnMachineFunction(MachineFunction &F) override;
+  /// Release the cached lazy MBFI between runs.
   void releaseMemory() override;
 };
 }

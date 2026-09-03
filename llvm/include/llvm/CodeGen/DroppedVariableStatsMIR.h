@@ -21,14 +21,25 @@
 namespace llvm {
 
 /// A class to collect and print dropped debug information due to MIR
-/// optimization passes. After every MIR pass is run, it will print how many
-/// #DBG_VALUEs were dropped due to that pass.
+/// optimization passes.
+///
+/// After every MIR pass is run, it will print how many #DBG_VALUEs were
+/// dropped due to that pass.
 class LLVM_ABI DroppedVariableStatsMIR : public DroppedVariableStats {
 public:
+  /// Create a collector for dropped MIR debug variable statistics.
   DroppedVariableStatsMIR() : DroppedVariableStats(false) {}
 
+  /// Collect debug variable state before a MIR pass runs.
+  ///
+  /// \param PassID Identifier of the pass about to run
+  /// \param MF Machine function the pass will operate on
   void runBeforePass(StringRef PassID, MachineFunction *MF);
 
+  /// Collect debug variable state after a MIR pass runs and report drops.
+  ///
+  /// \param PassID Identifier of the pass that just ran
+  /// \param MF Machine function the pass operated on
   void runAfterPass(StringRef PassID, MachineFunction *MF);
 
 private:

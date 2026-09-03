@@ -41,30 +41,46 @@ namespace lto {
 /// LTO configuration. A linker can configure LTO by setting fields in this data
 /// structure and passing it to the lto::LTO constructor.
 struct Config {
+  /// Visibility scheme for non-imported definitions.
   enum VisScheme {
+    /// Inherit visibility from the prevailing definition.
     FromPrevailing,
+    /// Use the ELF-optimized visibility scheme.
     ELF,
   };
   // Note: when adding fields here, consider whether they need to be added to
   // computeLTOCacheKey in LTO.cpp.
+  /// Target CPU name.
   std::string CPU;
+  /// Target options for code generation.
   TargetOptions Options;
+  /// Target feature attributes (e.g. +sse4.2).
   std::vector<std::string> MAttrs;
+  /// Extra -mllvm arguments passed through to LLVM.
   std::vector<std::string> MllvmArgs;
-  // LTO will register both lists of plugins, but
-  // if an LTO client has already loaded a set of plugins,
-  // they should register them via LoadedPassPlugins.
-  // LoadedPassPlugins is currently used by distributed thin-lto.
+  /// Pass plugins already loaded by the LTO client.
+  ///
+  /// LTO will register both lists of plugins, but if an LTO client has already
+  /// loaded a set of plugins, they should register them via LoadedPassPlugins.
+  /// LoadedPassPlugins is currently used by distributed thin-lto.
   std::vector<llvm::PassPlugin *> LoadedPassPlugins;
+  /// Filenames of pass plugins to load and register.
   std::vector<std::string> PassPluginFilenames;
   /// For adding passes that run right before codegen.
   std::function<void(legacy::PassManager &)> PreCodeGenPassesHook;
+  /// Relocation model for code generation.
   std::optional<Reloc::Model> RelocModel = Reloc::PIC_;
+  /// Code model for code generation.
   std::optional<CodeModel::Model> CodeModel;
+  /// Optimization level for the code generator.
   CodeGenOptLevel CGOptLevel = CodeGenOptLevel::Default;
+  /// Output file type produced by the code generator.
   CodeGenFileType CGFileType = CodeGenFileType::ObjectFile;
+  /// Optimization level for the middle-end optimizer.
   unsigned OptLevel = 2;
+  /// Verify the IR after each pass when true.
   bool VerifyEach = false;
+  /// Skip IR verification when true.
   bool DisableVerify = false;
 
   /// Flag to indicate that the optimizer should not assume builtins are present
@@ -90,11 +106,15 @@ struct Config {
   /// usage of RTTI to block devirtualization on types used in native files.
   bool AllVtablesHaveTypeInfos = false;
 
-  /// Always emit a Regular LTO object even when it is empty because no Regular
-  /// LTO modules were linked. This option is useful for some build system which
-  /// want to know a priori all possible output files.
+  /// Always emit a Regular LTO object even when empty.
+  ///
+  /// Emit even when no Regular LTO modules were linked. This option is useful
+  /// for some build systems which want to know a priori all possible output
+  /// files.
   bool AlwaysEmitRegularLTOObj = false;
 
+  /// Whether LTO creates its own copies of symbol names.
+  ///
   /// If true, the LTO instance creates copies of the symbol names for LTO::run.
   /// The lld linker uses string saver to keep symbol names alive and doesn't
   /// need to create copies, so it can set this field to false.
@@ -105,20 +125,26 @@ struct Config {
   /// distinguished.
   mutable bool Dtlto = 0;
 
+  /// Visibility scheme for non-imported definitions.
+  ///
   /// Allows non-imported definitions to get the potentially more constraining
   /// visibility from the prevailing definition. FromPrevailing is the default
   /// because it works for many binary formats. ELF can use the more optimized
   /// 'ELF' scheme.
   VisScheme VisibilityScheme = FromPrevailing;
 
+  /// Pass pipeline string for the middle-end optimizer.
+  ///
   /// If this field is set, the set of passes run in the middle-end optimizer
   /// will be the one specified by the string. Only works with the new pass
   /// manager as the old one doesn't have this ability.
   std::string OptPipeline;
 
-  // If this field is set, it has the same effect of specifying an AA pipeline
-  // identified by the string. Only works with the new pass manager, in
-  // conjunction OptPipeline.
+  /// Alias analysis pipeline string for the new pass manager.
+  ///
+  /// If this field is set, it has the same effect of specifying an AA pipeline
+  /// identified by the string. Only works with the new pass manager, in
+  /// conjunction with OptPipeline.
   std::string AAPipeline;
 
   /// Setting this field will replace target triples in input files with this
@@ -141,15 +167,19 @@ struct Config {
   /// The directory to store .dwo files.
   std::string DwoDir;
 
-  /// The name for the split debug info file used for the DW_AT_[GNU_]dwo_name
-  /// attribute in the skeleton CU. This should generally only be used when
-  /// running an individual backend directly via thinBackend(), as otherwise
-  /// all objects would use the same .dwo file. Not used as output path.
+  /// Split DWARF .dwo file name for the skeleton CU attribute.
+  ///
+  /// Used for the DW_AT_[GNU_]dwo_name attribute. This should generally only be
+  /// used when running an individual backend directly via thinBackend(), as
+  /// otherwise all objects would use the same .dwo file. Not used as output
+  /// path.
   std::string SplitDwarfFile;
 
-  /// The path to write a .dwo file to. This should generally only be used when
-  /// running an individual backend directly via thinBackend(), as otherwise
-  /// all .dwo files will be written to the same path. Not used in skeleton CU.
+  /// Output path for writing a .dwo file.
+  ///
+  /// This should generally only be used when running an individual backend
+  /// directly via thinBackend(), as otherwise all .dwo files will be written to
+  /// the same path. Not used in skeleton CU.
   std::string SplitDwarfOutput;
 
   /// Optimization remarks file path.
@@ -194,16 +224,20 @@ struct Config {
   /// Time trace granularity.
   unsigned TimeTraceGranularity = 500;
 
+  /// Whether to discard value names from the IR.
   bool ShouldDiscardValueNames = true;
+  /// Diagnostic handler callback for LTO.
   DiagnosticHandlerFunction DiagHandler;
 
   /// Add FSAFDO discriminators.
   bool AddFSDiscriminator = false;
 
+  /// Stream for writing symbol resolutions in llvm-lto2 flag format.
+  ///
   /// If this field is set, LTO will write input file paths and symbol
-  /// resolutions here in llvm-lto2 command line flag format. This can be
-  /// used for testing and for running the LTO pipeline outside of the linker
-  /// with llvm-lto2.
+  /// resolutions here in llvm-lto2 command line flag format. This can be used
+  /// for testing and for running the LTO pipeline outside of the linker with
+  /// llvm-lto2.
   std::unique_ptr<raw_ostream> ResolutionFile;
 
   /// Tunable parameters for passes in the default pipelines.
@@ -222,6 +256,8 @@ struct Config {
   /// reason, the client should not expect to receive exactly getMaxTasks()
   /// native object files.
 
+  /// Callback invoked on a module at a point in the LTO pipeline.
+  ///
   /// A module hook may be used by a linker to perform actions during the LTO
   /// pipeline. For example, a linker may use this function to implement
   /// -save-temps. If this function returns false, any further processing for
@@ -252,11 +288,14 @@ struct Config {
   /// This module hook is called after optimization is complete.
   ModuleHookFn PostOptModuleHook;
 
-  /// This module hook is called before code generation. It is similar to the
-  /// PostOptModuleHook, but for parallel code generation it is called after
-  /// splitting the module.
+  /// Module hook called before code generation.
+  ///
+  /// It is similar to the PostOptModuleHook, but for parallel code generation
+  /// it is called after splitting the module.
   ModuleHookFn PreCodeGenModuleHook;
 
+  /// Callback invoked after per-module indexes are combined.
+  ///
   /// A combined index hook is called after all per-module indexes have been
   /// combined (ThinLTO-specific). It can be used to implement -save-temps for
   /// the combined index.
@@ -269,8 +308,11 @@ struct Config {
   using CombinedIndexHookFn = std::function<bool(
       const ModuleSummaryIndex &Index,
       const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols)>;
+  /// Combined index hook for ThinLTO.
   CombinedIndexHookFn CombinedIndexHook;
 
+  /// Configure this Config to write temporary files for each LTO phase.
+  ///
   /// This is a convenience function that configures this Config object to write
   /// temporary files named after the given OutputFileName for each of the LTO
   /// phases to disk. A client can use this function to implement -save-temps.
@@ -289,22 +331,35 @@ struct Config {
   ///
   /// SaveTempsArgs can be specified to select which temps to save.
   /// If SaveTempsArgs is not provided, all temps are saved.
+  /// @param OutputFileName Prefix used when naming temporary and resolution
+  /// files.
+  /// @param UseInputModulePath If true, name ThinLTO backend temps after the
+  /// input module path.
+  /// @param SaveTempsArgs Optional set of temp names to save; saves all if
+  /// empty.
+  /// @return Success, or an error if temporary-file setup fails.
   LLVM_ABI Error addSaveTemps(std::string OutputFileName,
                               bool UseInputModulePath = false,
                               const DenseSet<StringRef> &SaveTempsArgs = {});
 
+  /// Callback that provides a stream for a bitcode module's summary index.
+  ///
   /// Called by WriteIndexesThinBackend when it needs to write a bitcode
-  /// module's summary index. The callback should return a stream to write
-  /// the index into. If not set, the backend falls back
-  /// to writing the summary index to a file.
+  /// module's summary index. The callback should return a stream to write the
+  /// index into. If not set, the backend falls back to writing the summary
+  /// index to a file.
   std::function<std::unique_ptr<raw_pwrite_stream>(size_t Task)>
       GetSummaryIndexOutputStream;
+  /// Callback that provides storage for a bitcode module's imports list.
+  ///
   /// Called by WriteIndexesThinBackend when it needs to store a bitcode
   /// module's imports list. The callback should return a vector that the
   /// backend will populate with the imported module paths. If not set, the
   /// backend writes the imports list to a file instead.
   std::function<std::vector<std::string> &(size_t Task)>
       GetImportsListOutputArray;
+  /// Callback that provides storage for a bitcode module's cache key.
+  ///
   /// Called by WriteIndexesThinBackend when it needs to store a bitcode
   /// module's cache key. The callback should return a string that the backend
   /// will fill with the computed cache key. If not set, the cache key is
@@ -312,15 +367,24 @@ struct Config {
   std::function<std::string &(size_t Task)> GetCacheKeyOutputString;
 };
 
+/// Diagnostic handler that forwards diagnostics to a function callback.
 struct LTOLLVMDiagnosticHandler : public DiagnosticHandler {
+  /// Diagnostic handler function to invoke.
   DiagnosticHandlerFunction *Fn;
+  /// Construct a handler that forwards to \p DiagHandlerFn.
+  /// @param DiagHandlerFn Callback that receives each diagnostic.
   LTOLLVMDiagnosticHandler(DiagnosticHandlerFunction *DiagHandlerFn)
       : Fn(DiagHandlerFn) {}
+  /// Forward \p DI to the configured diagnostic handler function.
+  /// @param DI Diagnostic to handle.
+  /// @return Always true after forwarding the diagnostic.
   bool handleDiagnostics(const DiagnosticInfo &DI) override {
     (*Fn)(DI);
     return true;
   }
 };
+/// LLVMContext initialized from an LTO Config.
+///
 /// A derived class of LLVMContext that initializes itself according to a given
 /// Config object. The purpose of this class is to tie ownership of the
 /// diagnostic handler to the context, as opposed to the Config object (which
@@ -328,12 +392,15 @@ struct LTOLLVMDiagnosticHandler : public DiagnosticHandler {
 // FIXME: This should not be required as diagnostic handler is not callback.
 struct LTOLLVMContext : LLVMContext {
 
+  /// Construct a context configured from \p C.
+  /// @param C LTO configuration used to initialize the context.
   LTOLLVMContext(const Config &C) : DiagHandler(C.DiagHandler) {
     setDiscardValueNames(C.ShouldDiscardValueNames);
     enableDebugTypeODRUniquing();
     setDiagnosticHandler(
         std::make_unique<LTOLLVMDiagnosticHandler>(&DiagHandler), true);
   }
+  /// Diagnostic handler owned by this context.
   DiagnosticHandlerFunction DiagHandler;
 };
 

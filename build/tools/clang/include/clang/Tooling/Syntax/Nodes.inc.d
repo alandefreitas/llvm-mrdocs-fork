@@ -1,1 +1,0 @@
-Nodes.inc: /Users/alandefreitas/Documents/Code/C++/mrdocs/local/demo-forks/llvm-clone/clang/include/clang/Tooling/Syntax/Nodes.td /Users/alandefreitas/Documents/Code/C++/mrdocs/local/demo-forks/llvm-clone/clang/include/clang/Tooling/Syntax/Syntax.td

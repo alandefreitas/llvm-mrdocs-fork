@@ -28,6 +28,7 @@
 #include <vector>
 
 namespace llvm {
+/// Link-time optimization APIs, including Distributed ThinLTO (DTLTO).
 namespace lto {
 
 /// Prepares inputs for Distributed ThinLTO so that backend compilations use
@@ -47,6 +48,26 @@ class LLVM_ABI DTLTO : public LTO {
   using Base = LTO;
 
 public:
+  /// Construct a Distributed ThinLTO driver.
+  ///
+  /// \param Conf LTO configuration for the link.
+  /// \param ParallelCodeGenParallelismLevel Parallelism level for Regular LTO
+  ///        code generation.
+  /// \param LTOMode LTO mode; forced to unified ThinLTO after construction.
+  /// \param OnWrite Callback invoked when a ThinLTO index file is written.
+  /// \param EmitIndexFiles Whether to keep per-module summary index files.
+  /// \param EmitImportsFiles Whether to keep per-module imports list files.
+  /// \param LinkerOutputFile Linker output path used to derive artifact paths.
+  /// \param Distributor Path to the distributor executable.
+  /// \param DistributorArgs Extra arguments passed to the distributor.
+  /// \param RemoteCompiler Remote compiler executable invoked by the
+  ///        distributor.
+  /// \param RemoteCompilerPrependArgs Options prepended to remote compiler
+  ///        arguments.
+  /// \param RemoteCompilerArgs User-supplied remote compiler arguments.
+  /// \param AddBufferArg Callback used to add a pre-existing native object
+  ///        buffer to the link.
+  /// \param SaveTempsArg When true, retain temporary files produced by DTLTO.
   DTLTO(Config Conf, unsigned ParallelCodeGenParallelismLevel, LTOKind LTOMode,
         IndexWriteCallback OnWrite, bool EmitIndexFiles, bool EmitImportsFiles,
         StringRef LinkerOutputFile, StringRef Distributor,
@@ -66,7 +87,9 @@ public:
     LTOMode = lto::LTO::LTOKind::LTOK_UnifiedThin;
   }
 
-  // Create an instance of WriteIndexesBackend class.
+  /// Create a ThinBackend that writes per-module summary index shards.
+  ///
+  /// \returns A ThinBackend that writes per-module summary index shards.
   static lto::ThinBackend writeIndexesBackendInstance() {
     return lto::createWriteIndexesThinBackend(hardware_concurrency(), "", "",
                                               "", true, nullptr, nullptr);
@@ -83,6 +106,8 @@ public:
   /// 4. For archive members and FatLTO objects, overwrite the module ID with a
   ///    unique path (normalized on Windows) naming a file that will contain the
   ///    content. The file is created/populated later (see extractLTOInputs()).
+  /// \param InputPtr Input file to add and prepare for distribution.
+  /// \returns The shared input file on success, or an Error on failure.
   Expected<std::shared_ptr<InputFile>>
   addInput(std::unique_ptr<InputFile> InputPtr) override;
 
@@ -94,12 +119,16 @@ public:
   ///
   /// The client will receive at most one callback (via either AddStream or
   /// Cache) for each task identifier.
+  /// \param AddStream Callback used to add native object streams to the link.
+  /// \param Cache Optional cache for native object files.
+  /// \returns Error::success() on success, or an Error from the DTLTO pipeline.
   virtual Error run(AddStreamFn AddStream, FileCache Cache = {}) override;
 
-  /// Wait for LTO cleanup. Clients may call this after run() once subsequent
-  /// linking work that can overlap with cleanup is complete. Cleanup may emit
-  /// time trace events, so this must be called before time trace data is
-  /// finalized.
+  /// Wait for asynchronous LTO cleanup to finish.
+  ///
+  /// Clients may call this after run() once subsequent linking work that can
+  /// overlap with cleanup is complete. Cleanup may emit time trace events, so
+  /// this must be called before time trace data is finalized.
   void waitForCleanup() override;
 
 private:
@@ -119,8 +148,13 @@ private:
   void cleanup() override;
 
 public:
-  // Mutable and const accessors to the LTO configuration object.
+  /// Return a mutable reference to the LTO configuration.
+  ///
+  /// \returns A mutable reference to the LTO configuration.
   Config &getConfig() { return Conf; }
+  /// Return a const reference to the LTO configuration.
+  ///
+  /// \returns A const reference to the LTO configuration.
   const Config &getConfig() const { return Conf; }
 
 private:
@@ -144,25 +178,26 @@ private:
   static Error save(StringRef Buffer, StringRef Path);
 
 public:
+  /// One Distributed ThinLTO backend compilation job for a ThinLTO module.
   struct Job {
-    // Task index (combines RegularLTO parallel codegen offset with module
-    // index).
+    /// Task index combining Regular LTO parallel codegen offset with module
+    /// index.
     unsigned Task;
-    // Module identifier (bitcode path) for the ThinLTO module.
+    /// Module identifier (bitcode path) for the ThinLTO module.
     StringRef ModuleID;
-    // Native object path.
+    /// Path of the native object produced for this job.
     StringRef NativeObjectPath;
-    // Per-module summary index path.
+    /// Path of the per-module summary index file.
     StringRef SummaryIndexPath;
-    // Per-module imports list path.
+    /// Path of the per-module imports list file.
     StringRef ImportsPath;
-    // Bitcode files from which this module imports.
+    /// Bitcode files from which this module imports.
     ArrayRef<std::string> ImportsFilesList;
-    // Cache key from thin link.
+    /// Cache key computed during the thin link.
     std::string CacheKey;
-    // On cache miss, stream used to store the compiled object in the cache.
+    /// On cache miss, stream used to store the compiled object in the cache.
     AddStreamFn CacheAddStream;
-    // Set when the object was already supplied via the cache callback.
+    /// True when the object was already supplied via the cache callback.
     bool Cached = false;
   };
 
@@ -320,10 +355,21 @@ private:
   void buildCommonRemoteCompilerOptions();
 
 public:
-  // Parameters and shared state for DistributorDriver class.
+  /// Parameters and shared state for the distribution driver.
   struct DistributionDriverParams {
 
+    /// Construct an empty set of distribution driver parameters.
     DistributionDriverParams() = default;
+    /// Construct distribution driver parameters from client-supplied paths.
+    ///
+    /// \param DistributorArg Path to the distributor executable.
+    /// \param DistributorArgsArg Extra arguments passed to the distributor.
+    /// \param RemoteCompilerArg Remote compiler executable path.
+    /// \param RemoteCompilerPrependArgsArg Options prepended to remote
+    ///        compiler arguments.
+    /// \param RemoteCompilerArgsArg User-supplied remote compiler arguments.
+    /// \param LinkerOutputFileArg Linker output path used to derive artifact
+    ///        paths.
     DistributionDriverParams(StringRef DistributorArg,
                              ArrayRef<StringRef> DistributorArgsArg,
                              StringRef RemoteCompilerArg,
@@ -336,24 +382,24 @@ public:
           RemoteCompilerPrependArgs(RemoteCompilerPrependArgsArg),
           RemoteCompilerArgs(RemoteCompilerArgsArg) {}
 
-    // Output linker file path.
+    /// Output linker file path.
     SString LinkerOutputFile;
-    // Path to the distributor executable.
+    /// Path to the distributor executable.
     SString DistributorPath;
-    // Arguments passed to the distributor.
+    /// Arguments passed to the distributor.
     ArrayRef<StringRef> DistributorArgs;
-    // Compiler executabl invoked by the distributor (e.g., Clang).
+    /// Compiler executable invoked by the distributor (e.g., Clang).
     SString RemoteCompiler;
-    // Options prepended to remote compiler args.
+    /// Options prepended to remote compiler args.
     ArrayRef<StringRef> RemoteCompilerPrependArgs;
-    // User-supplied options passed to remote compiler.
+    /// User-supplied options passed to remote compiler.
     ArrayRef<StringRef> RemoteCompilerArgs;
 
-    // Common Clang options for all compilation jobs.
+    /// Common Clang options for all compilation jobs.
     SmallVector<StringRef, 0> CodegenOptions;
-    // Input paths shared across compilation jobs.
+    /// Input paths shared across compilation jobs.
     DenseSet<StringRef> CommonInputs;
-    // Target triple for compilations.
+    /// Target triple for compilations.
     Triple TargetTriple;
   };
 
@@ -386,11 +432,21 @@ private:
 };
 
 namespace {
+/// Prefix string for DTLTO backend compilation error messages.
 constexpr StringRef BCError = "DTLTO backend compilation: ";
 }
 
+/// Invokes a distributor to compile ThinLTO modules remotely.
 class DistributionDriver {
 public:
+  /// Construct a distribution driver for the given jobs and parameters.
+  ///
+  /// \param ParamsArg Shared distribution parameters and remote compiler
+  ///        options.
+  /// \param JobsArg Backend compilation jobs to describe to the distributor.
+  /// \param SaveTempsArg When true, retain temporary files such as the JSON
+  ///        manifest.
+  /// \param AddToClenupArg Callback that records a path for later cleanup.
   DistributionDriver(DTLTO::DistributionDriverParams &ParamsArg,
                      ArrayRef<DTLTO::Job> JobsArg, bool SaveTempsArg,
                      std::function<void(StringRef)> AddToClenupArg)

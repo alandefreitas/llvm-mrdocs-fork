@@ -24,6 +24,7 @@ namespace llvm {
 
 class MCExpr;
 
+/// A machine code section for the GOFF (z/OS) object file format.
 class LLVM_ABI MCSectionGOFF final : public MCSection {
   StringRef ExternalName; // Alternate external name.
 
@@ -32,8 +33,11 @@ class LLVM_ABI MCSectionGOFF final : public MCSection {
 
   // The attributes of the GOFF symbols.
   union {
+    /// Section-definition (SD) attributes for this section.
     GOFF::SDAttr SDAttributes;
+    /// Element-definition (ED) attributes for this section.
     GOFF::EDAttr EDAttributes;
+    /// Part-reference (PR) attributes for this section.
     GOFF::PRAttr PRAttributes;
   };
 
@@ -73,31 +77,45 @@ class LLVM_ABI MCSectionGOFF final : public MCSection {
         IsBSS(K.isBSS()), RequiresNonZeroLength(0), Emitted(0) {}
 
 public:
-  // Return the parent section.
+  /// Return the parent section, which is emitted before this one.
+  /// @return The parent section, or null if none.
   MCSectionGOFF *getParent() const { return Parent; }
 
-  // Returns true if this is a BSS section.
+  /// Return true if this is a BSS section.
+  /// @return True if this is a BSS section.
   bool isBSS() const { return IsBSS; }
 
-  // Returns the type of this section.
+  /// Return the GOFF ESD symbol type of this section.
+  /// @return The GOFF ESD symbol type of this section.
   GOFF::ESDSymbolType getSymbolType() const { return SymbolType; }
 
+  /// Return true if this is a section-definition (SD) section.
+  /// @return True if this is a section-definition (SD) section.
   bool isSD() const { return SymbolType == GOFF::ESD_ST_SectionDefinition; }
+  /// Return true if this is an element-definition (ED) section.
+  /// @return True if this is an element-definition (ED) section.
   bool isED() const { return SymbolType == GOFF::ESD_ST_ElementDefinition; }
+  /// Return true if this is a part-reference (PR) section.
+  /// @return True if this is a part-reference (PR) section.
   bool isPR() const { return SymbolType == GOFF::ESD_ST_PartReference; }
 
-  // Accessors to the attributes.
+  /// Return the section-definition attributes; only valid for SD sections.
+  /// @return The section-definition attributes for this SD section.
   GOFF::SDAttr getSDAttributes() const {
     assert(isSD() && "Not a SD section");
     return SDAttributes;
   }
+  /// Return the element-definition attributes; only valid for ED sections.
+  /// @return The element-definition attributes for this ED section.
   GOFF::EDAttr getEDAttributes() const {
     assert(isED() && "Not a ED section");
     return EDAttributes;
   }
 
-  // Returns the ESD alignment value for the ED section, computed from the
-  // MCSection alignment. Only defined for ED sections.
+  /// Return the ESD alignment for an ED section from the MCSection alignment.
+  ///
+  /// Only defined for ED sections.
+  /// @return The ESD alignment derived from this section's alignment.
   GOFF::ESDAlignment getEDAlignment() const {
     assert(isED() && "Not a ED section");
     uint8_t Log = Log2(getAlign());
@@ -106,12 +124,17 @@ public:
     return static_cast<GOFF::ESDAlignment>(Log);
   }
 
+  /// Return the part-reference attributes; only valid for PR sections.
+  /// @return The part-reference attributes for this PR section.
   GOFF::PRAttr getPRAttributes() const {
     assert(isPR() && "Not a PR section");
     return PRAttributes;
   }
 
-  // Returns the text style for a section. Only defined for ED and PR sections.
+  /// Return the text style for this section.
+  ///
+  /// Only defined for ED and PR sections.
+  /// @return The ESD text style for this section.
   GOFF::ESDTextStyle getTextStyle() const {
     assert((isED() || isPR() || isBssSection()) && "Expect ED or PR section");
     if (isED())
@@ -122,15 +145,28 @@ public:
     return GOFF::ESD_TS_ByteOriented;
   }
 
+  /// Return true if this PR section must be emitted with a non-zero length.
+  /// @return True if this PR section must be emitted with a non-zero length.
   bool requiresNonZeroLength() const { return RequiresNonZeroLength; }
 
+  /// Return true if the section definition has already been emitted.
+  /// @return True if the section definition has already been emitted.
   bool isEmitted() const { return Emitted; }
+  /// Mark the section definition as emitted.
   void setEmitted() const { Emitted = true; }
 
+  /// Set the section name.
+  /// @param SectionName New name for this section.
   void setName(StringRef SectionName) { Name = SectionName; }
 
+  /// Return true if an alternate external name has been set.
+  /// @return True if an alternate external name has been set.
   bool hasExternalName() const { return !ExternalName.empty(); }
+  /// Set the alternate external name for this section.
+  /// @param Name Alternate external name to store.
   void setExternalName(StringRef Name) { ExternalName = Name; }
+  /// Return the external name, or the section name if none was set.
+  /// @return The external name, or the section name if none was set.
   StringRef getExternalName() const {
     return hasExternalName() ? ExternalName : getName();
   }

@@ -56,18 +56,27 @@ public:
   SetType Visited;
 };
 
+/// Depth-first iterator storage that references an external visited set.
 template <class SetType> class df_iterator_storage<SetType, true> {
 public:
+  /// Construct storage that references the caller-owned visited set \p VSet.
+  /// @param VSet External set of visited nodes.
   df_iterator_storage(SetType &VSet) : Visited(VSet) {}
+
+  /// Copy construct, sharing the same external visited set reference.
+  /// @param S Storage whose visited-set reference is reused.
   df_iterator_storage(const df_iterator_storage &S) : Visited(S.Visited) {}
 
+  /// Reference to the caller-owned set of nodes already visited.
   SetType &Visited;
 };
 
-// The visited stated for the iteration is a simple set augmented with
-// one more method, completed, which is invoked when all children of a
-// node have been processed. It is intended to distinguish of back and
-// cross edges in the spanning tree but is not used in the common case.
+/// Default visited-node set for depth-first iteration.
+///
+/// The visited state for the iteration is a simple set augmented with one more
+/// method, completed, which is invoked when all children of a node have been
+/// processed. It is intended to distinguish back and cross edges in the
+/// spanning tree but is not used in the common case.
 template <typename NodeRef, unsigned SmallSize = 8>
 struct df_iterator_default_set : SmallPtrSet<NodeRef, SmallSize> {
   /// Underlying SmallPtrSet used to track visited nodes.
@@ -180,18 +189,21 @@ private:
 public:
   /// Construct a depth-first iterator at the entry node of \p G.
   /// @param G Graph to traverse.
+  /// @return Depth-first iterator positioned at the entry node.
   static df_iterator begin(const GraphT &G) {
     return df_iterator(GT::getEntryNode(G));
   }
 
   /// Construct a past-the-end depth-first iterator for \p G.
   /// @param G Graph being traversed (unused; end is empty).
+  /// @return Past-the-end depth-first iterator.
   static df_iterator end(const GraphT &G) { return df_iterator(); }
 
   /// Construct a depth-first iterator at the entry of \p G using external set
   /// \p S.
   /// @param G Graph to traverse.
   /// @param S Caller-owned visited set shared with this iterator.
+  /// @return Depth-first iterator positioned at the entry node.
   static df_iterator begin(const GraphT &G, SetType &S) {
     return df_iterator(GT::getEntryNode(G), S);
   }
@@ -199,19 +211,23 @@ public:
   /// Construct a past-the-end depth-first iterator bound to external set \p S.
   /// @param G Graph being traversed (unused; end is empty).
   /// @param S Caller-owned visited set shared with this iterator.
+  /// @return Past-the-end depth-first iterator.
   static df_iterator end(const GraphT &G, SetType &S) { return df_iterator(S); }
 
   /// Return true if both iterators have the same visit-stack state.
   /// @param x Iterator to compare with.
+  /// @return True if both iterators have the same visit-stack state.
   bool operator==(const df_iterator &x) const {
     return VisitStack == x.VisitStack;
   }
 
   /// Return true if the iterators differ in visit-stack state.
   /// @param x Iterator to compare with.
+  /// @return True if the iterators differ in visit-stack state.
   bool operator!=(const df_iterator &x) const { return !(*this == x); }
 
   /// Return a reference to the current node.
+  /// @return Const reference to the current node.
   reference operator*() const { return VisitStack.back().first; }
 
   /// Return the current node so methods can be called through the iterator.
@@ -220,9 +236,11 @@ public:
   /// time so that you can actually call methods on the node, because the
   /// contained type is a pointer. This allows expressions like
   /// `BBIt->getTerminator()`.
+  /// @return The current node reference.
   NodeRef operator->() const { return **this; }
 
   /// Advance to the next node in depth-first order and return this iterator.
+  /// @return Reference to this iterator after advancing.
   df_iterator &operator++() { // Preincrement
     toNext();
     return *this;
@@ -232,6 +250,7 @@ public:
   ///
   /// Note: This function takes care of incrementing the iterator. If you
   /// always increment and call this function, you risk walking off the end.
+  /// @return Reference to this iterator after skipping children.
   df_iterator &skipChildren() {
     VisitStack.pop_back();
     if (!VisitStack.empty())
@@ -240,7 +259,9 @@ public:
   }
 
   /// Advance to the next node and return the prior iterator position.
-  df_iterator operator++(int) { // Postincrement
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before advancing.
+  df_iterator operator++(int Unused) { // Postincrement
     df_iterator tmp = *this;
     ++*this;
     return tmp;
@@ -251,20 +272,25 @@ public:
   /// Useful for finding nodes that a depth-first walk did not reach (for
   /// example unreachable nodes).
   /// @param Node Node to query.
+  /// @return True if \p Node has already been visited.
   bool nodeVisited(NodeRef Node) const {
     return this->Visited.contains(Node);
   }
 
   /// Return the length of the path from the entry node to the current node,
   /// counting both nodes.
+  /// @return Number of nodes on the path from entry to the current node.
   unsigned getPathLength() const { return VisitStack.size(); }
 
   /// Return the n'th node in the path from the entry node to the current node.
+  /// @param n Zero-based index along the path (0 is the entry node).
+  /// @return The node at path index \p n.
   NodeRef getPath(unsigned n) const { return VisitStack[n].first; }
 };
 
 /// Return a depth-first iterator at the entry of \p G.
 /// @param G Graph to traverse.
+/// @return Depth-first iterator positioned at the entry of \p G.
 template <class T>
 df_iterator<T> df_begin(const T &G) {
   return df_iterator<T>::begin(G);
@@ -272,6 +298,7 @@ df_iterator<T> df_begin(const T &G) {
 
 /// Return a past-the-end depth-first iterator for \p G.
 /// @param G Graph being traversed.
+/// @return Past-the-end depth-first iterator for \p G.
 template <class T>
 df_iterator<T> df_end(const T &G) {
   return df_iterator<T>::end(G);
@@ -279,6 +306,7 @@ df_iterator<T> df_end(const T &G) {
 
 /// Return a range that visits \p G in depth-first order.
 /// @param G Graph to traverse.
+/// @return Iterator range covering a depth-first walk of \p G.
 template <class T>
 iterator_range<df_iterator<T>> depth_first(const T &G) {
   return make_range(df_begin(G), df_end(G));
@@ -298,6 +326,7 @@ struct df_ext_iterator : df_iterator<T, SetTy, true> {
 /// Return an external-storage depth-first iterator at the entry of \p G.
 /// @param G Graph to traverse.
 /// @param S Caller-owned visited set.
+/// @return External-storage depth-first iterator at the entry of \p G.
 template <class T, class SetTy>
 df_ext_iterator<T, SetTy> df_ext_begin(const T &G, SetTy &S) {
   return df_ext_iterator<T, SetTy>::begin(G, S);
@@ -306,6 +335,7 @@ df_ext_iterator<T, SetTy> df_ext_begin(const T &G, SetTy &S) {
 /// Return a past-the-end external-storage depth-first iterator for \p G.
 /// @param G Graph being traversed.
 /// @param S Caller-owned visited set.
+/// @return Past-the-end external-storage depth-first iterator for \p G.
 template <class T, class SetTy>
 df_ext_iterator<T, SetTy> df_ext_end(const T &G, SetTy &S) {
   return df_ext_iterator<T, SetTy>::end(G, S);
@@ -314,6 +344,7 @@ df_ext_iterator<T, SetTy> df_ext_end(const T &G, SetTy &S) {
 /// Return a range that visits \p G in depth-first order using visited set \p S.
 /// @param G Graph to traverse.
 /// @param S Caller-owned visited set.
+/// @return Iterator range covering a depth-first walk of \p G using \p S.
 template <class T, class SetTy>
 iterator_range<df_ext_iterator<T, SetTy>> depth_first_ext(const T &G,
                                                           SetTy &S) {
@@ -334,6 +365,7 @@ struct idf_iterator : df_iterator<Inverse<T>, SetTy, External> {
 
 /// Return an inverse depth-first iterator at the entry of \p G.
 /// @param G Graph whose inverse edges are traversed.
+/// @return Inverse depth-first iterator at the entry of \p G.
 template <class T>
 idf_iterator<T> idf_begin(const T &G) {
   return idf_iterator<T>::begin(Inverse<T>(G));
@@ -341,6 +373,7 @@ idf_iterator<T> idf_begin(const T &G) {
 
 /// Return a past-the-end inverse depth-first iterator for \p G.
 /// @param G Graph whose inverse edges are traversed.
+/// @return Past-the-end inverse depth-first iterator for \p G.
 template <class T>
 idf_iterator<T> idf_end(const T &G) {
   return idf_iterator<T>::end(Inverse<T>(G));
@@ -348,6 +381,7 @@ idf_iterator<T> idf_end(const T &G) {
 
 /// Return a range that visits the inverse of \p G in depth-first order.
 /// @param G Graph whose inverse edges are traversed.
+/// @return Iterator range covering an inverse depth-first walk of \p G.
 template <class T>
 iterator_range<idf_iterator<T>> inverse_depth_first(const T &G) {
   return make_range(idf_begin(G), idf_end(G));
@@ -373,6 +407,7 @@ struct idf_ext_iterator : idf_iterator<T, SetTy, true> {
 /// Return an external inverse depth-first iterator at the entry of \p G.
 /// @param G Graph whose inverse edges are traversed.
 /// @param S Caller-owned visited set.
+/// @return External inverse depth-first iterator at the entry of \p G.
 template <class T, class SetTy>
 idf_ext_iterator<T, SetTy> idf_ext_begin(const T &G, SetTy &S) {
   return idf_ext_iterator<T, SetTy>::begin(Inverse<T>(G), S);
@@ -381,6 +416,7 @@ idf_ext_iterator<T, SetTy> idf_ext_begin(const T &G, SetTy &S) {
 /// Return a past-the-end external inverse depth-first iterator for \p G.
 /// @param G Graph whose inverse edges are traversed.
 /// @param S Caller-owned visited set.
+/// @return Past-the-end external inverse depth-first iterator for \p G.
 template <class T, class SetTy>
 idf_ext_iterator<T, SetTy> idf_ext_end(const T &G, SetTy &S) {
   return idf_ext_iterator<T, SetTy>::end(Inverse<T>(G), S);
@@ -390,6 +426,7 @@ idf_ext_iterator<T, SetTy> idf_ext_end(const T &G, SetTy &S) {
 /// visited set \p S.
 /// @param G Graph whose inverse edges are traversed.
 /// @param S Caller-owned visited set.
+/// @return Iterator range covering an inverse depth-first walk of \p G using \p S.
 template <class T, class SetTy>
 iterator_range<idf_ext_iterator<T, SetTy>>
 inverse_depth_first_ext(const T &G, SetTy &S) {

@@ -22,22 +22,32 @@ namespace llvm {
 //                          FixedNumOperand Trait Class
 //===----------------------------------------------------------------------===//
 
-/// FixedNumOperandTraits - determine the allocation regime of the Use array
-/// when it is a prefix to the User object, and the number of Use objects is
-/// known at compile time.
+/// Traits for a compile-time-fixed prefix Use array.
+///
+/// Determines the allocation regime of the Use array when it is a prefix to
+/// the User object, and the number of Use objects is known at compile time.
 
 template <typename SubClass, unsigned ARITY>
 struct FixedNumOperandTraits {
+  /// Return a pointer to the first operand \c Use for \p U.
+  /// \param U User whose operands are accessed.
+  /// \return Pointer to the first operand \c Use.
   static Use *op_begin(SubClass* U) {
     static_assert(
         !std::is_polymorphic<SubClass>::value,
         "adding virtual methods to subclasses of User breaks use lists");
     return reinterpret_cast<Use*>(U) - ARITY;
   }
+  /// Return a pointer past the last operand \c Use for \p U.
+  /// \param U User whose operands are accessed.
+  /// \return Pointer past the last operand \c Use.
   static Use *op_end(SubClass* U) {
     return reinterpret_cast<Use*>(U);
   }
-  static unsigned operands(const User*) {
+  /// Return the fixed number of operands for \p U.
+  /// \param U User whose operand count is requested.
+  /// \return The compile-time-fixed operand count \c ARITY.
+  static unsigned operands(const User *U) {
     return ARITY;
   }
 };
@@ -51,6 +61,9 @@ struct FixedNumOperandTraits {
 
 template <typename SubClass, unsigned ARITY = 1>
 struct OptionalOperandTraits : public FixedNumOperandTraits<SubClass, ARITY> {
+  /// Return the current number of operands of \p U.
+  /// \param U User whose operand count is queried.
+  /// \return The current number of operands of \p U.
   static unsigned operands(const User *U) {
     return U->getNumOperands();
   }
@@ -60,20 +73,31 @@ struct OptionalOperandTraits : public FixedNumOperandTraits<SubClass, ARITY> {
 //                          VariadicOperand Trait Class
 //===----------------------------------------------------------------------===//
 
-/// VariadicOperandTraits - determine the allocation regime of the Use array
-/// when it is a prefix to the User object, and the number of Use objects is
-/// only known at allocation time.
+/// Traits for a prefix Use array sized at allocation time.
+///
+/// Determines the allocation regime of the Use array when it is a prefix to
+/// the User object, and the number of Use objects is only known at allocation
+/// time.
 
 template <typename SubClass> struct VariadicOperandTraits {
+  /// Return a pointer to the first operand \c Use for \p U.
+  /// \param U User whose operands are accessed.
+  /// \return Pointer to the first operand \c Use.
   static Use *op_begin(SubClass* U) {
     static_assert(
         !std::is_polymorphic<SubClass>::value,
         "adding virtual methods to subclasses of User breaks use lists");
     return reinterpret_cast<Use*>(U) - static_cast<User*>(U)->getNumOperands();
   }
+  /// Return a pointer past the last operand \c Use for \p U.
+  /// \param U User whose operands are accessed.
+  /// \return Pointer past the last operand \c Use.
   static Use *op_end(SubClass* U) {
     return reinterpret_cast<Use*>(U);
   }
+  /// Return the number of operands of \p U.
+  /// \param U User whose operand count is queried.
+  /// \return The number of operands of \p U.
   static unsigned operands(const User *U) {
     return U->getNumOperands();
   }
@@ -91,12 +115,21 @@ template <typename SubClass> struct VariadicOperandTraits {
 /// resizable.
 
 struct HungoffOperandTraits {
+  /// Return a pointer to the first hung-off operand \c Use for \p U.
+  /// \param U User whose hung-off operands are accessed.
+  /// \return Pointer to the first hung-off operand \c Use.
   static Use *op_begin(User* U) {
     return U->getHungOffOperands();
   }
+  /// Return a pointer past the last hung-off operand \c Use for \p U.
+  /// \param U User whose hung-off operands are accessed.
+  /// \return Pointer past the last hung-off operand \c Use.
   static Use *op_end(User* U) {
     return U->getHungOffOperands() + U->getNumOperands();
   }
+  /// Return the number of operands of \p U.
+  /// \param U User whose operand count is queried.
+  /// \return The number of operands of \p U.
   static unsigned operands(const User *U) {
     return U->getNumOperands();
   }
@@ -105,6 +138,7 @@ struct HungoffOperandTraits {
 /// Macro for generating in-class operand accessor declarations.
 /// It should only be called in the public section of the interface.
 ///
+/// \param VALUECLASS Operand value type returned by \c getOperand.
 #define DECLARE_TRANSPARENT_OPERAND_ACCESSORS(VALUECLASS) \
   public: \
   inline VALUECLASS *getOperand(unsigned) const; \
@@ -119,7 +153,10 @@ struct HungoffOperandTraits {
   public: \
   inline unsigned getNumOperands() const
 
-/// Macro for generating out-of-class operand accessor definitions
+/// Macro for generating out-of-class operand accessor definitions.
+///
+/// \param CLASS User subclass for which accessors are defined.
+/// \param VALUECLASS Operand value type returned by \c getOperand.
 #define DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CLASS, VALUECLASS) \
 CLASS::op_iterator CLASS::op_begin() { \
   return OperandTraits<CLASS>::op_begin(this); \

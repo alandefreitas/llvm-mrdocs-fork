@@ -15,9 +15,14 @@
 
 namespace llvm {
 namespace codeview {
-/// Return true if this symbol opens a scope. This implies that the symbol has
-/// "parent" and "end" fields, which contain the offset of the S_END or
-/// S_INLINESITE_END record.
+/// Return true if this symbol opens a scope.
+///
+/// This implies that the symbol has "parent" and "end" fields, which contain
+/// the offset of the S_END or S_INLINESITE_END record.
+///
+/// \param Kind Symbol kind to test.
+///
+/// \returns True if \p Kind opens a scope.
 inline bool symbolOpensScope(SymbolKind Kind) {
   switch (Kind) {
   case SymbolKind::S_GPROC32:
@@ -36,7 +41,11 @@ inline bool symbolOpensScope(SymbolKind Kind) {
   return false;
 }
 
-/// Return true if this ssymbol ends a scope.
+/// Return true if this symbol ends a scope.
+///
+/// \param Kind Symbol kind to test.
+///
+/// \returns True if \p Kind ends a scope.
 inline bool symbolEndsScope(SymbolKind Kind) {
   switch (Kind) {
   case SymbolKind::S_END:
@@ -51,9 +60,27 @@ inline bool symbolEndsScope(SymbolKind Kind) {
 
 /// Given a symbol P for which symbolOpensScope(P) == true, return the
 /// corresponding end offset.
+///
+/// \param Symbol Scope-opening symbol whose end offset is requested.
+///
+/// \returns Byte offset of the matching scope-end symbol.
 LLVM_ABI uint32_t getScopeEndOffset(const CVSymbol &Symbol);
+
+/// Return the parent offset of a scope-opening symbol.
+///
+/// \param Symbol Scope-opening symbol whose parent offset is requested.
+///
+/// \returns Byte offset of the parent scope-opening symbol.
 LLVM_ABI uint32_t getScopeParentOffset(const CVSymbol &Symbol);
 
+/// Return the subarray of \p Symbols spanning the scope that begins at
+/// \p ScopeBegin.
+///
+/// \param Symbols Full symbol array containing the scope.
+/// \param ScopeBegin Byte offset of the scope-opening symbol within
+///        \p Symbols.
+///
+/// \returns The subarray of \p Symbols spanning the given scope.
 LLVM_ABI CVSymbolArray limitSymbolArrayToScope(const CVSymbolArray &Symbols,
                                                uint32_t ScopeBegin);
 

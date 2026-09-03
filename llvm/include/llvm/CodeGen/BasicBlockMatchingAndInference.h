@@ -19,6 +19,10 @@
 
 namespace llvm {
 
+/// Pass that matches Propeller profile basic blocks and infers their weights.
+///
+/// Matches profiled blocks to the current MachineFunction by block hash, then
+/// infers weights for remaining blocks and edges.
 class LLVM_ABI BasicBlockMatchingAndInference : public MachineFunctionPass {
 private:
   using Edge = std::pair<const MachineBasicBlock *, const MachineBasicBlock *>;
@@ -35,17 +39,33 @@ private:
   };
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+  /// Construct the basic-block matching and inference pass.
   BasicBlockMatchingAndInference();
 
+  /// Return the name of this pass.
+  ///
+  /// \return Name of this pass as a string reference.
   StringRef getPassName() const override {
     return "Basic Block Matching and Inference";
   }
 
+  /// Declare analyses required and preserved by this pass.
+  ///
+  /// \param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Match and infer basic-block weights for machine function \p F.
+  ///
+  /// \param F Machine function to analyze.
+  /// \return False; this analysis does not modify the machine function.
   bool runOnMachineFunction(MachineFunction &F) override;
 
+  /// Return inferred weight info for function \p FuncName, if available.
+  ///
+  /// \param FuncName Name of the function whose weights are requested.
+  /// \return Weight info for \p FuncName, or std::nullopt if none was computed.
   std::optional<WeightInfo> getWeightInfo(StringRef FuncName) const;
 
 private:

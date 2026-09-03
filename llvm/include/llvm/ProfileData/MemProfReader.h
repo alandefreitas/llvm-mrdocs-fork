@@ -33,25 +33,39 @@
 
 namespace llvm {
 namespace memprof {
-// A class for memprof profile data populated directly from external
-// sources.
+/// Reader for MemProf profile data populated from external sources.
 class MemProfReader {
 public:
-  // The MemProfReader only holds memory profile information.
+  /// Return the profile kind, which is always InstrProfKind::MemProf.
+  /// @return InstrProfKind::MemProf.
   InstrProfKind getProfileKind() const { return InstrProfKind::MemProf; }
 
+  /// Pair of a function GUID and its MemProf record.
   using GuidMemProfRecordPair = std::pair<GlobalValue::GUID, MemProfRecord>;
+  /// Iterator over GUID and MemProfRecord pairs in this reader.
   using Iterator = InstrProfIterator<GuidMemProfRecordPair, MemProfReader>;
+  /// Return an end iterator for the MemProf records.
+  /// @return Past-the-end iterator for the MemProf records.
   Iterator end() { return Iterator(); }
+  /// Return an iterator positioned at the first MemProf record.
+  /// @return Iterator positioned at the first MemProf record.
   Iterator begin() {
     Iter = MemProfData.Records.begin();
     return Iterator(this);
   }
 
-  // Take the complete profile data.  Once this function is invoked,
-  // MemProfReader no longer owns the MemProf profile.
+  /// Take ownership of the complete MemProf profile data.
+  ///
+  /// Once this function is invoked, MemProfReader no longer owns the MemProf
+  /// profile.
+  /// @return The complete MemProf profile previously owned by this reader.
   IndexedMemProfData takeMemProfData() { return std::move(MemProfData); }
 
+  /// Read the next GUID and MemProfRecord pair into \p GuidRecord.
+  /// \param GuidRecord Output pair set to the next function GUID and record.
+  /// \param Callback Optional callback that maps a FrameId to a Frame; when
+  ///        null, uses idToFrame.
+  /// @return Success, or an error if the next record cannot be read.
   virtual Error
   readNextRecord(GuidMemProfRecordPair &GuidRecord,
                  std::function<const Frame(const FrameId)> Callback = nullptr) {
@@ -78,67 +92,103 @@ public:
     return Error::success();
   }
 
-  // Allow default construction for derived classes which can populate the
-  // contents after construction.
+  /// Construct an empty reader for derived classes that populate data later.
   MemProfReader() = default;
+  /// Destroy the MemProf reader.
   virtual ~MemProfReader() = default;
 
-  // Initialize the MemProfReader with the given MemProf profile.
+  /// Construct a reader that takes ownership of \p MemProfData.
+  /// \param MemProfData Complete MemProf profile to own.
   MemProfReader(IndexedMemProfData &&MemProfData)
       : MemProfData(std::move(MemProfData)) {}
 
 protected:
-  // A helper method to extract the frame from the IdToFrame map.
+  /// Look up the Frame for \p Id in the IdToFrame map.
+  /// \param Id Frame identifier to resolve.
+  /// @return Const reference to the Frame mapped from \p Id.
   const Frame &idToFrame(const FrameId Id) const {
     auto It = MemProfData.Frames.find(Id);
     assert(It != MemProfData.Frames.end() && "Id not found in map.");
     return It->second;
   }
-  // A complete pacakge of the MemProf profile.
+  /// Complete package of the MemProf profile owned by this reader.
   IndexedMemProfData MemProfData;
-  // An iterator to the internal function profile data structure.
+  /// Iterator into the internal function profile record map.
   llvm::MapVector<GlobalValue::GUID, IndexedMemProfRecord>::iterator Iter;
 };
 
-// Map from id (recorded from sanitizer stack depot) to virtual addresses for
-// each program counter address in the callstack.
+/// Map from stack-depot id to virtual addresses for each PC in a callstack.
 using CallStackMap = llvm::DenseMap<uint64_t, llvm::SmallVector<uint64_t>>;
 
-// Specializes the MemProfReader class to populate the contents from raw binary
-// memprof profiles from instrumentation based profiling.
+/// MemProfReader that populates data from raw binary instrumentation profiles.
 class LLVM_ABI RawMemProfReader final : public MemProfReader {
 public:
-  RawMemProfReader(const RawMemProfReader &) = delete;
-  RawMemProfReader &operator=(const RawMemProfReader &) = delete;
+  /// Deleted copy constructor.
+  /// \param Other Unused; copy construction is deleted.
+  RawMemProfReader(const RawMemProfReader &Other) = delete;
+  /// Deleted copy assignment.
+  /// \param Other Unused; copy assignment is deleted.
+  RawMemProfReader &operator=(const RawMemProfReader &Other) = delete;
+  /// Destroy the raw MemProf reader.
   ~RawMemProfReader() override;
 
-  // Prints the contents of the profile in YAML format.
+  /// Print the contents of the profile in YAML format.
+  /// \param OS Output stream that receives the YAML dump.
   void printYAML(raw_ostream &OS);
 
-  // Return true if the \p DataBuffer starts with magic bytes indicating it is
-  // a raw binary memprof profile.
+  /// Return true if \p DataBuffer starts with raw binary memprof magic bytes.
+  /// \param DataBuffer Memory buffer to test for the raw memprof format.
+  /// @return True if \p DataBuffer is in the raw memprof format.
   static bool hasFormat(const MemoryBuffer &DataBuffer);
-  // Return true if the file at \p Path starts with magic bytes indicating it is
-  // a raw binary memprof profile.
+  /// Return true if the file at \p Path starts with raw binary memprof magic.
+  /// \param Path Path to the file to test for the raw memprof format.
+  /// @return True if the file at \p Path is in the raw memprof format.
   static bool hasFormat(const StringRef Path);
 
-  // Create a RawMemProfReader after sanity checking the contents of the file at
-  // \p Path or the \p Buffer. The binary from which the profile has been
-  // collected is specified via a path in \p ProfiledBinary.
+  /// Create a RawMemProfReader after sanity checking the file at \p Path.
+  ///
+  /// The binary from which the profile has been collected is specified via a
+  /// path in \p ProfiledBinary.
+  /// \param Path Path to the raw memprof profile file.
+  /// \param ProfiledBinary Path to the binary that was profiled.
+  /// \param KeepName Whether to retain symbol names for each frame after
+  ///        hashing.
+  /// @return A RawMemProfReader for \p Path, or an error on failure.
   static Expected<std::unique_ptr<RawMemProfReader>>
   create(const Twine &Path, StringRef ProfiledBinary, bool KeepName = false);
+  /// Create a RawMemProfReader after sanity checking \p Buffer.
+  ///
+  /// The binary from which the profile has been collected is specified via a
+  /// path in \p ProfiledBinary.
+  /// \param Buffer Memory buffer holding the raw memprof profile contents.
+  /// \param ProfiledBinary Path to the binary that was profiled.
+  /// \param KeepName Whether to retain symbol names for each frame after
+  ///        hashing.
+  /// @return A RawMemProfReader for \p Buffer, or an error on failure.
   static Expected<std::unique_ptr<RawMemProfReader>>
   create(std::unique_ptr<MemoryBuffer> Buffer, StringRef ProfiledBinary,
          bool KeepName = false);
 
-  // Returns a list of build ids recorded in the segment information.
+  /// Return the build ids recorded in the segment information.
+  /// \param DataBuffer Memory buffer holding the raw memprof profile.
+  /// @return Build ids from the profile's segment information.
   static std::vector<std::string> peekBuildIds(MemoryBuffer *DataBuffer);
 
+  /// Read the next GUID and MemProfRecord pair into \p GuidRecord.
+  /// \param GuidRecord Output pair set to the next function GUID and record.
+  /// \param Callback Callback that maps a FrameId to a Frame.
+  /// @return Success, or an error if the next record cannot be read.
   Error
   readNextRecord(GuidMemProfRecordPair &GuidRecord,
                  std::function<const Frame(const FrameId)> Callback) override;
 
-  // Constructor for unittests only.
+  /// Construct a reader from mock symbolizer and profile data for unit tests.
+  /// \param Sym Symbolizable module used to resolve callstack frames.
+  /// \param Seg Executable segment entries for the profiled binary.
+  /// \param Prof Map from callstack id to heap MemInfoBlock data.
+  /// \param SM Map from callstack id to virtual addresses.
+  /// \param KeepName Whether to retain symbol names for each frame after
+  ///        hashing.
   RawMemProfReader(std::unique_ptr<llvm::symbolize::SymbolizableModule> Sym,
                    llvm::SmallVectorImpl<SegmentEntry> &Seg,
                    llvm::MapVector<uint64_t, MemInfoBlock> &Prof,
@@ -211,26 +261,38 @@ private:
   llvm::DenseMap<uint64_t, std::string> GuidToSymbolName;
 };
 
+/// MemProfReader that populates data from a YAML MemProf profile.
 class YAMLMemProfReader final : public MemProfReader {
 public:
+  /// Construct an empty YAML MemProf reader.
   YAMLMemProfReader() = default;
 
-  // Return true if the \p DataBuffer starts with "---" indicating it is a YAML
-  // file.
+  /// Return true if \p DataBuffer starts with "---" indicating YAML content.
+  /// \param DataBuffer Memory buffer to test for the YAML memprof format.
+  /// @return True if \p DataBuffer looks like a YAML memprof profile.
   LLVM_ABI static bool hasFormat(const MemoryBuffer &DataBuffer);
-  // Wrapper around hasFormat above, reading the file instead of the memory
-  // buffer.
+  /// Return true if the file at \p Path starts with YAML document markers.
+  /// \param Path Path to the file to test for the YAML memprof format.
+  /// @return True if the file at \p Path looks like a YAML memprof profile.
   LLVM_ABI static bool hasFormat(const StringRef Path);
 
-  // Create a YAMLMemProfReader after sanity checking the contents of the file
-  // at \p Path or the \p Buffer.
+  /// Create a YAMLMemProfReader after sanity checking the file at \p Path.
+  /// \param Path Path to the YAML memprof profile file.
+  /// @return A YAMLMemProfReader for \p Path, or an error on failure.
   LLVM_ABI static Expected<std::unique_ptr<YAMLMemProfReader>>
   create(const Twine &Path);
+  /// Create a YAMLMemProfReader after sanity checking \p Buffer.
+  /// \param Buffer Memory buffer holding the YAML memprof profile contents.
+  /// @return A YAMLMemProfReader for \p Buffer, or an error on failure.
   LLVM_ABI static Expected<std::unique_ptr<YAMLMemProfReader>>
   create(std::unique_ptr<MemoryBuffer> Buffer);
 
+  /// Parse MemProf profile data from the YAML text in \p YAMLData.
+  /// \param YAMLData YAML document text to parse into this reader.
   LLVM_ABI void parse(StringRef YAMLData);
 
+  /// Take ownership of the parsed data-access profile data.
+  /// @return Owned data-access profile, or null if none was parsed.
   std::unique_ptr<memprof::DataAccessProfData> takeDataAccessProfData() {
     return std::move(DataAccessProfileData);
   }

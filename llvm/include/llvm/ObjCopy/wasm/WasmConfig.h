@@ -12,7 +12,7 @@
 namespace llvm {
 namespace objcopy {
 
-// Wasm specific configuration for copying/stripping a single file.
+/// Wasm-specific configuration for copying or stripping a single file.
 struct WasmConfig {};
 
 } // namespace objcopy

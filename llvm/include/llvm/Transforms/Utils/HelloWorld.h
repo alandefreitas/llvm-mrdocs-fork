@@ -13,8 +13,13 @@
 
 namespace llvm {
 
+/// Example pass that prints each function's name.
 class HelloWorldPass : public OptionalPassInfoMixin<HelloWorldPass> {
 public:
+  /// Run the hello-world pass over the function.
+  /// @param F Function whose name should be printed.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

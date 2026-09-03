@@ -13,8 +13,13 @@
 
 namespace llvm {
 
+/// New PM pass that combines machine instructions to shorten critical paths.
 class MachineCombinerPass : public RequiredPassInfoMixin<MachineCombinerPass> {
 public:
+  /// Combine machine instructions in \p MF.
+  /// \param MF Machine function whose instructions are combined.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after combining machine instructions.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

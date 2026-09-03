@@ -18,8 +18,14 @@
 #include "llvm/Support/Compiler.h"
 
 namespace llvm {
+/// A pass that emits generic KCFI indirect call checks for targets that do not
+/// lower KCFI operand bundles in the back-end.
 class KCFIPass : public RequiredPassInfoMixin<KCFIPass> {
 public:
+  /// Run generic KCFI check lowering over the function.
+  /// @param F Function to instrument.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // namespace llvm

@@ -32,19 +32,28 @@ typedef ArrayRef<uint8_t> BuildIDRef;
 class ObjectFile;
 
 /// Parses a build ID from a hex string.
+/// \param Str Hex string representation of a build ID.
+/// \return Binary build ID parsed from the hex string.
 LLVM_ABI BuildID parseBuildID(StringRef Str);
 
 /// Returns the build ID, if any, contained in the given object file.
+/// \param Obj Object file to inspect for a build ID.
+/// \return Build ID bytes from the object, or an empty reference if none.
 LLVM_ABI BuildIDRef getBuildID(const ObjectFile *Obj);
 
 /// BuildIDFetcher searches local cache directories for debug info.
 class LLVM_ABI BuildIDFetcher {
 public:
+  /// Construct a BuildIDFetcher that searches the given directories.
+  /// \param DebugFileDirectories Paths to search for debug info files.
   BuildIDFetcher(std::vector<std::string> DebugFileDirectories)
       : DebugFileDirectories(std::move(DebugFileDirectories)) {}
+  /// Virtual destructor for polymorphic BuildIDFetcher subclasses.
   virtual ~BuildIDFetcher() = default;
 
   /// Returns the path to the debug file with the given build ID.
+  /// \param BuildID Build ID of the debug file to locate.
+  /// \return Path to the matching debug file, or an error if none is found.
   virtual Expected<std::string> fetch(BuildIDRef BuildID) const;
 
 private:

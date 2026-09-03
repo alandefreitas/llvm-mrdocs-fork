@@ -20,9 +20,15 @@ class TensorSpec;
 /// 'run'.
 class NoInferenceModelRunner : public MLModelRunner {
 public:
+  /// Construct a no-op model runner that stores feature values without running.
+  /// @param Ctx LLVM context used for diagnostics.
+  /// @param Inputs Tensor specifications describing the features to store.
   LLVM_ABI NoInferenceModelRunner(LLVMContext &Ctx,
                                   const std::vector<TensorSpec> &Inputs);
 
+  /// Return true if \p R is a NoInferenceModelRunner.
+  /// @param R Model runner to test.
+  /// @return True if \p R is a NoInferenceModelRunner.
   static bool classof(const MLModelRunner *R) {
     return R->getKind() == MLModelRunner::Kind::NoOp;
   }

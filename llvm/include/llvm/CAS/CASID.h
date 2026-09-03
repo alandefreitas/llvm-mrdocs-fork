@@ -32,14 +32,20 @@ public:
   /// Destroy the CAS context.
   virtual ~CASContext() = default;
 
-  /// Get an identifer for the schema used by this CAS context. Two CAS
-  /// instances should return \c true for this identifier if and only if their
-  /// CASIDs are safe to compare by hash. This is used by \a
+  /// Get a hash schema identifier for this CAS context.
+  ///
+  /// Two CAS instances should return \c true for this identifier if and only if
+  /// their CASIDs are safe to compare by hash. This is used by \a
   /// CASID::equalsImpl().
+  ///
+  /// \return Hash schema identifier for this CAS context.
   virtual StringRef getHashSchemaIdentifier() const = 0;
 
 protected:
   /// Print \p ID to \p OS.
+  ///
+  /// \param OS Stream to print to.
+  /// \param ID Identifier to print.
   virtual void printIDImpl(raw_ostream &OS, const CASID &ID) const = 0;
 
   friend class CASID;
@@ -62,25 +68,39 @@ public:
   LLVM_ABI void dump() const;
 
   /// Print \p ID to \p OS.
+  ///
+  /// \param OS Stream to print to.
+  /// \param ID Identifier to print.
+  /// \return Reference to \p OS after printing.
   friend raw_ostream &operator<<(raw_ostream &OS, const CASID &ID) {
     ID.print(OS);
     return OS;
   }
 
   /// Print CASID.
+  ///
+  /// \param OS Stream to print to.
   void print(raw_ostream &OS) const {
     return getContext().printIDImpl(OS, *this);
   }
 
   /// Return a printable string for CASID.
+  ///
+  /// \return Printable string representation of this identifier.
   LLVM_ABI std::string toString() const;
 
   /// Return the raw hash bytes for this identifier.
+  ///
+  /// \return Raw hash bytes for this identifier.
   ArrayRef<uint8_t> getHash() const {
     return arrayRefFromStringRef<uint8_t>(Hash);
   }
 
   /// Compare two CAS identifiers for equality.
+  ///
+  /// \param LHS Left-hand identifier.
+  /// \param RHS Right-hand identifier.
+  /// \return True if \p LHS and \p RHS identify the same CAS object.
   friend bool operator==(const CASID &LHS, const CASID &RHS) {
     if (LHS.Context == RHS.Context)
       return LHS.Hash == RHS.Hash;
@@ -96,22 +116,33 @@ public:
   }
 
   /// Compare two CAS identifiers for inequality.
+  ///
+  /// \param LHS Left-hand identifier.
+  /// \param RHS Right-hand identifier.
+  /// \return True if \p LHS and \p RHS identify different CAS objects.
   friend bool operator!=(const CASID &LHS, const CASID &RHS) {
     return !(LHS == RHS);
   }
 
   /// Hash a CASID from its raw hash bytes for use in DenseMap and similar.
+  ///
+  /// \param ID Identifier whose hash bytes are combined.
+  /// \return Hash code derived from \p ID's raw hash bytes.
   friend hash_code hash_value(const CASID &ID) {
     return hash_combine_range(ID.getHash());
   }
 
   /// Return the CAS context that owns this identifier.
+  ///
+  /// \return CAS context that owns this identifier.
   const CASContext &getContext() const {
     assert(Context && "Tombstone key for DenseMap?");
     return *Context;
   }
 
   /// DenseMap tombstone sentinel key for CASID.
+  ///
+  /// \return Tombstone sentinel CASID for DenseMap.
   static CASID getDenseMapTombstoneKey() {
     // A reserved StringRef value distinct from the empty key, used only as a
     // DenseMap sentinel for CASID.
@@ -124,6 +155,11 @@ public:
   CASID() = delete;
 
   /// Create CASID from CASContext and raw hash bytes.
+  ///
+  /// \param Context CAS context that owns this identifier, or null for
+  /// DenseMap sentinels.
+  /// \param Hash Raw hash bytes for the identifier.
+  /// \return CASID wrapping \p Context and \p Hash.
   static CASID create(const CASContext *Context, StringRef Hash) {
     return CASID(Context, Hash);
   }
@@ -138,11 +174,21 @@ private:
 
 } // namespace cas
 
+/// DenseMapInfo specialization for \a cas::CASID.
 template <> struct DenseMapInfo<cas::CASID> {
+  /// Compute a hash value for \p ID.
+  ///
+  /// \param ID CAS identifier to hash.
+  /// \return Hash value for \p ID suitable for DenseMap.
   static unsigned getHashValue(cas::CASID ID) {
     return (unsigned)hash_value(ID);
   }
 
+  /// Return true if \p LHS and \p RHS are equal.
+  ///
+  /// \param LHS Left-hand CAS identifier.
+  /// \param RHS Right-hand CAS identifier.
+  /// \return True if \p LHS and \p RHS are equal.
   static bool isEqual(cas::CASID LHS, cas::CASID RHS) { return LHS == RHS; }
 };
 

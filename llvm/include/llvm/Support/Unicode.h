@@ -23,33 +23,42 @@ namespace llvm {
 class StringRef;
 
 namespace sys {
+/// Utilities for querying Unicode character properties and names.
 namespace unicode {
 
+/// Error codes returned by column-width helpers instead of a non-negative
+/// width.
 enum ColumnWidthErrors {
+  /// The input was not valid UTF-8.
   ErrorInvalidUTF8 = -2,
+  /// The input contained a non-printable character.
   ErrorNonPrintableCharacter = -1
 };
 
-/// Determines if a character is likely to be displayed correctly on the
-/// terminal. Exact implementation would have to depend on the specific
-/// terminal, so we define the semantic that should be suitable for generic case
-/// of a terminal capable to output Unicode characters.
+/// Returns whether \p UCS is likely to display correctly on a terminal.
 ///
-/// Printable codepoints are those in the categories L, M, N, P, S and Zs
+/// Exact behavior would have to depend on the specific terminal, so we define
+/// the semantic that should be suitable for a generic Unicode-capable terminal.
+///
+/// Printable codepoints are those in the categories L, M, N, P, S and Zs.
+///
+/// \param UCS Unicode code point to test.
 /// \return true if the character is considered printable.
 LLVM_ABI bool isPrintable(int UCS);
 
-// Formatting codepoints are codepoints in the Cf category.
+/// Returns whether \p UCS is a Unicode formatting character (category Cf).
+///
+/// \param UCS Unicode code point to test.
+/// \return true if the character is in the Cf category.
 LLVM_ABI bool isFormatting(int UCS);
 
-/// Gets the number of positions the UTF8-encoded \p Text is likely to occupy
-/// when output on a terminal ("character width"). This depends on the
-/// implementation of the terminal, and there's no standard definition of
-/// character width.
+/// Returns the terminal column width of UTF-8 string \p Text.
 ///
-/// The implementation defines it in a way that is expected to be compatible
-/// with a generic Unicode-capable terminal.
+/// This depends on the implementation of the terminal, and there's no standard
+/// definition of character width. The implementation defines it in a way that
+/// is expected to be compatible with a generic Unicode-capable terminal.
 ///
+/// \param Text UTF-8 text whose column width is measured.
 /// \return Character width:
 ///   * ErrorNonPrintableCharacter (-1) if \p Text contains non-printable
 ///     characters (as identified by isPrintable);
@@ -58,32 +67,55 @@ LLVM_ABI bool isFormatting(int UCS);
 ///   * 1 for each of the remaining characters.
 LLVM_ABI int columnWidthUTF8(StringRef Text);
 
-/// Fold input unicode character according the Simple unicode case folding
-/// rules.
+/// Folds \p C according to the Simple Unicode case folding rules.
+///
+/// \param C Unicode code point to fold.
+/// \return The simple-case-folded code point.
 LLVM_ABI int foldCharSimple(int C);
 
-/// Maps the name or the alias of a Unicode character to its associated
-/// codepoints.
-/// The names and aliases are derived from UnicodeData.txt and NameAliases.txt
+/// Maps a Unicode character name or alias to its code point with exact match.
+///
+/// The names and aliases are derived from UnicodeData.txt and NameAliases.txt.
 /// For compatibility with the semantics of named character escape sequences in
 /// C++, this mapping does an exact match sensitive to casing and spacing.
+///
+/// \param Name Character name or alias to look up.
 /// \return The codepoint of the corresponding character, if any.
 LLVM_ABI std::optional<char32_t> nameToCodepointStrict(StringRef Name);
 
+/// Result of a successful loose Unicode character name lookup.
 struct LooseMatchingResult {
+  /// Matched Unicode code point.
   char32_t CodePoint;
+  /// Canonical character name corresponding to \c CodePoint.
   SmallString<64> Name;
 };
 
+/// Maps a Unicode character name or alias to its code point with loose match.
+///
+/// Matching ignores differences in case, whitespace, underscores, and most
+/// medial hyphens (UAX44-LM2).
+///
+/// \param Name Character name or alias to look up.
+/// \return The matched code point and canonical name, if any.
 LLVM_ABI std::optional<LooseMatchingResult>
 nameToCodepointLooseMatching(StringRef Name);
 
+/// A Unicode character name ranked by edit distance to a search pattern.
 struct MatchForCodepointName {
+  /// Matching character name.
   std::string Name;
+  /// Edit distance between \c Name and the search pattern.
   uint32_t Distance = 0;
+  /// Unicode code point for \c Name.
   char32_t Value = 0;
 };
 
+/// Finds Unicode character names nearest to \p Pattern by edit distance.
+///
+/// \param Pattern Name fragment to match against.
+/// \param MaxMatchesCount Maximum number of matches to return.
+/// \return Up to \p MaxMatchesCount nearest matches, sorted by distance.
 LLVM_ABI SmallVector<MatchForCodepointName>
 nearestMatchesForCodepointName(StringRef Pattern, std::size_t MaxMatchesCount);
 

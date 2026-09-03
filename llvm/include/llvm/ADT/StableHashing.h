@@ -31,6 +31,7 @@ using stable_hash = uint64_t;
 
 /// Combine the hashes in \p Buffer into a single stable hash.
 /// @param Buffer Sequence of stable hashes to mix together.
+/// @return A single stable hash combining all values in \p Buffer.
 inline stable_hash stable_hash_combine(ArrayRef<stable_hash> Buffer) {
   return xxh3_64bits(reinterpret_cast<const uint8_t *>(Buffer.data()),
                      Buffer.size() * sizeof(stable_hash));
@@ -39,6 +40,7 @@ inline stable_hash stable_hash_combine(ArrayRef<stable_hash> Buffer) {
 /// Combine two stable hashes into one.
 /// @param A First hash.
 /// @param B Second hash.
+/// @return A single stable hash combining both inputs.
 inline stable_hash stable_hash_combine(stable_hash A, stable_hash B) {
   stable_hash Hashes[2] = {
       support::endian::byte_swap(A, llvm::endianness::little),
@@ -51,6 +53,7 @@ inline stable_hash stable_hash_combine(stable_hash A, stable_hash B) {
 /// @param A First hash.
 /// @param B Second hash.
 /// @param C Third hash.
+/// @return A single stable hash combining all three inputs.
 inline stable_hash stable_hash_combine(stable_hash A, stable_hash B,
                                        stable_hash C) {
   stable_hash Hashes[3] = {
@@ -66,6 +69,7 @@ inline stable_hash stable_hash_combine(stable_hash A, stable_hash B,
 /// @param B Second hash.
 /// @param C Third hash.
 /// @param D Fourth hash.
+/// @return A single stable hash combining all four inputs.
 inline stable_hash stable_hash_combine(stable_hash A, stable_hash B,
                                        stable_hash C, stable_hash D) {
   stable_hash Hashes[4] = {
@@ -82,6 +86,7 @@ inline stable_hash stable_hash_combine(stable_hash A, stable_hash B,
 /// Removes suffixes such as \c .llvm.* and \c .__uniq.*, and prefers the
 /// portion after \c .content. when present.
 /// @param Name Possibly decorated symbol or object name.
+/// @return The stable portion of \p Name.
 inline StringRef get_stable_name(StringRef Name) {
   // Return the part after ".content." that represents contents.
   StringRef S0 = Name.rsplit(".content.").second;
@@ -97,6 +102,7 @@ inline StringRef get_stable_name(StringRef Name) {
 ///
 /// Names that differ only in LLVM uniqueness suffixes produce the same hash.
 /// @param Name Possibly decorated symbol or object name.
+/// @return A stable hash of the normalized name.
 inline stable_hash stable_hash_name(StringRef Name) {
   return xxh3_64bits(get_stable_name(Name));
 }

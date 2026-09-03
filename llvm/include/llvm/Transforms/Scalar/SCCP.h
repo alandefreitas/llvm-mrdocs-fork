@@ -29,6 +29,10 @@ class Function;
 /// This pass performs function-level constant propagation and merging.
 class SCCPPass : public OptionalPassInfoMixin<SCCPPass> {
 public:
+  /// Run sparse conditional constant propagation over the function.
+  /// @param F Function to propagate and merge constants in.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

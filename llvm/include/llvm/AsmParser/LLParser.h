@@ -47,42 +47,76 @@ namespace llvm {
   class MDNode;
   struct SlotMapping;
 
-  /// ValID - Represents a reference of a definition of some sort with no type.
+  /// Untyped reference to a value whose type depends on later context.
+  ///
   /// There are several cases where we have to parse the value but where the
-  /// type can depend on later context.  This may either be a numeric reference
-  /// or a symbolic (%var) reference.  This is just a discriminated union.
+  /// type can depend on later context. This may either be a numeric reference
+  /// or a symbolic (%var) reference. This is just a discriminated union.
   struct ValID {
+    /// Discriminator for which payload fields are meaningful.
     enum {
-      t_LocalID,             // ID in UIntVal.
-      t_GlobalID,            // ID in UIntVal.
-      t_LocalName,           // Name in StrVal.
-      t_GlobalName,          // Name in StrVal.
-      t_APSInt,              // Value in APSIntVal.
-      t_APFloat,             // Value in APFloatVal.
-      t_Null,                // No value.
-      t_Undef,               // No value.
-      t_Zero,                // No value.
-      t_None,                // No value.
-      t_Poison,              // No value.
-      t_EmptyArray,          // No value:  []
-      t_Constant,            // Value in ConstantVal.
-      t_ConstantSplat,       // Value in ConstantVal.
-      t_InlineAsm,           // Value in FTy/StrVal/StrVal2/UIntVal.
-      t_ConstantStruct,      // Value in ConstantStructElts.
-      t_PackedConstantStruct // Value in ConstantStructElts.
-    } Kind = t_LocalID;
+      /// Local numeric ID stored in \c UIntVal.
+      t_LocalID,
+      /// Global numeric ID stored in \c UIntVal.
+      t_GlobalID,
+      /// Local symbolic name stored in \c StrVal.
+      t_LocalName,
+      /// Global symbolic name stored in \c StrVal.
+      t_GlobalName,
+      /// Arbitrary-precision integer stored in \c APSIntVal.
+      t_APSInt,
+      /// Floating-point value stored in \c APFloatVal.
+      t_APFloat,
+      /// Null constant; no payload.
+      t_Null,
+      /// Undef constant; no payload.
+      t_Undef,
+      /// Zero initializer; no payload.
+      t_Zero,
+      /// None token; no payload.
+      t_None,
+      /// Poison constant; no payload.
+      t_Poison,
+      /// Empty array constant \c []; no payload.
+      t_EmptyArray,
+      /// Constant pointer stored in \c ConstantVal.
+      t_Constant,
+      /// Splat constant stored in \c ConstantVal.
+      t_ConstantSplat,
+      /// Inline asm; payload in \c FTy, \c StrVal, \c StrVal2, and \c UIntVal.
+      t_InlineAsm,
+      /// Constant struct elements in \c ConstantStructElts.
+      t_ConstantStruct,
+      /// Packed constant struct elements in \c ConstantStructElts.
+      t_PackedConstantStruct
+    } Kind = t_LocalID; ///< Active kind selecting which payload fields are live.
 
+    /// Source location of this value reference.
     LLLexer::LocTy Loc;
+    /// Numeric ID for local/global ID kinds, or inline-asm flags.
     unsigned UIntVal;
+    /// Function type for inline-asm values.
     FunctionType *FTy = nullptr;
-    std::string StrVal, StrVal2;
+    /// Primary string payload (name or asm string).
+    std::string StrVal;
+    /// Secondary string payload (constraints for inline asm).
+    std::string StrVal2;
+    /// Integer constant payload.
     APSInt APSIntVal;
+    /// Floating-point constant payload.
     APFloat APFloatVal{0.0};
+    /// Parsed constant payload for \c t_Constant / \c t_ConstantSplat.
     Constant *ConstantVal;
+    /// Element pointers for constant-struct kinds.
     std::unique_ptr<Constant *[]> ConstantStructElts;
+    /// True when this reference carries the \c no_cfi modifier.
     bool NoCFI = false;
 
+    /// Construct an empty local-ID value reference.
     ValID() = default;
+    /// Copy-construct a value reference, excluding constant-struct elements.
+    ///
+    /// \param RHS Source value reference to copy.
     ValID(const ValID &RHS)
         : Kind(RHS.Kind), Loc(RHS.Loc), UIntVal(RHS.UIntVal), FTy(RHS.FTy),
           StrVal(RHS.StrVal), StrVal2(RHS.StrVal2), APSIntVal(RHS.APSIntVal),
@@ -91,6 +125,10 @@ namespace llvm {
       assert(!RHS.ConstantStructElts);
     }
 
+    /// Compare two local or two global value references for ordered maps.
+    ///
+    /// \param RHS Other value reference of a compatible local/global kind.
+    /// \return True when this reference sorts before \p RHS.
     bool operator<(const ValID &RHS) const {
       assert((((Kind == t_LocalID || Kind == t_LocalName) &&
                (RHS.Kind == t_LocalID || RHS.Kind == t_LocalName)) ||
@@ -105,8 +143,10 @@ namespace llvm {
     }
   };
 
+  /// Recursive-descent parser for LLVM IR textual assembly (`.ll` files).
   class LLParser {
   public:
+    /// Source location type used by the lexer and parser diagnostics.
     typedef LLLexer::LocTy LocTy;
   private:
     LLVMContext &Context;
@@ -212,6 +252,17 @@ namespace llvm {
     }
 
   public:
+    /// Construct a parser over assembly text \p F.
+    ///
+    /// \param F Assembly source buffer to lex and parse.
+    /// \param SM Source manager owning \p F's buffer.
+    /// \param Err Diagnostic sink for parse errors.
+    /// \param M Module to populate, or null when parsing only a summary index.
+    /// \param Index Summary index to populate, or null when parsing only a
+    ///              module.
+    /// \param Context LLVM context for types, constants, and metadata.
+    /// \param Slots Optional slot mapping filled during parsing.
+    /// \param ParserContext Optional context recording source ranges.
     LLParser(StringRef F, SourceMgr &SM, SMDiagnostic &Err, Module *M,
              ModuleSummaryIndex *Index, LLVMContext &Context,
              SlotMapping *Slots = nullptr,
@@ -219,22 +270,47 @@ namespace llvm {
         : Context(Context), OPLex(F, SM, Err, Context),
           Lex(F, SM, Err, Context), M(M), Index(Index), Slots(Slots),
           BlockAddressPFS(nullptr), ParserContext(ParserContext) {}
+    /// Parse the full module and/or summary index from the assembly buffer.
+    ///
+    /// \param UpgradeDebugInfo When true, run debug-info upgrade after parse.
+    /// \param DataLayoutCallback Optional override for the module data layout.
+    /// \return True on parse error; false on success.
     LLVM_ABI bool Run(
         bool UpgradeDebugInfo,
         DataLayoutCallbackTy DataLayoutCallback = [](StringRef, StringRef) {
           return std::nullopt;
         });
 
+    /// Parse a standalone constant value using an existing slot mapping.
+    ///
+    /// \param C On success, set to the parsed constant.
+    /// \param Slots Slot mapping of named and numbered values/types.
+    /// \return True on parse error; false on success.
     LLVM_ABI bool parseStandaloneConstantValue(Constant *&C,
                                                const SlotMapping *Slots);
 
+    /// Parse a type from the start of the buffer and report bytes consumed.
+    ///
+    /// \param Ty On success, set to the parsed type.
+    /// \param Read Set to the number of characters consumed from the buffer.
+    /// \param Slots Slot mapping of named and numbered types.
+    /// \return True on parse error; false on success.
     LLVM_ABI bool parseTypeAtBeginning(Type *&Ty, unsigned &Read,
                                        const SlotMapping *Slots);
 
+    /// Parse a DIExpression body from the start of the buffer.
+    ///
+    /// \param Result On success, set to the parsed DIExpression metadata node.
+    /// \param Read Set to the number of characters consumed from the buffer.
+    /// \param Slots Slot mapping of named and numbered metadata.
+    /// \return True on parse error; false on success.
     LLVM_ABI bool parseDIExpressionBodyAtBeginning(MDNode *&Result,
                                                    unsigned &Read,
                                                    const SlotMapping *Slots);
 
+    /// Return the LLVM context associated with this parser.
+    ///
+    /// \return The LLVM context used by this parser.
     LLVMContext &getContext() { return Context; }
 
   private:

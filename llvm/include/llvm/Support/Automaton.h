@@ -36,6 +36,7 @@
 
 namespace llvm {
 
+/// A sequence of NFA state IDs representing one path through an NFA.
 using NfaPath = SmallVector<uint64_t, 4>;
 
 /// Forward define the pair type used by the automata transition info tables.
@@ -44,8 +45,14 @@ using NfaPath = SmallVector<uint64_t, 4>;
 /// orders of magnitude) parsing speedup by using a custom struct here with a
 /// trivial constructor rather than std::pair<uint64_t, uint64_t>.
 struct NfaStatePair {
-  uint64_t FromDfaState, ToDfaState;
+  /// Source state of an NFA transition corresponding to a DFA edge.
+  uint64_t FromDfaState;
+  /// Destination state of an NFA transition corresponding to a DFA edge.
+  uint64_t ToDfaState;
 
+  /// Compare pairs lexicographically by FromDfaState then ToDfaState.
+  /// \param Other Pair to compare against.
+  /// \return True if this pair is lexicographically less than \p Other.
   bool operator<(const NfaStatePair &Other) const {
     return std::make_tuple(FromDfaState, ToDfaState) <
            std::make_tuple(Other.FromDfaState, Other.ToDfaState);
@@ -200,6 +207,11 @@ public:
       M->emplace(std::make_pair(I.FromDfaState, I.Action),
                  std::make_pair(I.ToDfaState, I.InfoIdx));
   }
+  /// Copy-construct an automaton from \p Other.
+  ///
+  /// Creates a fresh NFA transcriber because transcription state is not
+  /// thread-safe.
+  /// \param Other Automaton to copy.
   Automaton(const Automaton &Other)
       : M(Other.M), State(Other.State), Transcribe(Other.Transcribe) {
     // Transcriber is not thread-safe, so create a new instance on copy.
@@ -217,6 +229,7 @@ public:
 
   /// Enable or disable transcription. Transcription is only available if
   /// TranscriptionTable was provided to the constructor.
+  /// \param Enable True to enable transcription, false to disable it.
   void enableTranscription(bool Enable = true) {
     assert(Transcriber &&
            "Transcription is only available if TranscriptionTable was provided "
@@ -224,12 +237,13 @@ public:
     Transcribe = Enable;
   }
 
-  /// Transition the automaton based on input symbol A. Return true if the
-  /// automaton transitioned to a valid state, false if the automaton
-  /// transitioned to an invalid state.
+  /// Transition the automaton based on input symbol \p A.
   ///
   /// If this function returns false, all methods are undefined until reset() is
   /// called.
+  /// \param A Input action to apply.
+  /// \return True if the automaton transitioned to a valid state, false if the
+  ///         automaton transitioned to an invalid state.
   bool add(const ActionT &A) {
     auto I = M->find({State, A});
     if (I == M->end())
@@ -241,14 +255,19 @@ public:
   }
 
   /// Return true if the automaton can be transitioned based on input symbol A.
+  /// \param A Input action to test without changing state.
+  /// \return True if a valid transition exists for \p A, false otherwise.
   bool canAdd(const ActionT &A) {
     auto I = M->find({State, A});
     return I != M->end();
   }
 
-  /// Obtain a set of possible paths through the input nondeterministic
+  /// Return possible NFA paths for the actions accepted so far.
+  ///
+  /// Obtains a set of possible paths through the input nondeterministic
   /// automaton that could be obtained from the sequence of input actions
   /// presented to this deterministic automaton.
+  /// \return Array of NFA state sequences representing possible paths.
   ArrayRef<NfaPath> getNfaPaths() {
     assert(Transcriber && Transcribe &&
            "Can only obtain NFA paths if transcribing!");

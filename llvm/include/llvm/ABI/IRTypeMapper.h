@@ -28,12 +28,29 @@ class DataLayout;
 
 namespace abi {
 
+/// Maps LLVM ABI type representations to corresponding LLVM IR types.
+///
+/// Used by frontends after the ABI library has computed argument/return
+/// classification: coerce-to types in the ABI representation must be
+/// translated to llvm::Type before being handed back to the IR builder.
 class IRTypeMapper {
 public:
+  /// Construct a mapper bound to the given LLVM context and data layout.
+  ///
+  /// \param Ctx The LLVM context in which IR types are created.
+  /// \param DL  The data layout used to size and layout converted types.
   IRTypeMapper(LLVMContext &Ctx, const DataLayout &DL) : Context(Ctx), DL(DL) {}
 
+  /// Convert an ABI type to the corresponding LLVM IR type.
+  ///
+  /// Results are cached so repeated conversions of the same ABI type reuse
+  /// the previously built IR type.
+  ///
+  /// \param ABIType The ABI type to convert.
+  /// \return The corresponding LLVM IR type.
   LLVM_ABI llvm::Type *convertType(const abi::Type *ABIType);
 
+  /// Clear the cache of previously converted ABI-to-IR type mappings.
   void clearCache() { TypeCache.clear(); }
 
 private:

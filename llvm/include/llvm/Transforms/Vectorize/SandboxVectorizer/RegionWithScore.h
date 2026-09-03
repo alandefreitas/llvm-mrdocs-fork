@@ -33,22 +33,36 @@ class ScoreBoard {
   const ScoreBoard &operator=(const ScoreBoard &) = delete;
 
 public:
+  /// Construct a scoreboard for \p Rgn using \p TTI for costs.
+  ///
+  /// \param Rgn Region whose instruction costs are tracked.
+  /// \param TTI Target transform info used to compute instruction costs.
   ScoreBoard(Region &Rgn, const TargetTransformInfo &TTI)
       : Rgn(Rgn), TTI(TTI) {}
   /// Mark \p I as a newly added instruction to the region.
+  ///
+  /// \param I Instruction whose cost is added to the after-cost.
   void add(Instruction *I) { AfterCost += getCost(I); }
   /// Mark \p I as a deleted instruction from the region.
+  ///
+  /// \param I Instruction whose cost is added to the before-cost.
   LLVM_ABI void remove(Instruction *I);
-  /// \Returns the cost of the newly added instructions.
+  /// Return the cost of the newly added instructions.
+  /// @return The cost of the newly added instructions.
   InstructionCost getAfterCost() const { return AfterCost; }
-  /// \Returns the cost of the Removed instructions.
+  /// Return the cost of the removed instructions.
+  /// @return The cost of the removed instructions.
   InstructionCost getBeforeCost() const { return BeforeCost; }
 
 #ifndef NDEBUG
+  /// Print the before and after costs to \p OS.
+  ///
+  /// \param OS Destination stream.
   void dump(raw_ostream &OS) const {
     OS << "BeforeCost: " << BeforeCost << "\n";
     OS << "AfterCost:  " << AfterCost << "\n";
   }
+  /// Dump the before and after costs to the debug stream.
   LLVM_DUMP_METHOD void dump() const;
 #endif // NDEBUG
 };
@@ -73,18 +87,36 @@ class RegionWithScore final : public Region {
   }
 
 public:
+  /// Construct an empty scored region in \p Ctx using \p TTI for costs.
+  ///
+  /// \param Ctx SandboxIR context that owns this region.
+  /// \param TTI Target transform info used to compute instruction costs.
   RegionWithScore(Context &Ctx, const TargetTransformInfo &TTI)
       : Region(Ctx, RegionClassID::RegionWithScoreID), Scoreboard(*this, TTI) {}
+  /// Construct a scored region by taking ownership of \p Rgn.
+  ///
+  /// \param Rgn Existing region to move into this scored region.
+  /// \param TTI Target transform info used to compute instruction costs.
   RegionWithScore(Region &&Rgn, const TargetTransformInfo &TTI)
       : Region(std::move(Rgn)), Scoreboard(*this, TTI) {}
-  // For isa<> cast<> etc.
+  /// Return true if \p From is a RegionWithScore.
+  ///
+  /// Used by isa, cast, and similar type-inquiry helpers.
+  /// \param From Region to test.
+  /// @return True if \p From is a RegionWithScore.
   static bool classof(const Region *From) {
     return From->getSubclassID() == RegionClassID::RegionWithScoreID;
   }
 
-  /// \Returns the ScoreBoard data structure that keeps track of instr costs.
+  /// Return the scoreboard that tracks instruction costs.
+  /// @return The scoreboard that tracks instruction costs.
   const ScoreBoard &getScoreboard() const { return Scoreboard; }
 
+  /// Create scored regions from sandboxvec metadata in \p F.
+  ///
+  /// \param F Function whose instructions may carry region metadata.
+  /// \param TTI Target transform info used to compute instruction costs.
+  /// @return The scored regions created from metadata in \p F.
   LLVM_ABI static SmallVector<std::unique_ptr<RegionWithScore>>
   createRegionsFromMD(Function &F, const TargetTransformInfo &TTI);
 };

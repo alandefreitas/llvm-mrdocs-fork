@@ -23,8 +23,10 @@
 
 namespace llvm {
 namespace sys {
+/// Path parsing and manipulation utilities (TR2/boost-filesystem style).
 namespace path {
 
+/// Path syntax style (native, POSIX, or Windows).
 enum class Style {
   native,            ///< Host-native path style.
   posix,             ///< POSIX path style.
@@ -34,6 +36,9 @@ enum class Style {
 };
 
 /// Check if \p S uses POSIX path rules.
+///
+/// @param S The path style to check.
+/// @returns True if \p S uses POSIX path rules.
 constexpr bool is_style_posix(Style S) {
   if (S == Style::posix)
     return true;
@@ -47,6 +52,9 @@ constexpr bool is_style_posix(Style S) {
 }
 
 /// Check if \p S uses Windows path rules.
+///
+/// @param S The path style to check.
+/// @returns True if \p S uses Windows path rules.
 constexpr bool is_style_windows(Style S) { return !is_style_posix(S); }
 
 /// @name Lexical Component Iterator
@@ -85,12 +93,23 @@ class const_iterator
 
 public:
   /// Current path component.
+  ///
+  /// @returns The current path component.
   reference operator*() const { return Component; }
   /// Advance to the next path component.
+  ///
+  /// @returns A reference to this iterator.
   LLVM_ABI const_iterator &operator++(); // preincrement
+  /// True if this iterator equals \p RHS.
+  ///
+  /// @param RHS The iterator to compare against.
+  /// @returns True if this iterator equals \p RHS.
   LLVM_ABI bool operator==(const const_iterator &RHS) const;
 
   /// Difference in bytes between this and RHS.
+  ///
+  /// @param RHS The iterator to subtract.
+  /// @returns The difference in bytes between this and \p RHS.
   LLVM_ABI ptrdiff_t operator-(const const_iterator &RHS) const;
 };
 
@@ -112,16 +131,29 @@ class reverse_iterator
 
 public:
   /// Current path component.
+  ///
+  /// @returns The current path component.
   reference operator*() const { return Component; }
-  LLVM_ABI reverse_iterator &operator++(); // preincrement
+  /// Advance to the previous path component (preincrement).
+  ///
+  /// @returns A reference to this iterator.
+  LLVM_ABI reverse_iterator &operator++();
+  /// True if both iterators refer to the same path component.
+  ///
+  /// @param RHS The iterator to compare against.
+  /// @returns True if both iterators refer to the same path component.
   LLVM_ABI bool operator==(const reverse_iterator &RHS) const;
 
   /// Difference in bytes between this and RHS.
+  ///
+  /// @param RHS The iterator to subtract.
+  /// @returns The difference in bytes between this and \p RHS.
   LLVM_ABI ptrdiff_t operator-(const reverse_iterator &RHS) const;
 };
 
 /// Get begin iterator over \a path.
 /// @param path Input path.
+/// @param style The path style to use. "native" means derive from the host.
 /// @returns Iterator initialized with the first component of \a path.
 LLVM_ABI const_iterator begin(StringRef path LLVM_LIFETIME_BOUND,
                               Style style = Style::native);
@@ -133,6 +165,7 @@ LLVM_ABI const_iterator end(StringRef path LLVM_LIFETIME_BOUND);
 
 /// Get reverse begin iterator over \a path.
 /// @param path Input path.
+/// @param style The path style to use. "native" means derive from the host.
 /// @returns Iterator initialized with the first reverse component of \a path.
 LLVM_ABI reverse_iterator rbegin(StringRef path LLVM_LIFETIME_BOUND,
                                  Style style = Style::native);
@@ -158,6 +191,7 @@ LLVM_ABI reverse_iterator rend(StringRef path LLVM_LIFETIME_BOUND);
 /// @endcode
 ///
 /// @param path A path that is modified to not have a file component.
+/// @param style The path style to use. "native" means derive from the host.
 LLVM_ABI void remove_filename(SmallVectorImpl<char> &path,
                               Style style = Style::native);
 
@@ -173,6 +207,7 @@ LLVM_ABI void remove_filename(SmallVectorImpl<char> &path,
 /// @param extension The extension to be added. It may be empty. It may also
 ///                  optionally start with a '.', if it does not, one will be
 ///                  prepended.
+/// @param style The path style to use. "native" means derive from the host.
 LLVM_ABI void replace_extension(SmallVectorImpl<char> &path,
                                 const Twine &extension,
                                 Style style = Style::native);
@@ -206,6 +241,7 @@ LLVM_ABI bool replace_path_prefix(SmallVectorImpl<char> &Path,
 /// Remove redundant leading "./" pieces and consecutive separators.
 ///
 /// @param path Input path.
+/// @param style The path style to use. "native" means derive from the host.
 /// @result The cleaned-up \a path.
 LLVM_ABI StringRef remove_leading_dotslash(StringRef path LLVM_LIFETIME_BOUND,
                                            Style style = Style::native);
@@ -215,6 +251,7 @@ LLVM_ABI StringRef remove_leading_dotslash(StringRef path LLVM_LIFETIME_BOUND,
 /// @param path processed path.
 /// @param remove_dot_dot specify if '../' (except for leading "../") should be
 /// removed.
+/// @param style The path style to use. "native" means derive from the host.
 /// @result True if path was changed.
 LLVM_ABI bool remove_dots(SmallVectorImpl<char> &path,
                           bool remove_dot_dot = false,
@@ -232,10 +269,21 @@ LLVM_ABI bool remove_dots(SmallVectorImpl<char> &path,
 ///
 /// @param path Set to \a path + \a component.
 /// @param a The component to be appended to \a path.
+/// @param b Optional second component to append.
+/// @param c Optional third component to append.
+/// @param d Optional fourth component to append.
 LLVM_ABI void append(SmallVectorImpl<char> &path, const Twine &a,
                      const Twine &b = "", const Twine &c = "",
                      const Twine &d = "");
 
+/// Append path components using path \p style separators.
+///
+/// @param path Set to \a path + \a a (+ optional \a b, \a c, \a d).
+/// @param style The path style whose separators are used.
+/// @param a The component to be appended to \a path.
+/// @param b Optional second component to append.
+/// @param c Optional third component to append.
+/// @param d Optional fourth component to append.
 LLVM_ABI void append(SmallVectorImpl<char> &path, Style style, const Twine &a,
                      const Twine &b = "", const Twine &c = "",
                      const Twine &d = "");
@@ -251,6 +299,7 @@ LLVM_ABI void append(SmallVectorImpl<char> &path, Style style, const Twine &a,
 /// @param path Set to \a path + [\a begin, \a end).
 /// @param begin Start of components to append.
 /// @param end One past the end of components to append.
+/// @param style The path style to use. "native" means derive from the host.
 LLVM_ABI void append(SmallVectorImpl<char> &path, const_iterator begin,
                      const_iterator end, Style style = Style::native);
 
@@ -258,35 +307,45 @@ LLVM_ABI void append(SmallVectorImpl<char> &path, const_iterator begin,
 /// @name Transforms (or some other better name)
 /// @{
 
-/// Convert path to the native form. This is used to give paths to users and
-/// operating system calls in the platform's normal way. For example, on Windows
-/// all '/' are converted to '\'. On Unix, it converts all '\' to '/'.
+/// Convert \a path to the native form.
+///
+/// This is used to give paths to users and operating system calls in the
+/// platform's normal way. For example, on Windows all '/' are converted to
+/// '\'. On Unix, it converts all '\' to '/'.
 ///
 /// @param path A path that is transformed to native format.
 /// @param result Holds the result of the transformation.
+/// @param style The path style to use. "native" means derive from the host.
 LLVM_ABI void native(const Twine &path, SmallVectorImpl<char> &result,
                      Style style = Style::native);
 
-/// Convert path to the native form and return it as a std::string. This is used
-/// to give paths to users and operating system calls in the platform's normal
-/// way. For example, on Windows all '/' are converted to '\'. On Unix, it
-/// converts all '\' to '/'.
+/// Convert \a path to the native form as a std::string.
+///
+/// This is used to give paths to users and operating system calls in the
+/// platform's normal way. For example, on Windows all '/' are converted to
+/// '\'. On Unix, it converts all '\' to '/'.
 ///
 /// @param path A path that is transformed to native format.
+/// @param style The path style to use. "native" means derive from the host.
+/// @returns \a path converted to the native form.
 [[nodiscard]] LLVM_ABI std::string native(const Twine &path,
                                           Style style = Style::native);
 
-/// Convert path to the native form in place. This is used to give paths to
-/// users and operating system calls in the platform's normal way. For example,
-/// on Windows all '/' are converted to '\'.
+/// Convert \a path to the native form in place.
+///
+/// This is used to give paths to users and operating system calls in the
+/// platform's normal way. For example, on Windows all '/' are converted to
+/// '\'.
 ///
 /// @param path A path that is transformed to native format.
+/// @param style The path style to use. "native" means derive from the host.
 LLVM_ABI void native(SmallVectorImpl<char> &path, Style style = Style::native);
 
 /// For Windows path styles, convert path to use the preferred path separators.
 /// For other styles, do nothing.
 ///
 /// @param path A path that is transformed to preferred format.
+/// @param style The path style to use. "native" means derive from the host.
 inline void make_preferred(SmallVectorImpl<char> &path,
                            Style style = Style::native) {
   if (!is_style_windows(style))
@@ -297,6 +356,7 @@ inline void make_preferred(SmallVectorImpl<char> &path,
 /// Replaces backslashes with slashes if Windows.
 ///
 /// @param path processed path
+/// @param style The path style to use. "native" means derive from the host.
 /// @result The result of replacing backslashes with forward slashes if Windows.
 /// On Unix, this function is a no-op because backslashes are valid path
 /// chracters.
@@ -316,6 +376,8 @@ LLVM_ABI std::string convert_to_slash(StringRef path,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The root name of \a path if it has one, otherwise "".
 LLVM_ABI StringRef root_name(StringRef path LLVM_LIFETIME_BOUND,
                              Style style = Style::native);
@@ -329,6 +391,8 @@ LLVM_ABI StringRef root_name(StringRef path LLVM_LIFETIME_BOUND,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The root directory of \a path if it has one, otherwise
 ///               "".
 LLVM_ABI StringRef root_directory(StringRef path LLVM_LIFETIME_BOUND,
@@ -339,6 +403,8 @@ LLVM_ABI StringRef root_directory(StringRef path LLVM_LIFETIME_BOUND,
 /// Equivalent to root_name + root_directory.
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The root path of \a path if it has one, otherwise "".
 LLVM_ABI StringRef root_path(StringRef path LLVM_LIFETIME_BOUND,
                              Style style = Style::native);
@@ -352,6 +418,8 @@ LLVM_ABI StringRef root_path(StringRef path LLVM_LIFETIME_BOUND,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The path starting after root_path if one exists, otherwise "".
 LLVM_ABI StringRef relative_path(StringRef path LLVM_LIFETIME_BOUND,
                                  Style style = Style::native);
@@ -365,6 +433,8 @@ LLVM_ABI StringRef relative_path(StringRef path LLVM_LIFETIME_BOUND,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The parent path of \a path if one exists, otherwise "".
 LLVM_ABI StringRef parent_path(StringRef path LLVM_LIFETIME_BOUND,
                                Style style = Style::native);
@@ -379,6 +449,8 @@ LLVM_ABI StringRef parent_path(StringRef path LLVM_LIFETIME_BOUND,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The filename part of \a path. This is defined as the last component
 ///         of \a path. Similar to the POSIX "basename" utility.
 LLVM_ABI StringRef filename(StringRef path LLVM_LIFETIME_BOUND,
@@ -399,6 +471,8 @@ LLVM_ABI StringRef filename(StringRef path LLVM_LIFETIME_BOUND,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The stem of \a path.
 LLVM_ABI StringRef stem(StringRef path LLVM_LIFETIME_BOUND,
                         Style style = Style::native);
@@ -416,6 +490,8 @@ LLVM_ABI StringRef stem(StringRef path LLVM_LIFETIME_BOUND,
 /// @endcode
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result The extension of \a path.
 LLVM_ABI StringRef extension(StringRef path LLVM_LIFETIME_BOUND,
                              Style style = Style::native);
@@ -423,11 +499,13 @@ LLVM_ABI StringRef extension(StringRef path LLVM_LIFETIME_BOUND,
 /// Check whether the given char is a path separator on the host OS.
 ///
 /// @param value a character
+/// @param style The path style to use. "native" means derive from the host.
 /// @result true if \a value is a path separator character on the host OS
 LLVM_ABI bool is_separator(char value, Style style = Style::native);
 
 /// Return the preferred separator for this platform.
 ///
+/// @param style The path style to use. "native" means derive from the host.
 /// @result StringRef of the preferred separator, null-terminated.
 LLVM_ABI StringRef get_separator(Style style = Style::native);
 
@@ -468,6 +546,8 @@ LLVM_ABI bool cache_directory(SmallVectorImpl<char> &result);
 /// root_name != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a root name, false otherwise.
 LLVM_ABI bool has_root_name(const Twine &path, Style style = Style::native);
 
@@ -476,6 +556,8 @@ LLVM_ABI bool has_root_name(const Twine &path, Style style = Style::native);
 /// root_directory != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a root directory, false otherwise.
 LLVM_ABI bool has_root_directory(const Twine &path,
                                  Style style = Style::native);
@@ -485,6 +567,8 @@ LLVM_ABI bool has_root_directory(const Twine &path,
 /// root_path != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a root path, false otherwise.
 LLVM_ABI bool has_root_path(const Twine &path, Style style = Style::native);
 
@@ -493,6 +577,8 @@ LLVM_ABI bool has_root_path(const Twine &path, Style style = Style::native);
 /// relative_path != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a relative path, false otherwise.
 LLVM_ABI bool has_relative_path(const Twine &path, Style style = Style::native);
 
@@ -501,6 +587,8 @@ LLVM_ABI bool has_relative_path(const Twine &path, Style style = Style::native);
 /// parent_path != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a parent path, false otherwise.
 LLVM_ABI bool has_parent_path(const Twine &path, Style style = Style::native);
 
@@ -509,6 +597,8 @@ LLVM_ABI bool has_parent_path(const Twine &path, Style style = Style::native);
 /// filename != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a filename, false otherwise.
 LLVM_ABI bool has_filename(const Twine &path, Style style = Style::native);
 
@@ -517,6 +607,8 @@ LLVM_ABI bool has_filename(const Twine &path, Style style = Style::native);
 /// stem != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a stem, false otherwise.
 LLVM_ABI bool has_stem(const Twine &path, Style style = Style::native);
 
@@ -525,6 +617,8 @@ LLVM_ABI bool has_stem(const Twine &path, Style style = Style::native);
 /// extension != ""
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path has a extension, false otherwise.
 LLVM_ABI bool has_extension(const Twine &path, Style style = Style::native);
 
@@ -544,6 +638,8 @@ LLVM_ABI bool has_extension(const Twine &path, Style style = Style::native);
 /// \see has_root_directory
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path is absolute, false if it is not.
 LLVM_ABI bool is_absolute(const Twine &path, Style style = Style::native);
 
@@ -575,6 +671,8 @@ LLVM_ABI bool is_absolute_gnu(const Twine &path, Style style = Style::native);
 /// Is path relative?
 ///
 /// @param path Input path.
+/// @param style The style of \p path (e.g. Windows or POSIX). "native" style
+/// means to derive the style from the host.
 /// @result True if the path is relative, false if it is not.
 LLVM_ABI bool is_relative(const Twine &path, Style style = Style::native);
 
@@ -586,6 +684,7 @@ LLVM_ABI bool is_relative(const Twine &path, Style style = Style::native);
 /// /absolute/path   => /absolute/path
 /// relative/../path => <current-directory>/relative/../path
 ///
+/// @param current_directory The base directory used when \a path is relative.
 /// @param path A path that is modified to be an absolute path.
 LLVM_ABI void make_absolute(const Twine &current_directory,
                             SmallVectorImpl<char> &path);

@@ -30,19 +30,26 @@ constexpr StringRef AssumptionAttrKey = "llvm.assume";
 
 /// A set of known assumption strings that are accepted without warning and
 /// which can be recommended as typo correction.
+/// \return The set of known assumption strings.
 LLVM_ABI extern StringSet<> &getKnownAssumptionStrings();
 
 /// Helper that allows to insert a new assumption string in the known assumption
 /// set by creating a (static) object.
 struct KnownAssumptionString {
+  /// Construct from a C string and register it in the known assumption set.
+  /// \param AssumptionStr Assumption string to register.
   KnownAssumptionString(const char *AssumptionStr)
       : AssumptionStr(AssumptionStr) {
     getKnownAssumptionStrings().insert(AssumptionStr);
   }
+  /// Construct from a StringRef and register it in the known assumption set.
+  /// \param AssumptionStr Assumption string to register.
   KnownAssumptionString(StringRef AssumptionStr)
       : AssumptionStr(AssumptionStr) {
     getKnownAssumptionStrings().insert(AssumptionStr);
   }
+  /// Convert to the underlying assumption string.
+  /// \return The registered assumption string.
   operator StringRef() const { return AssumptionStr; }
 
 private:
@@ -50,25 +57,41 @@ private:
 };
 
 /// Return true if \p F has the assumption \p AssumptionStr attached.
+/// \param F Function to inspect for the assumption.
+/// \param AssumptionStr Known assumption string to look for.
+/// \return true if \p F has the assumption attached.
 LLVM_ABI bool hasAssumption(const Function &F,
                             const KnownAssumptionString &AssumptionStr);
 
 /// Return true if \p CB or the callee has the assumption \p AssumptionStr
 /// attached.
+/// \param CB Call site to inspect for the assumption.
+/// \param AssumptionStr Known assumption string to look for.
+/// \return true if \p CB or its callee has the assumption attached.
 LLVM_ABI bool hasAssumption(const CallBase &CB,
                             const KnownAssumptionString &AssumptionStr);
 
 /// Return the set of all assumptions for the function \p F.
+/// \param F Function whose assumptions are collected.
+/// \return The set of assumption strings attached to \p F.
 LLVM_ABI DenseSet<StringRef> getAssumptions(const Function &F);
 
 /// Return the set of all assumptions for the call \p CB.
+/// \param CB Call site whose assumptions are collected.
+/// \return The set of assumption strings attached to \p CB.
 LLVM_ABI DenseSet<StringRef> getAssumptions(const CallBase &CB);
 
-/// Appends the set of assumptions \p Assumptions to \F.
+/// Appends the set of assumptions \p Assumptions to \p F.
+/// \param F Function to which the assumptions are appended.
+/// \param Assumptions Assumption strings to append.
+/// \return true if any new assumptions were added to \p F.
 LLVM_ABI bool addAssumptions(Function &F,
                              const DenseSet<StringRef> &Assumptions);
 
-/// Appends the set of assumptions \p Assumptions to \CB.
+/// Appends the set of assumptions \p Assumptions to \p CB.
+/// \param CB Call site to which the assumptions are appended.
+/// \param Assumptions Assumption strings to append.
+/// \return true if any new assumptions were added to \p CB.
 LLVM_ABI bool addAssumptions(CallBase &CB,
                              const DenseSet<StringRef> &Assumptions);
 

@@ -54,8 +54,15 @@ namespace shared {
 /// Output char buffer with overflow check.
 class SPSOutputBuffer {
 public:
+  /// Construct an output buffer over \p Buffer with \p Remaining writable bytes.
+  /// @param Buffer Destination character buffer.
+  /// @param Remaining Number of bytes that may still be written.
   SPSOutputBuffer(char *Buffer, size_t Remaining)
       : Buffer(Buffer), Remaining(Remaining) {}
+  /// Write \p Size bytes from \p Data into this buffer.
+  /// @param Data Source bytes to copy.
+  /// @param Size Number of bytes to write.
+  /// @return True if the write succeeded, false on overflow.
   bool write(const char *Data, size_t Size) {
     assert(Data && "Data must not be null");
     if (Size > Remaining)
@@ -74,9 +81,17 @@ private:
 /// Input char buffer with underflow check.
 class SPSInputBuffer {
 public:
+  /// Construct an empty input buffer.
   SPSInputBuffer() = default;
+  /// Construct an input buffer over \p Buffer with \p Remaining readable bytes.
+  /// @param Buffer Source character buffer.
+  /// @param Remaining Number of bytes that may still be read.
   SPSInputBuffer(const char *Buffer, size_t Remaining)
       : Buffer(Buffer), Remaining(Remaining) {}
+  /// Read \p Size bytes from this buffer into \p Data.
+  /// @param Data Destination bytes.
+  /// @param Size Number of bytes to read.
+  /// @return True if the read succeeded, false on underflow.
   bool read(char *Data, size_t Size) {
     if (Size > Remaining)
       return false;
@@ -86,7 +101,12 @@ public:
     return true;
   }
 
+  /// Return a pointer to the current read position.
+  /// @return Pointer to the current read position.
   const char *data() const { return Buffer; }
+  /// Advance the read position by \p Size bytes without copying.
+  /// @param Size Number of bytes to skip.
+  /// @return True if the skip succeeded, false on underflow.
   bool skip(size_t Size) {
     if (Size > Remaining)
       return false;
@@ -108,35 +128,59 @@ class SPSSerializationTraits;
 /// A utility class for serializing to a blob from a variadic list.
 template <typename... ArgTs> class SPSArgList;
 
-// Empty list specialization for SPSArgList.
+/// Empty-list specialization of SPSArgList.
 template <> class SPSArgList<> {
 public:
+  /// Return the serialized size of an empty argument list.
+  /// @return Number of bytes needed (always zero).
   static size_t size() { return 0; }
 
+  /// Serialize an empty argument list into \p OB.
+  /// @param OB Output buffer.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB) { return true; }
+  /// Deserialize an empty argument list from \p IB.
+  /// @param IB Input buffer.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB) { return true; }
 
+  /// Serialize an empty argument list into SmallVector \p V.
+  /// @param V Destination SmallVector.
+  /// @return True if serialization succeeded.
   static bool serializeToSmallVector(SmallVectorImpl<char> &V) { return true; }
 
+  /// Deserialize an empty argument list from SmallVector \p V.
+  /// @param V Source SmallVector.
+  /// @return True if deserialization succeeded.
   static bool deserializeFromSmallVector(const SmallVectorImpl<char> &V) {
     return true;
   }
 };
 
-// Non-empty list specialization for SPSArgList.
+/// Non-empty specialization of SPSArgList for one or more SPS tag types.
 template <typename SPSTagT, typename... SPSTagTs>
 class SPSArgList<SPSTagT, SPSTagTs...> {
 public:
   // FIXME: This typedef is here to enable SPS arg serialization from
   // JITLink. It can be removed once JITLink can access SPS directly.
+  /// Output buffer type used when serializing SPS arguments.
   using OutputBuffer = SPSOutputBuffer;
 
+  /// Return the total serialized size of \p Arg and \p Args.
+  /// @param Arg First argument to measure.
+  /// @param Args Remaining arguments to measure.
+  /// @return Number of bytes needed to serialize the arguments.
   template <typename ArgT, typename... ArgTs>
   static size_t size(const ArgT &Arg, const ArgTs &...Args) {
     return SPSSerializationTraits<SPSTagT, ArgT>::size(Arg) +
            SPSArgList<SPSTagTs...>::size(Args...);
   }
 
+  /// Serialize \p Arg and \p Args into \p OB.
+  /// @param OB Output buffer.
+  /// @param Arg First argument to serialize.
+  /// @param Args Remaining arguments to serialize.
+  /// @return True if serialization succeeded.
   template <typename ArgT, typename... ArgTs>
   static bool serialize(SPSOutputBuffer &OB, const ArgT &Arg,
                         const ArgTs &...Args) {
@@ -144,6 +188,11 @@ public:
            SPSArgList<SPSTagTs...>::serialize(OB, Args...);
   }
 
+  /// Deserialize \p Arg and \p Args from \p IB.
+  /// @param IB Input buffer.
+  /// @param Arg First argument to fill.
+  /// @param Args Remaining arguments to fill.
+  /// @return True if deserialization succeeded.
   template <typename ArgT, typename... ArgTs>
   static bool deserialize(SPSInputBuffer &IB, ArgT &Arg, ArgTs &...Args) {
     return SPSSerializationTraits<SPSTagT, ArgT>::deserialize(IB, Arg) &&
@@ -166,8 +215,15 @@ class SPSSerializationTraits<
                      std::is_same<SPSTagT, uint32_t>::value ||
                      std::is_same<SPSTagT, uint64_t>::value>> {
 public:
+  /// Return the serialized size of \p Value.
+  /// @param Value Integral, bool, or char value to measure.
+  /// @return Number of bytes needed to serialize \p Value.
   static size_t size(const SPSTagT &Value) { return sizeof(SPSTagT); }
 
+  /// Serialize \p Value into \p OB.
+  /// @param OB Output buffer.
+  /// @param Value Integral, bool, or char value to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const SPSTagT &Value) {
     SPSTagT Tmp = Value;
     if (sys::IsBigEndianHost)
@@ -175,6 +231,10 @@ public:
     return OB.write(reinterpret_cast<const char *>(&Tmp), sizeof(Tmp));
   }
 
+  /// Deserialize an integral, bool, or char value from \p IB into \p Value.
+  /// @param IB Input buffer.
+  /// @param Value Destination value.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, SPSTagT &Value) {
     SPSTagT Tmp;
     if (!IB.read(reinterpret_cast<char *>(&Tmp), sizeof(Tmp)))
@@ -186,7 +246,7 @@ public:
   }
 };
 
-// Any empty placeholder suitable as a substitute for void when deserializing
+/// Empty placeholder suitable as a substitute for void when deserializing.
 class SPSEmpty {};
 
 /// SPS tag type for tuples.
@@ -225,10 +285,21 @@ using SPSMap = SPSSequence<SPSTuple<SPSTagT1, SPSTagT2>>;
 /// Serialization for SPSEmpty type.
 template <> class SPSSerializationTraits<SPSEmpty, SPSEmpty> {
 public:
+  /// Return the serialized size of \p EP.
+  /// @param EP Empty placeholder to measure.
+  /// @return Number of bytes needed to serialize \p EP.
   static size_t size(const SPSEmpty &EP) { return 0; }
+  /// Serialize \p BE into \p OB.
+  /// @param OB Output buffer.
+  /// @param BE Empty placeholder to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const SPSEmpty &BE) {
     return true;
   }
+  /// Deserialize an SPSEmpty from \p IB into \p BE.
+  /// @param IB Input buffer.
+  /// @param BE Destination empty placeholder.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, SPSEmpty &BE) { return true; }
 };
 
@@ -244,6 +315,7 @@ public:
 template <typename SPSElementTagT, typename ConcreteSequenceT>
 class TrivialSPSSequenceSerialization {
 public:
+  /// True when trivial serialization is available for this sequence type.
   static constexpr bool available = false;
 };
 
@@ -260,23 +332,34 @@ public:
 template <typename SPSElementTagT, typename ConcreteSequenceT>
 class TrivialSPSSequenceDeserialization {
 public:
+  /// True when trivial deserialization is available for this sequence type.
   static constexpr bool available = false;
 };
 
 /// Trivial std::string -> SPSSequence<char> serialization.
 template <> class TrivialSPSSequenceSerialization<char, std::string> {
 public:
+  /// True; trivial serialization is available for std::string.
   static constexpr bool available = true;
 };
 
 /// Trivial SPSSequence<char> -> std::string deserialization.
 template <> class TrivialSPSSequenceDeserialization<char, std::string> {
 public:
+  /// True; trivial deserialization is available for std::string.
   static constexpr bool available = true;
 
+  /// Element type appended during deserialization.
   using element_type = char;
 
+  /// Reserve capacity for \p Size elements in \p S.
+  /// @param S String to reserve.
+  /// @param Size Number of characters expected.
   static void reserve(std::string &S, uint64_t Size) { S.reserve(Size); }
+  /// Append character \p C to \p S.
+  /// @param S Destination string.
+  /// @param C Character to append.
+  /// @return True if the append succeeded.
   static bool append(std::string &S, char C) {
     S.push_back(C);
     return true;
@@ -287,6 +370,7 @@ public:
 template <typename SPSElementTagT, typename T>
 class TrivialSPSSequenceSerialization<SPSElementTagT, std::vector<T>> {
 public:
+  /// True; trivial serialization is available for std::vector.
   static constexpr bool available = true;
 };
 
@@ -294,11 +378,20 @@ public:
 template <typename SPSElementTagT, typename T>
 class TrivialSPSSequenceDeserialization<SPSElementTagT, std::vector<T>> {
 public:
+  /// True; trivial deserialization is available for std::vector.
   static constexpr bool available = true;
 
+  /// Element type appended during deserialization.
   using element_type = typename std::vector<T>::value_type;
 
+  /// Reserve capacity for \p Size elements in \p V.
+  /// @param V Vector to reserve.
+  /// @param Size Number of elements expected.
   static void reserve(std::vector<T> &V, uint64_t Size) { V.reserve(Size); }
+  /// Append element \p E to \p V.
+  /// @param V Destination vector.
+  /// @param E Element to append.
+  /// @return True if the append succeeded.
   static bool append(std::vector<T> &V, T E) {
     V.push_back(std::move(E));
     return true;
@@ -309,6 +402,7 @@ public:
 template <typename SPSElementTagT, typename T>
 class TrivialSPSSequenceSerialization<SPSElementTagT, SmallVectorImpl<T>> {
 public:
+  /// True; trivial serialization is available for SmallVectorImpl.
   static constexpr bool available = true;
 };
 
@@ -316,11 +410,20 @@ public:
 template <typename SPSElementTagT, typename T>
 class TrivialSPSSequenceDeserialization<SPSElementTagT, SmallVectorImpl<T>> {
 public:
+  /// True; trivial deserialization is available for SmallVectorImpl.
   static constexpr bool available = true;
 
+  /// Element type appended during deserialization.
   using element_type = typename SmallVectorImpl<T>::value_type;
 
+  /// Reserve capacity for \p Size elements in \p V.
+  /// @param V SmallVector to reserve.
+  /// @param Size Number of elements expected.
   static void reserve(SmallVectorImpl<T> &V, uint64_t Size) { V.reserve(Size); }
+  /// Append element \p E to \p V.
+  /// @param V Destination SmallVector.
+  /// @param E Element to append.
+  /// @return True if the append succeeded.
   static bool append(SmallVectorImpl<T> &V, T E) {
     V.push_back(std::move(E));
     return true;
@@ -343,6 +446,7 @@ class TrivialSPSSequenceDeserialization<SPSElementTagT, SmallVector<T, N>>
 template <typename SPSElementTagT, typename T>
 class TrivialSPSSequenceSerialization<SPSElementTagT, ArrayRef<T>> {
 public:
+  /// True; trivial serialization is available for ArrayRef.
   static constexpr bool available = true;
 };
 
@@ -351,11 +455,18 @@ public:
 /// On deserialize, points directly into the input buffer.
 template <> class SPSSerializationTraits<SPSSequence<char>, ArrayRef<char>> {
 public:
+  /// Return the serialized size of \p A.
+  /// @param A Character array reference to measure.
+  /// @return Number of bytes needed to serialize \p A.
   static size_t size(const ArrayRef<char> &A) {
     return SPSArgList<uint64_t>::size(static_cast<uint64_t>(A.size())) +
            A.size();
   }
 
+  /// Serialize \p A into \p OB.
+  /// @param OB Output buffer.
+  /// @param A Character array reference to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const ArrayRef<char> &A) {
     if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(A.size())))
       return false;
@@ -364,6 +475,10 @@ public:
     return OB.write(A.data(), A.size());
   }
 
+  /// Deserialize an ArrayRef<char> from \p IB into \p A.
+  /// @param IB Input buffer.
+  /// @param A Destination array reference (points into the buffer).
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, ArrayRef<char> &A) {
     uint64_t Size;
     if (!SPSArgList<uint64_t>::deserialize(IB, Size))
@@ -375,14 +490,18 @@ public:
   }
 };
 
-/// 'Trivial' sequence serialization: Sequence is serialized as a uint64_t size
-/// followed by a for-earch loop over the elements of the sequence to serialize
-/// each of them.
+/// SPS serialization traits for sequences with trivial serialization available.
+///
+/// Sequence is serialized as a uint64_t size followed by a for-each loop over
+/// the elements of the sequence to serialize each of them.
 template <typename SPSElementTagT, typename SequenceT>
 class SPSSerializationTraits<SPSSequence<SPSElementTagT>, SequenceT,
                              std::enable_if_t<TrivialSPSSequenceSerialization<
                                  SPSElementTagT, SequenceT>::available>> {
 public:
+  /// Return the serialized size of \p S.
+  /// @param S Sequence to measure.
+  /// @return Number of bytes needed to serialize \p S.
   static size_t size(const SequenceT &S) {
     size_t Size = SPSArgList<uint64_t>::size(static_cast<uint64_t>(S.size()));
     for (const auto &E : S)
@@ -390,6 +509,10 @@ public:
     return Size;
   }
 
+  /// Serialize \p S into \p OB.
+  /// @param OB Output buffer.
+  /// @param S Sequence to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const SequenceT &S) {
     if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(S.size())))
       return false;
@@ -399,6 +522,10 @@ public:
     return true;
   }
 
+  /// Deserialize a sequence from \p IB into \p S.
+  /// @param IB Input buffer.
+  /// @param S Destination sequence.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, SequenceT &S) {
     using TBSD = TrivialSPSSequenceDeserialization<SPSElementTagT, SequenceT>;
     uint64_t Size;
@@ -441,14 +568,25 @@ private:
   }
 
 public:
+  /// Return the serialized size of \p T.
+  /// @param T Tuple to measure.
+  /// @return Number of bytes needed to serialize \p T.
   static size_t size(const std::tuple<Ts...> &T) {
     return size(T, ArgIndices{});
   }
 
+  /// Serialize \p T into \p OB.
+  /// @param OB Output buffer.
+  /// @param T Tuple to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const std::tuple<Ts...> &T) {
     return serialize(OB, T, ArgIndices{});
   }
 
+  /// Deserialize a std::tuple from \p IB into \p T.
+  /// @param IB Input buffer.
+  /// @param T Destination tuple.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, std::tuple<Ts...> &T) {
     return deserialize(IB, T, ArgIndices{});
   }
@@ -458,16 +596,27 @@ public:
 template <typename SPSTagT1, typename SPSTagT2, typename T1, typename T2>
 class SPSSerializationTraits<SPSTuple<SPSTagT1, SPSTagT2>, std::pair<T1, T2>> {
 public:
+  /// Return the serialized size of \p P.
+  /// @param P Pair to measure.
+  /// @return Number of bytes needed to serialize \p P.
   static size_t size(const std::pair<T1, T2> &P) {
     return SPSArgList<SPSTagT1>::size(P.first) +
            SPSArgList<SPSTagT2>::size(P.second);
   }
 
+  /// Serialize \p P into \p OB.
+  /// @param OB Output buffer.
+  /// @param P Pair to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const std::pair<T1, T2> &P) {
     return SPSArgList<SPSTagT1>::serialize(OB, P.first) &&
            SPSArgList<SPSTagT2>::serialize(OB, P.second);
   }
 
+  /// Deserialize a std::pair from \p IB into \p P.
+  /// @param IB Input buffer.
+  /// @param P Destination pair.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, std::pair<T1, T2> &P) {
     return SPSArgList<SPSTagT1>::deserialize(IB, P.first) &&
            SPSArgList<SPSTagT2>::deserialize(IB, P.second);
@@ -478,6 +627,9 @@ public:
 template <typename SPSTagT, typename T>
 class SPSSerializationTraits<SPSOptional<SPSTagT>, std::optional<T>> {
 public:
+  /// Return the serialized size of \p Value.
+  /// @param Value Optional to measure.
+  /// @return Number of bytes needed to serialize \p Value.
   static size_t size(const std::optional<T> &Value) {
     size_t Size = SPSArgList<bool>::size(!!Value);
     if (Value)
@@ -485,6 +637,10 @@ public:
     return Size;
   }
 
+  /// Serialize \p Value into \p OB.
+  /// @param OB Output buffer.
+  /// @param Value Optional to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const std::optional<T> &Value) {
     if (!SPSArgList<bool>::serialize(OB, !!Value))
       return false;
@@ -493,6 +649,10 @@ public:
     return true;
   }
 
+  /// Deserialize a std::optional from \p IB into \p Value.
+  /// @param IB Input buffer.
+  /// @param Value Destination optional.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, std::optional<T> &Value) {
     bool HasValue;
     if (!SPSArgList<bool>::deserialize(IB, HasValue))
@@ -512,11 +672,18 @@ public:
 /// into the blob.
 template <> class SPSSerializationTraits<SPSString, StringRef> {
 public:
+  /// Return the serialized size of \p S.
+  /// @param S StringRef to measure.
+  /// @return Number of bytes needed to serialize \p S.
   static size_t size(const StringRef &S) {
     return SPSArgList<uint64_t>::size(static_cast<uint64_t>(S.size())) +
            S.size();
   }
 
+  /// Serialize \p S into \p OB.
+  /// @param OB Output buffer.
+  /// @param S StringRef to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, StringRef S) {
     if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(S.size())))
       return false;
@@ -525,6 +692,10 @@ public:
     return OB.write(S.data(), S.size());
   }
 
+  /// Deserialize a StringRef from \p IB into \p S.
+  /// @param IB Input buffer.
+  /// @param S Destination StringRef (points into the blob).
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, StringRef &S) {
     const char *Data = nullptr;
     uint64_t Size;
@@ -543,6 +714,9 @@ template <typename SPSValueT, typename ValueT>
 class SPSSerializationTraits<SPSSequence<SPSTuple<SPSString, SPSValueT>>,
                              StringMap<ValueT>> {
 public:
+  /// Return the serialized size of \p M.
+  /// @param M StringMap to measure.
+  /// @return Number of bytes needed to serialize \p M.
   static size_t size(const StringMap<ValueT> &M) {
     size_t Sz = SPSArgList<uint64_t>::size(static_cast<uint64_t>(M.size()));
     for (auto &E : M)
@@ -550,6 +724,10 @@ public:
     return Sz;
   }
 
+  /// Serialize \p M into \p OB.
+  /// @param OB Output buffer.
+  /// @param M StringMap to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const StringMap<ValueT> &M) {
     if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(M.size())))
       return false;
@@ -561,6 +739,10 @@ public:
     return true;
   }
 
+  /// Deserialize a StringMap from \p IB into \p M.
+  /// @param IB Input buffer.
+  /// @param M Destination StringMap (must be empty).
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB, StringMap<ValueT> &M) {
     uint64_t Size;
     assert(M.empty() && "M already contains elements");
@@ -649,6 +831,9 @@ Expected<T> fromSPSSerializable(SPSSerializableExpected<T> BSE) {
 template <>
 class SPSSerializationTraits<SPSError, detail::SPSSerializableError> {
 public:
+  /// Return the serialized size of \p BSE.
+  /// @param BSE Serializable error to measure.
+  /// @return Number of bytes needed to serialize \p BSE.
   static size_t size(const detail::SPSSerializableError &BSE) {
     size_t Size = SPSArgList<bool>::size(BSE.HasError);
     if (BSE.HasError)
@@ -656,6 +841,10 @@ public:
     return Size;
   }
 
+  /// Serialize \p BSE into \p OB.
+  /// @param OB Output buffer.
+  /// @param BSE Serializable error to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB,
                         const detail::SPSSerializableError &BSE) {
     if (!SPSArgList<bool>::serialize(OB, BSE.HasError))
@@ -666,6 +855,10 @@ public:
     return true;
   }
 
+  /// Deserialize an SPSSerializableError from \p IB into \p BSE.
+  /// @param IB Input buffer.
+  /// @param BSE Destination serializable error.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB,
                           detail::SPSSerializableError &BSE) {
     if (!SPSArgList<bool>::deserialize(IB, BSE.HasError))
@@ -684,6 +877,9 @@ template <typename SPSTagT, typename T>
 class SPSSerializationTraits<SPSExpected<SPSTagT>,
                              detail::SPSSerializableExpected<T>> {
 public:
+  /// Return the serialized size of \p BSE.
+  /// @param BSE Serializable expected to measure.
+  /// @return Number of bytes needed to serialize \p BSE.
   static size_t size(const detail::SPSSerializableExpected<T> &BSE) {
     size_t Size = SPSArgList<bool>::size(BSE.HasValue);
     if (BSE.HasValue)
@@ -693,6 +889,10 @@ public:
     return Size;
   }
 
+  /// Serialize \p BSE into \p OB.
+  /// @param OB Output buffer.
+  /// @param BSE Serializable expected to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB,
                         const detail::SPSSerializableExpected<T> &BSE) {
     if (!SPSArgList<bool>::serialize(OB, BSE.HasValue))
@@ -704,6 +904,10 @@ public:
     return SPSArgList<SPSString>::serialize(OB, BSE.ErrMsg);
   }
 
+  /// Deserialize an SPSSerializableExpected from \p IB into \p BSE.
+  /// @param IB Input buffer.
+  /// @param BSE Destination serializable expected.
+  /// @return True if deserialization succeeded.
   static bool deserialize(SPSInputBuffer &IB,
                           detail::SPSSerializableExpected<T> &BSE) {
     if (!SPSArgList<bool>::deserialize(IB, BSE.HasValue))
@@ -721,12 +925,19 @@ template <typename SPSTagT>
 class SPSSerializationTraits<SPSExpected<SPSTagT>,
                              detail::SPSSerializableError> {
 public:
+  /// Return the serialized size of \p BSE as a failed SPSExpected.
+  /// @param BSE Serializable error to measure (must have an error).
+  /// @return Number of bytes needed to serialize \p BSE.
   static size_t size(const detail::SPSSerializableError &BSE) {
     assert(BSE.HasError && "Cannot serialize expected from a success value");
     return SPSArgList<bool>::size(false) +
            SPSArgList<SPSString>::size(BSE.ErrMsg);
   }
 
+  /// Serialize \p BSE into \p OB as a failed SPSExpected.
+  /// @param OB Output buffer.
+  /// @param BSE Serializable error to serialize (must have an error).
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB,
                         const detail::SPSSerializableError &BSE) {
     assert(BSE.HasError && "Cannot serialize expected from a success value");
@@ -740,10 +951,17 @@ public:
 template <typename SPSTagT, typename T>
 class SPSSerializationTraits<SPSExpected<SPSTagT>, T> {
 public:
+  /// Return the serialized size of \p Value as a successful SPSExpected.
+  /// @param Value Value to measure.
+  /// @return Number of bytes needed to serialize \p Value.
   static size_t size(const T &Value) {
     return SPSArgList<bool>::size(true) + SPSArgList<SPSTagT>::size(Value);
   }
 
+  /// Serialize \p Value into \p OB as a successful SPSExpected.
+  /// @param OB Output buffer.
+  /// @param Value Value to serialize.
+  /// @return True if serialization succeeded.
   static bool serialize(SPSOutputBuffer &OB, const T &Value) {
     if (!SPSArgList<bool>::serialize(OB, true))
       return false;

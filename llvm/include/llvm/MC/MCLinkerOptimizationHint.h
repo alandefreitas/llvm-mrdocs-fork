@@ -113,27 +113,45 @@ class MCLOHDirective {
                  const MachObjectWriter &ObjWriter) const;
 
 public:
+  /// Ordered list of symbols referenced by a LOH directive.
   using LOHArgs = SmallVectorImpl<MCSymbol *>;
 
+  /// Construct a LOH directive of \p Kind with the given \p Args.
+  ///
+  /// \param Kind - Linker Optimization Hint type for this directive.
+  /// \param Args - Ordered symbols that participate in this hint.
   MCLOHDirective(MCLOHType Kind, const LOHArgs &Args)
       : Kind(Kind), Args(Args.begin(), Args.end()) {
     assert(isValidMCLOHType(Kind) && "Invalid LOH directive type!");
   }
 
+  /// Return the Linker Optimization Hint type of this directive.
+  ///
+  /// \return The Linker Optimization Hint type of this directive.
   MCLOHType getKind() const { return Kind; }
 
+  /// Return the ordered symbol arguments of this directive.
+  ///
+  /// \return Const reference to the ordered symbol arguments.
   const LOHArgs &getArgs() const { return Args; }
 
   /// Emit this directive as:
   /// <kind, numArgs, addr1, ..., addrN>
+  ///
+  /// \param Asm - Assembler providing layout information for argument addresses.
+  /// \param ObjWriter - Mach-O object writer that receives the emitted directive.
   LLVM_ABI void emit(const MCAssembler &Asm, MachObjectWriter &ObjWriter) const;
 
-  /// Get the size in bytes of this directive if emitted in \p ObjWriter with
-  /// the given \p Layout.
+  /// Get the size in bytes of this directive if emitted in \p ObjWriter.
+  ///
+  /// \param Asm - Assembler providing layout information for argument addresses.
+  /// \param ObjWriter - Mach-O object writer used to compute the emit size.
+  /// \return Size in bytes of this directive when emitted.
   LLVM_ABI uint64_t getEmitSize(const MCAssembler &Asm,
                                 const MachObjectWriter &ObjWriter) const;
 };
 
+/// Container that accumulates and emits Linker Optimization Hint directives.
 class MCLOHContainer {
   /// Keep track of the emit size of all the LOHs.
   mutable uint64_t EmitSize = 0;
@@ -142,22 +160,33 @@ class MCLOHContainer {
   SmallVector<MCLOHDirective, 32> Directives;
 
 public:
+  /// Sequence of LOH directives stored in this container.
   using LOHDirectives = SmallVectorImpl<MCLOHDirective>;
 
+  /// Construct an empty LOH directive container.
   MCLOHContainer() = default;
 
   /// Const accessor to the directives.
+  ///
+  /// \return Const reference to the stored LOH directives.
   const LOHDirectives &getDirectives() const {
     return Directives;
   }
 
   /// Add the directive of the given kind \p Kind with the given arguments
   /// \p Args to the container.
+  ///
+  /// \param Kind - Linker Optimization Hint type of the directive to add.
+  /// \param Args - Ordered symbols that participate in the directive.
   void addDirective(MCLOHType Kind, const MCLOHDirective::LOHArgs &Args) {
     Directives.push_back(MCLOHDirective(Kind, Args));
   }
 
   /// Get the size of the directives if emitted.
+  ///
+  /// \param Asm - Assembler providing layout information for argument addresses.
+  /// \param ObjWriter - Mach-O object writer used to compute the emit size.
+  /// \return Total emit size in bytes of all stored directives.
   uint64_t getEmitSize(const MCAssembler &Asm,
                        const MachObjectWriter &ObjWriter) const {
     if (!EmitSize) {
@@ -169,19 +198,24 @@ public:
 
   /// Emit all Linker Optimization Hint in one big table.
   /// Each line of the table is emitted by LOHDirective::emit.
+  ///
+  /// \param Asm - Assembler providing layout information for argument addresses.
+  /// \param ObjWriter - Mach-O object writer that receives the emitted table.
   void emit(const MCAssembler &Asm, MachObjectWriter &ObjWriter) const {
     for (const MCLOHDirective &D : Directives)
       D.emit(Asm, ObjWriter);
   }
 
+  /// Clear all stored directives and reset the cached emit size.
   void reset() {
     Directives.clear();
     EmitSize = 0;
   }
 };
 
-// Add types for specialized template using MCSymbol.
+/// Alias for the argument list type used by LOH directives.
 using MCLOHArgs = MCLOHDirective::LOHArgs;
+/// Alias for the directive list type used by LOH containers.
 using MCLOHDirectives = MCLOHContainer::LOHDirectives;
 
 } // end namespace llvm

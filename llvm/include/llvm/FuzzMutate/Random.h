@@ -17,12 +17,18 @@
 #include <random>
 namespace llvm {
 
-/// Return a uniformly distributed random value between \c Min and \c Max
+/// Return a uniformly distributed random value between \c Min and \c Max.
+/// \param Gen Pseudo-random number generator to draw from.
+/// \param Min Inclusive lower bound of the range.
+/// \param Max Inclusive upper bound of the range.
+/// \return A uniformly distributed random value in [\p Min, \p Max].
 template <typename T, typename GenT> T uniform(GenT &Gen, T Min, T Max) {
   return std::uniform_int_distribution<T>(Min, Max)(Gen);
 }
 
-/// Return a uniformly distributed random value of type \c T
+/// Return a uniformly distributed random value of type \c T.
+/// \param Gen Pseudo-random number generator to draw from.
+/// \return A uniformly distributed random value of type \c T.
 template <typename T, typename GenT> T uniform(GenT &Gen) {
   return uniform<T>(Gen, std::numeric_limits<T>::min(),
                     std::numeric_limits<T>::max());
@@ -36,20 +42,34 @@ template <typename T, typename GenT> class ReservoirSampler {
   uint64_t TotalWeight = 0;
 
 public:
+  /// Construct a sampler that draws randomness from \p RandGen.
+  /// \param RandGen Pseudo-random number generator used for sampling.
   ReservoirSampler(GenT &RandGen) : RandGen(RandGen) {}
 
+  /// Return the total weight of all items sampled so far.
+  /// \return The sum of weights of all items sampled so far.
   uint64_t totalWeight() const { return TotalWeight; }
+  /// Return true if no items have been sampled yet.
+  /// \return True if no items have been sampled yet.
   bool isEmpty() const { return TotalWeight == 0; }
 
+  /// Return the currently selected item.
+  /// \return The currently selected item.
   const T &getSelection() const {
     assert(!isEmpty() && "Nothing selected");
     return Selection;
   }
 
+  /// Return true if a selection has been made.
+  /// \return True if a selection has been made.
   explicit operator bool() const { return !isEmpty(); }
+  /// Return the currently selected item.
+  /// \return The currently selected item.
   const T &operator*() const { return getSelection(); }
 
-  /// Sample each item in \c Items with unit weight
+  /// Sample each item in \c Items with unit weight.
+  /// \param Items Range of items to sample with weight one each.
+  /// \return A reference to this sampler.
   template <typename RangeT> ReservoirSampler &sample(RangeT &&Items) {
     for (auto &I : Items)
       sample(I, 1);
@@ -57,6 +77,9 @@ public:
   }
 
   /// Sample a single item with the given weight.
+  /// \param Item Candidate value to consider for selection.
+  /// \param Weight Relative weight of this item; zero is ignored.
+  /// \return A reference to this sampler.
   ReservoirSampler &sample(const T &Item, uint64_t Weight) {
     if (!Weight)
       // If the weight is zero, do nothing.
@@ -69,6 +92,10 @@ public:
   }
 };
 
+/// Create a reservoir sampler and sample all items in \p Items with unit weight.
+/// \param RandGen Pseudo-random number generator used for sampling.
+/// \param Items Range of items to sample with weight one each.
+/// \return A reservoir sampler containing a selection from \p Items.
 template <typename GenT, typename RangeT,
           typename ElT = std::remove_reference_t<
               decltype(*std::begin(std::declval<RangeT>()))>>
@@ -78,6 +105,11 @@ ReservoirSampler<ElT, GenT> makeSampler(GenT &RandGen, RangeT &&Items) {
   return RS;
 }
 
+/// Create a reservoir sampler and sample a single weighted item.
+/// \param RandGen Pseudo-random number generator used for sampling.
+/// \param Item Candidate value to consider for selection.
+/// \param Weight Relative weight of this item; zero is ignored.
+/// \return A reservoir sampler that has sampled \p Item with \p Weight.
 template <typename GenT, typename T>
 ReservoirSampler<T, GenT> makeSampler(GenT &RandGen, const T &Item,
                                       uint64_t Weight) {
@@ -86,6 +118,9 @@ ReservoirSampler<T, GenT> makeSampler(GenT &RandGen, const T &Item,
   return RS;
 }
 
+/// Create an empty reservoir sampler over values of type \c T.
+/// \param RandGen Pseudo-random number generator used for sampling.
+/// \return An empty reservoir sampler over values of type \c T.
 template <typename T, typename GenT>
 ReservoirSampler<T, GenT> makeSampler(GenT &RandGen) {
   return ReservoirSampler<T, GenT>(RandGen);

@@ -134,6 +134,7 @@ public:
 
   /// Return the product of the sizes of all per-variable choice lists.
   /// This is the maximum number of times the generate callback may be called.
+  /// @return The product of the sizes of all per-variable choice lists.
   size_t numCombinations() const {
     size_t NumVariants = 1;
     for (ArrayRef<choice_type> VariableChoices : VariablesChoices)

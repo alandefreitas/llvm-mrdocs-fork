@@ -17,7 +17,16 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+
+/// Pass that flattens a function's CFG.
+///
+/// Uses the FlattenCFG utility function, iteratively flattening until no
+/// further changes are made.
 struct FlattenCFGPass : OptionalPassInfoMixin<FlattenCFGPass> {
+  /// Run the pass over the function.
+  /// @param F Function whose CFG should be flattened.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // namespace llvm

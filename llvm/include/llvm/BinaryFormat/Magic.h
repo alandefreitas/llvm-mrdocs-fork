@@ -19,6 +19,7 @@ class Twine;
 /// file_magic - An "enum class" enumeration of file types based on magic (the
 /// first N bytes of the file).
 struct file_magic {
+  /// Underlying file-type kinds identified from file magic bytes.
   enum Impl {
     unknown = 0,       ///< Unrecognized file
     bitcode,           ///< Bitcode file
@@ -62,11 +63,20 @@ struct file_magic {
     spirv_object,              ///< A binary SPIR-V file
   };
 
+  /// True if the identified type is a recognized object/binary format (not unknown).
+  ///
+  /// @returns True if the type is not unknown; false otherwise.
   bool is_object() const { return V != unknown; }
 
+  /// Construct with an unknown file-magic kind.
   file_magic() = default;
   /// Construct a file_magic from the given kind.
+  ///
+  /// @param V File-type kind to store.
   file_magic(Impl V) : V(V) {}
+  /// Convert to the underlying file-type enumeration value.
+  ///
+  /// @returns The stored file-type kind.
   operator Impl() const { return V; }
 
 private:
@@ -74,6 +84,9 @@ private:
 };
 
 /// Identify the type of a binary file based on how magical it is.
+///
+/// @param magic Leading bytes of the file used for magic identification.
+/// @returns The identified file_magic kind for the given bytes.
 LLVM_ABI file_magic identify_magic(StringRef magic);
 
 /// Get and identify \a path's type based on its content.

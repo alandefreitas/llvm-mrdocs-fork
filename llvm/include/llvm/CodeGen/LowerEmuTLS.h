@@ -19,8 +19,16 @@
 
 namespace llvm {
 
+/// New PM pass that adds `__emutls_[vt].*` variables for emulated TLS.
+///
+/// For each thread-local global `xyz`, generates `__emutls_v.xyz`, and also
+/// `__emutls_t.xyz` when the variable has a non-zero initializer.
 class LowerEmuTLSPass : public RequiredPassInfoMixin<LowerEmuTLSPass> {
 public:
+  /// Add emulated TLS variables for thread-local globals in \p M.
+  /// \param M Module whose thread-local globals are lowered.
+  /// \param MAM Module analysis manager providing required analyses.
+  /// \return The set of analyses preserved after adding emulated TLS variables.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 

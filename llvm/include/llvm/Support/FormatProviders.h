@@ -52,6 +52,11 @@ struct use_double_formatter : public std::is_floating_point<T> {};
 
 class HelperFunctions {
 protected:
+  /// Parse a numeric precision specifier from \p Str.
+  ///
+  /// \param Str Style substring containing an optional decimal precision.
+  /// \returns The parsed precision clamped to at most 99, or \c std::nullopt
+  /// if \p Str is empty or not a valid integer.
   static std::optional<size_t> parseNumericPrecision(StringRef Str) {
     size_t Prec;
     std::optional<size_t> Result;
@@ -67,6 +72,12 @@ protected:
     return Result;
   }
 
+  /// Consume a hex style prefix from the front of \p Str.
+  ///
+  /// Recognizes forms such as \c x-, \c X-, \c x+, \c x, \c X+, and \c X.
+  ///
+  /// \param Str Style string; advanced past a recognized hex style if present.
+  /// \returns The matching \c HexPrintStyle, or \c std::nullopt if none matched.
   static std::optional<HexPrintStyle> consumeHexStyle(StringRef &Str) {
     if (!Str.starts_with_insensitive("x"))
       return std::nullopt;
@@ -82,6 +93,12 @@ protected:
     return HexPrintStyle::PrefixUpper;
   }
 
+  /// Consume a digit-count field from \p Str for hex formatting.
+  ///
+  /// \param Str Style string; advanced past a leading decimal digit count.
+  /// \param Style Hex print style; prefixed styles add 2 to the returned width.
+  /// \param Default Default digit count when none is specified in \p Str.
+  /// \returns The effective minimum number of hex digits to print.
   static size_t consumeNumHexDigits(StringRef &Str, HexPrintStyle Style,
                                     size_t Default) {
     Str.consumeInteger(10, Default);
@@ -125,6 +142,11 @@ struct format_provider<
     : public support::detail::HelperFunctions {
 private:
 public:
+  /// Write integral value \p V to \p Stream using \p Style.
+  ///
+  /// \param V Value to format.
+  /// \param Stream Destination stream.
+  /// \param Style Integral format options string.
   static void format(const T &V, llvm::raw_ostream &Stream, StringRef Style) {
     size_t Digits = 0;
     if (std::optional<HexPrintStyle> HS = consumeHexStyle(Style)) {
@@ -181,6 +203,11 @@ struct format_provider<
     : public support::detail::HelperFunctions {
 private:
 public:
+  /// Write pointer value \p V to \p Stream as hex using \p Style.
+  ///
+  /// \param V Pointer to format.
+  /// \param Stream Destination stream.
+  /// \param Style Pointer format options string.
   static void format(const T &V, llvm::raw_ostream &Stream, StringRef Style) {
     HexPrintStyle HS = HexPrintStyle::PrefixUpper;
     if (std::optional<HexPrintStyle> consumed = consumeHexStyle(Style))
@@ -204,6 +231,11 @@ public:
 template <typename T>
 struct format_provider<
     T, std::enable_if_t<support::detail::use_string_formatter<T>::value>> {
+  /// Write string value \p V to \p Stream, optionally truncated by \p Style.
+  ///
+  /// \param V String-like value to format.
+  /// \param Stream Destination stream.
+  /// \param Style Optional max length as a decimal integer.
   static void format(const T &V, llvm::raw_ostream &Stream, StringRef Style) {
     size_t N = StringRef::npos;
     if (!Style.empty() && Style.getAsInteger(10, N)) {
@@ -219,6 +251,11 @@ struct format_provider<
 /// This follows the same rules as the string formatter.
 
 template <> struct format_provider<Twine> {
+  /// Write Twine \p V to \p Stream using the string formatter rules.
+  ///
+  /// \param V Twine to format.
+  /// \param Stream Destination stream.
+  /// \param Style Optional max length as a decimal integer.
   static void format(const Twine &V, llvm::raw_ostream &Stream,
                      StringRef Style) {
     format_provider<std::string>::format(V.str(), Stream, Style);
@@ -237,6 +274,11 @@ template <> struct format_provider<Twine> {
 template <typename T>
 struct format_provider<
     T, std::enable_if_t<support::detail::use_char_formatter<T>::value>> {
+  /// Write character \p V to \p Stream as ASCII or as an integer via \p Style.
+  ///
+  /// \param V Character to format.
+  /// \param Stream Destination stream.
+  /// \param Style Empty for ASCII output; otherwise an integral options string.
   static void format(const char &V, llvm::raw_ostream &Stream,
                      StringRef Style) {
     if (Style.empty())
@@ -265,6 +307,11 @@ struct format_provider<
 ///   | (empty) |   Equivalent to 't'  |
 ///   ==================================
 template <> struct format_provider<bool> {
+  /// Write boolean \p B to \p Stream using the spelling selected by \p Style.
+  ///
+  /// \param B Boolean value to format.
+  /// \param Stream Destination stream.
+  /// \param Style Boolean format options string (\c Y, \c y, \c D, \c T, \c t).
   static void format(const bool &B, llvm::raw_ostream &Stream,
                      StringRef Style) {
     Stream << StringSwitch<const char *>(Style)
@@ -304,6 +351,11 @@ template <typename T>
 struct format_provider<
     T, std::enable_if_t<support::detail::use_double_formatter<T>::value>>
     : public support::detail::HelperFunctions {
+  /// Write floating-point value \p V to \p Stream using \p Style.
+  ///
+  /// \param V Floating-point value to format.
+  /// \param Stream Destination stream.
+  /// \param Style Floating-point format options string.
   static void format(const T &V, llvm::raw_ostream &Stream, StringRef Style) {
     FloatStyle S;
     if (Style.consume_front("P") || Style.consume_front("p"))
@@ -387,6 +439,11 @@ template <typename IterT> class format_provider<llvm::iterator_range<IterT>> {
   }
 
 public:
+  /// Write range \p V to \p Stream as a delimited sequence using \p Style.
+  ///
+  /// \param V Iterator range whose elements are formatted in order.
+  /// \param Stream Destination stream.
+  /// \param Style Range format options string (separator and element style).
   static void format(const llvm::iterator_range<IterT> &V,
                      llvm::raw_ostream &Stream, StringRef Style) {
     StringRef Sep;

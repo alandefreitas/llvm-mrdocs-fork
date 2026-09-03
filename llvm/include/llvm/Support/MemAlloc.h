@@ -23,6 +23,9 @@
 namespace llvm {
 
 /// Allocate \p Sz bytes with malloc, aborting on failure.
+///
+/// \param Sz Number of bytes to allocate.
+/// \return A non-null pointer to the allocated memory.
 LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_malloc(size_t Sz) {
   void *Result = std::malloc(Sz);
   if (Result == nullptr) {
@@ -37,6 +40,10 @@ LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_malloc(size_t Sz) {
 }
 
 /// Allocate and zero \p Count elements of \p Sz bytes, aborting on failure.
+///
+/// \param Count Number of elements to allocate.
+/// \param Sz Size in bytes of each element.
+/// \return A non-null pointer to the zeroed allocation.
 LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_calloc(size_t Count,
                                                         size_t Sz) {
   void *Result = std::calloc(Count, Sz);
@@ -52,6 +59,10 @@ LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_calloc(size_t Count,
 }
 
 /// Reallocate \p Ptr to \p Sz bytes, aborting on failure.
+///
+/// \param Ptr Existing allocation, or null to allocate a new buffer.
+/// \param Sz New size in bytes.
+/// \return A non-null pointer to the reallocated memory.
 LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_realloc(void *Ptr, size_t Sz) {
   void *Result = std::realloc(Ptr, Sz);
   if (Result == nullptr) {
@@ -74,6 +85,10 @@ LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_realloc(void *Ptr, size_t Sz) {
 /// like posix_memalign due to portability. It is mostly intended to allow
 /// compatibility with platforms that, after aligned allocation was added, use
 /// reduced default alignment.
+///
+/// \param Size Number of bytes to allocate.
+/// \param Alignment Required alignment of the allocated memory in bytes.
+/// \return A non-null pointer to the allocated memory.
 LLVM_ABI LLVM_ATTRIBUTE_RETURNS_NONNULL LLVM_ATTRIBUTE_RETURNS_NOALIAS void *
 allocate_buffer(size_t Size, size_t Alignment);
 
@@ -84,6 +99,10 @@ allocate_buffer(size_t Size, size_t Alignment);
 ///
 /// The pointer must have been allocated with the corresponding new operator,
 /// most likely using the above helper.
+///
+/// \param Ptr Memory previously returned by allocate_buffer.
+/// \param Size Size in bytes of the allocation being freed.
+/// \param Alignment Alignment of the allocation being freed.
 LLVM_ABI void deallocate_buffer(void *Ptr, size_t Size, size_t Alignment);
 
 } // namespace llvm

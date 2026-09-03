@@ -19,12 +19,28 @@
 namespace llvm {
 namespace sys {
 
-enum class COMThreadingMode { SingleThreaded, MultiThreaded };
+/// Threading model used when initializing COM on Windows.
+enum class COMThreadingMode {
+  /// Apartment-threaded (COINIT_APARTMENTTHREADED) COM.
+  SingleThreaded,
+  /// Multi-threaded (COINIT_MULTITHREADED) COM.
+  MultiThreaded
+};
 
+/// RAII helper that initializes COM for the current thread.
+///
+/// On Windows, construction calls \c CoInitializeEx and destruction calls
+/// \c CoUninitialize. On other platforms this is a no-op.
 class InitializeCOMRAII {
 public:
+  /// Initialize COM for the current thread with the given threading mode.
+  ///
+  /// \param Threading COM threading model to request.
+  /// \param SpeedOverMemory If true, prefer speed over memory when initializing
+  ///        COM (\c COINIT_SPEED_OVER_MEMORY on Windows).
   LLVM_ABI explicit InitializeCOMRAII(COMThreadingMode Threading,
                                       bool SpeedOverMemory = false);
+  /// Uninitialize COM for the current thread.
   LLVM_ABI ~InitializeCOMRAII();
 
 private:

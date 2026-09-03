@@ -67,13 +67,15 @@
 
 namespace llvm {
 
-/// Logging utility - given an ordered specification of features, and assuming
-/// a scalar reward, allow logging feature values and rewards.
-/// The assumption is that, for an event to be logged (i.e. a set of feature
-/// values and a reward), the user calls the log* API for each feature exactly
-/// once, providing the index matching the position in the feature spec list
-/// provided at construction. The example assumes the first feature's element
-/// type is float, the second is int64, and the reward is float:
+/// Utility for logging MLGO feature values and scalar rewards.
+///
+/// Given an ordered specification of features, and assuming a scalar reward,
+/// allow logging feature values and rewards. The assumption is that, for an
+/// event to be logged (i.e. a set of feature values and a reward), the user
+/// calls the log* API for each feature exactly once, providing the index
+/// matching the position in the feature spec list provided at construction.
+/// The example assumes the first feature's element type is float, the second
+/// is int64, and the reward is float:
 ///
 /// event 0:
 ///   logFloatValue(0, ...)
@@ -104,38 +106,62 @@ class Logger final {
   LLVM_ABI void logRewardImpl(const char *RawData);
 
 public:
-  /// Construct a Logger. If IncludeReward is false, then logReward or
-  /// logFinalReward shouldn't be called, and the reward feature won't be
-  /// printed out.
+  /// Construct a Logger for streaming feature and reward values.
+  ///
+  /// If IncludeReward is false, then logReward or logFinalReward shouldn't be
+  /// called, and the reward feature won't be printed out.
   /// NOTE: the FeatureSpecs are expected to be in the same order (i.e. have
   /// corresponding indices) with any MLModelRunner implementations
   /// corresponding to the model being trained/logged.
+  /// \param OS Output stream that receives the binary training log.
+  /// \param FeatureSpecs Ordered specs of the feature tensors to log.
+  /// \param RewardSpec Spec of the scalar reward tensor.
+  /// \param IncludeReward Whether reward values are logged and printed.
+  /// \param AdviceSpec Optional advice tensor spec included in the header.
   LLVM_ABI Logger(std::unique_ptr<raw_ostream> OS,
                   const std::vector<TensorSpec> &FeatureSpecs,
                   const TensorSpec &RewardSpec, bool IncludeReward,
                   std::optional<TensorSpec> AdviceSpec = std::nullopt);
 
+  /// Switch the active logging context to \p Name.
+  /// \param Name Context name (for example, a function name).
   LLVM_ABI void switchContext(StringRef Name);
+
+  /// Begin a new observation in the current context.
   LLVM_ABI void startObservation();
+
+  /// Finish the current observation.
   LLVM_ABI void endObservation();
+
+  /// Flush the underlying output stream.
   void flush() { OS->flush(); }
 
+  /// Return the name of the current logging context.
+  /// \return The name of the active logging context.
   const std::string &currentContext() const { return CurrentContext; }
 
   /// Check if there is at least an observation for `currentContext()`.
+  /// \return True if the current context has at least one observation.
   bool hasObservationInProgress() const {
     return hasAnyObservationForContext(CurrentContext);
   }
 
   /// Check if there is at least an observation for the context `Ctx`.
+  /// \param Ctx Context name to query.
+  /// \return True if \p Ctx has at least one observation.
   bool hasAnyObservationForContext(StringRef Ctx) const {
     return ObservationIDs.contains(Ctx);
   }
 
+  /// Log a scalar reward value for the current observation.
+  /// \param Value Reward value whose type matches \c RewardSpec.
   template <typename T> void logReward(T Value) {
     logRewardImpl(reinterpret_cast<const char *>(&Value));
   }
 
+  /// Log the raw bytes of a feature tensor for the current observation.
+  /// \param FeatureID Index of the feature in the construction-time spec list.
+  /// \param RawData Pointer to the tensor buffer matching that feature's spec.
   void logTensorValue(size_t FeatureID, const char *RawData) {
     writeTensor(FeatureSpecs[FeatureID], RawData);
   }

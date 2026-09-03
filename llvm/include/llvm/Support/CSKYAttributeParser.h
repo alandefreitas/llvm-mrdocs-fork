@@ -14,6 +14,8 @@
 #include "llvm/Support/ELFAttrParserCompact.h"
 
 namespace llvm {
+
+/// Parser for CSKY ELF build attributes.
 class LLVM_ABI CSKYAttributeParser : public ELFCompactAttrParser {
   struct DisplayHandler {
     CSKYAttrs::AttrType attribute;
@@ -33,8 +35,12 @@ class LLVM_ABI CSKYAttributeParser : public ELFCompactAttrParser {
   Error handler(uint64_t tag, bool &handled) override;
 
 public:
+  /// Construct a parser that prints attribute details to \p sw.
+  ///
+  /// \param sw Printer used for attribute comments, or null to suppress output.
   CSKYAttributeParser(ScopedPrinter *sw)
       : ELFCompactAttrParser(sw, CSKYAttrs::getCSKYAttributeTags(), "csky") {}
+  /// Construct a parser that does not print attribute details.
   CSKYAttributeParser()
       : ELFCompactAttrParser(CSKYAttrs::getCSKYAttributeTags(), "csky") {}
 };

@@ -33,21 +33,28 @@
 
 namespace llvm::orc {
 
+/// Holds the executor-side callee address shared by all Proxy specializations.
 class ProxyBase {
 public:
+  /// Construct a null proxy with no callee address.
   ProxyBase() = default;
+  /// Construct a proxy for the given executor-side callee address.
+  /// \param CalleeAddr Address of the callee in the executor.
   ProxyBase(ExecutorAddr CalleeAddr) : CalleeAddr(CalleeAddr) {}
 
   /// Returns the address of the callee in the executor.
+  /// \return Reference to the executor-side callee address.
   const ExecutorAddr &calleeAddr() const { return CalleeAddr; }
 
   /// Evaluates to true if the callee is non-null.
+  /// \return True if the callee address is non-null; false otherwise.
   explicit operator bool() const { return !!CalleeAddr; }
 
 private:
   ExecutorAddr CalleeAddr;
 };
 
+/// Protocol-agnostic interface for invoking an executor-side operation.
 template <typename FnT> class Proxy;
 
 namespace detail {
@@ -96,27 +103,37 @@ template <typename T> struct ProxyRetPromise<Expected<T>> {
 template <typename RetT, typename... ArgTs>
 class Proxy<RetT(ArgTs...)> : public ProxyBase {
 public:
+  /// Function type of the executor-side operation.
   using FnType = RetT(ArgTs...);
 
   /// The result type produced by the executor-side function itself.
   using CalleeRetT = RetT;
 
-  /// The result type delivered to the client: Error when the callee returns
-  /// void or Error, otherwise Expected<T> (with Expected<T> callees flattened
-  /// rather than nested), so that dispatch failures can be reported alongside
-  /// the result.
+  /// Client-facing result type that can always report a dispatch failure.
+  ///
+  /// Error when the callee returns void or Error, otherwise Expected<T> (with
+  /// Expected<T> callees flattened rather than nested), so that dispatch
+  /// failures can be reported alongside the result.
   using ErrorRetT = typename detail::ProxyErrorRet<RetT>::type;
 
+  /// Function pointer type used to dispatch a call to the executor.
   using DispatchFn = void (*)(unique_function<void(ErrorRetT)> OnComplete,
                               ExecutionSession &ES, ExecutorAddr Callee,
                               const ArgTs &...Args);
 
+  /// Construct a null proxy with no dispatch function or callee.
   Proxy() = default;
+  /// Construct a proxy that dispatches through Dispatch to CalleeAddr.
+  /// \param Dispatch Function used to dispatch calls to the executor.
+  /// \param CalleeAddr Address of the callee in the executor.
   Proxy(DispatchFn Dispatch, ExecutorAddr CalleeAddr)
       : ProxyBase(CalleeAddr), Dispatch(Dispatch) {}
 
   /// Asynchronously invoke the operation with the given Args, delivering its
   /// result (or an error) to OnComplete.
+  /// \param OnComplete Continuation invoked with the result or an error.
+  /// \param ES Execution session used for the call.
+  /// \param Args Arguments forwarded to the executor-side operation.
   void operator()(unique_function<void(ErrorRetT)> OnComplete,
                   ExecutionSession &ES, const ArgTs &...Args) const {
     assert(Dispatch && "Proxy's Dispatch member is not set");
@@ -125,6 +142,9 @@ public:
 
   /// Invoke the operation with the given Args, blocking until its result (or an
   /// error) is available.
+  /// \param ES Execution session used for the call.
+  /// \param Args Arguments forwarded to the executor-side operation.
+  /// \return The operation result, or an error if dispatch or the callee fails.
   ErrorRetT operator()(ExecutionSession &ES, const ArgTs &...Args) const {
     typename detail::ProxyRetPromise<ErrorRetT>::type P;
     auto F = P.get_future();

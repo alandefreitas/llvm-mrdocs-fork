@@ -36,6 +36,8 @@ struct InstrumentationOpportunity;
 /// The underlying IR builder features an insertion callback to keep track of the new instructions.
 struct InstrumentorIRBuilderTy {
   /// Construct an IR builder for the module \p M.
+  ///
+  /// \param M Module whose IR will be inspected and modified.
   InstrumentorIRBuilderTy(Module &M)
       : M(M), Ctx(M.getContext()),
         IRB(Ctx, ConstantFolder(),
@@ -60,6 +62,11 @@ struct InstrumentorIRBuilderTy {
   }
 
   /// Get a temporary alloca to communicate (large) values with the runtime.
+  ///
+  /// \param Fn Function in which the alloca is allocated or reused.
+  /// \param Ty Allocated type of the temporary.
+  /// \param MatchType If true, only reuse an alloca with exactly type \p Ty.
+  /// \return A temporary alloca of type \p Ty, newly created or reused.
   AllocaInst *getAlloca(Function *Fn, Type *Ty, bool MatchType = false) {
     const DataLayout &DL = Fn->getDataLayout();
     auto *&AllocaList = AllocaMap[{Fn, DL.getTypeAllocSize(Ty)}];
@@ -91,23 +98,33 @@ struct InstrumentorIRBuilderTy {
 
   /// Save instruction \p I to be erased later. The instructions are erased when
   /// the IR builder is destroyed.
+  ///
+  /// \param I Instruction to erase when this builder is destroyed.
   void eraseLater(Instruction *I) { ErasableInstructions.insert(I); }
 
   /// Commonly used values for IR inspection and creation.
   ///{
   Module &M;
 
+  /// LLVM context of the module.
   LLVMContext &Ctx;
 
+  /// Data layout of the module.
   const DataLayout &DL = M.getDataLayout();
 
+  /// Void type for the module context.
   Type *VoidTy = Type::getVoidTy(Ctx);
+  /// Opaque pointer type in address space 0.
   PointerType *PtrTy = PointerType::get(Ctx, 0);
+  /// 8-bit integer type.
   IntegerType *Int8Ty = Type::getInt8Ty(Ctx);
+  /// 32-bit integer type.
   IntegerType *Int32Ty = Type::getInt32Ty(Ctx);
+  /// 64-bit integer type.
   IntegerType *Int64Ty = Type::getInt64Ty(Ctx);
   ///}
 
+  /// List of reusable temporary allocas of a given size.
   using AllocaListTy = SmallVector<AllocaInst *>;
 
   /// Map that holds a list of currently available allocas for a function and
@@ -124,11 +141,13 @@ struct InstrumentorIRBuilderTy {
   /// The underlying IR builder with insertion callback.
   IRBuilder<ConstantFolder, IRBuilderCallbackInserter> IRB;
 
-  /// The current epoch number. Each instrumentation, e.g., of an instruction,
-  /// is happening in a dedicated epoch. The epoch allows to determine if
-  /// instrumentation instructions were already around, due to prior
-  /// instrumentations, or have been introduced to support the current
-  /// instrumentation, e.g., compute information about the current instruction.
+  /// Current instrumentation epoch counter.
+  ///
+  /// Each instrumentation, e.g., of an instruction, is happening in a dedicated
+  /// epoch. The epoch allows to determine if instrumentation instructions were
+  /// already around, due to prior instrumentations, or have been introduced to
+  /// support the current instrumentation, e.g., compute information about the
+  /// current instruction.
   unsigned Epoch = 0;
 
   /// A mapping from instrumentation instructions to the epoch they have been
@@ -136,14 +155,16 @@ struct InstrumentorIRBuilderTy {
   DenseMap<Instruction *, unsigned> NewInsts;
 };
 
-/// Helper that represent the caches for instrumentation call arguments. The
-/// value of an argument may not need to be recomputed between the pre and post
-/// instrumentation calls.
+/// Caches for instrumentation call argument values.
+///
+/// The value of an argument may not need to be recomputed between the pre and
+/// post instrumentation calls.
 struct InstrumentationCaches {
   /// A cache for direct and indirect arguments. The cache is indexed by the
   /// epoch, the instrumentation opportunity name and the argument name. The
   /// result is a value.
   DenseMap<std::tuple<unsigned, StringRef, StringRef>, Value *> DirectArgCache;
+  /// Cache for indirect argument values indexed by epoch, opportunity, and name.
   DenseMap<std::tuple<unsigned, StringRef, StringRef>, Value *>
       IndirectArgCache;
 };
@@ -157,23 +178,39 @@ template <typename EnumTy> struct BaseConfigTy {
 
   /// Construct the option bitset with all bits set to \p Enable. If not
   /// provided, all options are enabled.
+  ///
+  /// \param Enable Initial value for every option bit.
   BaseConfigTy(bool Enable = true) {
     if (Enable)
       Options.set();
   }
 
   /// Check if the option \p Opt is enabled.
+  ///
+  /// \param Opt Configuration option to query.
+  /// \return True if \p Opt is enabled.
   bool has(EnumTy Opt) const { return Options.test(static_cast<int>(Opt)); }
 
   /// Set the boolean value of option \p Opt to \p Value.
+  ///
+  /// \param Opt Configuration option to update.
+  /// \param Value New enablement state for \p Opt.
   void set(EnumTy Opt, bool Value = true) {
     Options.set(static_cast<int>(Opt), Value);
   }
 };
 
-/// Evaluate the filter expression against the current instrumentation
-/// opportunity. Returns true if the filter passes (or is empty), false
-/// otherwise. Dynamic values (non-constants) are assumed to pass.
+/// Evaluate a filter expression for an instrumentation opportunity.
+///
+/// Returns true if the filter passes (or is empty), false otherwise. Dynamic
+/// values (non-constants) are assumed to pass.
+///
+  /// \param V Filter expression value to evaluate.
+  /// \param Changed Set to true if IR was modified during evaluation.
+  /// \param IO Instrumentation opportunity providing filter context.
+  /// \param IConf Instrumentation configuration.
+  /// \param IIRB Instrumentor IR builder used if evaluation needs IR.
+  /// \return True if the filter passes (or is empty), false otherwise.
 LLVM_ABI
 bool evaluateFilter(Value &V, bool &Changed, InstrumentationOpportunity &IO,
                     InstrumentationConfig &IConf,

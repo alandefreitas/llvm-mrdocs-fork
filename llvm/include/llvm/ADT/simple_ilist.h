@@ -117,14 +117,18 @@ public:
   ~simple_ilist() = default;
 
   /// Copy construction is deleted; nodes have unique list membership.
-  simple_ilist(const simple_ilist &) = delete;
+  /// @param X Unused; copy construction is deleted.
+  simple_ilist(const simple_ilist &X) = delete;
   /// Copy assignment is deleted; nodes have unique list membership.
-  simple_ilist &operator=(const simple_ilist &) = delete;
+  /// @param X Unused; copy assignment is deleted.
+  simple_ilist &operator=(const simple_ilist &X) = delete;
 
   /// Move-construct by splicing all nodes from \p X.
   /// @param X Source list (left empty).
   simple_ilist(simple_ilist &&X) { splice(end(), X); }
   /// Move-assign by clearing this list and splicing in \p X.
+  /// @param X Source list (left empty).
+  /// @return Reference to this list after the move.
   simple_ilist &operator=(simple_ilist &&X) {
     clear();
     splice(end(), X);
@@ -132,45 +136,61 @@ public:
   }
 
   /// Return a mutable iterator to the first element.
+  /// @return Mutable iterator to the first element.
   iterator begin() { return ++iterator(Sentinel); }
   /// Return a const iterator to the first element.
+  /// @return Const iterator to the first element.
   const_iterator begin() const { return ++const_iterator(Sentinel); }
   /// Return a mutable iterator to the sentinel (past-the-end).
+  /// @return Mutable past-the-end iterator.
   iterator end() { return iterator(Sentinel); }
   /// Return a const iterator to the sentinel (past-the-end).
+  /// @return Const past-the-end iterator.
   const_iterator end() const { return const_iterator(Sentinel); }
   /// Return a reverse iterator to the last element.
+  /// @return Mutable reverse iterator to the last element.
   reverse_iterator rbegin() { return ++reverse_iterator(Sentinel); }
   /// Return a const reverse iterator to the last element.
+  /// @return Const reverse iterator to the last element.
   const_reverse_iterator rbegin() const {
     return ++const_reverse_iterator(Sentinel);
   }
   /// Return a reverse iterator to the sentinel (past-the-rend).
+  /// @return Mutable past-the-rend reverse iterator.
   reverse_iterator rend() { return reverse_iterator(Sentinel); }
   /// Return a const reverse iterator to the sentinel (past-the-rend).
+  /// @return Const past-the-rend reverse iterator.
   const_reverse_iterator rend() const {
     return const_reverse_iterator(Sentinel);
   }
 
   /// Check if the list is empty in constant time.
+  /// @return True if the list has no elements.
   [[nodiscard]] bool empty() const { return Sentinel.empty(); }
 
   /// Calculate the size of the list in linear time.
+  /// @return Number of elements in the list.
   [[nodiscard]] size_type size() const { return std::distance(begin(), end()); }
 
   /// Return a mutable reference to the first element.
+  /// @return Mutable reference to the first element.
   reference front() { return *begin(); }
   /// Return a const reference to the first element.
+  /// @return Const reference to the first element.
   const_reference front() const { return *begin(); }
   /// Return a mutable reference to the last element.
+  /// @return Mutable reference to the last element.
   reference back() { return *rbegin(); }
   /// Return a const reference to the last element.
+  /// @return Const reference to the last element.
   const_reference back() const { return *rbegin(); }
 
   /// Insert a node at the front; never copies.
+  /// @param Node Node to insert at the front.
   void push_front(reference Node) { insert(begin(), Node); }
 
   /// Insert a node at the back; never copies.
+  /// @param Node Node to insert at the back.
   void push_back(reference Node) { insert(end(), Node); }
 
   /// Remove the node at the front; never deletes.
@@ -180,15 +200,22 @@ public:
   void pop_back() { erase(--end()); }
 
   /// Swap with another list in place using std::swap.
+  /// @param X Other list to swap with.
   void swap(simple_ilist &X) { std::swap(*this, X); }
 
   /// Insert a node by reference; never copies.
+  /// @param I Insertion position.
+  /// @param Node Node to insert.
+  /// @return Iterator to the inserted node.
   iterator insert(iterator I, reference Node) {
     list_base_type::insertBefore(*I.getNodePtr(), *this->getNodePtr(&Node));
     return iterator(&Node);
   }
 
   /// Insert a range of nodes; never copies.
+  /// @param I Insertion position.
+  /// @param First Start of the source range.
+  /// @param Last End of the source range.
   template <class Iterator>
   void insert(iterator I, Iterator First, Iterator Last) {
     for (; First != Last; ++First)
@@ -196,6 +223,9 @@ public:
   }
 
   /// Clone another list.
+  /// @param L2 Source list to clone from.
+  /// @param clone Callable that clones each element of \p L2.
+  /// @param dispose Callable that disposes of existing nodes in this list.
   template <class Cloner, class Disposer>
   void cloneFrom(const simple_ilist &L2, Cloner clone, Disposer dispose) {
     clearAndDispose(dispose);
@@ -207,9 +237,12 @@ public:
   ///
   /// \see \a erase() for removing by iterator.
   /// \see \a removeAndDispose() if the node should be deleted.
+  /// @param N Node to remove from the list.
   void remove(reference N) { list_base_type::remove(*this->getNodePtr(&N)); }
 
   /// Remove a node by reference and dispose of it.
+  /// @param N Node to remove from the list.
+  /// @param dispose Callable that disposes of \p N.
   template <class Disposer>
   void removeAndDispose(reference N, Disposer dispose) {
     remove(N);
@@ -220,6 +253,8 @@ public:
   ///
   /// \see \a remove() for removing by reference.
   /// \see \a eraseAndDispose() it the node should be deleted.
+  /// @param I Iterator to the node to erase.
+  /// @return Iterator to the element following the erased node.
   iterator erase(iterator I) {
     assert(I != end() && "Cannot remove end of list!");
     remove(*I++);
@@ -229,12 +264,18 @@ public:
   /// Remove a range of nodes; never deletes.
   ///
   /// \see \a eraseAndDispose() if the nodes should be deleted.
+  /// @param First Start of the range to erase.
+  /// @param Last End of the range to erase.
+  /// @return Iterator \p Last after the erased range.
   iterator erase(iterator First, iterator Last) {
     list_base_type::removeRange(*First.getNodePtr(), *Last.getNodePtr());
     return Last;
   }
 
   /// Remove a node by iterator and dispose of it.
+  /// @param I Iterator to the node to erase.
+  /// @param dispose Callable that disposes of the erased node.
+  /// @return Iterator to the element following the erased node.
   template <class Disposer>
   iterator eraseAndDispose(iterator I, Disposer dispose) {
     auto Next = std::next(I);
@@ -244,6 +285,10 @@ public:
   }
 
   /// Remove a range of nodes and dispose of them.
+  /// @param First Start of the range to erase.
+  /// @param Last End of the range to erase.
+  /// @param dispose Callable that disposes of each erased node.
+  /// @return Iterator \p Last after the disposed range.
   template <class Disposer>
   iterator eraseAndDispose(iterator First, iterator Last, Disposer dispose) {
     while (First != Last)
@@ -257,22 +302,33 @@ public:
   void clear() { Sentinel.reset(); }
 
   /// Clear the list and dispose of the nodes.
+  /// @param dispose Callable that disposes of each node.
   template <class Disposer> void clearAndDispose(Disposer dispose) {
     eraseAndDispose(begin(), end(), dispose);
   }
 
   /// Splice in another list.
+  /// @param I Insertion position in this list.
+  /// @param L2 Source list (emptied).
   void splice(iterator I, simple_ilist &L2) {
     splice(I, L2, L2.begin(), L2.end());
   }
 
   /// Splice in a node from another list.
+  /// @param I Insertion position in this list.
+  /// @param L2 Source list.
+  /// @param Node Iterator to the node to move.
   void splice(iterator I, simple_ilist &L2, iterator Node) {
     splice(I, L2, Node, std::next(Node));
   }
 
   /// Splice in a range of nodes from another list.
-  void splice(iterator I, simple_ilist &, iterator First, iterator Last) {
+  /// @param I Insertion position in this list.
+  /// @param L2 Source list.
+  /// @param First Start of the range to move.
+  /// @param Last End of the range to move.
+  void splice(iterator I, simple_ilist &L2, iterator First, iterator Last) {
+    (void)L2;
     list_base_type::transferBefore(*I.getNodePtr(), *First.getNodePtr(),
                                    *Last.getNodePtr());
   }
@@ -281,19 +337,28 @@ public:
   ///
   /// \pre \c this and \p RHS are sorted.
   ///@{
+  /// Merge sorted list \p RHS into this list using operator<.
+  /// @param RHS Sorted list to merge from.
   void merge(simple_ilist &RHS) { merge(RHS, std::less<T>()); }
   /// Merge sorted list \p RHS into this list using comparator \p comp.
+  /// @param RHS Sorted list to merge from.
+  /// @param comp Ordering predicate.
   template <class Compare> void merge(simple_ilist &RHS, Compare comp);
   ///@}
 
   /// Sort the list.
   ///@{
+  /// Sort the list using operator<.
   void sort() { sort(std::less<T>()); }
   /// Stable-sort the list using comparator \p comp.
+  /// @param comp Ordering predicate.
   template <class Compare> void sort(Compare comp);
   ///@}
 };
 
+/// Merge sorted list \p RHS into this list using comparator \p comp.
+/// @param RHS Sorted list to merge from.
+/// @param comp Ordering predicate.
 template <class T, class... Options>
 template <class Compare>
 void simple_ilist<T, Options...>::merge(simple_ilist &RHS, Compare comp) {
@@ -316,6 +381,8 @@ void simple_ilist<T, Options...>::merge(simple_ilist &RHS, Compare comp) {
   splice(LE, RHS, RI, RE);
 }
 
+/// Stable-sort the list using comparator \p comp.
+/// @param comp Ordering predicate.
 template <class T, class... Options>
 template <class Compare>
 void simple_ilist<T, Options...>::sort(Compare comp) {

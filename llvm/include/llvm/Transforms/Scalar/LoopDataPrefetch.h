@@ -23,9 +23,13 @@ class Function;
 class LoopDataPrefetchPass
     : public OptionalPassInfoMixin<LoopDataPrefetchPass> {
 public:
+  /// Construct a LoopDataPrefetch pass.
   LoopDataPrefetchPass() = default;
 
   /// Run the pass over the function.
+  /// @param F Function whose loops may receive data prefetches.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

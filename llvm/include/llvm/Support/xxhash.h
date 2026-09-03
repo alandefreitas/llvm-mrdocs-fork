@@ -43,6 +43,10 @@ namespace llvm {
 
 /// XXH3's 64-bit variant. Inline ArrayRef and StringRef overloads live in
 /// llvm/ADT/ArrayRef.h and llvm/ADT/StringRef.h.
+///
+/// \param data Bytes to hash.
+/// \param len Number of bytes at \p data.
+/// \return The 64-bit XXH3 hash of \p data.
 LLVM_ABI uint64_t xxh3_64bits(const uint8_t *data, size_t len);
 
 /*-**********************************************************************
@@ -60,6 +64,9 @@ struct XXH128_hash_t {
   uint64_t high64; /*!< `value >> 64` */
 
   /// Convenience equality check operator.
+  ///
+  /// \param rhs Hash value to compare against.
+  /// \return True if both hashes contain the same bits.
   bool operator==(const XXH128_hash_t rhs) const {
     return low64 == rhs.low64 && high64 == rhs.high64;
   }
@@ -67,6 +74,10 @@ struct XXH128_hash_t {
 
 /// XXH3's 128-bit variant. Inline ArrayRef overload lives in
 /// llvm/ADT/ArrayRef.h.
+///
+/// \param data Bytes to hash.
+/// \param len Number of bytes at \p data.
+/// \return The 128-bit XXH3 hash of \p data.
 LLVM_ABI XXH128_hash_t xxh3_128bits(const uint8_t *data, size_t len);
 
 } // namespace llvm

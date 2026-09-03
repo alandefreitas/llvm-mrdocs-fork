@@ -67,24 +67,44 @@ private:
 
 public:
   /// Decides whether a '.section' directive should be printed before the
-  /// section name
+  /// section name.
+  /// @param Name Section name being considered for emission.
+  /// @return True if the `.section` directive should be omitted.
   LLVM_ABI bool shouldOmitSectionDirective(StringRef Name) const;
 
+  /// Return the COFF section Characteristics flags.
+  /// @return The COFF section Characteristics flags.
   unsigned getCharacteristics() const { return Characteristics; }
+  /// Return the COMDAT symbol, or null if this is not a COMDAT section.
+  /// @return The COMDAT symbol, or null if this is not a COMDAT section.
   MCSymbol *getCOMDATSymbol() const { return COMDATSymbol; }
+  /// Return the COMDAT Selection field, or zero if not a COMDAT section.
+  /// @return The COMDAT Selection field, or zero if not a COMDAT section.
   int getSelection() const { return Selection; }
 
+  /// Set the COMDAT Selection type and mark the section as COMDAT.
+  /// @param Selection COFF COMDAT selection type (must be non-zero).
   LLVM_ABI void setSelection(int Selection) const;
 
+  /// Return true if this section was created with a unique ID.
+  /// @return True if this section was created with a unique ID.
   bool isUnique() const { return UniqueID != NonUniqueID; }
+  /// Return the unique ID assigned to this section.
+  /// @return The unique ID assigned to this section.
   unsigned getUniqueID() const { return UniqueID; }
 
+  /// Return this section's WinCFI ID, assigning one from \p NextID if needed.
+  /// @param NextID Counter used to allocate a new ID when none is assigned yet.
+  /// @return The section's WinCFI ID.
   unsigned getOrAssignWinCFISectionID(unsigned *NextID) const {
     if (WinCFISectionID == ~0U)
       WinCFISectionID = (*NextID)++;
     return WinCFISectionID;
   }
 
+  /// Return true if \p Name implies IMAGE_SCN_MEM_DISCARDABLE (e.g. `.debug*`).
+  /// @param Name Section name to test.
+  /// @return True if \p Name implies IMAGE_SCN_MEM_DISCARDABLE.
   static bool isImplicitlyDiscardable(StringRef Name) {
     return Name.starts_with(".debug");
   }

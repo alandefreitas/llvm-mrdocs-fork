@@ -34,7 +34,8 @@ class Value;
 template <typename ParentPass, typename ContainedPass>
 class PassManager : public ParentPass {
 public:
-  // CreatePassFunc(StringRef PassName, StringRef PassArgs, StringRef AuxArg)
+  /// Factory that creates a contained pass from its name and argument strings.
+  /// CreatePassFunc(StringRef PassName, StringRef PassArgs, StringRef AuxArg)
   using CreatePassFunc = std::function<std::unique_ptr<ContainedPass>(
       StringRef, StringRef, StringRef)>;
 
@@ -42,28 +43,48 @@ protected:
   /// The list of passes that this pass manager will run.
   SmallVector<std::unique_ptr<ContainedPass>> Passes;
 
+  /// Construct a pass manager with the given name.
+  /// \param Name Pass manager name.
   PassManager(StringRef Name) : ParentPass(Name) {}
+  /// Construct a pass manager and parse \p Pipeline into its pass list.
+  /// \param Name Pass manager name.
+  /// \param Pipeline Comma-separated pass pipeline string.
+  /// \param CreatePass Factory used to create passes by name.
   PassManager(StringRef Name, StringRef Pipeline, CreatePassFunc CreatePass)
       : ParentPass(Name) {
     setPassPipeline(Pipeline, CreatePass);
   }
-  PassManager(const PassManager &) = delete;
-  PassManager(PassManager &&) = default;
+  /// Copy construction is not supported.
+  /// \param Other Unused copy source.
+  PassManager(const PassManager &Other) = delete;
+  /// Move-construct a pass manager.
+  /// \param Other Pass manager to move from.
+  PassManager(PassManager &&Other) = default;
+  /// Destroy the pass manager.
   ~PassManager() override = default;
-  PassManager &operator=(const PassManager &) = delete;
+  /// Copy assignment is not supported.
+  /// \param Other Unused copy source.
+  PassManager &operator=(const PassManager &Other) = delete;
 
 public:
   /// Adds \p Pass to the pass pipeline.
+  /// \param Pass Pass to append to the pipeline.
   void addPass(std::unique_ptr<ContainedPass> Pass) {
     // TODO: Check that Pass's class type works with this PassManager type.
     Passes.push_back(std::move(Pass));
   }
 
+  /// End-of-string sentinel used while parsing a pipeline.
   static constexpr char EndToken = '\0';
+  /// Character that opens a standard pass-arguments list (`<`).
   static constexpr char BeginArgsToken = '<';
+  /// Character that closes a standard pass-arguments list (`>`).
   static constexpr char EndArgsToken = '>';
+  /// Character that opens an auxiliary pass-argument (`(`).
   static constexpr char BeginAuxArgsToken = '(';
+  /// Character that closes an auxiliary pass-argument (`)`).
   static constexpr char EndAuxArgsToken = ')';
+  /// Character that separates passes in a pipeline (`,`).
   static constexpr char PassDelimToken = ',';
 
   /// Parses \p Pipeline as a comma-separated sequence of pass names and sets
@@ -95,6 +116,8 @@ public:
   /// An empty args string is treated the same as no args, so "pass" and
   /// "pass<>" are equivalent.
   ///
+  /// \param Pipeline Comma-separated pass pipeline string.
+  /// \param CreatePass Factory used to create passes by name.
   void setPassPipeline(StringRef Pipeline, CreatePassFunc CreatePass) {
     assert(Passes.empty() &&
            "setPassPipeline called on a non-empty sandboxir::PassManager");
@@ -258,6 +281,8 @@ public:
   }
 
 #ifndef NDEBUG
+  /// Print this pass manager and its contained passes to \p OS.
+  /// \param OS Output stream.
   void print(raw_ostream &OS) const override {
     OS << this->getName();
     OS << BeginArgsToken;
@@ -265,12 +290,14 @@ public:
     interleave(Passes, OS, [&OS](auto &Pass) { Pass->print(OS); }, Delim);
     OS << EndArgsToken;
   }
+  /// Dump this pass manager to the debug stream.
   LLVM_DUMP_METHOD void dump() const override {
     print(dbgs());
     dbgs() << "\n";
   }
 #endif
   /// Similar to print() but prints one pass per line. Used for testing.
+  /// \param OS Output stream.
   void printPipeline(raw_ostream &OS) const override {
     OS << this->getName() << "\n";
     for (const auto &PassPtr : Passes)
@@ -278,23 +305,46 @@ public:
   }
 };
 
+/// A pass manager that runs function passes on a sandbox::Function.
 class LLVM_ABI FunctionPassManager final
     : public PassManager<FunctionPass, FunctionPass> {
 public:
+  /// Construct a function pass manager with the given name.
+  /// \param Name Pass manager name.
   FunctionPassManager(StringRef Name) : PassManager(Name) {}
+  /// Construct a function pass manager and parse \p Pipeline into its pass
+  /// list.
+  /// \param Name Pass manager name.
+  /// \param Pipeline Comma-separated pass pipeline string.
+  /// \param CreatePass Factory used to create passes by name.
   FunctionPassManager(StringRef Name, StringRef Pipeline,
                       CreatePassFunc CreatePass)
       : PassManager(Name, Pipeline, CreatePass) {}
+  /// Run all contained function passes on \p F.
+  /// \param F Function to transform.
+  /// \param A Analyses available to the passes.
+  /// \Returns true if any pass modifies \p F.
   bool runOnFunction(Function &F, const Analyses &A) final;
 };
 
+/// A pass manager that runs region passes on a sandbox::Region.
 class LLVM_ABI RegionPassManager final
     : public PassManager<RegionPass, RegionPass> {
 public:
+  /// Construct a region pass manager with the given name.
+  /// \param Name Pass manager name.
   RegionPassManager(StringRef Name) : PassManager(Name) {}
+  /// Construct a region pass manager and parse \p Pipeline into its pass list.
+  /// \param Name Pass manager name.
+  /// \param Pipeline Comma-separated pass pipeline string.
+  /// \param CreatePass Factory used to create passes by name.
   RegionPassManager(StringRef Name, StringRef Pipeline,
                     CreatePassFunc CreatePass)
       : PassManager(Name, Pipeline, CreatePass) {}
+  /// Run all contained region passes on \p R.
+  /// \param R Region to transform.
+  /// \param A Analyses available to the passes.
+  /// \Returns true if any pass modifies \p R.
   bool runOnRegion(Region &R, const Analyses &A) final;
 };
 

@@ -54,41 +54,81 @@ class FileSystem;
 
 #define DEBUG_TYPE "sample-profile-impl"
 
+/// Detail helpers mapping IR entities used by the AFDO sample profile loader.
 namespace afdo_detail {
 
+/// Traits describing IR types and CFG accessors for a basic-block type.
 template <typename BlockT> struct IRTraits;
+/// IRTraits specialization for LLVM IR \c BasicBlock.
 template <> struct IRTraits<BasicBlock> {
+  /// Instruction type in this IR.
   using InstructionT = Instruction;
+  /// Basic block type in this IR.
   using BasicBlockT = BasicBlock;
+  /// Function type in this IR.
   using FunctionT = Function;
+  /// Block frequency info type for this IR.
   using BlockFrequencyInfoT = BlockFrequencyInfo;
+  /// Loop type for this IR.
   using LoopT = Loop;
+  /// Owning pointer to loop info for this IR.
   using LoopInfoPtrT = std::unique_ptr<LoopInfo>;
+  /// Owning pointer to a dominator tree for this IR.
   using DominatorTreePtrT = std::unique_ptr<DominatorTree>;
+  /// Post-dominator tree type for this IR.
   using PostDominatorTreeT = PostDominatorTree;
+  /// Owning pointer to a post-dominator tree for this IR.
   using PostDominatorTreePtrT = std::unique_ptr<PostDominatorTree>;
+  /// Optimization remark emitter type for this IR.
   using OptRemarkEmitterT = OptimizationRemarkEmitter;
+  /// Optimization remark analysis type for this IR.
   using OptRemarkAnalysisT = OptimizationRemarkAnalysis;
+  /// Range type over predecessors of a basic block.
   using PredRangeT = pred_range;
+  /// Range type over successors of a basic block.
   using SuccRangeT = succ_range;
+  /// Return the LLVM IR Function for \p F.
+  ///
+  /// \param F Function to return.
+  ///
+  /// \returns the LLVM IR Function for \p F.
   static Function &getFunction(Function &F) { return F; }
+  /// Return the entry basic block of function \p F.
+  ///
+  /// \param F Function whose entry block is returned.
+  ///
+  /// \returns the entry basic block of \p F.
   static const BasicBlock *getEntryBB(const Function *F) {
     return &F->getEntryBlock();
   }
+  /// Return the predecessors of basic block \p BB.
+  ///
+  /// \param BB Basic block whose predecessors are returned.
+  ///
+  /// \returns a range over the predecessors of \p BB.
   static pred_range getPredecessors(BasicBlock *BB) { return predecessors(BB); }
+  /// Return the successors of basic block \p BB.
+  ///
+  /// \param BB Basic block whose successors are returned.
+  ///
+  /// \returns a range over the successors of \p BB.
   static succ_range getSuccessors(BasicBlock *BB) { return successors(BB); }
 };
 
 } // end namespace afdo_detail
 
-// This class serves sample counts correlation for SampleProfileLoader by
-// analyzing pseudo probes and their function descriptors injected by
-// SampleProfileProber.
+/// Correlates sample counts with pseudo probes for SampleProfileLoader.
+///
+/// Analyzes pseudo probes and their function descriptors injected by
+/// SampleProfileProber.
 class PseudoProbeManager {
   DenseMap<uint64_t, PseudoProbeDescriptor> GUIDToProbeDescMap;
   DenseSet<uint64_t> GUIDIsWeakSymbol;
 
 public:
+  /// Build probe descriptors and weak-symbol GUIDs from module \p M.
+  ///
+  /// \param M Module whose pseudo-probe metadata is ingested.
   PseudoProbeManager(const Module &M) {
     if (NamedMDNode *FuncInfo =
             M.getNamedMetadata(PseudoProbeDescMetadataName)) {
@@ -111,34 +151,75 @@ public:
     }
   }
 
+  /// Return the probe descriptor for function GUID \p GUID, or nullptr.
+  ///
+  /// \param GUID Function GUID to look up.
+  ///
+  /// \returns the probe descriptor for \p GUID, or nullptr if none exists.
   const PseudoProbeDescriptor *getDesc(uint64_t GUID) const {
     auto I = GUIDToProbeDescMap.find(GUID);
     return I == GUIDToProbeDescMap.end() ? nullptr : &I->second;
   }
 
+  /// Return the probe descriptor for profiled function name \p FProfileName.
+  ///
+  /// \param FProfileName Canonical profile name used to derive the GUID.
+  ///
+  /// \returns the probe descriptor for \p FProfileName, or nullptr if none
+  /// exists.
   const PseudoProbeDescriptor *getDesc(StringRef FProfileName) const {
     return getDesc(Function::getGUIDAssumingExternalLinkage(
         FunctionSamples::getCanonicalFnName(FProfileName)));
   }
 
+  /// Return the probe descriptor for IR function \p F.
+  ///
+  /// \param F Function whose canonical name is used to derive the GUID.
+  ///
+  /// \returns the probe descriptor for \p F, or nullptr if none exists.
   const PseudoProbeDescriptor *getDesc(const Function &F) const {
     return getDesc(Function::getGUIDAssumingExternalLinkage(
         FunctionSamples::getCanonicalFnName(F)));
   }
 
+  /// Return true if the probe for \p GUID came from a weak symbol.
+  ///
+  /// \param GUID Function GUID to query.
+  ///
+  /// \returns true if the probe for \p GUID came from a weak symbol.
   bool probeFromWeakSymbol(uint64_t GUID) const {
     return GUIDIsWeakSymbol.count(GUID);
   }
 
+  /// Return true if \p FuncDesc's hash disagrees with \p Samples.
+  ///
+  /// \param FuncDesc Probe descriptor whose hash is compared.
+  /// \param Samples Function samples whose hash is compared.
+  ///
+  /// \returns true if the descriptor hash and sample hash differ.
   bool profileIsHashMismatched(const PseudoProbeDescriptor &FuncDesc,
                                const FunctionSamples &Samples) const {
     return FuncDesc.getFunctionHash() != Samples.getFunctionHash();
   }
 
+  /// Return true if module \p M contains pseudo-probe descriptor metadata.
+  ///
+  /// \param M Module to query.
+  ///
+  /// \returns true if \p M contains pseudo-probe descriptor metadata.
   bool moduleIsProbed(const Module &M) const {
     return M.getNamedMetadata(PseudoProbeDescMetadataName);
   }
 
+  /// Return true if \p Samples is valid for function \p F.
+  ///
+  /// Checks checksum-mismatch attributes for available_externally functions,
+  /// otherwise compares the probe descriptor hash with the sample profile.
+  ///
+  /// \param F Function being annotated.
+  /// \param Samples Profile samples for \p F.
+  ///
+  /// \returns true if the profile is valid for \p F.
   bool profileIsValid(const Function &F, const FunctionSamples &Samples) const {
     const auto *Desc = getDesc(F);
     bool IsAvailableExternallyLinkage =
@@ -162,6 +243,7 @@ public:
   }
 };
 
+/// Command-line flag selecting flow-based (profi) weight inference.
 extern LLVM_ABI cl::opt<bool> SampleProfileUseProfi;
 
 static inline bool skipProfileForFunction(const Function &F) {
@@ -184,56 +266,104 @@ buildTopDownFuncOrder(LazyCallGraph &CG,
   std::reverse(FunctionOrderList.begin(), FunctionOrderList.end());
 }
 
+/// Base implementation for loading and applying sample profiles to IR.
 template <typename FT> class SampleProfileLoaderBaseImpl {
 public:
+  /// Construct a loader for profile file \p Name with optional remapping.
+  ///
+  /// \param Name Path to the sample profile file.
+  /// \param RemapName Path to the profile remapping file, or empty.
+  /// \param FS Virtual filesystem used to open profile files.
   SampleProfileLoaderBaseImpl(std::string Name, std::string RemapName,
                               IntrusiveRefCntPtr<vfs::FileSystem> FS)
       : Filename(Name), RemappingFilename(RemapName), FS(std::move(FS)) {}
+  /// Dump the contents of the loaded sample profile.
   void dump() { Reader->dump(); }
 
+  /// Graph node reference type for the CFG of \c FT.
   using NodeRef = typename GraphTraits<FT *>::NodeRef;
+  /// Basic-block type pointed to by \c NodeRef.
   using BT = std::remove_pointer_t<NodeRef>;
+  /// Instruction type for the IR being profiled.
   using InstructionT = typename afdo_detail::IRTraits<BT>::InstructionT;
+  /// Basic block type for the IR being profiled.
   using BasicBlockT = typename afdo_detail::IRTraits<BT>::BasicBlockT;
+  /// Block frequency info type for the IR being profiled.
   using BlockFrequencyInfoT =
       typename afdo_detail::IRTraits<BT>::BlockFrequencyInfoT;
+  /// Function type for the IR being profiled.
   using FunctionT = typename afdo_detail::IRTraits<BT>::FunctionT;
+  /// Loop type for the IR being profiled.
   using LoopT = typename afdo_detail::IRTraits<BT>::LoopT;
+  /// Owning pointer to loop info for the IR being profiled.
   using LoopInfoPtrT = typename afdo_detail::IRTraits<BT>::LoopInfoPtrT;
+  /// Owning pointer to a dominator tree for the IR being profiled.
   using DominatorTreePtrT =
       typename afdo_detail::IRTraits<BT>::DominatorTreePtrT;
+  /// Owning pointer to a post-dominator tree for the IR being profiled.
   using PostDominatorTreePtrT =
       typename afdo_detail::IRTraits<BT>::PostDominatorTreePtrT;
+  /// Post-dominator tree type for the IR being profiled.
   using PostDominatorTreeT =
       typename afdo_detail::IRTraits<BT>::PostDominatorTreeT;
+  /// Optimization remark emitter type for the IR being profiled.
   using OptRemarkEmitterT =
       typename afdo_detail::IRTraits<BT>::OptRemarkEmitterT;
+  /// Optimization remark analysis type for the IR being profiled.
   using OptRemarkAnalysisT =
       typename afdo_detail::IRTraits<BT>::OptRemarkAnalysisT;
+  /// Range type over predecessors of a basic block.
   using PredRangeT = typename afdo_detail::IRTraits<BT>::PredRangeT;
+  /// Range type over successors of a basic block.
   using SuccRangeT = typename afdo_detail::IRTraits<BT>::SuccRangeT;
 
+  /// Map from a basic block to its computed sample weight.
   using BlockWeightMap = DenseMap<const BasicBlockT *, uint64_t>;
+  /// Map from a basic block to the representative of its equivalence class.
   using EquivalenceClassMap =
       DenseMap<const BasicBlockT *, const BasicBlockT *>;
+  /// Directed edge between two basic blocks in the CFG.
   using Edge = std::pair<const BasicBlockT *, const BasicBlockT *>;
+  /// Map from a CFG edge to its computed sample weight.
   using EdgeWeightMap = DenseMap<Edge, uint64_t>;
+  /// Map from a basic block to its unique predecessor or successor list.
   using BlockEdgeMap =
       DenseMap<const BasicBlockT *, SmallVector<const BasicBlockT *, 8>>;
 
 protected:
+  /// Destroy the sample profile loader base implementation.
   ~SampleProfileLoaderBaseImpl() = default;
   friend class SampleCoverageTracker;
 
+  /// Return the LLVM IR Function underlying \p F.
+  ///
+  /// \param F Function-like IR unit to unwrap.
+  ///
+  /// \returns the LLVM IR Function for \p F.
   Function &getFunction(FunctionT &F) {
     return afdo_detail::IRTraits<BT>::getFunction(F);
   }
+  /// Return the entry basic block of function \p F.
+  ///
+  /// \param F Function whose entry block is returned.
+  ///
+  /// \returns the entry basic block of \p F.
   const BasicBlockT *getEntryBB(const FunctionT *F) {
     return afdo_detail::IRTraits<BT>::getEntryBB(F);
   }
+  /// Return the predecessors of basic block \p BB.
+  ///
+  /// \param BB Basic block whose predecessors are returned.
+  ///
+  /// \returns a range over the predecessors of \p BB.
   PredRangeT getPredecessors(BasicBlockT *BB) {
     return afdo_detail::IRTraits<BT>::getPredecessors(BB);
   }
+  /// Return the successors of basic block \p BB.
+  ///
+  /// \param BB Basic block whose successors are returned.
+  ///
+  /// \returns a range over the successors of \p BB.
   SuccRangeT getSuccessors(BasicBlockT *BB) {
     return afdo_detail::IRTraits<BT>::getSuccessors(BB);
   }
@@ -243,6 +373,7 @@ protected:
   ErrorOr<uint64_t> getInstWeightImpl(const InstructionT &Inst);
   virtual ErrorOr<uint64_t> getProbeWeight(const InstructionT &Inst);
   ErrorOr<uint64_t> getBlockWeight(const BasicBlockT *BB);
+  /// Cache mapping debug locations to their matching FunctionSamples.
   mutable DenseMap<const DILocation *, const FunctionSamples *>
       DILocation2SampleMap;
   virtual const FunctionSamples *
@@ -263,6 +394,9 @@ protected:
   void buildEdges(FunctionT &F);
   bool propagateThroughEdges(FunctionT &F, bool UpdateBlockCount);
   void clearFunctionData(bool ResetDT = true);
+  /// Compute dominator, post-dominator, and loop info for \p F.
+  ///
+  /// \param F Function whose dominance and loop information is computed.
   void computeDominanceAndLoopInfo(FunctionT &F);
   bool
   computeAndPropagateWeights(FunctionT &F,
@@ -300,9 +434,11 @@ protected:
   /// the same number of times.
   EquivalenceClassMap EquivalenceClass;
 
-  /// Dominance, post-dominance and loop information.
+  /// Dominator tree for the function being processed.
   DominatorTreePtrT DT;
+  /// Post-dominator tree for the function being processed.
   PostDominatorTreePtrT PDT;
+  /// Loop information for the function being processed.
   LoopInfoPtrT LI;
 
   /// Predecessors for each basic block in the CFG.
@@ -317,12 +453,14 @@ protected:
   /// Profile reader object.
   std::unique_ptr<SampleProfileReader> Reader;
 
-  /// Synthetic samples created by duplicating the samples of inlined functions
-  /// from the original profile as if they were top level sample profiles.
-  /// Use std::map because insertion may happen while its content is referenced.
+  /// Synthetic top-level samples cloned from inlined profiles.
+  ///
+  /// Created by duplicating the samples of inlined functions from the original
+  /// profile as if they were top-level sample profiles. Use std::map because
+  /// insertion may happen while its content is referenced.
   std::map<SampleContext, FunctionSamples> OutlineFunctionSamples;
 
-  // A pseudo probe helper to correlate the imported sample counts.
+  /// Helper that correlates imported sample counts with pseudo probes.
   std::unique_ptr<PseudoProbeManager> ProbeManager;
 
   /// Samples collected for the body of this function.
@@ -345,6 +483,9 @@ protected:
 };
 
 /// Clear all the per-function data used to load samples and propagate weights.
+///
+/// \param ResetDT If true, also discard dominance, post-dominance, and loop
+///                info.
 template <typename BT>
 void SampleProfileLoaderBaseImpl<BT>::clearFunctionData(bool ResetDT) {
   BlockWeights.clear();
@@ -417,6 +558,14 @@ SampleProfileLoaderBaseImpl<BT>::getInstWeight(const InstructionT &Inst) {
   return getInstWeightImpl(Inst);
 }
 
+/// Get the weight for an instruction from line-offset body samples.
+///
+/// Looks up samples at the debug location of \p Inst in the matching
+/// FunctionSamples and marks them used for coverage tracking.
+///
+/// \param Inst Instruction to query.
+///
+/// \returns the weight of \p Inst, or an error if no samples are found.
 template <typename BT>
 ErrorOr<uint64_t>
 SampleProfileLoaderBaseImpl<BT>::getInstWeightImpl(const InstructionT &Inst) {
@@ -461,6 +610,15 @@ SampleProfileLoaderBaseImpl<BT>::getInstWeightImpl(const InstructionT &Inst) {
   return R;
 }
 
+/// Get the weight for a pseudo-probe instruction.
+///
+/// Extracts the probe metadata from \p Inst, looks up matching samples, and
+/// scales them by the probe factor.
+///
+/// \param Inst Probe instruction to query.
+///
+/// \returns the scaled sample weight, or an error if \p Inst is not a probe or
+///          has no matching samples.
 template <typename BT>
 ErrorOr<uint64_t>
 SampleProfileLoaderBaseImpl<BT>::getProbeWeight(const InstructionT &Inst) {
@@ -542,6 +700,8 @@ SampleProfileLoaderBaseImpl<BT>::getBlockWeight(const BasicBlockT *BB) {
 /// the weights of every basic block in the CFG.
 ///
 /// \param F The function to query.
+///
+/// \returns true if any block weight was computed and stored.
 template <typename BT>
 bool SampleProfileLoaderBaseImpl<BT>::computeBlockWeights(FunctionT &F) {
   bool Changed = false;
@@ -561,11 +721,11 @@ bool SampleProfileLoaderBaseImpl<BT>::computeBlockWeights(FunctionT &F) {
 
 /// Get the FunctionSamples for an instruction.
 ///
-/// The FunctionSamples of an instruction \p Inst is the inlined instance
+/// The FunctionSamples of an instruction \p I is the inlined instance
 /// in which that instruction is coming from. We traverse the inline stack
 /// of that instruction, and match it with the tree nodes in the profile.
 ///
-/// \param Inst Instruction to query.
+/// \param I Instruction to query.
 ///
 /// \returns the FunctionSamples pointer to the inlined instance.
 template <typename BT>
@@ -887,6 +1047,8 @@ bool SampleProfileLoaderBaseImpl<BT>::propagateThroughEdges(
 ///
 /// We are interested in unique edges. If a block B1 has multiple
 /// edges to another block B2, we only add a single B1->B2 edge.
+///
+/// \param F Function whose CFG edges are collected.
 template <typename BT>
 void SampleProfileLoaderBaseImpl<BT>::buildEdges(FunctionT &F) {
   for (auto &BI : F) {
@@ -929,6 +1091,8 @@ void SampleProfileLoaderBaseImpl<BT>::buildEdges(FunctionT &F) {
 ///   known, the weight for that edge is set to the weight of the block
 ///   minus the weight of the other incoming edges to that block (if
 ///   known).
+///
+/// \param F Function whose edge weights are propagated.
 template <typename BT>
 void SampleProfileLoaderBaseImpl<BT>::propagateWeights(FunctionT &F) {
   // Flow-based profile inference is only usable with BasicBlock instantiation
@@ -984,6 +1148,13 @@ void SampleProfileLoaderBaseImpl<BT>::propagateWeights(FunctionT &F) {
   }
 }
 
+/// Infer missing block and edge weights with the flow-based profi algorithm.
+///
+/// \param F Function whose weights are inferred.
+/// \param Successors Map from each block to its unique successors.
+/// \param SampleBlockWeights Sampled block weights used as inference input.
+/// \param BlockWeights Output map filled with inferred block weights.
+/// \param EdgeWeights Output map filled with inferred edge weights.
 template <typename FT>
 void SampleProfileLoaderBaseImpl<FT>::applyProfi(
     FunctionT &F, BlockEdgeMap &Successors, BlockWeightMap &SampleBlockWeights,
@@ -1036,6 +1207,7 @@ void SampleProfileLoaderBaseImpl<FT>::applyProfi(
 /// work here.
 ///
 /// \param F The function to query.
+/// \param InlinedGUIDs GUIDs of functions inlined in the profiled binary.
 ///
 /// \returns true if \p F was modified. Returns false, otherwise.
 template <typename BT>
@@ -1060,6 +1232,13 @@ bool SampleProfileLoaderBaseImpl<BT>::computeAndPropagateWeights(
   return Changed;
 }
 
+/// Prepare a function for block and edge weight propagation.
+///
+/// Sets the function entry count, optionally builds dominance and loop
+/// info with equivalence classes, and builds unique CFG edge lists.
+///
+/// \param F Function to prepare for propagation.
+/// \param InlinedGUIDs GUIDs of functions inlined in the profiled binary.
 template <typename BT>
 void SampleProfileLoaderBaseImpl<BT>::initWeightPropagation(
     FunctionT &F, const DenseSet<GlobalValue::GUID> &InlinedGUIDs) {
@@ -1086,6 +1265,11 @@ void SampleProfileLoaderBaseImpl<BT>::initWeightPropagation(
   buildEdges(F);
 }
 
+/// Finish weight propagation, syncing the function entry count when using
+/// profi.
+///
+/// \param F Function whose entry count may be updated.
+/// \param InlinedGUIDs GUIDs of functions inlined in the profiled binary.
 template <typename BT>
 void SampleProfileLoaderBaseImpl<BT>::finalizeWeightPropagation(
     FunctionT &F, const DenseSet<GlobalValue::GUID> &InlinedGUIDs) {
@@ -1103,6 +1287,10 @@ void SampleProfileLoaderBaseImpl<BT>::finalizeWeightPropagation(
   }
 }
 
+/// Emit diagnostics when applied profile coverage is below the configured
+/// thresholds.
+///
+/// \param F Function whose sample coverage is checked.
 template <typename BT>
 void SampleProfileLoaderBaseImpl<BT>::emitCoverageRemarks(FunctionT &F) {
   // If coverage checking was requested, compute it now.
@@ -1136,15 +1324,15 @@ void SampleProfileLoaderBaseImpl<BT>::emitCoverageRemarks(FunctionT &F) {
 
 /// Get the line number for the function header.
 ///
-/// This looks up function \p F in the current compilation unit and
+/// This looks up function \p Func in the current compilation unit and
 /// retrieves the line number where the function is defined. This is
 /// line 0 for all the samples read from the profile file. Every line
 /// number is relative to this line.
 ///
-/// \param F  Function object to query.
+/// \param Func  Function object to query.
 ///
-/// \returns the line number where \p F is defined. If it returns 0,
-///          it means that there is no debug information available for \p F.
+/// \returns the line number where \p Func is defined. If it returns 0,
+///          it means that there is no debug information available for \p Func.
 template <typename BT>
 unsigned SampleProfileLoaderBaseImpl<BT>::getFunctionLoc(FunctionT &F) {
   const Function &Func = getFunction(F);

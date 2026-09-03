@@ -61,9 +61,17 @@ class LLVM_ABI MicroOpQueueStage : public Stage {
   Error moveInstructions();
 
 public:
+  /// Construct a micro-op queue stage with the given capacity and throughput.
+  /// \param Size Number of buffer entries in the micro-op queue.
+  /// \param IPC Maximum instructions accepted per cycle; zero means unlimited.
+  /// \param ZeroLatencyStage If true, instructions can leave in the same cycle;
+  ///        if false, the queue adds a one-cycle delay.
   MicroOpQueueStage(unsigned Size, unsigned IPC = 0,
                     bool ZeroLatencyStage = true);
 
+  /// Returns true if \p IR can be enqueued during this cycle.
+  /// \param IR Instruction to check for queue availability.
+  /// \return True if \p IR can be enqueued during this cycle.
   bool isAvailable(const InstRef &IR) const override {
     if (MaxIPC && CurrentIPC == MaxIPC)
       return false;
@@ -73,12 +81,23 @@ public:
     return true;
   }
 
+  /// Returns true if the queue still holds instructions awaiting completion.
+  /// \return True if the queue still holds instructions awaiting completion.
   bool hasWorkToComplete() const override {
     return AvailableEntries != Buffer.size();
   }
 
+  /// Enqueues \p IR into the micro-op buffer if space and IPC allow.
+  /// \param IR Instruction to place into the queue.
+  /// \return Success, or an error if enqueueing or handing off fails.
   Error execute(InstRef &IR) override;
+
+  /// Resets per-cycle IPC tracking at the beginning of a cycle.
+  /// \return Success after resetting per-cycle IPC tracking.
   Error cycleStart() override;
+
+  /// Advances queued instructions and frees buffer entries at cycle end.
+  /// \return Success, or an error if advancing queued instructions fails.
   Error cycleEnd() override;
 };
 

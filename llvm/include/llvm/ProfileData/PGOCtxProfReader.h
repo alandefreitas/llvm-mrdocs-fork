@@ -78,19 +78,23 @@ class IndexNode {
 // Setting initial capacity to 1 because all contexts must have at least 1
 // counter, and then, because all contexts belonging to a function have the same
 // size, there'll be at most one other heap allocation.
+/// Flat profile: per-GUID counter vectors without contextual nesting.
 using CtxProfFlatProfile =
     std::map<GlobalValue::GUID, SmallVector<uint64_t, 1>>;
 
-/// A node (context) in the loaded contextual profile, suitable for mutation
-/// during IPO passes. We generally expect a fraction of counters and
-/// callsites to be populated. We continue to model counters as vectors, but
-/// callsites are modeled as a map of a map. The expectation is that, typically,
-/// there is a small number of indirect targets (usually, 1 for direct calls);
-/// but potentially a large number of callsites, and, as inlining progresses,
-/// the callsite count of a caller will grow.
+/// A mutable node in a loaded contextual profile.
+///
+/// Suitable for mutation during IPO passes. We generally expect a fraction of
+/// counters and callsites to be populated. We continue to model counters as
+/// vectors, but callsites are modeled as a map of a map. The expectation is
+/// that, typically, there is a small number of indirect targets (usually, 1 for
+/// direct calls); but potentially a large number of callsites, and, as inlining
+/// progresses, the callsite count of a caller will grow.
 class PGOCtxProfContext final : public internal::IndexNode {
 public:
+  /// Map from callee GUID to the callee's context under one callsite.
   using CallTargetMapTy = std::map<GlobalValue::GUID, PGOCtxProfContext>;
+  /// Map from callsite index to the set of call targets at that site.
   using CallsiteMapTy = std::map<uint32_t, CallTargetMapTy>;
 
 private:
@@ -121,20 +125,42 @@ private:
   PGOCtxProfContext() = default;
 
 public:
-  PGOCtxProfContext(const PGOCtxProfContext &) = delete;
-  PGOCtxProfContext &operator=(const PGOCtxProfContext &) = delete;
-  PGOCtxProfContext(PGOCtxProfContext &&) = default;
-  PGOCtxProfContext &operator=(PGOCtxProfContext &&) = delete;
+  /// Copy construction is deleted; contexts are moved, not copied.
+  /// @param Other Unused; copy construction is deleted.
+  PGOCtxProfContext(const PGOCtxProfContext &Other) = delete;
+  /// Copy assignment is deleted; contexts are moved, not copied.
+  /// @param Other Unused; copy assignment is deleted.
+  PGOCtxProfContext &operator=(const PGOCtxProfContext &Other) = delete;
+  /// Move-construct a context, transferring counters and callsites.
+  /// @param Other Context to move from.
+  PGOCtxProfContext(PGOCtxProfContext &&Other) = default;
+  /// Move assignment is deleted; use move construction instead.
+  /// @param Other Unused; move assignment is deleted.
+  PGOCtxProfContext &operator=(PGOCtxProfContext &&Other) = delete;
 
+  /// Return the GUID of the function this context belongs to.
+  /// @return GUID of the function this context belongs to.
   GlobalValue::GUID guid() const { return GUID; }
+  /// Return the counter vector for this context.
+  /// @return Const reference to the counter vector.
   const SmallVectorImpl<uint64_t> &counters() const { return Counters; }
+  /// Return the mutable counter vector for this context.
+  /// @return Mutable reference to the counter vector.
   SmallVectorImpl<uint64_t> &counters() { return Counters; }
 
+  /// Return true if this context is a profile root.
+  /// @return True if this context is a profile root.
   bool isRoot() const { return RootEntryCount.has_value(); }
+  /// Return the total entry count recorded for this root context.
+  /// @return Total entry count recorded for this root context.
   uint64_t getTotalRootEntryCount() const { return RootEntryCount.value(); }
 
+  /// Return flat profiles for contexts not attached under this root.
+  /// @return Flat profiles for contexts not attached under this root.
   const CtxProfFlatProfile &getUnhandled() const { return Unhandled.value(); }
 
+  /// Return the entry basic-block counter for this context.
+  /// @return Entry basic-block counter for this context.
   uint64_t getEntrycount() const {
     assert(!Counters.empty() &&
            "Functions are expected to have at their entry BB instrumented, so "
@@ -142,13 +168,23 @@ public:
     return Counters[0];
   }
 
+  /// Return the map of callsites under this context.
+  /// @return Const reference to the callsite map.
   const CallsiteMapTy &callsites() const { return Callsites; }
+  /// Return the mutable map of callsites under this context.
+  /// @return Mutable reference to the callsite map.
   CallsiteMapTy &callsites() { return Callsites; }
 
+  /// Attach \p Other as a callee context under callsite \p CSId.
+  /// @param CSId Callsite index that receives the ingested context.
+  /// @param Other Context to move under this callsite.
   void ingestContext(uint32_t CSId, PGOCtxProfContext &&Other) {
     callsites()[CSId].emplace(Other.guid(), std::move(Other));
   }
 
+  /// Attach all contexts in \p Other under callsite \p CSId.
+  /// @param CSId Callsite index expected to be newly created (e.g. by inlining).
+  /// @param Other Map of callee GUID to context to move under this callsite.
   void ingestAllContexts(uint32_t CSId, CallTargetMapTy &&Other) {
     auto [_, Inserted] = callsites().try_emplace(CSId, std::move(Other));
     (void)Inserted;
@@ -156,25 +192,38 @@ public:
            "CSId was expected to be newly created as result of e.g. inlining");
   }
 
+  /// Grow or shrink the counter vector to \p Size elements.
+  /// @param Size New number of counter slots.
   void resizeCounters(uint32_t Size) { Counters.resize(Size); }
 
+  /// Return true if callsite index \p I is present.
+  /// @param I Callsite index to query.
+  /// @return True if callsite index \p I is present.
   bool hasCallsite(uint32_t I) const {
     return Callsites.find(I) != Callsites.end();
   }
 
+  /// Return the call-target map for callsite index \p I.
+  /// @param I Callsite index that must already exist.
+  /// @return Const reference to the call-target map at callsite \p I.
   const CallTargetMapTy &callsite(uint32_t I) const {
     assert(hasCallsite(I) && "Callsite not found");
     return Callsites.find(I)->second;
   }
 
+  /// Return the mutable call-target map for callsite index \p I.
+  /// @param I Callsite index that must already exist.
+  /// @return Mutable reference to the call-target map at callsite \p I.
   CallTargetMapTy &callsite(uint32_t I) {
     assert(hasCallsite(I) && "Callsite not found");
     return Callsites.find(I)->second;
   }
 
-  /// Insert this node's GUID as well as the GUIDs of the transitive closure of
-  /// child nodes, into the provided set (technically, all that is required of
-  /// `TSetOfGUIDs` is to have an `insert(GUID)` member)
+  /// Insert this node's GUID and those of its transitive children into \p Guids.
+  ///
+  /// Technically, all that is required of `TSetOfGUIDs` is to have an
+  /// `insert(GUID)` member.
+  /// @param Guids Set that receives this GUID and all transitive child GUIDs.
   template <class TSetOfGUIDs>
   void getContainedGuids(TSetOfGUIDs &Guids) const {
     Guids.insert(GUID);
@@ -184,18 +233,31 @@ public:
   }
 };
 
+/// Map from root GUID to its contextual profile tree.
 using CtxProfContextualProfiles =
     std::map<GlobalValue::GUID, PGOCtxProfContext>;
+/// Loaded contextual profile: rooted contexts plus flat profiles.
 struct PGOCtxProfile {
+  /// Contextual profile trees keyed by root function GUID.
   CtxProfContextualProfiles Contexts;
+  /// Non-contextual (flat) per-function counter profiles.
   CtxProfFlatProfile FlatProfiles;
 
+  /// Construct an empty profile with no contexts or flat data.
   PGOCtxProfile() = default;
-  PGOCtxProfile(const PGOCtxProfile &) = delete;
-  PGOCtxProfile(PGOCtxProfile &&) = default;
-  PGOCtxProfile &operator=(PGOCtxProfile &&) = default;
+  /// Copy construction is deleted; profiles are moved, not copied.
+  /// @param Other Unused; copy construction is deleted.
+  PGOCtxProfile(const PGOCtxProfile &Other) = delete;
+  /// Move-construct a profile, transferring contexts and flat data.
+  /// @param Other Profile to move from.
+  PGOCtxProfile(PGOCtxProfile &&Other) = default;
+  /// Move-assign a profile, transferring contexts and flat data.
+  /// @param Other Profile to move from.
+  /// @return Reference to this profile after the move assignment.
+  PGOCtxProfile &operator=(PGOCtxProfile &&Other) = default;
 };
 
+/// Reader for contextual PGO profiles stored in bitstream format.
 class PGOCtxProfileReader final {
   StringRef Magic;
   BitstreamCursor Cursor;
@@ -216,13 +278,20 @@ class PGOCtxProfileReader final {
   Error loadFlatProfileList(CtxProfFlatProfile &P);
 
 public:
+  /// Construct a reader over the bitstream in \p Buffer.
+  /// @param Buffer Profile bitstream, including the container magic prefix.
   PGOCtxProfileReader(StringRef Buffer)
       : Magic(Buffer.substr(0, PGOCtxProfileWriter::ContainerMagic.size())),
         Cursor(Buffer.substr(PGOCtxProfileWriter::ContainerMagic.size())) {}
 
+  /// Load contextual and flat profiles from the bitstream.
+  /// @return The loaded profile, or an error if reading fails.
   LLVM_ABI Expected<PGOCtxProfile> loadProfiles();
 };
 
+/// Write \p Profile to \p OS as YAML.
+/// @param OS Destination stream for the YAML serialization.
+/// @param Profile Contextual profile to serialize.
 LLVM_ABI void convertCtxProfToYaml(raw_ostream &OS,
                                    const PGOCtxProfile &Profile);
 } // namespace llvm

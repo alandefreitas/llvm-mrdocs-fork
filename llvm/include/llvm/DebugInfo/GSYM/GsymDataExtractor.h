@@ -24,6 +24,10 @@ class GsymDataExtractor : public DataExtractor {
 
 public:
   /// Construct from raw bytes.
+  ///
+  /// \param Data Buffer whose bytes will be extracted.
+  /// \param IsLittleEndian Whether multi-byte values are little-endian.
+  /// \param StringOffsetSize Size in bytes of string table offsets (1-8).
   GsymDataExtractor(StringRef Data, bool IsLittleEndian,
                     uint8_t StringOffsetSize = 8)
       : DataExtractor(Data, IsLittleEndian),
@@ -31,6 +35,12 @@ public:
 
   /// Construct a sub-range extractor from a parent, copying its endianness
   /// and string offset size.
+  ///
+  /// \param Parent Extractor whose endianness and string offset size are
+  ///               copied, and whose data is sliced.
+  /// \param Offset Byte offset into \p Parent's data at which the sub-range
+  ///               begins.
+  /// \param Length Length in bytes of the sub-range.
   GsymDataExtractor(const GsymDataExtractor &Parent, uint64_t Offset,
                     uint64_t Length)
       : DataExtractor(Parent.getData().substr(Offset, Length),
@@ -38,15 +48,25 @@ public:
         StringOffsetSize(Parent.getStringOffsetSize()) {}
 
   /// Get the string offset size in bytes.
+  ///
+  /// \returns The size in bytes of string table offsets (1-8).
   uint8_t getStringOffsetSize() const { return StringOffsetSize; }
 
   /// Extract a string offset of StringOffsetSize bytes from \a *offset_ptr.
+  ///
+  /// \param[in,out] offset_ptr A pointer to an offset within the data that will
+  ///     be advanced by StringOffsetSize bytes on success.
+  /// \returns The extracted string offset, or zero on failure.
   uint64_t getStringOffset(uint64_t *offset_ptr) const {
     return getUnsigned(offset_ptr, StringOffsetSize);
   }
 
   /// Extract a string offset of StringOffsetSize bytes from the location given
   /// by the cursor.
+  ///
+  /// \param[in,out] C Cursor providing the extraction offset and sticky error
+  ///     state.
+  /// \returns The extracted string offset, or zero on failure.
   uint64_t getStringOffset(Cursor &C) const {
     return getUnsigned(C, StringOffsetSize);
   }

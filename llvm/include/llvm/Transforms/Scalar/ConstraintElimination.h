@@ -13,10 +13,18 @@
 
 namespace llvm {
 
+/// Pass that eliminates conditions using constraints from dominating conditions.
+///
+/// Collects linear constraints from dominating compares, assumes, and similar
+/// facts, then proves later conditions always true or false and removes them.
 class ConstraintEliminationPass
     : public OptionalPassInfoMixin<ConstraintEliminationPass> {
 public:
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// Run constraint elimination over the function.
+  /// @param F Function whose conditions may be simplified.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 } // end namespace llvm

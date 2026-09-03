@@ -25,6 +25,7 @@
 namespace llvm {
 namespace codeview {
 
+/// Deserializes CodeView type records via TypeVisitorCallbacks.
 class TypeDeserializer : public TypeVisitorCallbacks {
   struct MappingInfo {
     explicit MappingInfo(ArrayRef<uint8_t> RecordData)
@@ -37,8 +38,14 @@ class TypeDeserializer : public TypeVisitorCallbacks {
   };
 
 public:
+  /// Construct an empty type deserializer.
   TypeDeserializer() = default;
 
+  /// Deserialize the CodeView type \p CVT into the typed record \p Record.
+  ///
+  /// \param CVT Raw CodeView type record whose content is deserialized.
+  /// \param Record Destination typed record; Kind is set from \p CVT.
+  /// \returns Success, or an error if mapping or field deserialization fails.
   template <typename T> static Error deserializeAs(CVType &CVT, T &Record) {
     Record.Kind = static_cast<TypeRecordKind>(CVT.kind());
     MappingInfo I(CVT.content());
@@ -51,6 +58,10 @@ public:
     return Error::success();
   }
 
+  /// Deserialize the type record bytes in \p Data as a value of type \p T.
+  ///
+  /// \param Data Serialized CodeView type record including the record prefix.
+  /// \returns The deserialized record, or an error if deserialization fails.
   template <typename T>
   static Expected<T> deserializeAs(ArrayRef<uint8_t> Data) {
     const RecordPrefix *Prefix =
@@ -64,16 +75,29 @@ public:
     return Record;
   }
 
+  /// Begin deserializing the type record \p Record.
+  ///
+  /// \param Record CodeView type whose content becomes the active mapping.
+  /// \returns Success, or an error from the underlying type record mapping.
   Error visitTypeBegin(CVType &Record) override {
     assert(!Mapping && "Already in a type mapping!");
     Mapping = std::make_unique<MappingInfo>(Record.content());
     return Mapping->Mapping.visitTypeBegin(Record);
   }
 
+  /// Begin deserializing the type record \p Record at type index \p Index.
+  ///
+  /// \param Record CodeView type whose content becomes the active mapping.
+  /// \param Index Type index of \p Record in the type stream (unused here).
+  /// \returns Success, or an error from the underlying type record mapping.
   Error visitTypeBegin(CVType &Record, TypeIndex Index) override {
     return visitTypeBegin(Record);
   }
 
+  /// Finish deserializing the type record \p Record and clear the mapping.
+  ///
+  /// \param Record CodeView type whose visit is ending.
+  /// \returns Success, or an error from the underlying type record mapping.
   Error visitTypeEnd(CVType &Record) override {
     assert(Mapping && "Not in a type mapping!");
     auto EC = Mapping->Mapping.visitTypeEnd(Record);
@@ -99,6 +123,7 @@ private:
   std::unique_ptr<MappingInfo> Mapping;
 };
 
+/// Deserializes CodeView field-list member records from a binary stream.
 class FieldListDeserializer : public TypeVisitorCallbacks {
   struct MappingInfo {
     explicit MappingInfo(BinaryStreamReader &R)
@@ -110,23 +135,35 @@ class FieldListDeserializer : public TypeVisitorCallbacks {
   };
 
 public:
+  /// Begin an LF_FIELDLIST visit over members read from \p Reader.
+  ///
+  /// \param Reader Binary stream positioned at the field-list member payload.
   explicit FieldListDeserializer(BinaryStreamReader &Reader) : Mapping(Reader) {
     RecordPrefix Pre(static_cast<uint16_t>(TypeLeafKind::LF_FIELDLIST));
     CVType FieldList(&Pre, sizeof(Pre));
     consumeError(Mapping.Mapping.visitTypeBegin(FieldList));
   }
 
+  /// End the LF_FIELDLIST visit started by the constructor.
   ~FieldListDeserializer() override {
     RecordPrefix Pre(static_cast<uint16_t>(TypeLeafKind::LF_FIELDLIST));
     CVType FieldList(&Pre, sizeof(Pre));
     consumeError(Mapping.Mapping.visitTypeEnd(FieldList));
   }
 
+  /// Begin deserializing the field-list member \p Record.
+  ///
+  /// \param Record Member record whose visit is starting.
+  /// \returns Success, or an error from the underlying type record mapping.
   Error visitMemberBegin(CVMemberRecord &Record) override {
     Mapping.StartOffset = Mapping.Reader.getOffset();
     return Mapping.Mapping.visitMemberBegin(Record);
   }
 
+  /// Finish deserializing the field-list member \p Record.
+  ///
+  /// \param Record Member record whose visit is ending.
+  /// \returns Success, or an error from the underlying type record mapping.
   Error visitMemberEnd(CVMemberRecord &Record) override {
     if (auto EC = Mapping.Mapping.visitMemberEnd(Record))
       return EC;

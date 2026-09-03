@@ -98,12 +98,14 @@ private:
 
 public:
   /// Create a new ModuloSchedule.
-  /// \arg ScheduledInstrs The new loop instructions, in total resequenced
+  /// \param MF The machine function containing the loop.
+  /// \param Loop The single-block loop being scheduled.
+  /// \param ScheduledInstrs The new loop instructions, in total resequenced
   ///    order.
-  /// \arg Cycle Cycle index for all instructions in ScheduledInstrs. Cycle does
+  /// \param Cycle Cycle index for all instructions in ScheduledInstrs. Cycle does
   ///    not need to start at zero. ScheduledInstrs must be partially ordered by
   ///    Cycle.
-  /// \arg Stage Stage index for all instructions in ScheduleInstrs.
+  /// \param Stage Stage index for all instructions in ScheduleInstrs.
   ModuloSchedule(MachineFunction &MF, MachineLoop *Loop,
                  std::vector<MachineInstr *> ScheduledInstrs,
                  DenseMap<MachineInstr *, int> Cycle,
@@ -117,42 +119,56 @@ public:
   }
 
   /// Return the single-block loop being scheduled.
+  /// \return The single-block loop being scheduled.
   MachineLoop *getLoop() const { return Loop; }
 
   /// Return the number of stages contained in this schedule, which is the
   /// largest stage index + 1.
+  /// \return Number of stages (max stage index + 1).
   int getNumStages() const { return NumStages; }
 
   /// Return the first cycle in the schedule, which is the cycle index of the
   /// first instruction.
+  /// \return Cycle index of the first scheduled instruction.
   int getFirstCycle() { return Cycle[ScheduledInstrs.front()]; }
 
   /// Return the final cycle in the schedule, which is the cycle index of the
   /// last instruction.
+  /// \return Cycle index of the last scheduled instruction.
   int getFinalCycle() { return Cycle[ScheduledInstrs.back()]; }
 
   /// Return the stage that MI is scheduled in, or -1.
+  /// \param MI Instruction whose stage is queried.
+  /// \return Stage index of \p MI, or -1 if not scheduled.
   int getStage(MachineInstr *MI) {
     auto I = Stage.find(MI);
     return I == Stage.end() ? -1 : I->second;
   }
 
   /// Return the cycle that MI is scheduled at, or -1.
+  /// \param MI Instruction whose cycle is queried.
+  /// \return Cycle index of \p MI, or -1 if not scheduled.
   int getCycle(MachineInstr *MI) {
     auto I = Cycle.find(MI);
     return I == Cycle.end() ? -1 : I->second;
   }
 
   /// Set the stage of a newly created instruction.
+  /// \param MI Newly created instruction to assign a stage.
+  /// \param MIStage Stage index to assign to \p MI.
   void setStage(MachineInstr *MI, int MIStage) {
     assert(Stage.count(MI) == 0);
     Stage[MI] = MIStage;
   }
 
   /// Return the rescheduled instructions in order.
+  /// \return The scheduled instructions in total order.
   ArrayRef<MachineInstr *> getInstructions() { return ScheduledInstrs; }
 
+  /// Dump the schedule to dbgs().
   void dump() { print(dbgs()); }
+  /// Print the schedule to the given stream.
+  /// \param OS Output stream for the schedule dump.
   LLVM_ABI void print(raw_ostream &OS);
 };
 
@@ -160,6 +176,7 @@ public:
 /// rewriting the old loop and inserting prologs and epilogs as required.
 class ModuloScheduleExpander {
 public:
+  /// Map from instructions to memory-operand changes applied during expansion.
   using InstrChangesTy = DenseMap<MachineInstr *, std::pair<Register, int64_t>>;
 
 private:
@@ -268,7 +285,10 @@ private:
 
 public:
   /// Create a new ModuloScheduleExpander.
-  /// \arg InstrChanges Modifications to make to instructions with memory
+  /// \param MF The machine function containing the schedule.
+  /// \param S The modulo schedule to expand.
+  /// \param LIS Live interval information for the function.
+  /// \param InstrChanges Modifications to make to instructions with memory
   ///   operands.
   /// FIXME: InstrChanges is opaque and is an implementation detail of an
   ///   optimization in MachinePipeliner that crosses abstraction boundaries.
@@ -285,6 +305,7 @@ public:
 
   /// Returns the newly rewritten kernel block, or nullptr if this was
   /// optimized away.
+  /// \return The rewritten kernel block, or nullptr if optimized away.
   MachineBasicBlock *getRewrittenKernel() { return NewKernel; }
 };
 
@@ -292,11 +313,16 @@ public:
 /// standalone kernel loop and peeling out the prologs and epilogs.
 class PeelingModuloScheduleExpander {
 public:
+  /// Create a new PeelingModuloScheduleExpander.
+  /// \param MF The machine function containing the schedule.
+  /// \param S The modulo schedule to expand.
+  /// \param LIS Live interval information, or nullptr if unused.
   PeelingModuloScheduleExpander(MachineFunction &MF, ModuloSchedule &S,
                                 LiveIntervals *LIS)
       : Schedule(S), MF(MF), ST(MF.getSubtarget()), MRI(MF.getRegInfo()),
         TII(ST.getInstrInfo()), LIS(LIS) {}
 
+  /// Expand the schedule by peeling prologs and epilogs from a rewritten kernel.
   LLVM_ABI void expand();
 
   /// Runs ModuloScheduleExpander and treats it as a golden input to validate
@@ -304,11 +330,17 @@ public:
   LLVM_ABI void validateAgainstModuloScheduleExpander();
 
 protected:
+  /// The schedule being expanded.
   ModuloSchedule &Schedule;
+  /// The machine function containing the schedule.
   MachineFunction &MF;
+  /// Subtarget information for MF.
   const TargetSubtargetInfo &ST;
+  /// Register information for MF.
   MachineRegisterInfo &MRI;
+  /// Target instruction info from the subtarget.
   const TargetInstrInfo *TII = nullptr;
+  /// Live interval information, or nullptr if unused.
   LiveIntervals *LIS = nullptr;
 
   /// The original loop block that gets rewritten in-place.
@@ -330,6 +362,7 @@ protected:
   /// CanonicalMIs and BlockMIs form a bidirectional map between any of the
   /// loop kernel clones.
   DenseMap<MachineInstr *, MachineInstr *> CanonicalMIs;
+  /// Maps (block, canonical MI) to the corresponding MI in that block.
   DenseMap<std::pair<MachineBasicBlock *, MachineInstr *>, MachineInstr *>
       BlockMIs;
 
@@ -344,12 +377,19 @@ protected:
 
   /// Peels one iteration of the rewritten kernel (BB) in the specified
   /// direction.
+  /// \param LPD Whether to peel toward the front or back of the loop.
+  /// \return The newly peeled basic block.
   LLVM_ABI MachineBasicBlock *peelKernel(LoopPeelDirection LPD);
-  // Delete instructions whose stage is less than MinStage in the given basic
-  // block.
+  /// Delete instructions whose stage is less than \p MinStage in block \p MB.
+  /// \param MB Basic block whose instructions are filtered.
+  /// \param MinStage Minimum stage to keep; lower stages are deleted.
   LLVM_ABI void filterInstructions(MachineBasicBlock *MB, int MinStage);
-  // Move instructions of the given stage from sourceBB to DestBB. Remap the phi
-  // instructions to keep a valid IR.
+  /// Move instructions of stage \p Stage from \p SourceBB to \p DestBB.
+  ///
+  /// Remap the phi instructions to keep a valid IR.
+  /// \param DestBB Destination block that receives the moved instructions.
+  /// \param SourceBB Source block that currently holds the stage.
+  /// \param Stage Pipeline stage whose instructions are moved.
   LLVM_ABI void moveStageBetweenBlocks(MachineBasicBlock *DestBB,
                                        MachineBasicBlock *SourceBB,
                                        unsigned Stage);
@@ -358,18 +398,27 @@ protected:
   LLVM_ABI void peelPrologAndEpilogs();
   /// All prolog and epilog blocks are clones of the kernel, so any produced
   /// register in one block has an corollary in all other blocks.
+  /// \param Reg Register defined in some kernel clone.
+  /// \param BB Block in which to find the equivalent register.
+  /// \return The register in \p BB that corresponds to \p Reg.
   LLVM_ABI Register getEquivalentRegisterIn(Register Reg,
                                             MachineBasicBlock *BB);
   /// Change all users of MI, if MI is predicated out
   /// (LiveStages[MI->getParent()] == false).
+  /// \param MI Instruction whose uses may need rewriting when predicated out.
   LLVM_ABI void rewriteUsesOf(MachineInstr *MI);
   /// Insert branches between prologs, kernel and epilogs.
   LLVM_ABI void fixupBranches();
+  /// Create an LCSSA-style exiting block that clones kernel PHIs.
+  ///
   /// Create a poor-man's LCSSA by cloning only the PHIs from the kernel block
   /// to a block dominated by all prologs and epilogs. This allows us to treat
   /// the loop exiting block as any other kernel clone.
+  /// \return The new exiting block that clones the kernel PHIs.
   LLVM_ABI MachineBasicBlock *CreateLCSSAExitingBlock();
   /// Helper to get the stage of an instruction in the schedule.
+  /// \param MI Instruction whose stage is queried (may be a kernel clone).
+  /// \return Stage index of \p MI in the schedule.
   unsigned getStage(MachineInstr *MI) {
     if (auto It = CanonicalMIs.find(MI); It != CanonicalMIs.end())
       MI = It->second;
@@ -377,6 +426,9 @@ protected:
   }
   /// Helper function to find the right canonical register for a phi instruction
   /// coming from a peeled out prologue.
+  /// \param CanonicalPhi Canonical PHI in the original kernel.
+  /// \param Phi PHI in a peeled prologue corresponding to \p CanonicalPhi.
+  /// \return The canonical register for \p Phi relative to \p CanonicalPhi.
   LLVM_ABI Register getPhiCanonicalReg(MachineInstr *CanonicalPhi,
                                        MachineInstr *Phi);
   /// Target loop info before kernel peeling.
@@ -446,12 +498,20 @@ private:
                         MachineBasicBlock &Otherwise);
 
 public:
+  /// Create a new ModuloScheduleExpanderMVE.
+  /// \param MF The machine function containing the schedule.
+  /// \param S The modulo schedule to expand.
+  /// \param LIS Live interval information for the function.
   ModuloScheduleExpanderMVE(MachineFunction &MF, ModuloSchedule &S,
                             LiveIntervals &LIS)
       : Schedule(S), MF(MF), ST(MF.getSubtarget()), MRI(MF.getRegInfo()),
         TII(ST.getInstrInfo()), LIS(LIS) {}
 
+  /// Expand the schedule using modulo variable expansion.
   LLVM_ABI void expand();
+  /// Return true if MVE expansion can be applied to loop \p L.
+  /// \param L The loop to check for MVE applicability.
+  /// \return True if MVE expansion can be applied to \p L.
   LLVM_ABI static bool canApply(MachineLoop &L);
 };
 
@@ -466,6 +526,9 @@ class ModuloScheduleTestAnnotater {
   ModuloSchedule &S;
 
 public:
+  /// Create a new ModuloScheduleTestAnnotater.
+  /// \param MF The machine function containing the schedule.
+  /// \param S The modulo schedule whose instructions are annotated.
   ModuloScheduleTestAnnotater(MachineFunction &MF, ModuloSchedule &S)
       : MF(MF), S(S) {}
 

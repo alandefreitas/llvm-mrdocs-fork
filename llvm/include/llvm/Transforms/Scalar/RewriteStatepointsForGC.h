@@ -26,12 +26,28 @@ class Module;
 class TargetTransformInfo;
 class TargetLibraryInfo;
 
+/// Pass that rewrites calls and invokes to make GC relocations explicit in IR.
+///
+/// Transforms call/invoke sites so potential relocations performed by the
+/// garbage collector are represented explicitly, after PlaceSafepoints has
+/// inserted safepoints.
 struct RewriteStatepointsForGC
     : public OptionalPassInfoMixin<RewriteStatepointsForGC> {
+  /// Run rewrite-statepoints-for-GC over the module.
+  /// @param M Module whose functions may need statepoint rewriting.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
-  LLVM_ABI bool runOnFunction(Function &F, DominatorTree &,
-                              TargetTransformInfo &, const TargetLibraryInfo &);
+  /// Rewrite statepoints in \p F using the given analyses.
+  /// @param F Function to transform.
+  /// @param DT Dominator tree for the function.
+  /// @param TTI Target transform info used by the rewrite.
+  /// @param TLI Target library info used by the rewrite.
+  /// @return True if the function was changed.
+  LLVM_ABI bool runOnFunction(Function &F, DominatorTree &DT,
+                              TargetTransformInfo &TTI,
+                              const TargetLibraryInfo &TLI);
 };
 
 } // namespace llvm

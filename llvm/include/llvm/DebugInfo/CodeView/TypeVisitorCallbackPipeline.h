@@ -18,10 +18,17 @@
 namespace llvm {
 namespace codeview {
 
+/// Pipelines multiple TypeVisitorCallbacks, forwarding each visit in order.
 class TypeVisitorCallbackPipeline : public TypeVisitorCallbacks {
 public:
+  /// Construct an empty type visitor callback pipeline.
   TypeVisitorCallbackPipeline() = default;
 
+  /// Forward an unknown type record to every callback in the pipeline.
+  ///
+  /// \param Record The unknown type record being visited.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitUnknownType(CVRecord<TypeLeafKind> &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitUnknownType(Record))
@@ -30,6 +37,11 @@ public:
     return Error::success();
   }
 
+  /// Forward an unknown member record to every callback in the pipeline.
+  ///
+  /// \param Record The unknown member record being visited.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitUnknownMember(CVMemberRecord &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitUnknownMember(Record))
@@ -38,6 +50,11 @@ public:
     return Error::success();
   }
 
+  /// Forward type-begin to every callback without a type index.
+  ///
+  /// \param Record The type record whose visitation is beginning.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitTypeBegin(CVType &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitTypeBegin(Record))
@@ -46,6 +63,12 @@ public:
     return Error::success();
   }
 
+  /// Forward type-begin to every callback with the record's type index.
+  ///
+  /// \param Record The type record whose visitation is beginning.
+  /// \param Index Type index of \p Record in the type stream.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitTypeBegin(CVType &Record, TypeIndex Index) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitTypeBegin(Record, Index))
@@ -54,6 +77,11 @@ public:
     return Error::success();
   }
 
+  /// Forward type-end to every callback in the pipeline.
+  ///
+  /// \param Record The type record whose visitation is complete.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitTypeEnd(CVType &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitTypeEnd(Record))
@@ -62,6 +90,11 @@ public:
     return Error::success();
   }
 
+  /// Forward member-begin to every callback in the pipeline.
+  ///
+  /// \param Record The member record whose visitation is beginning.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitMemberBegin(CVMemberRecord &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitMemberBegin(Record))
@@ -70,6 +103,11 @@ public:
     return Error::success();
   }
 
+  /// Forward member-end to every callback in the pipeline.
+  ///
+  /// \param Record The member record whose visitation is complete.
+  ///
+  /// \returns The first error from a callback, or success if all succeed.
   Error visitMemberEnd(CVMemberRecord &Record) override {
     for (auto *Visitor : Pipeline) {
       if (auto EC = Visitor->visitMemberEnd(Record))
@@ -78,6 +116,9 @@ public:
     return Error::success();
   }
 
+  /// Append \p Callbacks to the end of this pipeline.
+  ///
+  /// \param Callbacks Visitor callbacks to invoke on subsequent visits.
   void addCallbackToPipeline(TypeVisitorCallbacks &Callbacks) {
     Pipeline.push_back(&Callbacks);
   }

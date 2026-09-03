@@ -19,12 +19,22 @@
 
 namespace llvm::sandboxir {
 
+/// A Region pass that accepts or reverts Sandbox IR based on vectorization cost.
+///
+/// Checks the region cost before/after vectorization and accepts the state of
+/// Sandbox IR if the cost is better, or otherwise reverts it.
 class LLVM_ABI TransactionAcceptOrRevert : public RegionPass {
 public:
+  /// Construct a TransactionAcceptOrRevert pass.
+  /// \param AuxArg Unused; must be empty.
   TransactionAcceptOrRevert(StringRef AuxArg)
       : RegionPass("tr-accept-or-revert") {
     assert(AuxArg.empty() && "This pass ignores aux arg!");
   }
+  /// Accept or revert the transaction for the given region based on cost.
+  /// \param Rgn The region to process.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the IR was modified.
   bool runOnRegion(Region &Rgn, const Analyses &A) final;
 };
 

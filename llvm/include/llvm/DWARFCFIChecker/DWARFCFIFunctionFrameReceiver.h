@@ -22,27 +22,51 @@ class MCCFIInstruction;
 class MCContext;
 class MCInst;
 
-/// This abstract base class is an interface for receiving DWARF function frames
-/// Call Frame Information. `DWARFCFIFunctionFrameStreamer` channels the
-/// function frames information gathered from an `MCStreamer` using a pointer to
-/// an instance of this class for the whole program.
+/// Abstract interface for receiving DWARF Call Frame Information for function
+/// frames.
+///
+/// `DWARFCFIFunctionFrameStreamer` channels the function frames information
+/// gathered from an `MCStreamer` using a pointer to an instance of this class
+/// for the whole program.
 class CFIFunctionFrameReceiver {
 public:
-  CFIFunctionFrameReceiver(const CFIFunctionFrameReceiver &) = delete;
+  /// Copy construction is deleted.
+  ///
+  /// \param Other Unused; copy construction is not supported.
+  CFIFunctionFrameReceiver(const CFIFunctionFrameReceiver &Other) = delete;
+  /// Copy assignment is deleted.
+  ///
+  /// \param Other Unused; copy assignment is not supported.
   CFIFunctionFrameReceiver &
-  operator=(const CFIFunctionFrameReceiver &) = delete;
+  operator=(const CFIFunctionFrameReceiver &Other) = delete;
+  /// Destroy the function-frame receiver.
   virtual ~CFIFunctionFrameReceiver() = default;
 
+  /// Construct a receiver that uses \p Context for related MC state.
+  ///
+  /// \param Context MC context associated with this receiver.
   CFIFunctionFrameReceiver(MCContext &Context) : Context(Context) {}
 
+  /// Get the MC context associated with this receiver.
+  ///
+  /// \return The MC context associated with this receiver.
   MCContext &getContext() const { return Context; }
 
+  /// Begin a new DWARF function frame.
+  ///
+  /// \param IsEH Whether this frame is for exception handling, not debug.
+  /// \param Prologue CFI instructions that form the frame prologue.
   virtual void startFunctionFrame(bool IsEH,
                                   ArrayRef<MCCFIInstruction> Prologue) {}
+  /// Emit a machine instruction together with its associated CFI directives.
+  ///
   /// Instructions are processed in the program order.
+  /// \param Inst Machine instruction being emitted.
+  /// \param Directives CFI directives associated with \p Inst.
   virtual void
   emitInstructionAndDirectives(const MCInst &Inst,
                                ArrayRef<MCCFIInstruction> Directives) {}
+  /// Finish the current DWARF function frame.
   virtual void finishFunctionFrame() {}
 
 private:

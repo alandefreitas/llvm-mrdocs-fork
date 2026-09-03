@@ -19,8 +19,9 @@ namespace llvm {
 
 class raw_ostream;
 
-/// Instances of this class represent a label name in the MC file,
-/// and MCLabel are created and uniqued by the MCContext class.  MCLabel
+/// Represents a label name in the MC file.
+///
+/// MCLabels are created and uniqued by the MCContext class. MCLabel
 /// should only be constructed for valid instances in the object file.
 class MCLabel {
   // The instance number of this Directional Local Label.
@@ -32,22 +33,39 @@ private: // MCContext creates and uniques these.
   MCLabel(unsigned instance) : Instance(instance) {}
 
 public:
-  MCLabel(const MCLabel &) = delete;
-  MCLabel &operator=(const MCLabel &) = delete;
+  /// Deleted copy constructor.
+  ///
+  /// \param Other - Unused; copy construction is deleted.
+  MCLabel(const MCLabel &Other) = delete;
+  /// Deleted copy assignment.
+  ///
+  /// \param Other - Unused; copy assignment is deleted.
+  MCLabel &operator=(const MCLabel &Other) = delete;
 
   /// Get the current instance of this Directional Local Label.
+  ///
+  /// \return The current instance number.
   unsigned getInstance() const { return Instance; }
 
   /// Increment the current instance of this Directional Local Label.
+  ///
+  /// \return The new instance number after incrementing.
   unsigned incInstance() { return ++Instance; }
 
   /// Print the value to the stream \p OS.
+  ///
+  /// \param OS - Stream to print to.
   LLVM_ABI void print(raw_ostream &OS) const;
 
   /// Print the value to stderr.
   LLVM_ABI void dump() const;
 };
 
+/// Print \p Label to \p OS.
+///
+/// \param OS - Stream to print to.
+/// \param Label - Label to print.
+/// \return A reference to \p OS.
 inline raw_ostream &operator<<(raw_ostream &OS, const MCLabel &Label) {
   Label.print(OS);
   return OS;

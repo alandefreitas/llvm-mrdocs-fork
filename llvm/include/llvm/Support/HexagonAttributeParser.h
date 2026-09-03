@@ -14,6 +14,7 @@
 #include "llvm/Support/HexagonAttributes.h"
 
 namespace llvm {
+/// Parser for Hexagon ELF build attributes.
 class LLVM_ABI HexagonAttributeParser : public ELFCompactAttrParser {
   struct DisplayHandler {
     HexagonAttrs::AttrType Attribute;
@@ -25,9 +26,13 @@ class LLVM_ABI HexagonAttributeParser : public ELFCompactAttrParser {
   Error handler(uint64_t Tag, bool &Handled) override;
 
 public:
+  /// Construct a parser that prints attribute details to \p SP.
+  ///
+  /// \param SP Printer used for attribute comments, or null to suppress output.
   HexagonAttributeParser(ScopedPrinter *SP)
       : ELFCompactAttrParser(SP, HexagonAttrs::getHexagonAttributeTags(),
                              "hexagon") {}
+  /// Construct a parser that does not print attribute details.
   HexagonAttributeParser()
       : ELFCompactAttrParser(HexagonAttrs::getHexagonAttributeTags(),
                              "hexagon") {}

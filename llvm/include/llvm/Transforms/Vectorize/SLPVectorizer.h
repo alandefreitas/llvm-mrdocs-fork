@@ -51,31 +51,67 @@ class WeakTrackingVH;
 /// These are implementation details and should not be used by clients.
 namespace slpvectorizer {
 
+/// Bottom-up SLP graph builder and vectorizer used by SLPVectorizerPass.
 class BoUpSLP;
 
 } // end namespace slpvectorizer
 
+/// Function pass that vectorizes straight-line code via bottom-up SLP.
+///
+/// Detects consecutive stores that can form vector stores, builds a
+/// vectorizable tree from use-def chains, and vectorizes profitable trees.
 struct SLPVectorizerPass : public OptionalPassInfoMixin<SLPVectorizerPass> {
+  /// List of store instructions that share a common base pointer.
   using StoreList = SmallVector<StoreInst *, 8>;
+  /// Map from base pointer to the stores that use it.
   using StoreListMap = MapVector<Value *, StoreList>;
+  /// List of getelementptr instructions that share a common base pointer.
   using GEPList = SmallVector<GetElementPtrInst *, 8>;
+  /// Map from base pointer to the getelementptrs that use it.
   using GEPListMap = MapVector<Value *, GEPList>;
+  /// Ordered set of instructions used as vectorization seeds or candidates.
   using InstSetVector = SmallSetVector<Instruction *, 8>;
 
+  /// Scalar evolution analysis used while building SLP trees.
   ScalarEvolution *SE = nullptr;
+  /// Target transform info used for cost modeling.
   TargetTransformInfo *TTI = nullptr;
+  /// Target library info used when recognizing library calls.
   TargetLibraryInfo *TLI = nullptr;
+  /// Alias analysis results used for memory dependence checks.
   AAResults *AA = nullptr;
+  /// Loop information used to reason about loop-carried contexts.
   LoopInfo *LI = nullptr;
+  /// Dominator tree used for dominance queries during vectorization.
   DominatorTree *DT = nullptr;
+  /// Assumption cache used for value-range and known-bits queries.
   AssumptionCache *AC = nullptr;
+  /// Demanded-bits analysis used to refine vectorization profitability.
   DemandedBits *DB = nullptr;
+  /// Data layout of the module being vectorized.
   const DataLayout *DL = nullptr;
 
 public:
+  /// Run bottom-up SLP vectorization over the function.
+  /// \param F Function whose straight-line code may be vectorized.
+  /// \param AM Function analysis manager providing analyses for the pass.
+  /// \returns The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
-  // Glue for old PM.
+  /// Run bottom-up SLP vectorization using explicitly supplied analyses.
+  ///
+  /// Glue for the legacy pass manager.
+  /// \param F Function to vectorize.
+  /// \param SE_ Scalar evolution analysis.
+  /// \param TTI_ Target transform info.
+  /// \param TLI_ Target library info.
+  /// \param AA_ Alias analysis results.
+  /// \param LI_ Loop information.
+  /// \param DT_ Dominator tree.
+  /// \param AC_ Assumption cache.
+  /// \param DB_ Demanded-bits analysis.
+  /// \param ORE_ Optimization remark emitter.
+  /// \returns True if the function was changed.
   LLVM_ABI bool runImpl(Function &F, ScalarEvolution *SE_,
                         TargetTransformInfo *TTI_, TargetLibraryInfo *TLI_,
                         AAResults *AA_, LoopInfo *LI_, DominatorTree *DT_,

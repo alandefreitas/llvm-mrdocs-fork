@@ -33,29 +33,58 @@ class CGDataOStream {
   };
 
 public:
+  /// Construct a codegen data stream over a file descriptor stream.
+  ///
+  /// \param FD File descriptor stream that receives the written bytes.
   CGDataOStream(raw_fd_ostream &FD)
       : Kind(OStreamKind::fd), OS(FD), LE(FD, llvm::endianness::little) {}
+  /// Construct a codegen data stream over a string stream.
+  ///
+  /// \param STR String stream that receives the written bytes.
   CGDataOStream(raw_string_ostream &STR)
       : Kind(OStreamKind::string), OS(STR), LE(STR, llvm::endianness::little) {}
+  /// Construct a codegen data stream over a SmallVector stream.
+  ///
+  /// \param SVEC SmallVector stream that receives the written bytes.
   CGDataOStream(raw_svector_ostream &SVEC)
       : Kind(OStreamKind::svector), OS(SVEC),
         LE(SVEC, llvm::endianness::little) {}
 
+  /// Return the current write position in the underlying stream.
+  ///
+  /// \return Current write position in the underlying stream.
   uint64_t tell() { return OS.tell(); }
+  /// Write a little-endian 64-bit value to the stream.
+  ///
+  /// \param V Value to write.
   void write(uint64_t V) { LE.write<uint64_t>(V); }
+  /// Write a little-endian 32-bit value to the stream.
+  ///
+  /// \param V Value to write.
   void write32(uint32_t V) { LE.write<uint32_t>(V); }
+  /// Write a little-endian 8-bit value to the stream.
+  ///
+  /// \param V Value to write.
   void write8(uint8_t V) { LE.write<uint8_t>(V); }
 
-  // \c patch can only be called when all data is written and flushed.
-  // For raw_string_ostream, the patch is done on the target string
-  // directly and it won't be reflected in the stream's internal buffer.
+  /// Apply back-patches to previously written stream positions.
+  ///
+  /// \c patch can only be called when all data is written and flushed.
+  /// For raw_string_ostream, the patch is done on the target string
+  /// directly and it won't be reflected in the stream's internal buffer.
+  ///
+  /// \param P Patch items describing positions and replacement data.
   LLVM_ABI void patch(ArrayRef<CGDataPatchItem> P);
 
+  /// Kind of the underlying raw stream.
   OStreamKind Kind;
+  /// Underlying raw output stream.
   raw_ostream &OS;
+  /// Little-endian writer bound to \c OS.
   support::endian::Writer LE;
 };
 
+/// Writer for codegen data records in binary or text form.
 class CodeGenDataWriter {
   /// The outlined hash tree to be written.
   OutlinedHashTreeRecord HashTreeRecord;
@@ -67,30 +96,48 @@ class CodeGenDataWriter {
   CGDataKind DataKind = CGDataKind::Unknown;
 
 public:
+  /// Construct an empty codegen data writer.
   CodeGenDataWriter() = default;
+  /// Destroy the codegen data writer.
   ~CodeGenDataWriter() = default;
 
   /// Add the outlined hash tree record. The input hash tree is released.
+  ///
+  /// \param Record Outlined hash tree record whose contents are taken.
   LLVM_ABI void addRecord(OutlinedHashTreeRecord &Record);
 
   /// Add the stable function map record. The input function map is released.
+  ///
+  /// \param Record Stable function map record whose contents are taken.
   LLVM_ABI void addRecord(StableFunctionMapRecord &Record);
 
   /// Write the codegen data to \c OS
+  ///
+  /// \param OS File stream that receives the binary codegen data.
+  /// \return Success, or an error if writing the binary data fails.
   LLVM_ABI Error write(raw_fd_ostream &OS);
 
   /// Write the codegen data in text format to \c OS
+  ///
+  /// \param OS File stream that receives the text codegen data.
+  /// \return Success, or an error if writing the text data fails.
   LLVM_ABI Error writeText(raw_fd_ostream &OS);
 
   /// Return the attributes of the current CGData.
+  ///
+  /// \return Bit mask describing the kind of the current codegen data.
   CGDataKind getCGDataKind() const { return DataKind; }
 
   /// Return true if the header indicates the data has an outlined hash tree.
+  ///
+  /// \return true if the data has an outlined hash tree.
   bool hasOutlinedHashTree() const {
     return static_cast<uint32_t>(DataKind) &
            static_cast<uint32_t>(CGDataKind::FunctionOutlinedHashTree);
   }
   /// Return true if the header indicates the data has a stable function map.
+  ///
+  /// \return true if the data has a stable function map.
   bool hasStableFunctionMap() const {
     return static_cast<uint32_t>(DataKind) &
            static_cast<uint32_t>(CGDataKind::StableFunctionMergingMap);

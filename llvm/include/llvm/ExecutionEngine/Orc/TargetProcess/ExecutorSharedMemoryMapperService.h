@@ -24,21 +24,43 @@
 
 namespace llvm {
 namespace orc {
+/// Bootstrap services that run in the executor process.
 namespace rt_bootstrap {
 
+/// Executor-side service that manages shared-memory mappings for ORC.
 class LLVM_ABI ExecutorSharedMemoryMapperService final
     : public ExecutorBootstrapService {
 public:
+  /// Destroys the shared-memory mapper service.
   ~ExecutorSharedMemoryMapperService() override = default;
 
+  /// Reserves shared address space in this process.
+  /// \param Size Number of bytes to reserve.
+  /// \return Pair of the reserved executor address and the shared-memory
+  ///         object name, or an error.
   Expected<std::pair<ExecutorAddr, std::string>> reserve(uint64_t Size);
+  /// Applies protections and runs finalization actions on a reservation.
+  /// \param Reservation Base address of a range previously returned by
+  ///        reserve.
+  /// \param FR Finalize request describing segments and actions to apply.
+  /// \return Allocation key identifying the initialized region, or an error.
   Expected<ExecutorAddr> initialize(ExecutorAddr Reservation,
                                     tpctypes::SharedMemoryFinalizeRequest &FR);
 
+  /// Runs previously specified deinitialization actions.
+  /// \param Bases Allocation keys previously returned by initialize.
+  /// \return Success, or an error if deinitialization fails.
   Error deinitialize(const std::vector<ExecutorAddr> &Bases);
+  /// Releases shared address space acquired through reserve.
+  /// \param Bases Base addresses of ranges previously returned by reserve.
+  /// \return Success, or an error if release fails.
   Error release(const std::vector<ExecutorAddr> &Bases);
 
+  /// Shuts down this service and releases any remaining reservations.
+  /// \return Success, or an error if shutdown fails.
   Error shutdown() override;
+  /// Adds this service's bootstrap symbols to \p M.
+  /// \param M Map of bootstrap symbol names to executor addresses to update.
   void addBootstrapSymbols(StringMap<ExecutorAddr> &M) override;
 
 private:

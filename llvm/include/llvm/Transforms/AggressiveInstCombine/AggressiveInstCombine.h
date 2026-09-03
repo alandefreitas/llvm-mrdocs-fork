@@ -19,9 +19,17 @@
 
 namespace llvm {
 
+/// A pass that combines expression patterns into fewer, simpler instructions.
+///
+/// This pass performs more expensive pattern matching than InstCombine, folding
+/// expression patterns into forms with fewer, simpler instructions.
 class AggressiveInstCombinePass
     : public OptionalPassInfoMixin<AggressiveInstCombinePass> {
 public:
+  /// Run aggressive instruction combining over the function.
+  /// @param F Function to combine instructions in.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

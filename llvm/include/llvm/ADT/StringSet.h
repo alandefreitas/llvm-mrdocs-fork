@@ -35,8 +35,9 @@ public:
       insert(str);
   }
   /// Construct a set from the elements of range \p R.
+  /// @param Tag Discriminator selecting the range constructor.
   /// @param R Range of StringRef-convertible values to insert.
-  template <typename Range> StringSet(llvm::from_range_t, Range &&R) {
+  template <typename Range> StringSet(llvm::from_range_t Tag, Range &&R) {
     insert(adl_begin(R), adl_end(R));
   }
   /// Construct an empty set that allocates with \p a.
@@ -75,6 +76,8 @@ public:
   }
 
   /// Check if the set contains the given \c key.
+  /// @param key String to look up.
+  /// @return True if \p key is present in the set.
   [[nodiscard]] bool contains(StringRef key) const {
     return Base::contains(key);
   }

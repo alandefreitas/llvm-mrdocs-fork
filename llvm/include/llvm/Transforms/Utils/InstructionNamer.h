@@ -12,8 +12,17 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+/// Pass that assigns names to anonymous arguments, blocks, and instructions.
+///
+/// Useful when diffing the effect of an optimization, because deleting an
+/// unnamed instruction can renumber other instructions and make the diff
+/// noisy.
 struct InstructionNamerPass : OptionalPassInfoMixin<InstructionNamerPass> {
-  LLVM_ABI PreservedAnalyses run(Function &, FunctionAnalysisManager &);
+  /// Run the instruction-namer pass over the function.
+  /// @param F Function whose anonymous values should be named.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // namespace llvm
 

@@ -22,8 +22,11 @@ namespace gsym {
 class FileWriter;
 class GsymDataExtractor;
 
+/// The GSYM file magic number ('GSYM' in ASCII).
 constexpr uint32_t GSYM_MAGIC = 0x4753594d; // 'GSYM'
+/// The byte-swapped GSYM magic number ('MYSG' in ASCII).
 constexpr uint32_t GSYM_CIGAM = 0x4d595347; // 'MYSG'
+/// The maximum size in bytes of a UUID stored in a GSYM header.
 constexpr size_t GSYM_MAX_UUID_SIZE = 20;
 
 /// The GSYM header.
@@ -43,10 +46,14 @@ constexpr size_t GSYM_MAX_UUID_SIZE = 20;
 /// When endianness is swapped, the Header::decode() function should be used to
 /// decode the header.
 struct Header {
+  /// The magic bytes that identify a GSYM file or section.
+  ///
   /// The magic bytes should be set to GSYM_MAGIC. This helps detect if a file
   /// is a GSYM file by scanning the first 4 bytes of a file or section.
-  /// This value might appear byte swapped
+  /// This value might appear byte swapped.
   uint32_t Magic;
+  /// The GSYM format version number.
+  ///
   /// The version can number determines how the header is decoded and how each
   /// InfoType in FunctionInfo is encoded/decoded. As version numbers increase,
   /// "Magic" and "Version" members should always appear at offset zero and 4
@@ -56,12 +63,15 @@ struct Header {
   uint8_t AddrOffSize;
   /// The size in bytes of the UUID encoded in the "UUID" member.
   uint8_t UUIDSize;
-  /// The 64 bit base address that all address offsets in the address offsets
-  /// table are relative to. Storing a full 64 bit address allows our address
-  /// offsets table to be smaller on disk.
+  /// The 64 bit base address that all address offsets are relative to.
+  ///
+  /// Storing a full 64 bit address allows our address offsets table to be
+  /// smaller on disk.
   uint64_t BaseAddress;
   /// The number of addresses stored in the address offsets table.
   uint32_t NumAddresses;
+  /// The file-relative offset of the string table.
+  ///
   /// The file relative offset of the start of the string table for strings
   /// contained in the GSYM file. If the GSYM in contained in a stand alone
   /// file this will be the file offset of the start of the string table. If
@@ -70,31 +80,42 @@ struct Header {
   /// span one or more executable string tables. This allows the strings to
   /// share string tables in an ELF or mach-o file.
   uint32_t StrtabOffset;
-  /// The size in bytes of the string table. For a stand alone GSYM file, this
-  /// will be the exact size in bytes of the string table. When the GSYM data
-  /// is in a section within an executable file, this size can span one or more
-  /// sections that contains strings. This allows any strings that are already
-  /// stored in the executable file to be re-used, and any extra strings could
-  /// be added to another string table and the string table offset and size
-  /// can be set to span all needed string tables.
+  /// The size in bytes of the string table.
+  ///
+  /// For a stand alone GSYM file, this will be the exact size in bytes of the
+  /// string table. When the GSYM data is in a section within an executable
+  /// file, this size can span one or more sections that contains strings. This
+  /// allows any strings that are already stored in the executable file to be
+  /// re-used, and any extra strings could be added to another string table and
+  /// the string table offset and size can be set to span all needed string
+  /// tables.
   uint32_t StrtabSize;
-  /// The UUID of the original executable file. This is stored to allow
-  /// matching a GSYM file to an executable file when symbolication is
-  /// required. Only the first "UUIDSize" bytes of the UUID are valid. Any
-  /// bytes in the UUID value that appear after the first UUIDSize bytes should
-  /// be set to zero.
+  /// The UUID of the original executable file.
+  ///
+  /// This is stored to allow matching a GSYM file to an executable file when
+  /// symbolication is required. Only the first "UUIDSize" bytes of the UUID
+  /// are valid. Any bytes in the UUID value that appear after the first
+  /// UUIDSize bytes should be set to zero.
   uint8_t UUID[GSYM_MAX_UUID_SIZE];
 
   /// Return the version of this header.
+  ///
+  /// \returns The GSYM format version number.
   static constexpr uint32_t getVersion() { return 1; }
 
   /// Return the on-disk encoded size of the header in bytes.
+  ///
+  /// \returns The encoded size of the header in bytes.
   static constexpr uint64_t getEncodedSize() { return sizeof(Header); }
 
   /// Return the size in bytes of address info offsets.
+  ///
+  /// \returns The size in bytes of each address info offset.
   static constexpr uint8_t getAddressInfoOffsetSize() { return 4; }
 
   /// Return the size in bytes of string table offsets.
+  ///
+  /// \returns The size in bytes of each string table offset.
   static constexpr uint8_t getStringOffsetSize() { return 4; }
 
   /// Check if a header is valid and return an error if anything is wrong.
@@ -132,7 +153,17 @@ struct Header {
   LLVM_ABI llvm::Error encode(FileWriter &O) const;
 };
 
+/// Equality comparison operator for Header.
+///
+/// \param LHS The left-hand Header to compare.
+/// \param RHS The right-hand Header to compare.
+/// \returns True if both Header objects are equal.
 LLVM_ABI bool operator==(const Header &LHS, const Header &RHS);
+/// Stream a human-readable representation of \p H to \p OS.
+///
+/// \param OS Destination stream.
+/// \param H Header to print.
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const llvm::gsym::Header &H);
 
 } // namespace gsym

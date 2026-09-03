@@ -121,68 +121,90 @@ class MemDepResult {
   explicit MemDepResult(ValueTy V) : Value(V) {}
 
 public:
+  /// Construct a default MemDepResult in the Invalid state with a null instruction.
   MemDepResult() = default;
 
-  /// get methods: These are static ctor methods for creating various
-  /// MemDepResult kinds.
+  /// Create a Def result that depends on \p Inst.
+  /// @param Inst Instruction that defines or produces the memory location.
+  /// @return A Def MemDepResult that depends on \p Inst.
   static MemDepResult getDef(Instruction *Inst) {
     assert(Inst && "Def requires inst");
     return MemDepResult(ValueTy::create<Def>(Inst));
   }
+  /// Create a Clobber result that depends on \p Inst.
+  /// @param Inst Instruction that clobbers the queried memory location.
+  /// @return A Clobber MemDepResult that depends on \p Inst.
   static MemDepResult getClobber(Instruction *Inst) {
     assert(Inst && "Clobber requires inst");
     return MemDepResult(ValueTy::create<Clobber>(Inst));
   }
+  /// Create a NonLocal result indicating no dependency in the queried block.
+  /// @return A NonLocal MemDepResult.
   static MemDepResult getNonLocal() {
     return MemDepResult(ValueTy::create<Other>(NonLocal));
   }
+  /// Create a NonFuncLocal result indicating no dependency in the function.
+  /// @return A NonFuncLocal MemDepResult.
   static MemDepResult getNonFuncLocal() {
     return MemDepResult(ValueTy::create<Other>(NonFuncLocal));
   }
+  /// Create a Select result indicating dependence on a select of two addresses.
+  /// @return A Select MemDepResult.
   static MemDepResult getSelect() {
     return MemDepResult(ValueTy::create<Other>(Select));
   }
+  /// Create an Unknown result for a dependency that cannot be computed.
+  /// @return An Unknown MemDepResult.
   static MemDepResult getUnknown() {
     return MemDepResult(ValueTy::create<Other>(Unknown));
   }
 
   /// Tests if this MemDepResult represents a query that is an instruction
   /// clobber dependency.
+  /// @return True if this is a clobber dependency.
   bool isClobber() const { return Value.is<Clobber>(); }
 
   /// Tests if this MemDepResult represents a query that is an instruction
   /// definition dependency.
+  /// @return True if this is a definition dependency.
   bool isDef() const { return Value.is<Def>(); }
 
   /// Tests if this MemDepResult represents a valid local query (Clobber/Def).
+  /// @return True if this is a valid local query (Clobber/Def).
   bool isLocal() const { return isClobber() || isDef(); }
 
   /// Tests if this MemDepResult represents a query that is transparent to the
   /// start of the block, but where a non-local hasn't been done.
+  /// @return True if the query is transparent to the start of the block.
   bool isNonLocal() const {
     return Value.is<Other>() && Value.cast<Other>() == NonLocal;
   }
 
   /// Tests if this MemDepResult represents a query that is transparent to the
   /// start of the function.
+  /// @return True if the query is transparent to the start of the function.
   bool isNonFuncLocal() const {
     return Value.is<Other>() && Value.cast<Other>() == NonFuncLocal;
   }
 
   /// Tests if this MemDepResult represents a query that depends on a select
   /// instruction whose two sides each reach a non-clobbered value.
+  /// @return True if the query depends on a select instruction.
   bool isSelect() const {
     return Value.is<Other>() && Value.cast<Other>() == Select;
   }
 
   /// Tests if this MemDepResult represents a query which cannot and/or will
   /// not be computed.
+  /// @return True if the query cannot or will not be computed.
   bool isUnknown() const {
     return Value.is<Other>() && Value.cast<Other>() == Unknown;
   }
 
   /// If this is a normal dependency, returns the instruction that is depended
   /// on.  Otherwise, returns null.
+  /// @return The depended-on instruction, or null if this is not a normal
+  /// dependency.
   Instruction *getInst() const {
     switch (Value.getTag()) {
     case Invalid:
@@ -197,9 +219,21 @@ public:
     llvm_unreachable("Unknown discriminant!");
   }
 
+  /// Return true if this result equals \p M.
+  /// @param M Other MemDepResult to compare against.
+  /// @return True if this result equals \p M.
   bool operator==(const MemDepResult &M) const { return Value == M.Value; }
+  /// Return true if this result differs from \p M.
+  /// @param M Other MemDepResult to compare against.
+  /// @return True if this result differs from \p M.
   bool operator!=(const MemDepResult &M) const { return Value != M.Value; }
+  /// Return true if this result is ordered before \p M.
+  /// @param M Other MemDepResult to compare against.
+  /// @return True if this result is ordered before \p M.
   bool operator<(const MemDepResult &M) const { return Value < M.Value; }
+  /// Return true if this result is ordered after \p M.
+  /// @param M Other MemDepResult to compare against.
+  /// @return True if this result is ordered after \p M.
   bool operator>(const MemDepResult &M) const { return Value > M.Value; }
 
 private:
@@ -221,19 +255,35 @@ class NonLocalDepEntry {
   MemDepResult Result;
 
 public:
+  /// Construct a cache entry for \p BB with dependence result \p Result.
+  /// @param BB Basic block this entry describes.
+  /// @param Result Dependence result for \p BB.
   NonLocalDepEntry(BasicBlock *BB, MemDepResult Result)
       : BB(BB), Result(Result) {}
 
-  // This is used for searches.
+  /// Construct a search key entry for \p BB with a default result.
+  ///
+  /// Used for binary searches into sorted NonLocalDepInfo vectors.
+  /// @param BB Basic block used as the sort key.
   NonLocalDepEntry(BasicBlock *BB) : BB(BB) {}
 
-  // BB is the sort key, it can't be changed.
+  /// Return the basic block for this entry.
+  ///
+  /// BB is the sort key and cannot be changed.
+  /// @return The basic block for this entry.
   BasicBlock *getBB() const { return BB; }
 
+  /// Set the cached dependence result to \p R.
+  /// @param R New dependence result for this block.
   void setResult(const MemDepResult &R) { Result = R; }
 
+  /// Return the cached dependence result for this block.
+  /// @return The cached dependence result for this block.
   const MemDepResult &getResult() const { return Result; }
 
+  /// Return true if this entry's block is ordered before \p RHS.
+  /// @param RHS Other entry to compare against by basic block address.
+  /// @return True if this entry's block is ordered before \p RHS.
   bool operator<(const NonLocalDepEntry &RHS) const { return BB < RHS.BB; }
 };
 
@@ -246,18 +296,30 @@ class NonLocalDepResult {
   SelectAddr Address;
 
 public:
+  /// Construct a non-local dependence result for \p BB.
+  /// @param BB Basic block this result describes.
+  /// @param Result Dependence result for \p BB.
+  /// @param Address Potentially phi-translated address live in \p BB.
   NonLocalDepResult(BasicBlock *BB, MemDepResult Result,
                     const SelectAddr &Address)
       : Entry(BB, Result), Address(Address) {}
 
-  // BB is the sort key, it can't be changed.
+  /// Return the basic block for this result.
+  ///
+  /// BB is the sort key and cannot be changed.
+  /// @return The basic block for this result.
   BasicBlock *getBB() const { return Entry.getBB(); }
 
+  /// Set the dependence result and address for this block.
+  /// @param R New dependence result.
+  /// @param Addr Potentially phi-translated address for this block.
   void setResult(const MemDepResult &R, const SelectAddr &Addr) {
     Entry.setResult(R);
     Address = Addr;
   }
 
+  /// Return the dependence result for this block.
+  /// @return The dependence result for this block.
   const MemDepResult &getResult() const { return Entry.getResult(); }
 
   /// Returns the address of this pointer in this block.
@@ -272,6 +334,8 @@ public:
   /// If the result is a select dependency (\see MemDepResult::isSelect), the
   /// returned SelectAddr instead carries the select condition and the two
   /// translated addresses (true/false side).
+  /// @return The (possibly phi-translated) address in this block, or a null
+  /// SelectAddr if unavailable.
   SelectAddr getAddress() const { return Address; }
 };
 
@@ -293,6 +357,7 @@ class MemoryDependenceResults {
   LocalDepMapType LocalDeps;
 
 public:
+  /// Vector of per-block non-local dependence cache entries.
   using NonLocalDepInfo = std::vector<NonLocalDepEntry>;
 
 private:
@@ -389,6 +454,12 @@ private:
   ClobberOffsetsMapType ClobberOffsets;
 
 public:
+  /// Construct memory dependence results using the given analyses and scan limit.
+  /// @param AA Alias analysis results used for dependence queries.
+  /// @param AC Assumption cache for context-sensitive facts.
+  /// @param TLI Target library info for recognizing library calls.
+  /// @param DT Dominator tree used by escape analysis and queries.
+  /// @param DefaultBlockScanLimit Default cap on instructions scanned per block.
   MemoryDependenceResults(AAResults &AA, AssumptionCache &AC,
                           const TargetLibraryInfo &TLI, DominatorTree &DT,
                           unsigned DefaultBlockScanLimit)
@@ -396,18 +467,27 @@ public:
         DefaultBlockScanLimit(DefaultBlockScanLimit) {}
 
   /// Handle invalidation in the new PM.
+  /// @param F Function whose analysis result may be invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if this analysis result should be invalidated.
   LLVM_ABI bool invalidate(Function &F, const PreservedAnalyses &PA,
                            FunctionAnalysisManager::Invalidator &Inv);
 
-  /// Some methods limit the number of instructions they will examine.
-  /// The return value of this method is the default limit that will be
-  /// used if no limit is explicitly passed in.
+  /// Return the default per-block instruction scan limit.
+  ///
+  /// Some methods limit the number of instructions they will examine. The
+  /// return value of this method is the default limit that will be used if no
+  /// limit is explicitly passed in.
+  /// @return The default per-block instruction scan limit.
   LLVM_ABI unsigned getDefaultBlockScanLimit() const;
 
   /// Returns the instruction on which a memory operation depends.
   ///
   /// See the class comment for more details. It is illegal to call this on
   /// non-memory instructions.
+  /// @param QueryInst Memory instruction whose dependence is queried.
+  /// @return The local MemDepResult for \p QueryInst.
   LLVM_ABI MemDepResult getDependency(Instruction *QueryInst);
 
   /// Perform a full dependency query for the specified call, returning the set
@@ -423,9 +503,14 @@ public:
   /// invalidated on the next non-local query or when an instruction is
   /// removed.  Clients must copy this data if they want it around longer than
   /// that.
+  /// @param QueryCall Call whose non-local dependence is queried.
+  /// @return A reference to the cached non-local dependence info for
+  /// \p QueryCall.
   LLVM_ABI const NonLocalDepInfo &
   getNonLocalCallDependency(CallBase *QueryCall);
 
+  /// Return the set of instructions that define or clobber \p QueryInst's memory.
+  ///
   /// Perform a full dependency query for an access to the QueryInst's
   /// specified memory location, returning the set of instructions that either
   /// define or clobber the value.
@@ -436,12 +521,15 @@ public:
   ///
   /// This method assumes the pointer has a "NonLocal" dependency within
   /// QueryInst's parent basic block.
+  /// @param QueryInst Instruction whose memory location is queried.
+  /// @param Result Filled with per-block non-local dependence results.
   LLVM_ABI void
   getNonLocalPointerDependency(Instruction *QueryInst,
                                SmallVectorImpl<NonLocalDepResult> &Result);
 
   /// Removes an instruction from the dependence analysis, updating the
   /// dependence of instructions that previously depended on it.
+  /// @param InstToRemove Instruction to remove from the dependence cache.
   LLVM_ABI void removeInstruction(Instruction *InstToRemove);
 
   /// Invalidates cached information about the specified pointer, because it
@@ -451,6 +539,7 @@ public:
   /// equivalence between the pointer and some other value and replaces the
   /// other value with ptr. This can make Ptr available in more places that
   /// cached info does not necessarily keep.
+  /// @param Ptr Pointer whose cached dependence info should be discarded.
   LLVM_ABI void invalidateCachedPointerInfo(Value *Ptr);
 
   /// Clears the PredIteratorCache info.
@@ -472,31 +561,64 @@ public:
   /// in, the limit will default to the value of -memdep-block-scan-limit.
   ///
   /// Note that this is an uncached query, and thus may be inefficient.
+  /// @param Loc Memory location whose dependence is queried.
+  /// @param isLoad True if the query is a load-like access.
+  /// @param ScanIt Iterator to start scanning backwards from in \p BB.
+  /// @param BB Basic block in which to scan for a dependence.
+  /// @param QueryInst Optional instruction providing query metadata.
+  /// @param Limit Optional remaining instruction scan budget; updated on return.
+  /// @return The MemDepResult for the dependence of \p Loc.
   LLVM_ABI MemDepResult getPointerDependencyFrom(
       const MemoryLocation &Loc, bool isLoad, BasicBlock::iterator ScanIt,
       BasicBlock *BB, Instruction *QueryInst = nullptr,
       unsigned *Limit = nullptr);
 
+  /// Returns the instruction on which a memory location depends, using \p BatchAA.
+  /// @param Loc Memory location whose dependence is queried.
+  /// @param isLoad True if the query is a load-like access.
+  /// @param ScanIt Iterator to start scanning backwards from in \p BB.
+  /// @param BB Basic block in which to scan for a dependence.
+  /// @param QueryInst Optional instruction providing query metadata.
+  /// @param Limit Remaining instruction scan budget; updated on return.
+  /// @param BatchAA Batched alias analysis used for this query.
+  /// @return The MemDepResult for the dependence of \p Loc.
   LLVM_ABI MemDepResult getPointerDependencyFrom(
       const MemoryLocation &Loc, bool isLoad, BasicBlock::iterator ScanIt,
       BasicBlock *BB, Instruction *QueryInst, unsigned *Limit,
       BatchAAResults &BatchAA);
 
+  /// Scan for a simple pointer dependence without invariant-group handling.
+  /// @param MemLoc Memory location whose dependence is queried.
+  /// @param isLoad True if the query is a load-like access.
+  /// @param ScanIt Iterator to start scanning backwards from in \p BB.
+  /// @param BB Basic block in which to scan for a dependence.
+  /// @param QueryInst Optional instruction providing query metadata.
+  /// @param Limit Remaining instruction scan budget; updated on return.
+  /// @param BatchAA Batched alias analysis used for this query.
+  /// @return The MemDepResult for the simple pointer dependence.
   LLVM_ABI MemDepResult getSimplePointerDependencyFrom(
       const MemoryLocation &MemLoc, bool isLoad, BasicBlock::iterator ScanIt,
       BasicBlock *BB, Instruction *QueryInst, unsigned *Limit,
       BatchAAResults &BatchAA);
 
+  /// Find a dependence among invariant.group loads/stores of the same pointer.
+  ///
   /// This analysis looks for other loads and stores with invariant.group
   /// metadata and the same pointer operand. Returns Unknown if it does not
   /// find anything, and Def if it can be assumed that 2 instructions load or
   /// store the same value and NonLocal which indicate that non-local Def was
   /// found, which can be retrieved by calling getNonLocalPointerDependency
   /// with the same queried instruction.
+  /// @param LI Load with invariant.group metadata to query.
+  /// @param BB Basic block in which to look for an invariant-group dependence.
+  /// @return Def, NonLocal, or Unknown depending on whether a matching
+  /// invariant.group access is found.
   LLVM_ABI MemDepResult getInvariantGroupPointerDependency(LoadInst *LI,
                                                            BasicBlock *BB);
 
   /// Return the clobber offset to dependent instruction.
+  /// @param DepInst Dependent load whose cached clobber offset is requested.
+  /// @return The cached clobber offset for \p DepInst, or std::nullopt if none.
   std::optional<int32_t> getClobberOffset(LoadInst *DepInst) const {
     const auto Off = ClobberOffsets.find(DepInst);
     if (Off != ClobberOffsets.end())
@@ -542,11 +664,19 @@ class MemoryDependenceAnalysis
   unsigned DefaultBlockScanLimit;
 
 public:
+  /// Analysis result type produced for each function.
   using Result = MemoryDependenceResults;
 
+  /// Construct the analysis with the default block scan limit.
   LLVM_ABI MemoryDependenceAnalysis();
+  /// Construct the analysis with a custom default block scan limit.
+  /// @param DefaultBlockScanLimit Default cap on instructions scanned per block.
   MemoryDependenceAnalysis(unsigned DefaultBlockScanLimit) : DefaultBlockScanLimit(DefaultBlockScanLimit) { }
 
+  /// Run the analysis over \p F and produce MemoryDependenceResults.
+  /// @param F Function to analyze.
+  /// @param AM Function analysis manager providing dependencies.
+  /// @return MemoryDependenceResults for \p F.
   LLVM_ABI MemoryDependenceResults run(Function &F,
                                        FunctionAnalysisManager &AM);
 };
@@ -557,20 +687,28 @@ class LLVM_ABI MemoryDependenceWrapperPass : public FunctionPass {
   std::optional<MemoryDependenceResults> MemDep;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct the legacy MemoryDependenceResults wrapper pass.
   MemoryDependenceWrapperPass();
+  /// Destroy the legacy MemoryDependenceResults wrapper pass.
   ~MemoryDependenceWrapperPass() override;
 
   /// Pass Implementation stuff.  This doesn't do any analysis eagerly.
-  bool runOnFunction(Function &) override;
+  /// @param F Function to prepare MemoryDependenceResults for.
+  /// @return False; this analysis does not modify the function.
+  bool runOnFunction(Function &F) override;
 
   /// Clean up memory in between runs
   void releaseMemory() override;
 
   /// Does not modify anything.  It uses Value Numbering and Alias Analysis.
+  /// @param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Return the MemoryDependenceResults computed by this pass.
+  /// @return The MemoryDependenceResults computed by this pass.
   MemoryDependenceResults &getMemDep() { return *MemDep; }
 };
 

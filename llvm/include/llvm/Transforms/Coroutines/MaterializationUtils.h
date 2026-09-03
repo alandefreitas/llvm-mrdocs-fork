@@ -14,10 +14,23 @@
 
 namespace llvm::coro {
 
-// True if I is trivially rematerialzable, e.g. InsertElementInst
+/// Return true if \p I is trivially rematerializable.
+///
+/// Examples include InsertElementInst.
+///
+/// \param I Instruction to test for trivial rematerializability.
+/// \return true if \p I is trivially rematerializable.
 LLVM_ABI bool isTriviallyMaterializable(Instruction &I);
 
-// Performs rematerialization, invoked from buildCoroutineFrame.
+/// Rematerialize instructions across suspend points instead of spilling them.
+///
+/// Invoked from buildCoroutineFrame.
+///
+/// \param F The coroutine function to rewrite.
+/// \param Checker Suspend-crossing analysis used to find rematerialization
+///        candidates.
+/// \param IsMaterializable Callback that returns true for instructions that
+///        may be rematerialized instead of spilled into the frame.
 LLVM_ABI void
 doRematerializations(Function &F, SuspendCrossingInfo &Checker,
                      std::function<bool(Instruction &)> IsMaterializable);

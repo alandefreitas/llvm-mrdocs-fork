@@ -20,149 +20,215 @@
 
 namespace llvm {
 
-/// DefaultDOTGraphTraits - This class provides the default implementations of
-/// all of the DOTGraphTraits methods.  If a specialization does not need to
-/// override all methods here it should inherit so that it can get the default
-/// implementations.
+/// Default implementations of all DOTGraphTraits customization hooks.
 ///
+/// If a specialization does not need to override all methods here it should
+/// inherit so that it can get the default implementations.
 struct DefaultDOTGraphTraits {
 private:
   bool IsSimple;
 
 protected:
+  /// Return true if this traits instance was constructed for simple names.
+  ///
+  /// \return True when short node names were requested at construction.
   bool isSimple() {
     return IsSimple;
   }
 
 public:
+  /// Construct traits that optionally request short node names.
+  ///
+  /// \param simple If true, prefer short labels over detailed ones.
   explicit DefaultDOTGraphTraits(bool simple=false) : IsSimple (simple) {}
 
-  /// getGraphName - Return the label for the graph as a whole.  Printed at the
-  /// top of the graph.
+  /// Return the label for the graph as a whole.
   ///
+  /// Printed at the top of the graph.
+  ///
+  /// \param G Graph whose display name is requested.
+  /// \return Graph display name, or an empty string when none is provided.
   template<typename GraphType>
-  static std::string getGraphName(const GraphType &) { return ""; }
+  static std::string getGraphName(const GraphType &G) { return ""; }
 
-  /// getGraphProperties - Return any custom properties that should be included
-  /// in the top level graph structure for dot.
+  /// Return custom properties for the top-level DOT graph structure.
   ///
+  /// \param G Graph whose DOT properties are requested.
+  /// \return DOT property string for the graph, or empty when none are set.
   template<typename GraphType>
-  static std::string getGraphProperties(const GraphType &) {
+  static std::string getGraphProperties(const GraphType &G) {
     return "";
   }
 
   /// renderGraphFromBottomUp - If this function returns true, the graph is
   /// emitted bottom-up instead of top-down.  This requires graphviz 2.0 to work
   /// though.
+  ///
+  /// \return True when the graph should be emitted bottom-up.
   static bool renderGraphFromBottomUp() {
     return false;
   }
 
-  /// isNodeHidden - If the function returns true, the given node is not
-  /// displayed in the graph.
+  /// Return true if the given node should be omitted from the graph.
+  ///
+  /// \param Node Node to test for visibility.
+  /// \param G Graph that contains \p Node.
+  /// \return True when \p Node should be hidden from the emitted graph.
   template <typename GraphType>
-  static bool isNodeHidden(const void *, const GraphType &) {
+  static bool isNodeHidden(const void *Node, const GraphType &G) {
     return false;
   }
 
-  // renderNodesUsingHTML - If the function returns true, nodes will be
-  // rendered using HTML-like labels which allows colors, etc in the nodes
-  // and the edge source labels.
+  /// Return true if nodes should be rendered with HTML-like labels.
+  ///
+  /// HTML-like labels allow colors and richer formatting in nodes and edge
+  /// source labels.
+  ///
+  /// \return True when nodes and edge source labels use HTML-like formatting.
   static bool renderNodesUsingHTML() { return false; }
 
-  /// getNodeLabel - Given a node and a pointer to the top level graph, return
-  /// the label to print in the node.
-  template<typename GraphType>
-  std::string getNodeLabel(const void *, const GraphType &) {
-    return "";
-  }
-
-  // getNodeIdentifierLabel - Returns a string representing the
-  // address or other unique identifier of the node. (Only used if
-  // non-empty.)
-  template <typename GraphType>
-  static std::string getNodeIdentifierLabel(const void *, const GraphType &) {
-    return "";
-  }
-
-  template<typename GraphType>
-  static std::string getNodeDescription(const void *, const GraphType &) {
-    return "";
-  }
-
-  /// If you want to specify custom node attributes, this is the place to do so
+  /// Return the label to print inside the given node.
   ///
+  /// \param Node Node whose label is requested.
+  /// \param G Graph that contains \p Node.
+  /// \return Label text drawn inside \p Node, or empty when none is set.
   template<typename GraphType>
-  static std::string getNodeAttributes(const void *,
-                                       const GraphType &) {
+  std::string getNodeLabel(const void *Node, const GraphType &G) {
     return "";
   }
 
-  /// If you want to override the dot attributes printed for a particular edge,
-  /// override this method.
+  /// Return a unique identifier string for the given node.
+  ///
+  /// Typically an address or other unique token. Only used when non-empty.
+  ///
+  /// \param Node Node whose identifier label is requested.
+  /// \param G Graph that contains \p Node.
+  /// \return Unique identifier for \p Node, or empty when unused.
+  template <typename GraphType>
+  static std::string getNodeIdentifierLabel(const void *Node,
+                                           const GraphType &G) {
+    return "";
+  }
+
+  /// Return an optional longer description for the given node.
+  ///
+  /// \param Node Node whose description is requested.
+  /// \param G Graph that contains \p Node.
+  /// \return Longer description for \p Node, or empty when none is provided.
+  template<typename GraphType>
+  static std::string getNodeDescription(const void *Node, const GraphType &G) {
+    return "";
+  }
+
+  /// Return custom DOT attributes for the given node.
+  ///
+  /// \param Node Node whose attributes are requested.
+  /// \param G Graph that contains \p Node.
+  /// \return DOT attribute string for \p Node, or empty when none are set.
+  template<typename GraphType>
+  static std::string getNodeAttributes(const void *Node,
+                                       const GraphType &G) {
+    return "";
+  }
+
+  /// Return custom DOT attributes for a particular edge.
+  ///
+  /// \param Node Source node of the edge.
+  /// \param EI Iterator identifying the outgoing edge.
+  /// \param G Graph that contains the edge.
+  /// \return DOT attribute string for the edge, or empty when none are set.
   template<typename EdgeIter, typename GraphType>
-  static std::string getEdgeAttributes(const void *, EdgeIter,
-                                       const GraphType &) {
+  static std::string getEdgeAttributes(const void *Node, EdgeIter EI,
+                                       const GraphType &G) {
     return "";
   }
 
-  /// getEdgeSourceLabel - If you want to label the edge source itself,
-  /// implement this method.
+  /// Return a label for the edge source itself, if any.
+  ///
+  /// \param Node Source node of the edge.
+  /// \param EI Iterator identifying the outgoing edge.
+  /// \return Label for the edge source, or empty when none is provided.
   template<typename EdgeIter>
-  static std::string getEdgeSourceLabel(const void *, EdgeIter) {
+  static std::string getEdgeSourceLabel(const void *Node, EdgeIter EI) {
     return "";
   }
 
-  /// edgeTargetsEdgeSource - This method returns true if this outgoing edge
-  /// should actually target another edge source, not a node.  If this method is
-  /// implemented, getEdgeTarget should be implemented.
+  /// Return true if this outgoing edge should target another edge source.
+  ///
+  /// When true, the edge targets another edge source rather than a node. If
+  /// this method is overridden, \c getEdgeTarget should be implemented too.
+  ///
+  /// \param Node Source node of the edge.
+  /// \param EI Iterator identifying the outgoing edge.
+  /// \return True when the edge targets another edge source instead of a node.
   template<typename EdgeIter>
-  static bool edgeTargetsEdgeSource(const void *, EdgeIter) {
+  static bool edgeTargetsEdgeSource(const void *Node, EdgeIter EI) {
     return false;
   }
 
-  /// getEdgeTarget - If edgeTargetsEdgeSource returns true, this method is
-  /// called to determine which outgoing edge of Node is the target of this
-  /// edge.
+  /// Return the outgoing edge that is the target of this edge.
+  ///
+  /// Called when \c edgeTargetsEdgeSource returns true to determine which
+  /// outgoing edge of \p Node is the target of this edge.
+  ///
+  /// \param Node Source node whose outgoing edges are considered.
+  /// \param I Iterator identifying the outgoing edge used as the target.
+  /// \return Iterator to the outgoing edge that this edge should target.
   template<typename EdgeIter>
-  static EdgeIter getEdgeTarget(const void *, EdgeIter I) {
+  static EdgeIter getEdgeTarget(const void *Node, EdgeIter I) {
     return I;
   }
 
   /// hasEdgeDestLabels - If this function returns true, the graph is able
   /// to provide labels for edge destinations.
+  ///
+  /// \return True when edge destination labels are available for the graph.
   static bool hasEdgeDestLabels() {
     return false;
   }
 
-  /// numEdgeDestLabels - If hasEdgeDestLabels, this function returns the
-  /// number of incoming edge labels the given node has.
-  static unsigned numEdgeDestLabels(const void *) {
+  /// Return how many incoming edge destination labels the node has.
+  ///
+  /// Only meaningful when \c hasEdgeDestLabels returns true.
+  ///
+  /// \param Node Node whose incoming edge destination labels are counted.
+  /// \return Number of incoming edge destination labels on \p Node.
+  static unsigned numEdgeDestLabels(const void *Node) {
     return 0;
   }
 
-  /// getEdgeDestLabel - If hasEdgeDestLabels, this function returns the
-  /// incoming edge label with the given index in the given node.
-  static std::string getEdgeDestLabel(const void *, unsigned) {
+  /// Return the incoming edge destination label at the given index.
+  ///
+  /// Only meaningful when \c hasEdgeDestLabels returns true.
+  ///
+  /// \param Node Node whose incoming edge destination labels are queried.
+  /// \param Idx Zero-based index of the destination label to return.
+  /// \return Destination label at \p Idx, or empty when none is provided.
+  static std::string getEdgeDestLabel(const void *Node, unsigned Idx) {
     return "";
   }
 
-  /// addCustomGraphFeatures - If a graph is made up of more than just
-  /// straight-forward nodes and edges, this is the place to put all of the
-  /// custom stuff necessary.  The GraphWriter object, instantiated with your
-  /// GraphType is passed in as an argument.  You may call arbitrary methods on
-  /// it to add things to the output graph.
+  /// Emit graph features beyond ordinary nodes and edges.
   ///
+  /// If a graph is made up of more than just straight-forward nodes and edges,
+  /// this is the place to put all of the custom stuff necessary. The
+  /// GraphWriter object, instantiated with your GraphType, is passed in as an
+  /// argument. You may call arbitrary methods on it to add things to the output
+  /// graph.
+  ///
+  /// \param G Graph being written.
+  /// \param Writer Writer used to emit additional DOT features.
   template<typename GraphType, typename GraphWriter>
-  static void addCustomGraphFeatures(const GraphType &, GraphWriter &) {}
+  static void addCustomGraphFeatures(const GraphType &G, GraphWriter &Writer) {}
 };
 
 
-/// DOTGraphTraits - Template class that can be specialized to customize how
-/// graphs are converted to 'dot' graphs.  When specializing, you may inherit
-/// from DefaultDOTGraphTraits if you don't need to override everything.
+/// Traits that customize how a graph type is converted to DOT.
 ///
+/// Specialize for each graph type. When specializing, you may inherit from
+/// DefaultDOTGraphTraits if you don't need to override everything.
 template <typename Ty> struct DOTGraphTraits : DefaultDOTGraphTraits {
+  /// Inherit constructors from DefaultDOTGraphTraits.
   using DefaultDOTGraphTraits::DefaultDOTGraphTraits;
 };
 

@@ -41,25 +41,41 @@ class MachineRegisterInfo;
 class Register;
 class TargetRegisterInfo;
 
+/// Detects dead and undefined subregister lanes across COPY-like instructions.
 class DeadLaneDetector {
 public:
   /// Contains a bitmask of which lanes of a given virtual register are
   /// defined and which ones are actually used.
   struct VRegInfo {
+    /// Bitmask of lanes that are used from this virtual register.
     LaneBitmask UsedLanes;
+    /// Bitmask of lanes that are defined in this virtual register.
     LaneBitmask DefinedLanes;
   };
 
+  /// Construct a detector for the given machine register info.
+  ///
+  /// \param MRI Machine register info providing virtual registers to analyze.
+  /// \param TRI Target register info used for subregister lane queries.
   LLVM_ABI DeadLaneDetector(const MachineRegisterInfo *MRI,
                             const TargetRegisterInfo *TRI);
 
   /// Update the \p DefinedLanes and the \p UsedLanes for all virtual registers.
   LLVM_ABI void computeSubRegisterLaneBitInfo();
 
+  /// Return the used/defined lane info for virtual register index \p RegIdx.
+  ///
+  /// \param RegIdx Index of the virtual register whose lane info is requested.
+  /// \return Used and defined lane bitmasks for \p RegIdx.
   const VRegInfo &getVRegInfo(unsigned RegIdx) const {
     return VRegInfos[RegIdx];
   }
 
+  /// Return true if virtual register index \p RegIdx is defined by a COPY-like
+  /// instruction.
+  ///
+  /// \param RegIdx Index of the virtual register to query.
+  /// \return True if \p RegIdx is defined by a COPY-like instruction.
   bool isDefinedByCopy(unsigned RegIdx) const {
     return DefinedByCopy.test(RegIdx);
   }
@@ -85,12 +101,22 @@ public:
   /// Given a mask \p DefinedLanes of lanes defined at operand \p OpNum
   /// of COPY-like instruction, determine which lanes are defined at the output
   /// operand \p Def.
+  ///
+  /// \param Def Output definition operand whose defined lanes are computed.
+  /// \param OpNum Operand index of the input whose defined lanes are known.
+  /// \param DefinedLanes Mask of lanes defined at operand \p OpNum.
+  /// \return Mask of lanes defined at \p Def after transferring from \p OpNum.
   LLVM_ABI LaneBitmask transferDefinedLanes(const MachineOperand &Def,
                                             unsigned OpNum,
                                             LaneBitmask DefinedLanes) const;
 
   /// Given a mask \p UsedLanes used from the output of instruction \p MI
   /// determine which lanes are used from operand \p MO of this instruction.
+  ///
+  /// \param MI COPY-like instruction whose used lanes are transferred.
+  /// \param UsedLanes Mask of lanes used from the instruction output.
+  /// \param MO Operand whose corresponding used lanes are computed.
+  /// \return Mask of lanes used from operand \p MO.
   LLVM_ABI LaneBitmask transferUsedLanes(const MachineInstr &MI,
                                          LaneBitmask UsedLanes,
                                          const MachineOperand &MO) const;
@@ -118,8 +144,15 @@ private:
   BitVector DefinedByCopy;
 };
 
+/// Pass that detects dead and undefined subregister lanes in a machine
+/// function.
 class DetectDeadLanesPass : public RequiredPassInfoMixin<DetectDeadLanesPass> {
 public:
+  /// Run dead-lane detection on \p MF.
+  ///
+  /// \param MF Machine function to analyze.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

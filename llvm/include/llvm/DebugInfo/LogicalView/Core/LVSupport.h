@@ -29,15 +29,21 @@
 namespace llvm {
 namespace logicalview {
 
-// Returns the unique string pool instance.
+/// Return the unique string pool instance used by logical-view readers.
+/// \returns Reference to the shared LVStringPool.
 LLVM_ABI LVStringPool &getStringPool();
 
+/// Ordered collection of string references.
 using LVStringRefs = std::vector<StringRef>;
+/// Outer and inner lexical name components as string references.
 using LVLexicalComponent = std::tuple<StringRef, StringRef>;
+/// Pair of indices into an LVStringRefs sequence.
 using LVLexicalIndex =
     std::tuple<LVStringRefs::size_type, LVStringRefs::size_type>;
 
-// Used to record specific characteristics about the objects.
+/// Bit-set of characteristics keyed by an enumeration type.
+///
+/// Used to record specific characteristics about the objects.
 template <typename T> class LVProperties {
   static constexpr unsigned N_PROPS = static_cast<unsigned>(T::LastEntry);
   // Use uint32_t as the underlying type if the `T` enum has at most 32
@@ -45,20 +51,28 @@ template <typename T> class LVProperties {
   std::conditional_t<(N_PROPS > 32), std::bitset<N_PROPS>, uint32_t> Bits{};
 
 public:
+  /// Construct an empty property set with all bits clear.
   LVProperties() = default;
 
+  /// Set the property bit identified by \p Idx.
+  /// \param Idx Enumerator selecting which property bit to set.
   void set(T Idx) {
     if constexpr (std::is_same_v<decltype(Bits), uint32_t>)
       Bits |= 1 << static_cast<unsigned>(Idx);
     else
       Bits.set(static_cast<unsigned>(Idx));
   }
+  /// Clear the property bit identified by \p Idx.
+  /// \param Idx Enumerator selecting which property bit to clear.
   void reset(T Idx) {
     if constexpr (std::is_same_v<decltype(Bits), uint32_t>)
       Bits &= ~(1 << static_cast<unsigned>(Idx));
     else
       Bits.reset(static_cast<unsigned>(Idx));
   }
+  /// Return whether the property bit identified by \p Idx is set.
+  /// \param Idx Enumerator selecting which property bit to query.
+  /// \returns True when the selected property bit is set.
   bool get(T Idx) const {
     if constexpr (std::is_same_v<decltype(Bits), uint32_t>)
       return Bits & (1 << static_cast<unsigned>(Idx));
@@ -120,11 +134,18 @@ public:
   BOOL_BIT_3(Kinds, ENUM, FIELD, F1, F2, F3)
 
 static constexpr int DEC_WIDTH = 8;
+/// Format \p N as a decimal FormattedNumber with the given field width.
+/// \param N Value to format as decimal.
+/// \param Width Minimum field width for the decimal digits.
+/// \returns FormattedNumber for decimal output.
 inline FormattedNumber decValue(uint64_t N, unsigned Width = DEC_WIDTH) {
   return format_decimal(N, Width);
 }
 
-// Output the decimal representation of 'Value'.
+/// Return the decimal string representation of \p Value.
+/// \param Value Integer value to format as decimal.
+/// \param Width Minimum field width for the decimal digits.
+/// \returns Decimal representation of \p Value as a string.
 inline std::string decString(uint64_t Value, size_t Width = DEC_WIDTH) {
   std::string String;
   raw_string_ostream Stream(String);
@@ -133,12 +154,22 @@ inline std::string decString(uint64_t Value, size_t Width = DEC_WIDTH) {
 }
 
 static constexpr int HEX_WIDTH = 12;
+/// Format \p N as a hexadecimal FormattedNumber with the given field width.
+/// \param N Value to format as hexadecimal.
+/// \param Width Minimum field width for the hex digits.
+/// \param Upper Whether to use uppercase hex digits.
+/// \returns FormattedNumber for hexadecimal output.
 inline FormattedNumber hexValue(uint64_t N, unsigned Width = HEX_WIDTH,
                                 bool Upper = false) {
   return format_hex(N, Width, Upper);
 }
 
-// Output the hexadecimal representation of 'Value' using '[0x%08x]' format.
+/// Return the hexadecimal string representation of \p Value.
+///
+/// Uses a '[0x%08x]'-style hex format without surrounding brackets.
+/// \param Value Integer value to format as hexadecimal.
+/// \param Width Minimum field width for the hex digits.
+/// \returns Hexadecimal representation of \p Value as a string.
 inline std::string hexString(uint64_t Value, size_t Width = HEX_WIDTH) {
   std::string String;
   raw_string_ostream Stream(String);
@@ -146,12 +177,18 @@ inline std::string hexString(uint64_t Value, size_t Width = HEX_WIDTH) {
   return String;
 }
 
-// Get a hexadecimal string representation for the given value.
+/// Return a hexadecimal string for \p Value enclosed in square brackets.
+/// \param Value Integer value to format as hexadecimal.
+/// \returns Hexadecimal representation wrapped in '[' and ']'.
 inline std::string hexSquareString(uint64_t Value) {
   return (Twine("[") + Twine(hexString(Value)) + Twine("]")).str();
 }
 
-// Return a string with the First and Others separated by spaces.
+/// Return a string with \p First and \p Others separated by spaces.
+/// \param First Leading attribute string.
+/// \param Others Additional attribute strings to append.
+/// \returns Space-separated attribute string, with a trailing space when
+/// non-empty.
 template <typename... Args>
 std::string formatAttributes(const StringRef First, Args... Others) {
   const auto List = {First, Others...};
@@ -165,13 +202,18 @@ std::string formatAttributes(const StringRef First, Args... Others) {
   return Stream.str();
 }
 
-// Add an item to a map with second being a small vector.
+/// Append \p Value to the small vector stored under \p Key in \p Map.
+/// \param Map Map whose values are small vectors of \p ValueType.
+/// \param Key Key identifying the vector to update.
+/// \param Value Item to append under \p Key.
 template <typename MapType, typename KeyType, typename ValueType>
 void addItem(MapType *Map, KeyType Key, ValueType Value) {
   (*Map)[Key].push_back(Value);
 }
 
-// Double map data structure.
+/// Nested map from a pair of keys to a pointer value.
+///
+/// Double map data structure.
 template <typename FirstKeyType, typename SecondKeyType, typename ValueType>
 class LVDoubleMap {
   static_assert(std::is_pointer<ValueType>::value,
@@ -185,6 +227,10 @@ class LVDoubleMap {
   LVAuxMapType AuxMap;
 
 public:
+  /// Insert \p Value under the key pair (\p FirstKey, \p SecondKey).
+  /// \param FirstKey Outer map key.
+  /// \param SecondKey Inner map key.
+  /// \param Value Pointer value to store; existing entries are left unchanged.
   void add(FirstKeyType FirstKey, SecondKeyType SecondKey, ValueType Value) {
     typename LVFirstMapType::iterator FirstIter = FirstMap.find(FirstKey);
     if (FirstIter == FirstMap.end()) {
@@ -203,6 +249,9 @@ public:
     }
   }
 
+  /// Return the inner map associated with \p FirstKey, if present.
+  /// \param FirstKey Outer map key to look up.
+  /// \returns Pointer to the inner map, or nullptr when \p FirstKey is absent.
   LVSecondMapType *findMap(FirstKeyType FirstKey) const {
     typename LVFirstMapType::const_iterator FirstIter = FirstMap.find(FirstKey);
     if (FirstIter == FirstMap.end())
@@ -211,6 +260,10 @@ public:
     return FirstIter->second.get();
   }
 
+  /// Look up the value stored under (\p FirstKey, \p SecondKey).
+  /// \param FirstKey Outer map key.
+  /// \param SecondKey Inner map key.
+  /// \returns Stored pointer, or nullptr when the key pair is absent.
   ValueType find(FirstKeyType FirstKey, SecondKeyType SecondKey) const {
     LVSecondMapType *SecondMap = findMap(FirstKey);
     if (!SecondMap)
@@ -221,6 +274,9 @@ public:
     return (SecondIter != SecondMap->end()) ? SecondIter->second : nullptr;
   }
 
+  /// Look up the value associated with \p SecondKey via the auxiliary map.
+  /// \param SecondKey Inner key used to recover the outer key.
+  /// \returns Stored pointer, or nullptr when \p SecondKey is absent.
   ValueType find(SecondKeyType SecondKey) const {
     typename LVAuxMapType::const_iterator AuxIter = AuxMap.find(SecondKey);
     if (AuxIter == AuxMap.end())
@@ -228,7 +284,8 @@ public:
     return find(AuxIter->second, SecondKey);
   }
 
-  // Return a vector with all the 'ValueType' values.
+  /// Return a vector with all stored \c ValueType values.
+  /// \returns All pointer values currently held in the nested maps.
   LVValueTypes find() const {
     LVValueTypes Values;
     if (FirstMap.empty())
@@ -242,45 +299,80 @@ public:
   }
 };
 
-// Unified and flattened pathnames.
+/// Normalize \p Path to a unified, lowercase pathname.
+///
+/// Converts characters to lowercase, replaces '\\' with '/', and collapses
+/// duplicate '/' separators.
+/// \param Path Pathname to transform.
+/// \returns Normalized pathname string.
 LLVM_ABI std::string transformPath(StringRef Path);
+/// Convert \p Path into a flattened, filesystem-safe lowercase name.
+///
+/// Replaces '/', '\\', '<', '>', '.', ':', '%', '*', '?', '|', '"', and
+/// spaces with '_'.
+/// \param Path Pathname to flatten.
+/// \returns Flattened pathname string.
 LLVM_ABI std::string flattenedFilePath(StringRef Path);
 
+/// Return \p Kind wrapped in curly braces for display.
+/// \param Kind Kind string to format.
+/// \returns Display string of the form `{Kind}`.
 inline std::string formattedKind(StringRef Kind) {
   return (Twine("{") + Twine(Kind) + Twine("}")).str();
 }
 
+/// Return \p Name wrapped in single quotes for display.
+/// \param Name Name string to format.
+/// \returns Display string of the form `'Name'`.
 inline std::string formattedName(StringRef Name) {
   return (Twine("'") + Twine(Name) + Twine("'")).str();
 }
 
+/// Return the concatenation of \p Name1 and \p Name2 wrapped in single quotes.
+/// \param Name1 Leading name fragment.
+/// \param Name2 Trailing name fragment.
+/// \returns Display string of the form `'Name1Name2'`.
 inline std::string formattedNames(StringRef Name1, StringRef Name2) {
   return (Twine("'") + Twine(Name1) + Twine(Name2) + Twine("'")).str();
 }
 
-// The given string represents a symbol or type name with optional enclosing
-// scopes, such as: name, name<..>, scope::name, scope::..::name, etc.
-// The string can have multiple references to template instantiations.
-// It returns the inner most component.
+/// Return the outermost and innermost lexical components of \p Name.
+///
+/// The given string represents a symbol or type name with optional enclosing
+/// scopes, such as: name, name<..>, scope::name, scope::..::name, etc.
+/// The string can have multiple references to template instantiations.
+/// \param Name Scoped symbol or type name to split.
+/// \returns Tuple of (outer scopes, innermost component); outer is empty
+/// when \p Name has a single component.
 LLVM_ABI LVLexicalComponent getInnerComponent(StringRef Name);
+/// Split \p Name into lexical components separated by `::`.
+/// \param Name Scoped symbol or type name to split.
+/// \returns Ordered list of lexical name components.
 LLVM_ABI LVStringRefs getAllLexicalComponents(StringRef Name);
+/// Join \p Components into a scoped name, optionally prefixed by \p BaseName.
+/// \param Components Lexical name components to join with `::`.
+/// \param BaseName Optional leading scope prepended before the components.
+/// \returns Scoped name string built from \p BaseName and \p Components.
 LLVM_ABI std::string getScopedName(const LVStringRefs &Components,
                                    StringRef BaseName = {});
 
-// These are the values assigned to the debug location record IDs.
-// See DebugInfo/CodeView/CodeViewSymbols.def.
-// S_DEFRANGE                               0x113f
-// S_DEFRANGE_SUBFIELD                      0x1140
-// S_DEFRANGE_REGISTER                      0x1141
-// S_DEFRANGE_FRAMEPOINTER_REL              0x1142
-// S_DEFRANGE_SUBFIELD_REGISTER             0x1143
-// S_DEFRANGE_FRAMEPOINTER_REL_FULL_SCOPE   0x1144
-// S_DEFRANGE_REGISTER_REL                  0x1145
-// S_DEFRANGE_REGISTER_REL_INDIR            0x1177
-// When recording CodeView debug location, the above values are truncated
-// to a uint8_t value in order to fit the 'OpCode' used for the logical
-// debug location operations.
-// Return the original CodeView enum value.
+/// Restore the full CodeView symbol opcode from a truncated \p Code byte.
+///
+/// These are the values assigned to the debug location record IDs.
+/// See DebugInfo/CodeView/CodeViewSymbols.def.
+/// S_DEFRANGE                               0x113f
+/// S_DEFRANGE_SUBFIELD                      0x1140
+/// S_DEFRANGE_REGISTER                      0x1141
+/// S_DEFRANGE_FRAMEPOINTER_REL              0x1142
+/// S_DEFRANGE_SUBFIELD_REGISTER             0x1143
+/// S_DEFRANGE_FRAMEPOINTER_REL_FULL_SCOPE   0x1144
+/// S_DEFRANGE_REGISTER_REL                  0x1145
+/// S_DEFRANGE_REGISTER_REL_INDIR            0x1177
+/// When recording CodeView debug location, the above values are truncated
+/// to a uint8_t value in order to fit the 'OpCode' used for the logical
+/// debug location operations.
+/// \param Code Truncated low byte of a CodeView debug-location record ID.
+/// \returns Original CodeView enum value with the 0x1100 base restored.
 inline uint16_t getCodeViewOperationCode(uint8_t Code) { return 0x1100 | Code; }
 
 } // end namespace logicalview

@@ -20,33 +20,76 @@ namespace logicalview {
 
 class LVObject;
 
-// Object Sorting Mode.
+/// Mode used when sorting logical-view objects.
 enum class LVSortMode {
-  None = 0, // No given sort.
-  ID,       // Sort by ID.
-  Kind,     // Sort by kind.
-  Line,     // Sort by line.
-  Name,     // Sort by name.
-  Offset    // Sort by offset.
+  /// Do not apply a sort order.
+  None = 0,
+  /// Sort objects by their unique ID.
+  ID,
+  /// Sort objects by kind, then name, line, and offset.
+  Kind,
+  /// Sort objects by line number, then name, kind, and offset.
+  Line,
+  /// Sort objects by name, then line, kind, and offset.
+  Name,
+  /// Sort objects by DIE offset.
+  Offset
 };
 
-// Type of function to be called when sorting an object.
+/// Integer result returned by a logical-view sort comparator.
 using LVSortValue = int;
+/// Comparator function type used when sorting logical-view objects.
 using LVSortFunction = LVSortValue (*)(const LVObject *LHS,
                                        const LVObject *RHS);
 
-// Get the comparator function, based on the command line options.
+/// Return the comparator selected by the current command-line sort options.
+/// \returns Comparator for the active LVSortMode, or nullptr when unsorted.
 LLVM_ABI LVSortFunction getSortFunction();
 
-// Comparator functions that can be used for sorting.
+/// Compare two objects by unique ID.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue compareID(const LVObject *LHS, const LVObject *RHS);
+/// Compare two objects by kind string.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue compareKind(const LVObject *LHS, const LVObject *RHS);
+/// Compare two objects by source line number.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue compareLine(const LVObject *LHS, const LVObject *RHS);
+/// Compare two objects by name.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue compareName(const LVObject *LHS, const LVObject *RHS);
+/// Compare two objects by DIE offset.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue compareOffset(const LVObject *LHS, const LVObject *RHS);
+/// Compare two objects by address range (lower, then upper).
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue compareRange(const LVObject *LHS, const LVObject *RHS);
+/// Sort two objects by kind, then name, line, and offset.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue sortByKind(const LVObject *LHS, const LVObject *RHS);
+/// Sort two objects by line, then name, kind, and offset.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue sortByLine(const LVObject *LHS, const LVObject *RHS);
+/// Sort two objects by name, then line, kind, and offset.
+/// \param LHS Left-hand object in the comparison.
+/// \param RHS Right-hand object in the comparison.
+/// \returns Non-zero when \p LHS should order before \p RHS.
 LLVM_ABI LVSortValue sortByName(const LVObject *LHS, const LVObject *RHS);
 
 } // end namespace logicalview

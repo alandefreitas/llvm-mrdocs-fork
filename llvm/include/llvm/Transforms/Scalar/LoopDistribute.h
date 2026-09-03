@@ -22,8 +22,16 @@ namespace llvm {
 
 class Function;
 
+/// Pass that distributes loops to enable vectorization.
+///
+/// Isolates dependence cycles into separate loops so the remaining parts can
+/// be vectorized.
 class LoopDistributePass : public OptionalPassInfoMixin<LoopDistributePass> {
 public:
+  /// Run loop distribution over the function.
+  /// @param F Function whose loops may be distributed.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

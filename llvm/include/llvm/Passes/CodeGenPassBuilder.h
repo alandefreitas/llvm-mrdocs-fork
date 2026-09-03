@@ -57,6 +57,10 @@ namespace llvm {
   };
 #include "llvm/Passes/MachinePassRegistry.def"
 
+/// Wrapper holding module, function, and machine-function pass managers.
+///
+/// Used by CodeGenPassBuilder while assembling the codegen pipeline. Only
+/// CodeGenPassBuilder may construct it.
 class PassManagerWrapper {
 private:
   PassManagerWrapper(ModulePassManager &ModulePM) : MPM(ModulePM) {};
@@ -85,34 +89,61 @@ private:
 /// once per target.
 class LLVM_ABI CodeGenPassBuilder {
 public:
+  /// Construct a codegen pass builder for \p TM.
+  /// \param TM Target machine owning codegen options and the target.
+  /// \param Opts Codegen pass builder options.
+  /// \param PIC Optional pass instrumentation callbacks, or null.
   CodeGenPassBuilder(TargetMachine &TM, const CGPassBuilderOption &Opts,
                      PassInstrumentationCallbacks *PIC);
-  CodeGenPassBuilder(const CodeGenPassBuilder &) = delete;
-  CodeGenPassBuilder &operator=(const CodeGenPassBuilder &) = delete;
+  /// Deleted copy constructor.
+  /// \param Other Unused; copy construction is deleted.
+  CodeGenPassBuilder(const CodeGenPassBuilder &Other) = delete;
+  /// Deleted copy assignment operator.
+  /// \param Other Unused; copy assignment is deleted.
+  CodeGenPassBuilder &operator=(const CodeGenPassBuilder &Other) = delete;
+  /// Destroy this codegen pass builder.
   virtual ~CodeGenPassBuilder();
 
+  /// Build the complete codegen pipeline into \p MPM.
+  /// \param MPM Module pass manager to populate.
+  /// \param MAM Module analysis manager for the pipeline.
+  /// \param Out Primary output stream for generated code.
+  /// \param DwoOut Optional DWO output stream, or null.
+  /// \param FileType Kind of codegen output file to emit.
+  /// \param Ctx Machine-code context used during emission.
+  /// \return Success, or an error if pipeline construction fails.
   Error buildPipeline(ModulePassManager &MPM, ModuleAnalysisManager &MAM,
                       raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
                       CodeGenFileType FileType, MCContext &Ctx);
 
+  /// Return the pass instrumentation callbacks, or null if none were provided.
+  /// \return The pass instrumentation callbacks, or null if none were provided.
   PassInstrumentationCallbacks *getPassInstrumentationCallbacks() const {
     return PIC;
   }
 
 protected:
+  /// Detects whether \c PassT is a module pass via its run signature.
   template <typename PassT>
   using is_module_pass_t = decltype(std::declval<PassT &>().run(
       std::declval<Module &>(), std::declval<ModuleAnalysisManager &>()));
 
+  /// Detects whether \c PassT is a function pass via its run signature.
   template <typename PassT>
   using is_function_pass_t = decltype(std::declval<PassT &>().run(
       std::declval<Function &>(), std::declval<FunctionAnalysisManager &>()));
 
+  /// Detects whether \c PassT is a machine-function pass via its run signature.
   template <typename PassT>
   using is_machine_function_pass_t = decltype(std::declval<PassT &>().run(
       std::declval<MachineFunction &>(),
       std::declval<MachineFunctionAnalysisManager &>()));
 
+  /// Add a function pass to the current function pipeline in \p PMW.
+  /// \param Pass Pass instance to add.
+  /// \param PMW Pass manager wrapper receiving the pass.
+  /// \param Force When true, add even if start/stop filters would skip it.
+  /// \param Name Pass name used for start/stop and disable filtering.
   template <typename PassT>
   void addFunctionPass(PassT &&Pass, PassManagerWrapper &PMW,
                        bool Force = false, StringRef Name = PassT::name()) {
@@ -123,6 +154,11 @@ protected:
     PMW.FPM.addPass(std::forward<PassT>(Pass));
   }
 
+  /// Add a module pass to the module pipeline in \p PMW.
+  /// \param Pass Pass instance to add.
+  /// \param PMW Pass manager wrapper receiving the pass.
+  /// \param Force When true, add even if start/stop filters would skip it.
+  /// \param Name Pass name used for start/stop and disable filtering.
   template <typename PassT>
   void addModulePass(PassT &&Pass, PassManagerWrapper &PMW, bool Force = false,
                      StringRef Name = PassT::name()) {
@@ -136,6 +172,11 @@ protected:
     PMW.MPM.addPass(std::forward<PassT>(Pass));
   }
 
+  /// Add a machine-function pass to the current MF pipeline in \p PMW.
+  /// \param Pass Pass instance to add.
+  /// \param PMW Pass manager wrapper receiving the pass.
+  /// \param Force When true, add even if start/stop filters would skip it.
+  /// \param Name Pass name used for start/stop and disable filtering.
   template <typename PassT>
   void addMachineFunctionPass(PassT &&Pass, PassManagerWrapper &PMW,
                               bool Force = false,
@@ -150,9 +191,14 @@ protected:
       C(Name, PMW.MFPM);
   }
 
+  /// Flush pending function and machine-function pipelines into the module PM.
+  /// \param PMW Pass manager wrapper whose nested pipelines are flushed.
+  /// \param FreeMachineFunctions When true, free machine functions after flush.
   void flushFPMsToMPM(PassManagerWrapper &PMW,
                       bool FreeMachineFunctions = false);
 
+  /// Require that subsequent function passes be added in CGSCC order.
+  /// \param PMW Pass manager wrapper; nested function pipelines must be empty.
   void requireCGSCCOrder(PassManagerWrapper &PMW) {
     assert(!AddInCGSCCOrder);
     assert(PMW.FPM.isEmpty() && PMW.MFPM.isEmpty() &&
@@ -161,6 +207,8 @@ protected:
     AddInCGSCCOrder = true;
   }
 
+  /// Stop adding subsequent function passes in CGSCC order.
+  /// \param PMW Pass manager wrapper; nested function pipelines must be empty.
   void stopAddingInCGSCCOrder(PassManagerWrapper &PMW) {
     assert(AddInCGSCCOrder);
     assert(PMW.FPM.isEmpty() && PMW.MFPM.isEmpty() &&
@@ -169,48 +217,58 @@ protected:
     AddInCGSCCOrder = false;
   }
 
+  /// Target machine for this codegen pipeline.
   TargetMachine &TM;
+  /// Options controlling codegen pass selection and behavior.
   CGPassBuilderOption Opt;
+  /// Optional pass instrumentation callbacks, or null.
   PassInstrumentationCallbacks *PIC;
 
+  /// Return the optimization level from the target machine.
+  /// \return The optimization level configured on the target machine.
   CodeGenOptLevel getOptLevel() const { return TM.getOptLevel(); }
 
   /// Check whether or not GlobalISel should abort on error.
   /// When this is disabled, GlobalISel will fall back on SDISel instead of
   /// erroring out.
+  /// \return True if GlobalISel should abort on error.
   bool isGlobalISelAbortEnabled() const {
     return TM.Options.GlobalISelAbort == GlobalISelAbortMode::Enable;
   }
 
-  /// Check whether or not a diagnostic should be emitted when GlobalISel
-  /// uses the fallback path. In other words, it will emit a diagnostic
-  /// when GlobalISel failed and isGlobalISelAbortEnabled is false.
+  /// Return whether GlobalISel fallback should emit a diagnostic.
+  ///
+  /// In other words, it will emit a diagnostic when GlobalISel failed and
+  /// isGlobalISelAbortEnabled is false.
+  /// \return True if GlobalISel fallback should emit a diagnostic.
   bool reportDiagnosticWhenGlobalISelFallback() const {
     return TM.Options.GlobalISelAbort == GlobalISelAbortMode::DisableWithDiag;
   }
 
-  /// addInstSelector - This method should install an instruction selector pass,
-  /// which converts from LLVM code to machine instructions.
+  /// Install an instruction selector that converts LLVM IR to machine code.
+  /// \param PMW Pass manager wrapper receiving the selector pass.
+  /// \return Success, or an error if the target does not provide a selector.
   virtual Error addInstSelector(PassManagerWrapper &PMW);
 
-  /// Target can override this to add GlobalMergePass before all IR passes.
+  /// Add GlobalMergePass before all IR passes.
+  /// \param PMW Pass manager wrapper receiving the GlobalMerge pass.
   virtual void addGlobalMergePass(PassManagerWrapper &PMW) {}
 
-  /// Add passes that optimize instruction level parallelism for out-of-order
-  /// targets. These passes are run while the machine code is still in SSA
-  /// form, so they can use MachineTraceMetrics to control their heuristics.
+  /// Add passes that optimize ILP for out-of-order targets.
+  ///
+  /// These passes are run while the machine code is still in SSA form, so they
+  /// can use MachineTraceMetrics to control their heuristics.
   ///
   /// All passes added here should preserve the MachineDominatorTree,
   /// MachineLoopInfo, and MachineTraceMetrics analyses.
+  /// \param PMW Pass manager wrapper receiving the ILP optimization passes.
   virtual void addILPOpts(PassManagerWrapper &PMW) {}
 
-  /// This method may be implemented by targets that want to run passes
-  /// immediately before register allocation.
+  /// Add passes immediately before register allocation.
+  /// \param PMW Pass manager wrapper receiving the pre-regalloc passes.
   virtual void addPreRegAlloc(PassManagerWrapper &PMW) {}
 
-  /// addPreRewrite - Add passes to the optimized register allocation pipeline
-  /// after register allocation is complete, but before virtual registers are
-  /// rewritten to physical registers.
+  /// Add passes after optimized regalloc but before virtual-register rewrite.
   ///
   /// These passes must preserve VirtRegMap and LiveIntervals, and when running
   /// after RABasic or RAGreedy, they should take advantage of LiveRegMatrix.
@@ -220,26 +278,27 @@ protected:
   /// Note if the target overloads addRegAssignAndRewriteOptimized, this may not
   /// be honored. This is also not generally used for the fast variant,
   /// where the allocation and rewriting are done in one pass.
+  /// \param PMW Pass manager wrapper receiving the pre-rewrite passes.
   virtual void addPreRewrite(PassManagerWrapper &PMW) {}
 
-  /// Add passes to be run immediately after virtual registers are rewritten
-  /// to physical registers.
+  /// Add passes immediately after virtual registers are rewritten to physical.
+  /// \param PMW Pass manager wrapper receiving the post-rewrite passes.
   virtual void addPostRewrite(PassManagerWrapper &PMW) {}
 
-  /// This method may be implemented by targets that want to run passes after
-  /// register allocation pass pipeline but before prolog-epilog insertion.
+  /// Add passes after register allocation but before prolog-epilog insertion.
+  /// \param PMW Pass manager wrapper receiving the post-regalloc passes.
   virtual void addPostRegAlloc(PassManagerWrapper &PMW) {}
 
-  /// This method may be implemented by targets that want to run passes after
-  /// prolog-epilog insertion and before the second instruction scheduling pass.
+  /// Add passes after prolog-epilog insertion and before the second scheduler.
+  /// \param PMW Pass manager wrapper receiving the pre-sched2 passes.
   virtual void addPreSched2(PassManagerWrapper &PMW) {}
 
-  /// This pass may be implemented by targets that want to run passes
-  /// immediately before machine code is emitted.
+  /// Add passes immediately before machine code is emitted.
+  /// \param PMW Pass manager wrapper receiving the pre-emit passes.
   virtual void addPreEmitPass(PassManagerWrapper &PMW) {}
 
-  /// Targets may add passes immediately before machine code is emitted in this
-  /// callback. This is called even later than `addPreEmitPass`.
+  /// Add passes immediately before emission, later than `addPreEmitPass`.
+  /// \param PMW Pass manager wrapper receiving the late pre-emit passes.
   // FIXME: Rename `addPreEmitPass` to something more sensible given its actual
   // position and remove the `2` suffix here as this callback is what
   // `addPreEmitPass` *should* be but in reality isn't.
@@ -248,69 +307,79 @@ protected:
   /// {{@ For GlobalISel
   ///
 
-  /// addPreISel - This method should add any "last minute" LLVM->LLVM
-  /// passes (which are run just before instruction selector).
+  /// Add last-minute LLVM IR passes just before instruction selection.
+  /// \param PMW Pass manager wrapper receiving the pre-ISel IR passes.
   virtual void addPreISel(PassManagerWrapper &PMW) {}
 
-  /// This method should install an IR translator pass, which converts from
-  /// LLVM code to machine instructions with possibly generic opcodes.
+  /// Install an IR translator from LLVM IR to possibly generic machine IR.
+  /// \param PMW Pass manager wrapper receiving the IR translator pass.
+  /// \return Success, or an error if the target does not provide a translator.
   virtual Error addIRTranslator(PassManagerWrapper &PMW);
 
-  /// This method may be implemented by targets that want to run passes
-  /// immediately before legalization.
+  /// Add passes immediately before legalization.
+  /// \param PMW Pass manager wrapper receiving the pre-legalize passes.
   virtual void addPreLegalizeMachineIR(PassManagerWrapper &PMW) {}
 
-  /// This method should install a legalize pass, which converts the instruction
-  /// sequence into one that can be selected by the target.
+  /// Install a legalize pass for target-selectable instruction sequences.
+  /// \param PMW Pass manager wrapper receiving the legalize pass.
+  /// \return Success, or an error if the target does not provide a legalizer.
   virtual Error addLegalizeMachineIR(PassManagerWrapper &PMW);
 
-  /// This method may be implemented by targets that want to run passes
-  /// immediately before the register bank selection.
+  /// Add passes immediately before register bank selection.
+  /// \param PMW Pass manager wrapper receiving the pre-regbankselect passes.
   virtual void addPreRegBankSelect(PassManagerWrapper &PMW) {}
 
-  /// This method should install a register bank selector pass, which
-  /// assigns register banks to virtual registers without a register
-  /// class or register banks.
+  /// Install a register bank selector for unconstrained virtual registers.
+  /// \param PMW Pass manager wrapper receiving the regbankselect pass.
+  /// \return Success, or an error if the target does not provide regbankselect.
   virtual Error addRegBankSelect(PassManagerWrapper &PMW);
 
-  /// This method may be implemented by targets that want to run passes
-  /// immediately before the (global) instruction selection.
+  /// Add passes immediately before global instruction selection.
+  /// \param PMW Pass manager wrapper receiving the pre-GISel passes.
   virtual void addPreGlobalInstructionSelect(PassManagerWrapper &PMW) {}
 
-  /// This method should install a (global) instruction selector pass, which
-  /// converts possibly generic instructions to fully target-specific
+  /// Install a global instruction selector that constrains generic vregs.
+  ///
+  /// Converts possibly generic instructions to fully target-specific
   /// instructions, thereby constraining all generic virtual registers to
   /// register classes.
+  /// \param PMW Pass manager wrapper receiving the global ISel pass.
+  /// \return Success, or an error if the target does not provide global ISel.
   virtual Error addGlobalInstructionSelect(PassManagerWrapper &PMW);
   /// @}}
 
-  /// High level function that adds all passes necessary to go from llvm IR
-  /// representation to the MI representation.
-  /// Adds IR based lowering and target specific optimization passes and finally
+  /// Add all passes that lower LLVM IR to the machine-instruction form.
+  ///
+  /// Adds IR-based lowering and target-specific optimization passes and finally
   /// the core instruction selection passes.
+  /// \param PMW Pass manager wrapper receiving the ISel pipeline.
   void addISelPasses(PassManagerWrapper &PMW);
 
-  /// Add the actual instruction selection passes. This does not include
-  /// preparation passes on IR.
+  /// Add the actual instruction selection passes, excluding IR preparation.
+  /// \param PMW Pass manager wrapper receiving the core ISel passes.
+  /// \return Success, or an error if adding the ISel passes fails.
   Error addCoreISelPasses(PassManagerWrapper &PMW);
 
   /// Add the complete, standard set of LLVM CodeGen passes.
   /// Fully developed targets will not generally override this.
+  /// \param PMW Pass manager wrapper receiving the machine passes.
+  /// \return Success, or an error if adding the machine passes fails.
   virtual Error addMachinePasses(PassManagerWrapper &PMW);
 
   /// Add passes to lower exception handling for the code generator.
+  /// \param PMW Pass manager wrapper receiving the EH lowering passes.
   void addPassesToHandleExceptions(PassManagerWrapper &PMW);
 
-  /// Add common target configurable passes that perform LLVM IR to IR
-  /// transforms following machine independent optimization.
+  /// Add common IR-to-IR transforms after machine-independent optimization.
+  /// \param PMW Pass manager wrapper receiving the IR codegen passes.
   virtual void addIRPasses(PassManagerWrapper &PMW);
 
-  /// Add pass to prepare the LLVM IR for code generation. This should be done
-  /// before exception handling preparation passes.
+  /// Add a pass to prepare LLVM IR for code generation before EH preparation.
+  /// \param PMW Pass manager wrapper receiving the CodeGenPrepare pass.
   virtual void addCodeGenPrepare(PassManagerWrapper &PMW);
 
-  /// Add common passes that perform LLVM IR to IR transforms in preparation for
-  /// instruction selection.
+  /// Add common IR-to-IR transforms in preparation for instruction selection.
+  /// \param PMW Pass manager wrapper receiving the ISel preparation passes.
   virtual void addISelPrepare(PassManagerWrapper &PMW);
 
   /// Methods with trivial inline returns are convenient points in the common
@@ -320,54 +389,72 @@ protected:
   /// passes is insufficient, but maintaining overriden stages is more work.
   ///
 
-  /// addMachineSSAOptimization - Add standard passes that optimize machine
-  /// instructions in SSA form.
+  /// Add standard passes that optimize machine instructions in SSA form.
+  /// \param PMW Pass manager wrapper receiving the machine SSA opt passes.
   virtual void addMachineSSAOptimization(PassManagerWrapper &PMW);
 
-  /// addFastRegAlloc - Add the minimum set of target-independent passes that
-  /// are required for fast register allocation.
+  /// Add the minimum target-independent passes required for fast regalloc.
+  /// \param PMW Pass manager wrapper receiving the fast regalloc passes.
+  /// \return Success, or an error if adding the passes fails.
   virtual Error addFastRegAlloc(PassManagerWrapper &PMW);
 
-  /// addOptimizedRegAlloc - Add passes related to register allocation.
+  /// Add passes related to optimized register allocation.
+  ///
   /// CodeGenTargetMachineImpl provides standard regalloc passes for most
   /// targets.
+  /// \param PMW Pass manager wrapper receiving the optimized regalloc passes.
+  /// \return Success, or an error if adding the passes fails.
   virtual Error addOptimizedRegAlloc(PassManagerWrapper &PMW);
 
   /// Add passes that optimize machine instructions after register allocation.
+  /// \param PMW Pass manager wrapper receiving the late machine opt passes.
   virtual void addMachineLateOptimization(PassManagerWrapper &PMW);
 
-  /// addGCPasses - Add late codegen passes that analyze code for garbage
-  /// collection. This should return true if GC info should be printed after
-  /// these passes.
+  /// Add late codegen passes that analyze code for garbage collection.
+  /// \param PMW Pass manager wrapper receiving the GC analysis passes.
   virtual void addGCPasses(PassManagerWrapper &PMW) {}
 
   /// Add standard basic block placement passes.
+  /// \param PMW Pass manager wrapper receiving the block placement passes.
   virtual void addBlockPlacement(PassManagerWrapper &PMW);
 
+  /// Add passes immediately after basic block sections are assigned.
+  /// \param PMW Pass manager wrapper receiving the post-BB-sections passes.
   virtual void addPostBBSections(PassManagerWrapper &PMW) {}
 
+  /// Add target-specific passes immediately before the AsmPrinter.
+  /// \param PMW Pass manager wrapper receiving the pre-AsmPrinter passes.
   virtual void addAsmPrinterBegin(PassManagerWrapper &PMW);
 
+  /// Add the target AsmPrinter that emits machine code or assembly.
+  /// \param PMW Pass manager wrapper receiving the AsmPrinter pass.
   virtual void addAsmPrinter(PassManagerWrapper &PMW);
 
+  /// Add target-specific passes immediately after the AsmPrinter.
+  /// \param PMW Pass manager wrapper receiving the post-AsmPrinter passes.
   virtual void addAsmPrinterEnd(PassManagerWrapper &PMW);
 
   /// Utilities for targets to add passes to the pass manager.
   ///
 
-  /// Create the register allocator pass for this target at the current
-  /// optimization level.
+  /// Create the register allocator pass for this target at the current opt level.
+  /// \param PMW Pass manager wrapper receiving the register allocator.
+  /// \param Optimized When true, select the optimized register allocator.
   virtual void addTargetRegisterAllocator(PassManagerWrapper &PMW,
                                           bool Optimized);
 
-  /// addMachinePasses helper to create the target-selected or overriden
-  /// regalloc pass.
+  /// Create the target-selected or overridden regalloc pass for addMachinePasses.
+  /// \param PMW Pass manager wrapper receiving the register allocator.
+  /// \param Optimized When true, select the optimized register allocator.
   void addRegAllocPass(PassManagerWrapper &PMW, bool Optimized);
 
-  /// Add core register allocator passes which do the actual register assignment
-  /// and rewriting. addRegAssignAndRewriteOptimized should return true if any
-  /// passes were added.
+  /// Add core regalloc passes that perform fast register assignment and rewrite.
+  /// \param PMW Pass manager wrapper receiving the fast regassign/rewrite passes.
+  /// \return Success, or an error if adding the passes fails.
   virtual Error addRegAssignAndRewriteFast(PassManagerWrapper &PMW);
+  /// Add core regalloc passes that perform optimized assignment and rewrite.
+  /// \param PMW Pass manager wrapper receiving the optimized regassign/rewrite passes.
+  /// \return True if any passes were added, or an error on failure.
   virtual Expected<bool>
   addRegAssignAndRewriteOptimized(PassManagerWrapper &PMW);
 
@@ -380,6 +467,7 @@ protected:
 
   /// Insert InsertedPass pass after TargetPass pass.
   /// Only machine function passes are supported.
+  /// \param Pass Pass instance to insert after \c TargetPassT.
   template <typename TargetPassT, typename InsertedPassT>
   void insertPass(InsertedPassT &&Pass) {
     AfterCallbacks.emplace_back(

@@ -46,54 +46,93 @@ public:
   using iterator = RewriteRope::const_iterator;
 
   /// Iterator to the first character of the rewritten text.
+  ///
+  /// \return Iterator to the first character.
   iterator begin() const { return Buffer.begin(); }
   /// Iterator one past the last character of the rewritten text.
+  ///
+  /// \return Past-the-end iterator over the rewritten text.
   iterator end() const { return Buffer.end(); }
   /// Number of characters currently stored in the rewritten buffer.
+  ///
+  /// \return The number of characters in the rewritten buffer.
   unsigned size() const { return Buffer.size(); }
 
-  /// Initialize - Start this rewrite buffer out with a copy of the unmodified
-  /// input buffer.
+  /// Initialize this rewrite buffer with a copy of the unmodified input.
+  ///
+  /// \param BufStart Pointer to the first character of the input buffer.
+  /// \param BufEnd Pointer one past the last character of the input buffer.
   void Initialize(const char *BufStart, const char *BufEnd) {
     Buffer.assign(BufStart, BufEnd);
   }
   /// Initialize from the characters in \p Input.
+  ///
+  /// \param Input Source text used to seed this rewrite buffer.
   void Initialize(StringRef Input) { Initialize(Input.begin(), Input.end()); }
 
-  /// Write to \p Stream the result of applying all changes to the
-  /// original buffer.
+  /// Write to \p Stream the result of applying all changes to the original
+  /// buffer.
+  ///
   /// Note that it isn't safe to use this function to overwrite memory mapped
   /// files in-place (PR17960). Consider using a higher-level utility such as
   /// Rewriter::overwriteChangedFiles() instead.
   ///
   /// The original buffer is not actually changed.
+  ///
+  /// \param Stream Output stream that receives the rewritten text.
+  /// \return Reference to \p Stream after writing the rewritten text.
   LLVM_ABI raw_ostream &write(raw_ostream &Stream) const;
 
-  /// RemoveText - Remove the specified text.
+  /// Remove the specified text from the buffer.
+  ///
+  /// \param OrigOffset Offset into the original SourceBuffer where removal
+  /// begins.
+  /// \param Size Number of characters to remove.
+  /// \param removeLineIfEmpty If true, also remove the enclosing line when it
+  /// becomes empty after the removal.
   LLVM_ABI void RemoveText(unsigned OrigOffset, unsigned Size,
                            bool removeLineIfEmpty = false);
 
-  /// InsertText - Insert some text at the specified point, where the offset in
-  /// the buffer is specified relative to the original SourceBuffer.  The
-  /// text is inserted after the specified location.
+  /// Insert text at an offset relative to the original SourceBuffer.
+  ///
+  /// The text is inserted after the specified location by default.
+  ///
+  /// \param OrigOffset Offset into the original SourceBuffer where text is
+  /// inserted.
+  /// \param Str Text to insert.
+  /// \param InsertAfter If true, insert after \p OrigOffset; otherwise insert
+  /// before it.
   LLVM_ABI void InsertText(unsigned OrigOffset, StringRef Str,
                            bool InsertAfter = true);
 
   /// Insert \p Str before original offset \p OrigOffset.
   ///
   /// Same as InsertText with InsertAfter == false.
+  ///
+  /// \param OrigOffset Offset into the original SourceBuffer before which text
+  /// is inserted.
+  /// \param Str Text to insert.
   void InsertTextBefore(unsigned OrigOffset, StringRef Str) {
     InsertText(OrigOffset, Str, false);
   }
 
   /// Insert \p Str after original offset \p OrigOffset.
+  ///
+  /// \param OrigOffset Offset into the original SourceBuffer after which text
+  /// is inserted.
+  /// \param Str Text to insert.
   void InsertTextAfter(unsigned OrigOffset, StringRef Str) {
     InsertText(OrigOffset, Str);
   }
 
-  /// ReplaceText - This method replaces a range of characters in the input
-  /// buffer with a new string.  This is effectively a combined "remove/insert"
-  /// operation.
+  /// Replace a range of characters in the input buffer with a new string.
+  ///
+  /// This is effectively a combined remove/insert operation.
+  ///
+  /// \param OrigOffset Offset into the original SourceBuffer where replacement
+  /// begins.
+  /// \param OrigLength Number of characters in the original buffer to replace.
+  /// \param NewStr Replacement text.
   LLVM_ABI void ReplaceText(unsigned OrigOffset, unsigned OrigLength,
                             StringRef NewStr);
 

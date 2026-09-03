@@ -54,14 +54,15 @@ static inline unsigned encodingBits(unsigned C) {
 //
 namespace llvm {
 namespace sampleprof {
+/// Flow-sensitive (FS) discriminator pass used when encoding discriminators.
 enum FSDiscriminatorPass {
-  Base = 0,
-  Pass0 = 0,
-  Pass1 = 1,
-  Pass2 = 2,
-  Pass3 = 3,
-  Pass4 = 4,
-  PassLast = 4,
+  Base = 0,      ///< Base discriminator bits (alias of Pass0).
+  Pass0 = 0,     ///< Initial pass that writes the base discriminator.
+  Pass1 = 1,     ///< First FS discriminator pass.
+  Pass2 = 2,     ///< Second FS discriminator pass.
+  Pass3 = 3,     ///< Third FS discriminator pass.
+  Pass4 = 4,     ///< Fourth FS discriminator pass.
+  PassLast = 4,  ///< Last FS discriminator pass (alias of Pass4).
 };
 } // namespace sampleprof
 

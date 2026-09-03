@@ -23,13 +23,18 @@ namespace objcopy {
 struct CommonConfig;
 struct COFFConfig;
 
+/// COFF-specific object-file copying and stripping operations.
 namespace coff {
 
 /// Apply the transformations described by \p Config and \p COFFConfig
 /// to \p In and writes the result into \p Out.
+/// \param Config Common objcopy configuration options.
+/// \param COFFConfig COFF-specific configuration options.
+/// \param In Input COFF object file to transform.
+/// \param Out Output stream to write the transformed binary to.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const CommonConfig &Config,
-                                      const COFFConfig &,
+                                      const COFFConfig &COFFConfig,
                                       object::COFFObjectFile &In,
                                       raw_ostream &Out);
 

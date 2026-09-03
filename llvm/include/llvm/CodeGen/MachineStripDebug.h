@@ -21,9 +21,19 @@
 
 namespace llvm {
 
+/// New PM pass that strips debug info from Machine IR in a module.
+///
+/// Removes debug info from everything so tests can be debugified without
+/// affecting the output MIR.
 class StripDebugMachineModulePass
     : public RequiredPassInfoMixin<StripDebugMachineModulePass> {
 public:
+  /// Strip debug info from Machine IR in module \p M.
+  ///
+  /// \param M Module whose MachineFunctions have debug info removed.
+  /// \param AM Module analysis manager providing MachineFunction analyses.
+  /// \return All analyses if nothing changed; otherwise analyses compatible
+  ///         with stripping Machine IR debug info.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

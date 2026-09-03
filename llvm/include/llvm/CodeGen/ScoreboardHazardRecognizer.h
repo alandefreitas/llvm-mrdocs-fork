@@ -27,6 +27,11 @@ namespace llvm {
 class ScheduleDAG;
 class SUnit;
 
+/// Hazard recognizer that tracks function-unit usage with a scoreboard.
+///
+/// Encapsulates hazard-avoidance heuristics for scheduling based on the
+/// target's instruction itineraries, maintaining reserved and required
+/// scoreboards of function-unit masks across cycles.
 class LLVM_ABI ScoreboardHazardRecognizer : public ScheduleHazardRecognizer {
   // Scoreboard to track function unit usage. Scoreboard[0] is a
   // mask of the FUs in use in the cycle currently being
@@ -107,20 +112,37 @@ class LLVM_ABI ScoreboardHazardRecognizer : public ScheduleHazardRecognizer {
   Scoreboard RequiredScoreboard;
 
 public:
+  /// Construct a scoreboard hazard recognizer for the given itinerary and DAG.
+  ///
+  /// \param II Target instruction itinerary data used to size and update the
+  ///   scoreboards.
+  /// \param DAG Schedule DAG that owns the scheduling units being recognized.
+  /// \param ParentDebugType Optional debug-type string for tracing this
+  ///   recognizer as a component of another module.
   ScoreboardHazardRecognizer(const InstrItineraryData *II,
                              const ScheduleDAG *DAG,
                              const char *ParentDebugType = "");
 
   /// atIssueLimit - Return true if no more instructions may be issued in this
   /// cycle.
+  /// \return True if no more instructions may be issued in this cycle.
   bool atIssueLimit() const override;
 
-  // Stalls provides an cycle offset at which SU will be scheduled. It will be
-  // negative for bottom-up scheduling.
+  /// Return the hazard type of emitting \p SU after \p Stalls cycles.
+  ///
+  /// \param SU Scheduling unit being considered for issue.
+  /// \param Stalls Cycle offset at which \p SU will be scheduled; negative for
+  ///   bottom-up scheduling.
+  /// \return The HazardType for emitting \p SU after \p Stalls cycles.
   HazardType getHazardType(SUnit *SU, int Stalls) override;
+  /// Reset the scoreboards and issue state for a new block of instructions.
   void Reset() override;
+  /// Update the scoreboards to reflect that \p SU has been emitted.
+  /// \param SU Scheduling unit that was emitted.
   void EmitInstruction(SUnit *SU) override;
+  /// Advance the scoreboard to the next cycle for top-down scheduling.
   void AdvanceCycle() override;
+  /// Recede the scoreboard to the previous cycle for bottom-up scheduling.
   void RecedeCycle() override;
 };
 

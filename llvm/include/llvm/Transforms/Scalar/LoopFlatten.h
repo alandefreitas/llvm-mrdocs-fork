@@ -20,10 +20,18 @@ namespace llvm {
 class LPMUpdater;
 class LoopNest;
 
+/// Pass that flattens nested loops into a single loop.
 class LoopFlattenPass : public OptionalPassInfoMixin<LoopFlattenPass> {
 public:
+  /// Construct a LoopFlatten pass.
   LoopFlattenPass() = default;
 
+  /// Run loop flattening over the loop nest.
+  /// @param LN Loop nest whose nested loops may be flattened.
+  /// @param LAM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(LoopNest &LN, LoopAnalysisManager &LAM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

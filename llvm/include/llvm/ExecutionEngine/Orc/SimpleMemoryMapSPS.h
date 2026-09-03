@@ -28,14 +28,22 @@
 
 namespace llvm::orc::sps {
 
+/// SPS proxy for SimpleMemoryMapBindings::ReserveProxy: reserves an address
+/// range via the MemMgrReserve controller interface.
 using MemMgrReserveProxySpec =
     ProxySpec<SimpleMemoryMapBindings::ReserveProxy, rt::sps_ci::MemMgrReserve>;
+/// SPS proxy for SimpleMemoryMapBindings::InitializeProxy: applies a finalize
+/// request via the MemMgrInitialize controller interface.
 using MemMgrInitializeProxySpec =
     ProxySpec<SimpleMemoryMapBindings::InitializeProxy,
               rt::sps_ci::MemMgrInitialize>;
+/// SPS proxy for SimpleMemoryMapBindings::DeinitializeProxy: deinitializes
+/// allocations via the MemMgrDeinitialize controller interface.
 using MemMgrDeinitializeProxySpec =
     ProxySpec<SimpleMemoryMapBindings::DeinitializeProxy,
               rt::sps_ci::MemMgrDeinitialize>;
+/// SPS proxy for SimpleMemoryMapBindings::ReleaseProxy: releases reservations
+/// via the MemMgrRelease controller interface.
 using MemMgrReleaseProxySpec =
     ProxySpec<SimpleMemoryMapBindings::ReleaseProxy, rt::sps_ci::MemMgrRelease>;
 
@@ -45,10 +53,14 @@ using MemMgrReleaseProxySpec =
 ///
 /// To bind a different executor-side implementation, use the specs above with
 /// recordProxy<Spec>(&P, Name) to resolve its own names instead.
+/// \param JD JITDylib in which to resolve the memory-manager operations.
+/// \return SimpleMemoryMapBindings, or an error if symbol resolution fails.
 LLVM_ABI Expected<SimpleMemoryMapBindings>
 createSimpleMemoryMapBindings(JITDylib &JD);
 
 /// As above, resolving the operations in ES's bootstrap JITDylib.
+/// \param ES Execution session whose bootstrap JITDylib is searched.
+/// \return SimpleMemoryMapBindings, or an error if symbol resolution fails.
 LLVM_ABI Expected<SimpleMemoryMapBindings>
 createSimpleMemoryMapBindings(ExecutionSession &ES);
 

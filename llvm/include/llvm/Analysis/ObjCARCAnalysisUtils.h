@@ -40,6 +40,8 @@ extern LLVM_ABI bool EnableARCOpts;
 
 /// Test if the given module looks interesting to run ARC optimization
 /// on.
+/// @param M Module to inspect for ARC-related intrinsics.
+/// @return True if the module declares any recognized ARC intrinsic.
 inline bool ModuleHasARC(const Module &M) {
   std::initializer_list<Intrinsic::ID> Intrinsics = {
       Intrinsic::objc_retain,
@@ -71,9 +73,13 @@ inline bool ModuleHasARC(const Module &M) {
   return false;
 }
 
+/// Return the underlying ObjC object pointer for \p V.
+///
 /// This is a wrapper around getUnderlyingObject which also knows how to
 /// look through objc_retain and objc_autorelease calls, which we know to return
 /// their argument verbatim.
+/// @param V Value whose underlying ObjC pointer is requested.
+/// @return The underlying ObjC object pointer for \p V.
 inline const Value *GetUnderlyingObjCPtr(const Value *V) {
   for (;;) {
     V = getUnderlyingObject(V);
@@ -86,6 +92,9 @@ inline const Value *GetUnderlyingObjCPtr(const Value *V) {
 }
 
 /// A wrapper for GetUnderlyingObjCPtr used for results memoization.
+/// @param V Value whose underlying ObjC pointer is requested.
+/// @param Cache Memoization map from input values to computed roots.
+/// @return The cached or freshly computed underlying ObjC pointer.
 inline const Value *GetUnderlyingObjCPtrCached(
     const Value *V,
     DenseMap<const Value *, std::pair<WeakVH, WeakTrackingVH>> &Cache) {
@@ -100,6 +109,8 @@ inline const Value *GetUnderlyingObjCPtrCached(
   return Computed;
 }
 
+/// Return the RCIdentity root of value \p V.
+///
 /// The RCIdentity root of a value \p V is a dominating value U for which
 /// retaining or releasing U is equivalent to retaining or releasing V. In other
 /// words, ARC operations on \p V are equivalent to ARC operations on \p U.
@@ -115,6 +126,8 @@ inline const Value *GetUnderlyingObjCPtrCached(
 ///
 /// Thus this function strips off pointer casts and forwarding calls. *NOTE*
 /// This implies that two RCIdentical values must alias.
+/// @param V Value whose RCIdentity root is requested.
+/// @return The RCIdentity root of \p V.
 inline const Value *GetRCIdentityRoot(const Value *V) {
   for (;;) {
     V = V->stripPointerCasts();
@@ -125,10 +138,14 @@ inline const Value *GetRCIdentityRoot(const Value *V) {
   return V;
 }
 
+/// Return the non-const RCIdentity root of value \p V.
+///
 /// Helper which calls const Value *GetRCIdentityRoot(const Value *V) and just
 /// casts away the const of the result. For documentation about what an
 /// RCIdentityRoot (and by extension GetRCIdentityRoot is) look at that
 /// function.
+/// @param V Value whose RCIdentity root is requested.
+/// @return The non-const RCIdentity root of \p V.
 inline Value *GetRCIdentityRoot(Value *V) {
   return const_cast<Value *>(GetRCIdentityRoot((const Value *)V));
 }
@@ -136,14 +153,22 @@ inline Value *GetRCIdentityRoot(Value *V) {
 /// Assuming the given instruction is one of the special calls such as
 /// objc_retain or objc_release, return the RCIdentity root of the argument of
 /// the call.
+/// @param Inst Call instruction whose argument root is requested.
+/// @return The RCIdentity root of the call's first argument.
 inline Value *GetArgRCIdentityRoot(Value *Inst) {
   return GetRCIdentityRoot(cast<CallInst>(Inst)->getArgOperand(0));
 }
 
+/// Return true if \p V is a null pointer constant or undef.
+/// @param V Value to test.
+/// @return True if \p V is a null pointer constant or undef.
 inline bool IsNullOrUndef(const Value *V) {
   return isa<ConstantPointerNull>(V) || isa<UndefValue>(V);
 }
 
+/// Return true if \p I is a bitcast or a zero-index GEP.
+/// @param I Instruction to test.
+/// @return True if \p I is a bitcast or a zero-index GEP.
 inline bool IsNoopInstruction(const Instruction *I) {
   return isa<BitCastInst>(I) ||
     (isa<GetElementPtrInst>(I) &&
@@ -151,6 +176,8 @@ inline bool IsNoopInstruction(const Instruction *I) {
 }
 
 /// Test whether the given value is possible a retainable object pointer.
+/// @param Op Value to test as a retainable object pointer.
+/// @return True if \p Op may be a retainable object pointer.
 inline bool IsPotentialRetainableObjPtr(const Value *Op) {
   // Pointers to static or stack storage are not valid retainable object
   // pointers.
@@ -174,10 +201,16 @@ inline bool IsPotentialRetainableObjPtr(const Value *Op) {
   return true;
 }
 
+/// Test whether \p Op may be a retainable object pointer using alias analysis.
+/// @param Op Value to test as a retainable object pointer.
+/// @param AA Alias analysis results used to refine the test.
+/// @return True if \p Op may be a retainable object pointer.
 LLVM_ABI bool IsPotentialRetainableObjPtr(const Value *Op, AAResults &AA);
 
 /// Helper for GetARCInstKind. Determines what kind of construct CS
 /// is.
+/// @param CB Call site whose ARC instruction class is requested.
+/// @return The ARC instruction class for call site \p CB.
 inline ARCInstKind GetCallSiteClass(const CallBase &CB) {
   for (const Use &U : CB.args())
     if (IsPotentialRetainableObjPtr(U))
@@ -191,6 +224,8 @@ inline ARCInstKind GetCallSiteClass(const CallBase &CB) {
 ///
 /// This is similar to AliasAnalysis's isIdentifiedObject, except that it uses
 /// special knowledge of ObjC conventions.
+/// @param V Value to test for ObjC-identified provenance.
+/// @return True if \p V refers to a distinct and identifiable object.
 inline bool IsObjCIdentifiedObject(const Value *V) {
   // Assume that call results and arguments have their own "provenance".
   // Constants (including GlobalVariables) and Allocas are never
@@ -226,10 +261,11 @@ inline bool IsObjCIdentifiedObject(const Value *V) {
   return false;
 }
 
+/// Identifiers for Clang ARC metadata kinds used by ARC optimizations.
 enum class ARCMDKindID {
-  ImpreciseRelease,
-  CopyOnEscape,
-  NoObjCARCExceptions,
+  ImpreciseRelease,     ///< clang.imprecise_release metadata.
+  CopyOnEscape,         ///< clang.arc.copy_on_escape metadata.
+  NoObjCARCExceptions,  ///< clang.arc.no_objc_arc_exceptions metadata.
 };
 
 /// A cache of MDKinds used by various ARC optimizations.
@@ -246,6 +282,8 @@ class ARCMDKindCache {
   std::optional<unsigned> NoObjCARCExceptionsMDKind;
 
 public:
+  /// Initialize the cache for module \p Mod and clear cached kind IDs.
+  /// @param Mod Module whose LLVMContext supplies metadata kind IDs.
   void init(Module *Mod) {
     M = Mod;
     ImpreciseReleaseMDKind = std::nullopt;
@@ -253,6 +291,9 @@ public:
     NoObjCARCExceptionsMDKind = std::nullopt;
   }
 
+  /// Return the LLVM metadata kind ID for ARC metadata kind \p ID.
+  /// @param ID ARC metadata kind to look up or lazily create.
+  /// @return The LLVM metadata kind ID for \p ID.
   unsigned get(ARCMDKindID ID) {
     switch (ID) {
     case ARCMDKindID::ImpreciseRelease:

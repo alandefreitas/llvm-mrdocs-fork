@@ -42,15 +42,24 @@ struct MarkupNode {
   /// Otherwise, empty.
   SmallVector<StringRef> Fields;
 
+  /// Return true if this node and \p Other have equal text, tag, and fields.
+  /// \param Other Node to compare against.
+  /// \returns true if the nodes are equal.
   bool operator==(const MarkupNode &Other) const {
     return Text == Other.Text && Tag == Other.Tag && Fields == Other.Fields;
   }
+  /// Return true if this node and \p Other differ.
+  /// \param Other Node to compare against.
+  /// \returns true if the nodes differ.
   bool operator!=(const MarkupNode &Other) const { return !(*this == Other); }
 };
 
 /// Parses a log containing symbolizer markup into a sequence of nodes.
 class MarkupParser {
 public:
+  /// Constructs a parser for symbolizer markup.
+  ///
+  /// \param MultilineTags Tags of elements that can span multiple lines.
   LLVM_ABI MarkupParser(StringSet<> MultilineTags = {});
 
   /// Parses an individual \p Line of input.
@@ -65,6 +74,8 @@ public:
   /// either the end or something that cannot be part of an element is
   /// encountered. This may only occur after multiple calls to parseLine(),
   /// corresponding to the lines of the multi-line element.
+  ///
+  /// \param Line Line of input to parse.
   LLVM_ABI void parseLine(StringRef Line);
 
   /// Inform the parser of that the input stream has ended.
@@ -82,6 +93,9 @@ public:
   /// \returns the next markup node or std::nullopt if none remain.
   LLVM_ABI std::optional<MarkupNode> nextNode();
 
+  /// Returns whether \p Node is an ANSI SGR control code.
+  /// \param Node Markup node to test.
+  /// \returns true if \p Node is an ANSI SGR control code.
   bool isSGR(const MarkupNode &Node) const {
     return SGRSyntax.match(Node.Text);
   }

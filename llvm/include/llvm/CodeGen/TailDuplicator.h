@@ -63,6 +63,8 @@ public:
   /// @param PreRegAlloc - true if used before register allocation
   /// @param MBPI - Branch Probability Info. Used to propagate correct
   ///     probabilities when modifying the CFG.
+  /// @param MBFI - Block frequency info used when optimizing for size.
+  /// @param PSI - Profile summary info used when optimizing for size.
   /// @param LayoutMode - When true, don't use the existing layout to make
   ///     decisions.
   /// @param TailDupSize - Maxmimum size of blocks to tail-duplicate. Zero
@@ -72,21 +74,36 @@ public:
                        MBFIWrapper *MBFI, ProfileSummaryInfo *PSI,
                        bool LayoutMode, unsigned TailDupSize = 0);
 
+  /// Look through the machine function and duplicate any eligible tails.
+  /// @return True if any blocks were modified by tail duplication.
   LLVM_ABI bool tailDuplicateBlocks();
+  /// Return whether \p TailBB is a simple unconditional-branch block.
+  /// @param TailBB - Block to classify as simple or not.
+  /// @return True if \p TailBB is a simple unconditional-branch block.
   LLVM_ABI static bool isSimpleBB(MachineBasicBlock *TailBB);
+  /// Determine whether \p TailBB should be tail-duplicated.
+  /// @param IsSimple - Whether \p TailBB is a simple block (from isSimpleBB).
+  /// @param TailBB - Block considered for tail duplication.
+  /// @return True if \p TailBB is a profitable candidate for tail duplication.
   LLVM_ABI bool shouldTailDuplicate(bool IsSimple, MachineBasicBlock &TailBB);
 
   /// Returns true if TailBB can successfully be duplicated into PredBB
+  /// @param TailBB - Block to be duplicated.
+  /// @param PredBB - Predecessor into which \p TailBB would be duplicated.
+  /// @return True if \p TailBB can be duplicated into \p PredBB.
   LLVM_ABI bool canTailDuplicate(MachineBasicBlock *TailBB,
                                  MachineBasicBlock *PredBB);
 
-  /// Tail duplicate a single basic block into its predecessors, and then clean
-  /// up.
-  /// If \p DuplicatePreds is not null, it will be updated to contain the list
-  /// of predecessors that received a copy of \p MBB.
-  /// If \p RemovalCallback is non-null. It will be called before MBB is
-  /// deleted.
-  /// If \p CandidatePtr is not null, duplicate into these blocks only.
+  /// Tail duplicate a single basic block into its predecessors and clean up.
+  /// @param IsSimple - Whether \p MBB is a simple block (from isSimpleBB).
+  /// @param MBB - Block to be duplicated.
+  /// @param ForcedLayoutPred - If non-null, treat this block as the layout
+  ///     predecessor instead of using the ordering in MF.
+  /// @param DuplicatedPreds - If non-null, updated with the predecessors that
+  ///     received a copy of \p MBB.
+  /// @param RemovalCallback - If non-null, called before \p MBB is deleted.
+  /// @param CandidatePtr - If non-null, duplicate into these blocks only.
+  /// @return True if \p MBB was successfully duplicated into predecessors.
   LLVM_ABI bool tailDuplicateAndUpdate(
       bool IsSimple, MachineBasicBlock *MBB,
       MachineBasicBlock *ForcedLayoutPred,

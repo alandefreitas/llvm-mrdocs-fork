@@ -35,11 +35,14 @@ namespace orc {
 /// Represents an abstract task for ORC to run.
 class LLVM_ABI Task : public RTTIExtends<Task, RTTIRoot> {
 public:
+  /// RTTI identifier for this Task type.
   static char ID;
 
+  /// Destroy this Task.
   ~Task() override = default;
 
   /// Description of the task to be performed. Used for logging.
+  /// \param OS Stream to write the description to.
   virtual void printDescription(raw_ostream &OS) = 0;
 
   /// Run the task.
@@ -52,21 +55,32 @@ private:
 /// Base class for generic tasks.
 class GenericNamedTask : public RTTIExtends<GenericNamedTask, Task> {
 public:
+  /// RTTI identifier for this GenericNamedTask type.
   LLVM_ABI static char ID;
+  /// Default description used when none is provided.
   LLVM_ABI static const char *DefaultDescription;
 };
 
 /// Generic task implementation.
 template <typename FnT> class GenericNamedTaskImpl : public GenericNamedTask {
 public:
+  /// Construct a generic named task that owns its description string.
+  /// \param Fn Callable to invoke when the task runs.
+  /// \param InDescBuffer Description string buffer to own and print.
   GenericNamedTaskImpl(FnT &&Fn, std::string InDescBuffer)
       : Fn(std::forward<FnT>(Fn)), DescBuffer(std::move(InDescBuffer)),
         Desc(DescBuffer.c_str()) {}
+  /// Construct a generic named task with a non-owning description.
+  /// \param Fn Callable to invoke when the task runs.
+  /// \param Desc Null-terminated description string; must not be null.
   GenericNamedTaskImpl(FnT &&Fn, const char *Desc)
       : Fn(std::forward<FnT>(Fn)), Desc(Desc) {
     assert(Desc && "Description cannot be null");
   }
+  /// Print this task's description to \p OS.
+  /// \param OS Stream to write the description to.
   void printDescription(raw_ostream &OS) override { OS << Desc; }
+  /// Run the wrapped callable.
   void run() override { Fn(); }
 
 private:
@@ -76,6 +90,9 @@ private:
 };
 
 /// Create a generic named task from a std::string description.
+/// \param Fn Callable to invoke when the task runs.
+/// \param Desc Description string to own and associate with the task.
+/// \return A unique_ptr owning the created GenericNamedTask.
 template <typename FnT>
 std::unique_ptr<GenericNamedTask> makeGenericNamedTask(FnT &&Fn,
                                                        std::string Desc) {
@@ -84,6 +101,9 @@ std::unique_ptr<GenericNamedTask> makeGenericNamedTask(FnT &&Fn,
 }
 
 /// Create a generic named task from a const char * description.
+/// \param Fn Callable to invoke when the task runs.
+/// \param Desc Description string, or nullptr to use DefaultDescription.
+/// \return A unique_ptr owning the created GenericNamedTask.
 template <typename FnT>
 std::unique_ptr<GenericNamedTask>
 makeGenericNamedTask(FnT &&Fn, const char *Desc = nullptr) {
@@ -97,6 +117,7 @@ makeGenericNamedTask(FnT &&Fn, const char *Desc = nullptr) {
 /// lookup.
 class LLVM_ABI IdleTask : public RTTIExtends<IdleTask, Task> {
 public:
+  /// RTTI identifier for this IdleTask type.
   static char ID;
 
 private:
@@ -106,9 +127,11 @@ private:
 /// Abstract base for classes that dispatch ORC Tasks.
 class LLVM_ABI TaskDispatcher {
 public:
+  /// Destroy this TaskDispatcher.
   virtual ~TaskDispatcher();
 
   /// Run the given task.
+  /// \param T Task to dispatch.
   virtual void dispatch(std::unique_ptr<Task> T) = 0;
 
   /// Called by ExecutionSession. Waits until all tasks have completed.
@@ -118,19 +141,29 @@ public:
 /// Runs all tasks on the current thread.
 class LLVM_ABI InPlaceTaskDispatcher : public TaskDispatcher {
 public:
+  /// Run the given task immediately on the calling thread.
+  /// \param T Task to run.
   void dispatch(std::unique_ptr<Task> T) override;
+  /// Shut down this dispatcher (no-op for in-place dispatch).
   void shutdown() override;
 };
 
 #if LLVM_ENABLE_THREADS
 
+/// Dispatches tasks onto a dynamically sized pool of worker threads.
 class LLVM_ABI DynamicThreadPoolTaskDispatcher : public TaskDispatcher {
 public:
+  /// Construct a dynamic thread-pool task dispatcher.
+  /// \param MaxMaterializationThreads Optional cap on concurrent
+  ///        materialization threads; std::nullopt means uncapped.
   DynamicThreadPoolTaskDispatcher(
       std::optional<size_t> MaxMaterializationThreads)
       : MaxMaterializationThreads(MaxMaterializationThreads) {}
 
+  /// Dispatch the given task to a worker thread.
+  /// \param T Task to dispatch.
   void dispatch(std::unique_ptr<Task> T) override;
+  /// Wait until all outstanding tasks complete, then shut down the pool.
   void shutdown() override;
 private:
   bool canRunMaterializationTaskNow();

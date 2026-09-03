@@ -42,23 +42,42 @@ public:
   /// argument.  Used so that arguments and return values can be used
   /// interchangeably.
   struct RetOrArg {
+    /// Function that owns this return value or argument.
     const Function *F;
+    /// Index of the return value or argument within \p F.
     unsigned Idx;
+    /// True if this refers to an argument; false if it refers to a return value.
     bool IsArg;
 
+    /// Construct a reference to return value or argument \p Idx of \p F.
+    ///
+    /// \param F Function that owns the return or argument.
+    /// \param Idx Index of the return value or argument.
+    /// \param IsArg True if this refers to an argument; false for a return.
     RetOrArg(const Function *F, unsigned Idx, bool IsArg)
         : F(F), Idx(Idx), IsArg(IsArg) {}
 
     /// Make RetOrArg comparable, so we can put it into a map.
+    ///
+    /// \param O Other return-or-argument to compare against.
+    /// \return True if this precedes \p O in lexicographic order of F, Idx, and
+    /// IsArg.
     bool operator<(const RetOrArg &O) const {
       return std::tie(F, Idx, IsArg) < std::tie(O.F, O.Idx, O.IsArg);
     }
 
     /// Make RetOrArg comparable, so we can easily iterate the multimap.
+    ///
+    /// \param O Other return-or-argument to compare against.
+    /// \return True if this and \p O refer to the same return or argument.
     bool operator==(const RetOrArg &O) const {
       return F == O.F && Idx == O.Idx && IsArg == O.IsArg;
     }
 
+    /// Return a human-readable description of this return or argument.
+    ///
+    /// \return A string identifying the argument or return value and its
+    /// function.
     std::string getDescription() const {
       return (Twine(IsArg ? "Argument #" : "Return value #") + Twine(Idx) +
               " of function " + F->getName())
@@ -66,26 +85,47 @@ public:
     }
   };
 
+  /// Liveness of a return value or argument during dead-argument analysis.
+  ///
   /// During our initial pass over the program, we determine that things are
   /// either alive or maybe alive. We don't mark anything explicitly dead (even
   /// if we know they are), since anything not alive with no registered uses
   /// (in Uses) will never be marked alive and will thus become dead in the end.
-  enum Liveness { Live, MaybeLive };
+  enum Liveness {
+    Live,      ///< Definitely used and must be preserved.
+    MaybeLive, ///< Not yet proven live; may become live via Uses.
+  };
 
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Run dead-argument elimination over the given module.
+  ///
+  /// \param M Module whose dead arguments and return values are eliminated.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
   /// Convenience wrapper
+  ///
+  /// \param F Function whose return value is referenced.
+  /// \param Idx Index of the return value (for multi-value returns).
+  /// \return A RetOrArg referring to return value \p Idx of \p F.
   RetOrArg createRet(const Function *F, unsigned Idx) {
     return RetOrArg(F, Idx, false);
   }
 
   /// Convenience wrapper
+  ///
+  /// \param F Function whose argument is referenced.
+  /// \param Idx Index of the argument.
+  /// \return A RetOrArg referring to argument \p Idx of \p F.
   RetOrArg createArg(const Function *F, unsigned Idx) {
     return RetOrArg(F, Idx, true);
   }
 
+  /// Multimap from a return or argument to MaybeLive values it uses.
   using UseMap = std::multimap<RetOrArg, RetOrArg>;
 
+  /// Multimap from each return or argument to the MaybeLive values it uses.
+  ///
   /// This maps a return value or argument to any MaybeLive return values or
   /// arguments it uses. This allows the MaybeLive values to be marked live
   /// when any of its users is marked live.
@@ -102,7 +142,9 @@ public:
   ///    directly to F.
   UseMap Uses;
 
+  /// Set of returns and arguments known to be live.
   using LiveSet = std::set<RetOrArg>;
+  /// Set of functions that must not be modified by this pass.
   using FuncSet = std::set<const Function *>;
 
   /// This set contains all values that have been determined to be live.
@@ -114,6 +156,7 @@ public:
   /// This set contains all functions that cannot change return type;
   FuncSet FrozenRetTyFunctions;
 
+  /// Small vector of returns and arguments collected while surveying uses.
   using UseVector = SmallVector<RetOrArg, 5>;
 
 private:

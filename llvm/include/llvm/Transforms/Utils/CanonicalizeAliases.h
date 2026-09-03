@@ -23,8 +23,13 @@ class Module;
 class CanonicalizeAliasesPass
     : public OptionalPassInfoMixin<CanonicalizeAliasesPass> {
 public:
+  /// Construct a CanonicalizeAliases pass.
   CanonicalizeAliasesPass() = default;
 
+  /// Run the canonicalize-aliases pass over the module.
+  /// @param M Module whose aliases are canonicalized.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

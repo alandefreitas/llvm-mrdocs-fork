@@ -17,8 +17,17 @@
 
 namespace llvm {
 
+/// Pass that demotes registers to memory allocas.
+///
+/// Converts virtual registers and PHI nodes into loads and stores of allocas
+/// so that only allocas and loads before PHI nodes are live across basic
+/// blocks, making CFG transformations easier.
 class RegToMemPass : public OptionalPassInfoMixin<RegToMemPass> {
 public:
+  /// Run register-to-memory demotion over the function.
+  /// @param F Function whose registers may be demoted to allocas.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

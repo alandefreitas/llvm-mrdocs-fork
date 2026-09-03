@@ -25,6 +25,8 @@ namespace llvm {
   //
   /// createLazyValueInfoPass - This creates an instance of the LazyValueInfo
   /// pass.
+  ///
+  /// @return A new LazyValueInfo pass instance.
   LLVM_ABI FunctionPass *createLazyValueInfoPass();
 
   //===--------------------------------------------------------------------===//
@@ -36,9 +38,12 @@ namespace llvm {
 
   //===--------------------------------------------------------------------===//
   //
-  // createRegionInfoPass - This pass finds all single entry single exit regions
-  // in a function and builds the region hierarchy.
-  //
+  /// Creates an instance of \c RegionInfoPass.
+  ///
+  /// This pass finds all single entry single exit regions in a function and
+  /// builds the region hierarchy.
+  ///
+  /// @return A new RegionInfoPass instance.
   LLVM_ABI FunctionPass *createRegionInfoPass();
 }
 

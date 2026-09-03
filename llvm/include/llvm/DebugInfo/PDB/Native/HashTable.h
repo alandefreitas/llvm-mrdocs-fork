@@ -26,13 +26,27 @@ namespace llvm {
 
 namespace pdb {
 
+/// Read a SparseBitVector from a PDB binary stream.
+///
+/// \param Stream The reader positioned at the serialized bit vector.
+/// \param V On success, receives the deserialized bit vector.
+///
+/// \returns Success, or an error if the stream is truncated or corrupt.
 LLVM_ABI Error readSparseBitVector(BinaryStreamReader &Stream,
                                    SparseBitVector<> &V);
+
+/// Write a SparseBitVector to a PDB binary stream.
+///
+/// \param Writer The writer that receives the serialized bit vector.
+/// \param Vec The bit vector to serialize.
+///
+/// \returns Success, or an error if the write fails.
 LLVM_ABI Error writeSparseBitVector(BinaryStreamWriter &Writer,
                                     SparseBitVector<> &Vec);
 
 template <typename ValueT> class HashTable;
 
+/// Forward iterator over the present entries of a PDB \c HashTable.
 template <typename ValueT>
 class HashTableIterator
     : public iterator_facade_base<HashTableIterator<ValueT>,
@@ -46,6 +60,9 @@ class HashTableIterator
       : Map(&Map), Index(Index), IsEnd(IsEnd) {}
 
 public:
+  /// Construct an iterator at the first present entry of \p Map.
+  ///
+  /// \param Map The hash table to iterate.
   HashTableIterator(const HashTable<ValueT> &Map) : Map(&Map) {
     int I = Map.Present.find_first();
     if (I == -1) {
@@ -57,11 +74,26 @@ public:
     }
   }
 
+  /// Copy-construct an iterator.
+  ///
+  /// \param R The iterator to copy.
   HashTableIterator(const HashTableIterator &R) = default;
+
+  /// Copy-assign an iterator.
+  ///
+  /// \param R The iterator to copy from.
+  ///
+  /// \returns A reference to this iterator.
   HashTableIterator &operator=(const HashTableIterator &R) {
     Map = R.Map;
     return *this;
   }
+
+  /// Compare two iterators for equality.
+  ///
+  /// \param R The iterator to compare against.
+  ///
+  /// \returns True if both are end, or both refer to the same table index.
   bool operator==(const HashTableIterator &R) const {
     if (IsEnd && R.IsEnd)
       return true;
@@ -70,14 +102,24 @@ public:
 
     return (Map == R.Map) && (Index == R.Index);
   }
+
+  /// Dereference the iterator to the current key/value pair.
+  ///
+  /// \returns A const reference to the \c (key, value) pair at this position.
   const std::pair<uint32_t, ValueT> &operator*() const {
     assert(Map->Present.test(Index));
     return Map->Buckets[Index];
   }
 
-  // Implement postfix op++ in terms of prefix op++ by using the superclass
-  // implementation.
+  /// Bring the postfix increment operator into scope from the iterator facade.
+  ///
+  /// Implement postfix op++ in terms of prefix op++ by using the superclass
+  /// implementation.
   using BaseT::operator++;
+
+  /// Advance to the next present entry in the table.
+  ///
+  /// \returns A reference to this iterator after advancing.
   HashTableIterator &operator++() {
     while (Index < Map->Buckets.size()) {
       ++Index;
@@ -98,6 +140,8 @@ private:
   bool IsEnd;
 };
 
+/// Closed hash table used by the native PDB format to map storage keys to
+/// values.
 template <typename ValueT>
 class HashTable {
   struct Header {
@@ -108,14 +152,25 @@ class HashTable {
   using BucketList = std::vector<std::pair<uint32_t, ValueT>>;
 
 public:
+  /// Const forward iterator over present hash-table entries.
   using const_iterator = HashTableIterator<ValueT>;
   friend const_iterator;
 
+  /// Construct an empty hash table with a small default capacity.
   HashTable() { Buckets.resize(8); }
+
+  /// Construct an empty hash table with the given capacity.
+  ///
+  /// \param Capacity The number of bucket slots to allocate.
   explicit HashTable(uint32_t Capacity) {
     Buckets.resize(Capacity);
   }
 
+  /// Load a hash table from a binary stream.
+  ///
+  /// \param Stream The reader positioned at a serialized hash table.
+  ///
+  /// \returns Success, or an error if the stream is truncated or corrupt.
   Error load(BinaryStreamReader &Stream) {
     const Header *H;
     if (auto EC = Stream.readObject(H))
@@ -153,6 +208,9 @@ public:
     return Error::success();
   }
 
+  /// Return the number of bytes required to serialize this table.
+  ///
+  /// \returns The serialized size in bytes, including header and bit vectors.
   uint32_t calculateSerializedLength() const {
     uint32_t Size = sizeof(Header);
 
@@ -180,6 +238,11 @@ public:
     return Size;
   }
 
+  /// Serialize this hash table to a binary stream.
+  ///
+  /// \param Writer The writer that receives the serialized table.
+  ///
+  /// \returns Success, or an error if the write fails.
   Error commit(BinaryStreamWriter &Writer) const {
     Header H;
     H.Size = size();
@@ -202,21 +265,46 @@ public:
     return Error::success();
   }
 
+  /// Remove all entries and reset to the default capacity.
   void clear() {
     Buckets.resize(8);
     Present.clear();
     Deleted.clear();
   }
 
+  /// Return true if the table contains no present entries.
+  ///
+  /// \returns True when \c size() is zero.
   bool empty() const { return size() == 0; }
+
+  /// Return the number of bucket slots in the table.
+  ///
+  /// \returns The current capacity.
   uint32_t capacity() const { return Buckets.size(); }
+
+  /// Return the number of present entries in the table.
+  ///
+  /// \returns The count of set bits in the present bit vector.
   uint32_t size() const { return Present.count(); }
 
+  /// Return an iterator to the first present entry.
+  ///
+  /// \returns A const iterator at the beginning of the table.
   const_iterator begin() const { return const_iterator(*this); }
+
+  /// Return a past-the-end iterator.
+  ///
+  /// \returns A const iterator that compares equal to end.
   const_iterator end() const { return const_iterator(*this, 0, true); }
 
   /// Find the entry whose key has the specified hash value, using the specified
   /// traits defining hash function and equality.
+  ///
+  /// \param K The lookup key to search for.
+  /// \param Traits Traits that hash and compare keys against storage keys.
+  ///
+  /// \returns An iterator to the matching entry, or a probe-hint end iterator
+  ///     when no match is found.
   template <typename Key, typename TraitsT>
   const_iterator find_as(const Key &K, TraitsT &Traits) const {
     uint32_t H = Traits.hashLookupKey(K) % capacity();
@@ -249,11 +337,24 @@ public:
 
   /// Set the entry using a key type that the specified Traits can convert
   /// from a real key to an internal key.
+  ///
+  /// \param K The lookup key identifying the entry.
+  /// \param V The value to store.
+  /// \param Traits Traits that convert between lookup and storage keys.
+  ///
+  /// \returns True if a new entry was inserted; false if an existing entry was
+  ///     updated.
   template <typename Key, typename TraitsT>
   bool set_as(const Key &K, ValueT V, TraitsT &Traits) {
     return set_as_internal(K, std::move(V), Traits, std::nullopt);
   }
 
+  /// Return the value associated with the given lookup key.
+  ///
+  /// \param K The lookup key to search for.
+  /// \param Traits Traits that hash and compare keys against storage keys.
+  ///
+  /// \returns The value stored for \p K. The key must be present.
   template <typename Key, typename TraitsT>
   ValueT get(const Key &K, TraitsT &Traits) const {
     auto Iter = find_as(K, Traits);
@@ -262,11 +363,27 @@ public:
   }
 
 protected:
+  /// Return whether the bucket at index \p K holds a present entry.
+  ///
+  /// \param K The bucket index to test.
+  ///
+  /// \returns True if the present bit for \p K is set.
   bool isPresent(uint32_t K) const { return Present.test(K); }
+
+  /// Return whether the bucket at index \p K is marked deleted.
+  ///
+  /// \param K The bucket index to test.
+  ///
+  /// \returns True if the deleted bit for \p K is set.
   bool isDeleted(uint32_t K) const { return Deleted.test(K); }
 
+  /// Bucket storage of \c (storage key, value) pairs.
   BucketList Buckets;
+
+  /// Bit vector of buckets that currently hold a present entry.
   mutable SparseBitVector<> Present;
+
+  /// Bit vector of buckets that are marked as deleted.
   mutable SparseBitVector<> Deleted;
 
 private:

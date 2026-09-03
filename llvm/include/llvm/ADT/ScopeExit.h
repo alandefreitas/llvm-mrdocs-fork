@@ -29,20 +29,30 @@ template <typename Callable> class [[nodiscard]] scope_exit {
 
 public:
   /// Construct a guard that will call \p F on destruction unless released.
+  ///
+  /// \param F Callable invoked on scope exit while the guard remains engaged.
   template <typename Fp>
   explicit scope_exit(Fp &&F) : ExitFunction(std::forward<Fp>(F)) {}
 
   /// Move construction transfers the cleanup responsibility from \p Rhs.
+  ///
+  /// \param Rhs Guard whose cleanup is taken; \p Rhs is released afterward.
   scope_exit(scope_exit &&Rhs)
       : ExitFunction(std::move(Rhs.ExitFunction)), Engaged(Rhs.Engaged) {
     Rhs.release();
   }
   /// Copy construction is deleted; each guard owns a unique cleanup.
-  scope_exit(const scope_exit &) = delete;
+  ///
+  /// \param Rhs Unused; copy construction is not supported.
+  scope_exit(const scope_exit &Rhs) = delete;
   /// Move assignment is deleted.
-  scope_exit &operator=(scope_exit &&) = delete;
+  ///
+  /// \param Rhs Unused; move assignment is not supported.
+  scope_exit &operator=(scope_exit &&Rhs) = delete;
   /// Copy assignment is deleted.
-  scope_exit &operator=(const scope_exit &) = delete;
+  ///
+  /// \param Rhs Unused; copy assignment is not supported.
+  scope_exit &operator=(const scope_exit &Rhs) = delete;
 
   /// Disarm the guard so the exit callable is not run on destruction.
   void release() { Engaged = false; }

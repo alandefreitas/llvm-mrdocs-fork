@@ -29,18 +29,36 @@ class Function;
 ///
 /// This should only be used for debugging, because it plays games with
 /// PassManagers and stuff.
+/// @param M Module to lint.
+/// @param AbortOnError If true, abort when lint finds errors.
 LLVM_ABI void lintModule(const Module &M, bool AbortOnError = false);
 
-// Lint a function.
+/// Lint a function.
+///
+/// This should only be used for debugging, because it plays games with
+/// PassManagers and stuff.
+/// @param F Function to lint.
+/// @param AbortOnError If true, abort when lint finds errors.
 LLVM_ABI void lintFunction(const Function &F, bool AbortOnError = false);
 
+/// Function pass that lints IR for undefined or unintended behavior.
 class LintPass : public RequiredPassInfoMixin<LintPass> {
   const bool AbortOnError;
 
 public:
+  /// Construct a lint pass.
+  /// @param AbortOnError If true, abort when lint finds errors.
   LintPass(bool AbortOnError) : AbortOnError(AbortOnError) {}
+
+  /// Lint function \p F and preserve all analyses.
+  /// @param F Function to lint.
+  /// @param AM Function analysis manager providing analyses used by lint.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
+  /// Print this pass and its options as a pipeline string.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);

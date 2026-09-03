@@ -117,20 +117,33 @@ enum FPClassTest : unsigned;
 ///        the same function, use the same failure basic block).
 class StackProtectorDescriptor {
 public:
+  /// Construct an uninitialized stack protector descriptor.
   StackProtectorDescriptor() = default;
 
   /// Returns true if all fields of the stack protector descriptor are
   /// initialized implying that we should/are ready to emit a stack protector.
+  ///
+  /// \returns True if the descriptor is fully initialized and ready to emit.
   bool shouldEmitStackProtector() const {
     return ParentMBB && SuccessMBB && FailureMBB;
   }
 
+  /// Returns true if only the parent MBB is set, implying a function-based
+  /// stack protector check should be emitted.
+  ///
+  /// \returns True if only the parent MBB is set for a function-based check.
   bool shouldEmitFunctionBasedCheckStackProtector() const {
     return ParentMBB && !SuccessMBB && !FailureMBB;
   }
 
   /// Initialize the stack protector descriptor structure for a new basic
   /// block.
+  ///
+  /// \param BB The IR basic block being protected.
+  /// \param MBB The machine basic block corresponding to \p BB.
+  /// \param FunctionBasedInstrumentation If true, emit a call to a
+  /// guard-check function instead of inlined instrumentation and do not
+  /// create success and failure successor blocks.
   void initialize(const BasicBlock *BB, MachineBasicBlock *MBB,
                   bool FunctionBasedInstrumentation) {
     // Make sure we are not initialized yet.
@@ -169,8 +182,17 @@ public:
   /// always the same.
   void resetPerFunctionState() { FailureMBB = nullptr; }
 
+  /// Return the machine basic block being instrumented.
+  ///
+  /// \returns The parent machine basic block, or nullptr if not set.
   MachineBasicBlock *getParentMBB() { return ParentMBB; }
+  /// Return the successor visited when the stack protector check succeeds.
+  ///
+  /// \returns The success machine basic block, or nullptr if not set.
   MachineBasicBlock *getSuccessMBB() { return SuccessMBB; }
+  /// Return the successor visited when the stack protector check fails.
+  ///
+  /// \returns The failure machine basic block, or nullptr if not set.
   MachineBasicBlock *getFailureMBB() { return FailureMBB; }
 
 private:
@@ -212,12 +234,19 @@ private:
 /// terminator sequence so that we can ensure that we splice off not just the
 /// terminator, but additionally the copies that move the vregs into the
 /// physical registers.
+///
+/// \param BB The machine basic block whose terminator sequence is located.
+/// \param TII Target instruction info used to identify tail calls and
+/// call-frame setup or destroy opcodes.
+/// \returns An iterator to the first instruction of the terminator sequence.
 LLVM_ABI MachineBasicBlock::iterator
 findSplitPointForStackProtector(MachineBasicBlock *BB,
                                 const TargetInstrInfo &TII);
 
+/// Return an inverted FP class test when inversion is cheaper to lower.
+///
 /// Evaluates if the specified FP class test is better performed as the inverse
-/// (i.e. fewer instructions should be required to lower it).  An example is the
+/// (i.e. fewer instructions should be required to lower it). An example is the
 /// test "inf|normal|subnormal|zero", which is an inversion of "nan".
 ///
 /// \param Test The test as specified in 'is_fpclass' intrinsic invocation.
@@ -228,15 +257,25 @@ findSplitPointForStackProtector(MachineBasicBlock *BB,
 /// simpler test.
 LLVM_ABI FPClassTest invertFPClassTestIfSimpler(FPClassTest Test, bool UseFCmp);
 
-/// Return the cache hint metadata node for memory operand \p OperandNo on \p I,
-/// or nullptr when the instruction has no hint for that operand. For a \c
+/// Return the cache hint metadata node for a memory operand.
+///
+/// Returns nullptr when the instruction has no hint for that operand. For a \c
 /// CallBase, \p OperandNo is an argument index; otherwise it is an instruction
 /// operand index.
+///
+/// \param I The instruction that may carry \c mem_cache_hint metadata.
+/// \param OperandNo The operand or argument index to look up. Defaults to 0.
+/// \returns The cache hint metadata node, or nullptr if none is present.
 LLVM_ABI const MDNode *getMemCacheHintMetadata(const Instruction &I,
                                                unsigned OperandNo = 0);
 
 /// Assuming the instruction \p MI is going to be deleted, attempt to salvage
 /// debug users of \p MI by writing the effect of \p MI in a DIExpression.
+///
+/// \param MRI Register information used to inspect types of \p MI.
+/// \param MI The instruction about to be deleted.
+/// \param DbgUsers Debug operands of \p MI to rewrite, typically DBG_VALUE
+/// uses.
 LLVM_ABI void salvageDebugInfoForDbgValue(const MachineRegisterInfo &MRI,
                                           MachineInstr &MI,
                                           ArrayRef<MachineOperand *> DbgUsers);

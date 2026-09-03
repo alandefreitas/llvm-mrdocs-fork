@@ -22,6 +22,8 @@
 
 namespace llvm {
 
+/// Glob pattern matcher similar to bash with some key differences.
+///
 /// This class implements a glob pattern matcher similar to the one found in
 /// bash, but with some key differences. Namely, that `*` matches all
 /// characters and does not exclude path separators.
@@ -51,18 +53,28 @@ namespace llvm {
 /// * `_Z{N,NK,}S[tabsoid]*` will match mangled C++ standard library functions.
 class GlobPattern {
 public:
+  /// Create a GlobPattern from the given pattern string.
+  ///
   /// \param Pat the pattern to match against
   /// \param MaxSubPatterns if provided limit the number of allowed subpatterns
   ///                       created from expanding braces otherwise disable
   ///                       brace expansion
+  /// \param SlashAgnostic if true, treat `/` and `\` as equivalent separators
+  /// \returns the constructed GlobPattern, or an Error if \p Pat is invalid
   LLVM_ABI static Expected<GlobPattern>
   create(StringRef Pat, std::optional<size_t> MaxSubPatterns = {},
          bool SlashAgnostic = false);
+  /// Return true if \p S matches this glob pattern.
+  ///
+  /// \param S the string to match against the pattern
   /// \returns \p true if \p S matches this glob pattern
   LLVM_ABI bool match(StringRef S) const;
 
-  // Returns true for glob pattern "*". Can be used to avoid expensive
-  // preparation/acquisition of the input for match().
+  /// Return true if this pattern is the trivial match-all pattern "*".
+  ///
+  /// Can be used to avoid expensive preparation/acquisition of the input for
+  /// match().
+  /// \returns \p true if this pattern is exactly `"*"`
   bool isTrivialMatchAll() const {
     if (PrefixSize)
       return false;
@@ -76,12 +88,14 @@ public:
   // The following functions are just shortcuts for faster matching. They are
   // conservative to simplify implementations.
 
-  // Returns plain prefix of the pattern.
+  /// Return the plain (literal) prefix of the pattern.
+  /// \returns the literal prefix of the pattern
   StringRef prefix() const { return Pattern.take_front(PrefixSize); }
-  // Returns plain suffix of the pattern.
+  /// Return the plain (literal) suffix of the pattern.
+  /// \returns the literal suffix of the pattern
   StringRef suffix() const { return Pattern.take_back(SuffixSize); }
-  // Returns the longest plain substring of the pattern between prefix and
-  // suffix.
+  /// Return the longest plain substring between the pattern prefix and suffix.
+  /// \returns the longest literal substring between the prefix and suffix
   LLVM_ABI StringRef longest_substr() const;
 
 private:

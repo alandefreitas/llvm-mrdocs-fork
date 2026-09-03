@@ -45,6 +45,7 @@ class EarliestEscapeAnalysis;
 class ExtractValueInst;
 class Function;
 class FunctionPass;
+/// Legacy FunctionPass wrapper around GVNPass.
 class GVNLegacyPass;
 class GetElementPtrInst;
 class ImplicitControlFlowTracking;
@@ -63,53 +64,77 @@ class TargetLibraryInfo;
 class Value;
 class IntrinsicInst;
 
-/// A set of parameters to control various transforms performed by GVN pass.
-//  Each of the optional boolean parameters can be set to:
+/// Parameters controlling which transforms GVN may perform.
+///
+/// Each of the optional boolean parameters can be set to:
 ///      true - enabling the transformation.
 ///      false - disabling the transformation.
 ///      None - relying on a global default.
 /// Intended use is to create a default object, modify parameters with
 /// additional setters and then pass it to GVN.
 struct GVNOptions {
+  /// Whether to allow PRE of scalar instructions; None uses the global default.
   std::optional<bool> AllowScalarPRE;
+  /// Whether to allow PRE of loads; None uses the global default.
   std::optional<bool> AllowLoadPRE;
+  /// Whether to allow load PRE inside loops; None uses the global default.
   std::optional<bool> AllowLoadInLoopPRE;
+  /// Whether load PRE may split critical backedges; None uses the global
+  /// default.
   std::optional<bool> AllowLoadPRESplitBackedge;
+  /// Whether to use MemoryDependenceAnalysis; None uses the global default.
   std::optional<bool> AllowMemDep;
+  /// Whether to use MemorySSA; None uses the global default.
   std::optional<bool> AllowMemorySSA;
 
+  /// Construct GVN options with all settings left at their defaults.
   GVNOptions() = default;
 
   /// Enables or disables PRE of scalars in GVN.
+  /// @param ScalarPRE True to enable scalar PRE, false to disable it.
+  /// @return A reference to these options.
   GVNOptions &setScalarPRE(bool ScalarPRE) {
     AllowScalarPRE = ScalarPRE;
     return *this;
   }
 
   /// Enables or disables PRE of loads in GVN.
+  /// @param LoadPRE True to enable load PRE, false to disable it.
+  /// @return A reference to these options.
   GVNOptions &setLoadPRE(bool LoadPRE) {
     AllowLoadPRE = LoadPRE;
     return *this;
   }
 
+  /// Enables or disables PRE of loads inside loops in GVN.
+  /// @param LoadInLoopPRE True to enable in-loop load PRE, false to disable
+  /// it.
+  /// @return A reference to these options.
   GVNOptions &setLoadInLoopPRE(bool LoadInLoopPRE) {
     AllowLoadInLoopPRE = LoadInLoopPRE;
     return *this;
   }
 
   /// Enables or disables PRE of loads in GVN.
+  /// @param LoadPRESplitBackedge True to allow splitting critical backedges
+  /// during load PRE, false to disable it.
+  /// @return A reference to these options.
   GVNOptions &setLoadPRESplitBackedge(bool LoadPRESplitBackedge) {
     AllowLoadPRESplitBackedge = LoadPRESplitBackedge;
     return *this;
   }
 
   /// Enables or disables use of MemDepAnalysis.
+  /// @param MemDep True to use MemoryDependenceAnalysis, false to disable it.
+  /// @return A reference to these options.
   GVNOptions &setMemDep(bool MemDep) {
     AllowMemDep = MemDep;
     return *this;
   }
 
   /// Enables or disables use of MemorySSA.
+  /// @param MemSSA True to use MemorySSA, false to disable it.
+  /// @return A reference to these options.
   GVNOptions &setMemorySSA(bool MemSSA) {
     AllowMemorySSA = MemSSA;
     return *this;
@@ -124,32 +149,62 @@ class GVNPass : public OptionalPassInfoMixin<GVNPass> {
   GVNOptions Options;
 
 public:
+  /// Expression key used for value numbering.
   struct Expression;
+  /// A value available for rematerializing a load.
   struct AvailableValue;
+  /// An AvailableValue associated with a specific basic block.
   struct AvailableValueInBlock;
 
+  /// Construct a GVN pass with the given options.
+  /// @param Options Configuration controlling which GVN transforms run.
   GVNPass(GVNOptions Options = {}) : Options(Options) {}
 
   /// Run the pass over the function.
+  /// @param F Function to run global value numbering on.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
 
   /// This removes the specified instruction from
   /// our various maps and marks it for deletion.
+  /// @param I Instruction to salvage debug info from and remove.
   LLVM_ABI void salvageAndRemoveInstruction(Instruction *I);
 
+  /// Return the dominator tree used by this pass.
+  /// @return The dominator tree used by this pass.
   DominatorTree &getDominatorTree() const { return *DT; }
+  /// Return the alias analysis results used by this pass.
+  /// @return The alias analysis results used by this pass.
   AAResults *getAliasAnalysis() const { return VN.getAliasAnalysis(); }
+  /// Return the memory dependence analysis used by this pass.
+  /// @return The memory dependence analysis used by this pass.
   MemoryDependenceResults &getMemDep() const { return *MD; }
 
+  /// Return true if PRE of scalar instructions is enabled.
+  /// @return True if PRE of scalar instructions is enabled.
   LLVM_ABI bool isScalarPREEnabled() const;
+  /// Return true if PRE of loads is enabled.
+  /// @return True if PRE of loads is enabled.
   LLVM_ABI bool isLoadPREEnabled() const;
+  /// Return true if PRE of loads inside loops is enabled.
+  /// @return True if PRE of loads inside loops is enabled.
   LLVM_ABI bool isLoadInLoopPREEnabled() const;
+  /// Return true if load PRE may split critical backedges.
+  /// @return True if load PRE may split critical backedges.
   LLVM_ABI bool isLoadPRESplitBackedgeEnabled() const;
+  /// Return true if MemoryDependenceAnalysis is enabled for this pass.
+  /// @return True if MemoryDependenceAnalysis is enabled for this pass.
   LLVM_ABI bool isMemDepEnabled() const;
+  /// Return true if MemorySSA is enabled for this pass.
+  /// @return True if MemorySSA is enabled for this pass.
   LLVM_ABI bool isMemorySSAEnabled() const;
 
   /// This class holds the mapping between values and value numbers.  It is used
@@ -205,40 +260,104 @@ public:
     void addMemoryStateToExp(Instruction *I, Expression &Exp);
 
   public:
+    /// Construct an empty value table.
     LLVM_ABI ValueTable();
+    /// Copy-construct a value table.
+    /// @param Arg Value table to copy.
     LLVM_ABI ValueTable(const ValueTable &Arg);
+    /// Move-construct a value table.
+    /// @param Arg Value table to move from.
     LLVM_ABI ValueTable(ValueTable &&Arg);
+    /// Destroy the value table.
     LLVM_ABI ~ValueTable();
+    /// Copy-assign a value table.
+    /// @param Arg Value table to copy.
+    /// @return A reference to this value table.
     LLVM_ABI ValueTable &operator=(const ValueTable &Arg);
 
+    /// Return the value number for \p MA, assigning a new one if needed.
+    /// @param MA Memory access whose value number is requested.
+    /// @return The value number for \p MA.
     LLVM_ABI uint32_t lookupOrAdd(MemoryAccess *MA);
+    /// Return the value number for \p V, assigning a new one if needed.
+    /// @param V Value whose value number is requested.
+    /// @return The value number for \p V.
     LLVM_ABI uint32_t lookupOrAdd(Value *V);
+    /// Return the existing value number for \p V.
+    /// @param V Value whose value number is requested.
+    /// @param Verify If true, assert that \p V has already been numbered.
+    /// @return The value number for \p V, or 0 if missing and \p Verify is
+    /// false.
     LLVM_ABI uint32_t lookup(Value *V, bool Verify = true) const;
+    /// Return the value number for a comparison, assigning a new one if needed.
+    /// @param Opcode Comparison opcode (ICmp or FCmp).
+    /// @param Pred Comparison predicate.
+    /// @param LHS Left-hand operand of the comparison.
+    /// @param RHS Right-hand operand of the comparison.
+    /// @return The value number for the comparison expression.
     LLVM_ABI uint32_t lookupOrAddCmp(unsigned Opcode, CmpInst::Predicate Pred,
                                      Value *LHS, Value *RHS);
+    /// Return the value number of a ptrtoint of \p Ptr to \p Ty.
+    /// @param Ptr Pointer value being converted.
+    /// @param Ty Integer type of the ptrtoint expression.
+    /// @return The value number for the ptrtoint expression, or 0 if absent.
     LLVM_ABI uint32_t lookupPtrToInt(Value *Ptr, Type *Ty);
+    /// Translate value number \p Num through phis from \p PhiBlock into \p BB.
+    /// @param BB Predecessor block whose incoming values are used.
+    /// @param PhiBlock Block containing the phi(s) to translate across.
+    /// @param Num Value number to translate.
+    /// @param GVN Parent GVN pass providing leader information.
+    /// @return The phi-translated value number.
     LLVM_ABI uint32_t phiTranslate(const BasicBlock *BB,
                                    const BasicBlock *PhiBlock, uint32_t Num,
                                    GVNPass &GVN);
+    /// Erase stale phi-translate cache entries for \p Num at \p CurrBlock.
+    /// @param Num Value number whose cache entries should be invalidated.
+    /// @param CurrBlock Block whose predecessor cache entries are erased.
     LLVM_ABI void eraseTranslateCacheEntry(uint32_t Num,
                                            const BasicBlock &CurrBlock);
+    /// Return true if \p V already has a value number.
+    /// @param V Value to query.
+    /// @return True if \p V is present in the value table.
     LLVM_ABI bool exists(Value *V) const;
+    /// Insert \p V into the table with value number \p Num.
+    /// @param V Value to insert.
+    /// @param Num Value number to assign to \p V.
     LLVM_ABI void add(Value *V, uint32_t Num);
+    /// Remove all entries from the value table.
     LLVM_ABI void clear();
+    /// Remove \p V from the value numbering maps.
+    /// @param V Value to erase.
     LLVM_ABI void erase(Value *V);
+    /// Set the alias analysis used by the value table.
+    /// @param A Alias analysis results to use, or nullptr.
     void setAliasAnalysis(AAResults *A) { AA = A; }
+    /// Return the alias analysis used by the value table.
+    /// @return The alias analysis used by the value table, or nullptr.
     AAResults *getAliasAnalysis() const { return AA; }
+    /// Set the memory dependence analysis used by the value table.
+    /// @param M Memory dependence results to use, or nullptr.
+    /// @param MDEnabled Whether memory dependence queries are enabled.
     void setMemDep(MemoryDependenceResults *M, bool MDEnabled = true) {
       MD = M;
       IsMDEnabled = MDEnabled;
     }
+    /// Set the MemorySSA instance used by the value table.
+    /// @param M MemorySSA to use, or nullptr.
+    /// @param MSSAEnabled Whether MemorySSA-based numbering is enabled.
     void setMemorySSA(MemorySSA *M, bool MSSAEnabled = false) {
       MSSA = M;
       IsMSSAEnabled = MSSAEnabled;
     }
+    /// Set the dominator tree used by the value table.
+    /// @param D Dominator tree to use, or nullptr.
     void setDomTree(DominatorTree *D) { DT = D; }
+    /// Return the next unused value number.
+    /// @return The next unused value number.
     uint32_t getNextUnusedValueNumber() { return NextValueNumber; }
-    LLVM_ABI void verifyRemoved(const Value *) const;
+    /// Verify that \p V is absent from all value-numbering maps.
+    /// @param V Value expected to have been removed.
+    LLVM_ABI void verifyRemoved(const Value *V) const;
   };
 
 private:
@@ -513,13 +632,20 @@ private:
 };
 
 /// Create a legacy GVN pass.
+/// @param ScalarPRE Whether to enable PRE of scalar instructions.
+/// @return A new legacy FunctionPass that runs GVN.
 LLVM_ABI FunctionPass *createGVNPass(bool ScalarPRE);
+/// Create a legacy GVN pass with default options.
+/// @return A new legacy FunctionPass that runs GVN.
 LLVM_ABI FunctionPass *createGVNPass();
 
 /// A simple and fast domtree-based GVN pass to hoist common expressions
 /// from sibling branches.
 struct GVNHoistPass : OptionalPassInfoMixin<GVNHoistPass> {
   /// Run the pass over the function.
+  /// @param F Function whose common expressions may be hoisted.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
@@ -527,6 +653,9 @@ struct GVNHoistPass : OptionalPassInfoMixin<GVNHoistPass> {
 /// expressions and sinks similar expressions into successors.
 struct GVNSinkPass : OptionalPassInfoMixin<GVNSinkPass> {
   /// Run the pass over the function.
+  /// @param F Function whose similar expressions may be sunk.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

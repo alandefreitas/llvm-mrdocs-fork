@@ -11,10 +11,10 @@
 
 namespace llvm {
 
-/// Enum describing how values behave with respect to uniformity and
-/// divergence, to answer the question: if the same instruction is executed by
-/// two threads in a convergent set of threads, will its result value be
-/// uniform, i.e. the same on both threads?
+/// How a value behaves with respect to uniformity and divergence.
+///
+/// Answers whether the result of the same instruction executed by two threads
+/// in a convergent set is uniform, i.e. the same on both threads.
 enum class ValueUniformity {
   /// The result value is uniform if and only if all operands are uniform.
   Default,

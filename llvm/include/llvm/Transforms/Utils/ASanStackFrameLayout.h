@@ -27,52 +27,85 @@ static const int kAsanStackRightRedzoneMagic = 0xf3;
 static const int kAsanStackUseAfterReturnMagic = 0xf5;
 static const int kAsanStackUseAfterScopeMagic = 0xf8;
 
-// Input/output data struct for ComputeASanStackFrameLayout.
+/// Describes one stack variable for AddressSanitizer frame layout.
+///
+/// Input/output data struct for ComputeASanStackFrameLayout.
 struct ASanStackVariableDescription {
-  const char *Name;    // Name of the variable that will be displayed by asan
-                       // if a stack-related bug is reported.
-  uint64_t Size;       // Size of the variable in bytes.
-  size_t LifetimeSize; // Size in bytes to use for lifetime analysis check.
-                       // Will be rounded up to Granularity.
-  uint64_t Alignment;  // Alignment of the variable (power of 2).
-  AllocaInst *AI;      // The actual AllocaInst.
-  size_t Offset;       // Offset from the beginning of the frame;
-                       // set by ComputeASanStackFrameLayout.
-  unsigned Line;       // Line number.
+  /// Name of the variable displayed in AddressSanitizer reports.
+  const char *Name;
+  /// Size of the variable in bytes.
+  uint64_t Size;
+  /// Size in bytes used for lifetime analysis.
+  ///
+  /// Will be rounded up to Granularity.
+  size_t LifetimeSize;
+  /// Alignment of the variable, which must be a power of two.
+  uint64_t Alignment;
+  /// Alloca instruction that allocates this variable.
+  AllocaInst *AI;
+  /// Offset from the beginning of the frame.
+  ///
+  /// Set by ComputeASanStackFrameLayout.
+  size_t Offset;
+  /// Source line number of the variable.
+  unsigned Line;
 };
 
-// Output data struct for ComputeASanStackFrameLayout.
+/// Computed AddressSanitizer layout of an instrumented stack frame.
+///
+/// Output data struct for ComputeASanStackFrameLayout.
 struct ASanStackFrameLayout {
-  uint64_t Granularity;     // Shadow granularity.
-  uint64_t FrameAlignment;  // Alignment for the entire frame.
-  uint64_t FrameSize;       // Size of the frame in bytes.
+  /// Shadow granularity in bytes.
+  uint64_t Granularity;
+  /// Alignment of the entire stack frame.
+  uint64_t FrameAlignment;
+  /// Size of the frame in bytes.
+  uint64_t FrameSize;
 };
 
+/// Compute the AddressSanitizer layout of a stack frame.
+///
+/// Reorders \p Vars by alignment and writes each variable's \c Offset. The
+/// resulting \c FrameSize is a multiple of \p MinHeaderSize.
+/// @param Vars Stack variables to place; may be reordered and updated.
+/// @param Granularity AddressSanitizer shadow granularity (usually 8; also
+/// 16, 32, or 64).
+/// @param MinHeaderSize Minimal size of the left-most redzone (header). Must
+/// be a power of two, at least four pointer sizes, and >= \p Granularity.
+/// @return Layout with granularity, frame alignment, and frame size.
 LLVM_ABI ASanStackFrameLayout ComputeASanStackFrameLayout(
-    // The array of stack variables. The elements may get reordered and changed.
-    SmallVectorImpl<ASanStackVariableDescription> &Vars,
-    // AddressSanitizer's shadow granularity. Usually 8, may also be 16, 32, 64.
-    uint64_t Granularity,
-    // The minimal size of the left-most redzone (header).
-    // At least 4 pointer sizes, power of 2, and >= Granularity.
-    // The resulting FrameSize should be multiple of MinHeaderSize.
+    SmallVectorImpl<ASanStackVariableDescription> &Vars, uint64_t Granularity,
     uint64_t MinHeaderSize);
 
-// Compute frame description, see DescribeAddressIfStack in ASan runtime.
+/// Compute a frame description string for AddressSanitizer reports.
+///
+/// See DescribeAddressIfStack in the ASan runtime.
+/// @param Vars Stack variables after layout has been computed.
+/// @return Compact description consumed by the AddressSanitizer runtime.
 LLVM_ABI SmallString<64> ComputeASanStackFrameDescription(
     const SmallVectorImpl<ASanStackVariableDescription> &Vars);
 
-// Returns shadow bytes with marked red zones. This shadow represents the state
-// if the stack frame when all local variables are inside of the own scope.
+/// Return shadow bytes for a stack frame with all locals in scope.
+///
+/// Redzones are marked with AddressSanitizer magic values. This shadow
+/// represents the state of the stack frame when all local variables are inside
+/// their own scope.
+/// @param Vars Stack variables after layout has been computed.
+/// @param Layout Computed frame layout that supplies granularity and size.
+/// @return Shadow bytes with redzones marked and in-scope locals as valid.
 LLVM_ABI SmallVector<uint8_t, 64>
 GetShadowBytes(const SmallVectorImpl<ASanStackVariableDescription> &Vars,
                const ASanStackFrameLayout &Layout);
 
-// Returns shadow bytes with marked red zones and after scope. This shadow
-// represents the state if the stack frame when all local variables are outside
-// of the own scope.
+/// Return shadow bytes after all locals have gone out of scope.
+///
+/// Redzones are marked, and each variable's lifetime region is filled with
+/// use-after-scope magic. This shadow represents the state of the stack frame
+/// when all local variables are outside their own scope.
+/// @param Vars Stack variables after layout has been computed.
+/// @param Layout Computed frame layout that supplies granularity and size.
+/// @return Shadow bytes with redzones and use-after-scope bytes marked.
 LLVM_ABI SmallVector<uint8_t, 64> GetShadowBytesAfterScope(
-    // The array of stack variables. The elements may get reordered and changed.
     const SmallVectorImpl<ASanStackVariableDescription> &Vars,
     const ASanStackFrameLayout &Layout);
 

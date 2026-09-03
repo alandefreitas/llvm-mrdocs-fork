@@ -20,6 +20,7 @@ using namespace llvm::support::endian;
 
 namespace llvm {
 namespace jitlink {
+/// JITLink utilities for SystemZ relocatable objects.
 namespace systemz {
 
 /// Represents systemz fixups and other systemz-specific edge kinds.
@@ -553,10 +554,17 @@ enum EdgeKind_systemz : Edge::Kind {
 };
 
 /// Returns a string name for the given systemz edge. For debugging purposes
-/// only
+/// only.
+/// \param K Edge kind to name.
+/// \return A human-readable name for \p K.
 LLVM_ABI const char *getEdgeKindName(Edge::Kind K);
 
 /// Apply fixup expression for edge to block content.
+/// \param G Link graph containing the block.
+/// \param B Block whose content should be fixed up.
+/// \param E Edge describing the fixup to apply.
+/// \param GOTSymbol Optional GOT section symbol for GOT-relative fixups.
+/// \return Success, or an error if the fixup is out of range or unsupported.
 inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
                         const Symbol *GOTSymbol) {
   using namespace support;
@@ -765,10 +773,17 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
 
 /// SystemZ null pointer content.
 extern const LLVM_ABI char NullPointerContent[8];
+
+/// Return the content used to initialize a GOT entry block.
+/// \param G Link graph whose pointer size determines the entry size.
+/// \return Null-pointer bytes sized for a GOT entry in \p G.
 inline ArrayRef<char> getGOTEntryBlockContent(LinkGraph &G) {
   return {reinterpret_cast<const char *>(NullPointerContent),
           G.getPointerSize()};
 }
+
+/// Size in bytes of a SystemZ pointer jump stub entry.
+constexpr size_t StubEntrySize = 8;
 
 /// SystemZ pointer jump stub content.
 ///
@@ -776,8 +791,11 @@ inline ArrayRef<char> getGOTEntryBlockContent(LinkGraph &G) {
 /// pointer:
 ///   lgrl %r1, ptr
 ///   j    %r1
-constexpr size_t StubEntrySize = 8;
 extern const LLVM_ABI char Pointer64JumpStubContent[StubEntrySize];
+
+/// Return the instruction bytes for a pointer jump stub block.
+/// \param G Link graph requesting the stub content.
+/// \return The bytes that initialize a pointer jump stub.
 inline ArrayRef<char> getStubBlockContent(LinkGraph &G) {
   auto StubContent = Pointer64JumpStubContent;
   return {reinterpret_cast<const char *>(StubContent), StubEntrySize};
@@ -788,6 +806,11 @@ inline ArrayRef<char> getStubBlockContent(LinkGraph &G) {
 ///
 /// If InitialTarget is given then an Pointer64 relocation will be added to the
 /// block pointing at InitialTarget.
+/// \param G Link graph to create the pointer in.
+/// \param PointerSection Section that will hold the pointer block.
+/// \param InitialTarget Optional symbol for an initial Pointer64 edge.
+/// \param InitialAddend Addend for the optional initial Pointer64 edge.
+/// \return An anonymous symbol pointing at the new pointer block.
 inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
                                       Symbol *InitialTarget = nullptr,
                                       uint64_t InitialAddend = 0) {
@@ -803,6 +826,10 @@ inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
 /// The stub block will have the following default values:
 ///   alignment: 16-bit
 ///   alignment-offset: 0
+/// \param G Link graph to create the stub block in.
+/// \param StubSection Section that will hold the stub.
+/// \param PointerSymbol Symbol of the in-memory pointer to jump through.
+/// \return The newly created jump stub block.
 inline Block &createPointerJumpStubBlock(LinkGraph &G, Section &StubSection,
                                          Symbol &PointerSymbol) {
   auto &B = G.createContentBlock(StubSection, getStubBlockContent(G),
@@ -815,6 +842,10 @@ inline Block &createPointerJumpStubBlock(LinkGraph &G, Section &StubSection,
 /// an anonymous symbol pointing to it. Return the anonymous symbol.
 ///
 /// The stub block will be created by createPointerJumpStubBlock.
+/// \param G Link graph to create the stub in.
+/// \param StubSection Section that will hold the stub.
+/// \param PointerSymbol Symbol of the in-memory pointer to jump through.
+/// \return An anonymous symbol pointing at the new jump stub.
 inline Symbol &createAnonymousPointerJumpStub(LinkGraph &G,
                                               Section &StubSection,
                                               Symbol &PointerSymbol) {
@@ -826,8 +857,15 @@ inline Symbol &createAnonymousPointerJumpStub(LinkGraph &G,
 /// Global Offset Table Builder.
 class GOTTableManager : public TableManager<GOTTableManager> {
 public:
+  /// Return the name of the GOT section.
+  /// \return The section name string "$__GOT".
   static StringRef getSectionName() { return "$__GOT"; }
 
+  /// Visit an edge and transform GOT request edges into real fixups.
+  /// \param G Link graph being processed.
+  /// \param B Block containing the edge.
+  /// \param E Edge that may request a GOT entry.
+  /// \return True if the edge was transformed.
   bool visitEdge(LinkGraph &G, Block *B, Edge &E) {
     Edge::Kind KindToSet = Edge::Invalid;
     switch (E.getKind()) {
@@ -864,6 +902,10 @@ public:
     return true;
   }
 
+  /// Create a GOT entry pointing at \p Target.
+  /// \param G Link graph to create the entry in.
+  /// \param Target Symbol that the GOT entry should reference.
+  /// \return An anonymous symbol pointing at the new GOT entry.
   Symbol &createEntry(LinkGraph &G, Symbol &Target) {
     return createAnonymousPointer(G, getGOTSection(G), &Target);
   }
@@ -882,10 +924,19 @@ private:
 /// Procedure Linkage Table Builder.
 class PLTTableManager : public TableManager<PLTTableManager> {
 public:
+  /// Construct a PLT table manager using \p GOT for stub targets.
+  /// \param GOT GOT table manager used to resolve stub pointer targets.
   PLTTableManager(GOTTableManager &GOT) : GOT(GOT) {}
 
+  /// Return the name of the stubs section.
+  /// \return The section name string "$__STUBS".
   static StringRef getSectionName() { return "$__STUBS"; }
 
+  /// Visit an edge and redirect external PLT relocations through a stub.
+  /// \param G Link graph being processed.
+  /// \param B Block containing the edge.
+  /// \param E Edge that may need a PLT stub.
+  /// \return True if the edge was redirected through a stub.
   bool visitEdge(LinkGraph &G, Block *B, Edge &E) {
     if (E.getTarget().isDefined())
       return false;
@@ -913,12 +964,19 @@ public:
     return true;
   }
 
+  /// Create a PLT stub that jumps to \p Target via a GOT entry.
+  /// \param G Link graph to create the stub in.
+  /// \param Target External symbol that the stub should reach.
+  /// \return An anonymous symbol pointing at the new stub.
   Symbol &createEntry(LinkGraph &G, Symbol &Target) {
     return createAnonymousPointerJumpStub(G, getStubsSection(G),
                                           GOT.getEntryForTarget(G, Target));
   }
 
 public:
+  /// Return the stubs section, creating it if it does not already exist.
+  /// \param G Link graph that owns the stubs section.
+  /// \return The stubs section.
   Section &getStubsSection(LinkGraph &G) {
     if (!StubsSection)
       StubsSection = &G.createSection(getSectionName(),
@@ -926,13 +984,18 @@ public:
     return *StubsSection;
   }
 
+  /// GOT table manager used to obtain GOT entries for stub targets.
   GOTTableManager &GOT;
+  /// Section holding PLT stub entries, if one has been created.
   Section *StubsSection = nullptr;
 };
 
-/// Optimize the GOT and Stub relocations edge kind DeltaPLT32dbl if the edge
-/// target address is in range. For this edge kind, if the target is in range,
-/// replace a indirect jump by plt stub with a direct jump to the target.
+/// Optimize in-range GOT and stub relocations in the link graph.
+///
+/// For DeltaPLT32dbl edges, if the target address is in range, replace an
+/// indirect jump via a PLT stub with a direct jump to the target.
+/// \param G Link graph whose GOT and stub accesses should be optimized.
+/// \return Success, or an error if optimization fails.
 LLVM_ABI Error optimizeGOTAndStubAccesses(LinkGraph &G);
 
 } // namespace systemz

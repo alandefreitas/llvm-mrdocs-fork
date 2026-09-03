@@ -17,7 +17,11 @@
 namespace llvm {
 namespace yaml {
 
+/// YAMLIO scalar enumeration traits for \c TypeTestResolution::Kind.
 template <> struct ScalarEnumerationTraits<TypeTestResolution::Kind> {
+  /// Map type-test resolution kind enumerators to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param value Kind being mapped.
   static void enumeration(IO &io, TypeTestResolution::Kind &value) {
     io.enumCase(value, "Unknown", TypeTestResolution::Unknown);
     io.enumCase(value, "Unsat", TypeTestResolution::Unsat);
@@ -28,7 +32,11 @@ template <> struct ScalarEnumerationTraits<TypeTestResolution::Kind> {
   }
 };
 
+/// YAMLIO mapping traits for \c TypeTestResolution.
 template <> struct MappingTraits<TypeTestResolution> {
+  /// Map type-test resolution fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param res Resolution being mapped.
   static void mapping(IO &io, TypeTestResolution &res) {
     io.mapOptional("Kind", res.TheKind);
     io.mapOptional("SizeM1BitWidth", res.SizeM1BitWidth);
@@ -39,8 +47,13 @@ template <> struct MappingTraits<TypeTestResolution> {
   }
 };
 
+/// YAMLIO scalar enumeration traits for
+/// \c WholeProgramDevirtResolution::ByArg::Kind.
 template <>
 struct ScalarEnumerationTraits<WholeProgramDevirtResolution::ByArg::Kind> {
+  /// Map by-argument whole-program-devirt kind enumerators to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param value Kind being mapped.
   static void enumeration(IO &io,
                           WholeProgramDevirtResolution::ByArg::Kind &value) {
     io.enumCase(value, "Indir", WholeProgramDevirtResolution::ByArg::Indir);
@@ -53,7 +66,11 @@ struct ScalarEnumerationTraits<WholeProgramDevirtResolution::ByArg::Kind> {
   }
 };
 
+/// YAMLIO mapping traits for \c WholeProgramDevirtResolution::ByArg.
 template <> struct MappingTraits<WholeProgramDevirtResolution::ByArg> {
+  /// Map by-argument whole-program-devirt fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param res Resolution being mapped.
   static void mapping(IO &io, WholeProgramDevirtResolution::ByArg &res) {
     io.mapOptional("Kind", res.TheKind);
     io.mapOptional("Info", res.Info);
@@ -62,9 +79,16 @@ template <> struct MappingTraits<WholeProgramDevirtResolution::ByArg> {
   }
 };
 
+/// YAMLIO custom mapping traits for by-argument whole-program-devirt maps.
+///
+/// Map keys are comma-separated argument lists encoded as YAML mapping keys.
 template <>
 struct CustomMappingTraits<
     std::map<std::vector<uint64_t>, WholeProgramDevirtResolution::ByArg>> {
+  /// Parse one comma-separated argument-key entry into \p V.
+  /// \param io YAML input/output state.
+  /// \param Key Comma-separated argument list used as the mapping key.
+  /// \param V Destination map being populated.
   static void inputOne(
       IO &io, StringRef Key,
       std::map<std::vector<uint64_t>, WholeProgramDevirtResolution::ByArg> &V) {
@@ -81,6 +105,9 @@ struct CustomMappingTraits<
     }
     io.mapRequired(Key, V[Args]);
   }
+  /// Write each by-argument resolution in \p V with a comma-separated key.
+  /// \param io YAML input/output state.
+  /// \param V Source map being written.
   static void output(
       IO &io,
       std::map<std::vector<uint64_t>, WholeProgramDevirtResolution::ByArg> &V) {
@@ -96,7 +123,11 @@ struct CustomMappingTraits<
   }
 };
 
+/// YAMLIO scalar enumeration traits for \c WholeProgramDevirtResolution::Kind.
 template <> struct ScalarEnumerationTraits<WholeProgramDevirtResolution::Kind> {
+  /// Map whole-program-devirt kind enumerators to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param value Kind being mapped.
   static void enumeration(IO &io, WholeProgramDevirtResolution::Kind &value) {
     io.enumCase(value, "Indir", WholeProgramDevirtResolution::Indir);
     io.enumCase(value, "SingleImpl", WholeProgramDevirtResolution::SingleImpl);
@@ -105,7 +136,11 @@ template <> struct ScalarEnumerationTraits<WholeProgramDevirtResolution::Kind> {
   }
 };
 
+/// YAMLIO mapping traits for \c WholeProgramDevirtResolution.
 template <> struct MappingTraits<WholeProgramDevirtResolution> {
+  /// Map whole-program-devirt resolution fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param res Resolution being mapped.
   static void mapping(IO &io, WholeProgramDevirtResolution &res) {
     io.mapOptional("Kind", res.TheKind);
     io.mapOptional("SingleImplName", res.SingleImplName);
@@ -113,8 +148,15 @@ template <> struct MappingTraits<WholeProgramDevirtResolution> {
   }
 };
 
+/// YAMLIO custom mapping traits for type-ID whole-program-devirt maps.
+///
+/// Map keys are type-ID offsets encoded as decimal integer strings.
 template <>
 struct CustomMappingTraits<std::map<uint64_t, WholeProgramDevirtResolution>> {
+  /// Parse one integer-key whole-program-devirt entry into \p V.
+  /// \param io YAML input/output state.
+  /// \param Key Decimal type-ID offset used as the mapping key.
+  /// \param V Destination map being populated.
   static void inputOne(IO &io, StringRef Key,
                        std::map<uint64_t, WholeProgramDevirtResolution> &V) {
     uint64_t KeyInt;
@@ -124,33 +166,57 @@ struct CustomMappingTraits<std::map<uint64_t, WholeProgramDevirtResolution>> {
     }
     io.mapRequired(Key, V[KeyInt]);
   }
+  /// Write each whole-program-devirt resolution in \p V with an integer key.
+  /// \param io YAML input/output state.
+  /// \param V Source map being written.
   static void output(IO &io, std::map<uint64_t, WholeProgramDevirtResolution> &V) {
     for (auto &P : V)
       io.mapRequired(llvm::utostr(P.first), P.second);
   }
 };
 
+/// YAMLIO mapping traits for \c TypeIdSummary.
 template <> struct MappingTraits<TypeIdSummary> {
+  /// Map type-ID summary fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param summary Type-ID summary being mapped.
   static void mapping(IO &io, TypeIdSummary& summary) {
     io.mapOptional("TTRes", summary.TTRes);
     io.mapOptional("WPDRes", summary.WPDRes);
   }
 };
 
+/// YAML-friendly view of a global-value summary entry.
 struct GlobalValueSummaryYaml {
-  // Commonly used fields
-  unsigned Linkage, Visibility;
-  bool NotEligibleToImport, Live, IsLocal, CanAutoHide;
+  /// Linkage kind stored as an unsigned enumerator value.
+  unsigned Linkage;
+  /// Visibility kind stored as an unsigned enumerator value.
+  unsigned Visibility;
+  /// True when this value must not be imported into another module.
+  bool NotEligibleToImport;
+  /// True when the value is live in the summary index.
+  bool Live;
+  /// True when the value has local (DSO-local) linkage semantics.
+  bool IsLocal;
+  /// True when the value can be auto-hidden.
+  bool CanAutoHide;
+  /// Import kind stored as an unsigned enumerator value.
   unsigned ImportType;
+  /// True when promotion must keep the original name.
   bool NoRenameOnPromotion;
-  // Fields for AliasSummary
+  /// GUID of the aliasee when this entry is an alias summary.
   std::optional<uint64_t> Aliasee;
-  // Fields for FunctionSummary
+  /// Referenced global-value GUIDs for a function summary.
   std::vector<uint64_t> Refs = {};
+  /// Type-test GUIDs referenced by a function summary.
   std::vector<uint64_t> TypeTests = {};
+  /// Virtual calls assumed by type tests.
   std::vector<FunctionSummary::VFuncId> TypeTestAssumeVCalls = {};
+  /// Virtual calls reached through type-checked loads.
   std::vector<FunctionSummary::VFuncId> TypeCheckedLoadVCalls = {};
+  /// Constant virtual calls assumed by type tests.
   std::vector<FunctionSummary::ConstVCall> TypeTestAssumeConstVCalls = {};
+  /// Constant virtual calls reached through type-checked loads.
   std::vector<FunctionSummary::ConstVCall> TypeCheckedLoadConstVCalls = {};
 };
 
@@ -160,30 +226,51 @@ struct GlobalValueSummaryYaml {
 namespace llvm {
 namespace yaml {
 
+/// YAMLIO mapping traits for \c FunctionSummary::VFuncId.
 template <> struct MappingTraits<FunctionSummary::VFuncId> {
+  /// Map virtual-function ID fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param id Virtual-function ID being mapped.
   static void mapping(IO &io, FunctionSummary::VFuncId& id) {
     io.mapOptional("GUID", id.GUID);
     io.mapOptional("Offset", id.Offset);
   }
 };
 
+/// YAMLIO mapping traits for \c FunctionSummary::ConstVCall.
 template <> struct MappingTraits<FunctionSummary::ConstVCall> {
+  /// Map constant virtual-call fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param id Constant virtual call being mapped.
   static void mapping(IO &io, FunctionSummary::ConstVCall& id) {
     io.mapOptional("VFunc", id.VFunc);
     io.mapOptional("Args", id.Args);
   }
 };
 
+/// Sequences of virtual-function IDs use block formatting.
+template <> struct SequenceElementTraits<FunctionSummary::VFuncId> {
+  /// Emit sequences of virtual-function IDs in block style.
+  static const bool flow = false;
+};
+
+/// Sequences of constant virtual calls use block formatting.
+template <> struct SequenceElementTraits<FunctionSummary::ConstVCall> {
+  /// Emit sequences of constant virtual calls in block style.
+  static const bool flow = false;
+};
+
 } // End yaml namespace
 } // End llvm namespace
-
-LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionSummary::VFuncId)
-LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionSummary::ConstVCall)
 
 namespace llvm {
 namespace yaml {
 
+/// YAMLIO mapping traits for \c GlobalValueSummaryYaml.
 template <> struct MappingTraits<GlobalValueSummaryYaml> {
+  /// Map YAML global-value summary fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param summary Summary being mapped.
   static void mapping(IO &io, GlobalValueSummaryYaml &summary) {
     io.mapOptional("Linkage", summary.Linkage);
     io.mapOptional("Visibility", summary.Visibility);
@@ -205,16 +292,25 @@ template <> struct MappingTraits<GlobalValueSummaryYaml> {
   }
 };
 
+/// Sequences of YAML global-value summaries use block formatting.
+template <> struct SequenceElementTraits<GlobalValueSummaryYaml> {
+  /// Emit sequences of YAML global-value summaries in block style.
+  static const bool flow = false;
+};
+
 } // End yaml namespace
 } // End llvm namespace
-
-LLVM_YAML_IS_SEQUENCE_VECTOR(GlobalValueSummaryYaml)
 
 namespace llvm {
 namespace yaml {
 
 // FIXME: Add YAML mappings for the rest of the module summary.
+/// YAMLIO custom mapping traits for \c GlobalValueSummaryMapTy.
 template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
+  /// Parse one GUID-keyed summary list entry into \p V.
+  /// \param io YAML input/output state.
+  /// \param Key Decimal GUID used as the mapping key.
+  /// \param V Destination global-value summary map being populated.
   static void inputOne(IO &io, StringRef Key, GlobalValueSummaryMapTy &V) {
     std::vector<GlobalValueSummaryYaml> GVSums;
     io.mapRequired(Key, GVSums);
@@ -260,6 +356,9 @@ template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
           ArrayRef<AllocInfo>{}));
     }
   }
+  /// Write function and alias summaries from \p V sorted by GUID.
+  /// \param io YAML input/output state.
+  /// \param V Source global-value summary map being written.
   static void output(IO &io, GlobalValueSummaryMapTy &V) {
     // Sort by GUID for deterministic output.
     for (const auto &P : V.sortedRange()) {
@@ -299,6 +398,8 @@ template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
         io.mapRequired(llvm::utostr(P.first), GVSums);
     }
   }
+  /// Resolve deferred alias-to-aliasee summary pointers in \p V.
+  /// \param V Global-value summary map whose alias links are being fixed.
   static void fixAliaseeLinks(GlobalValueSummaryMapTy &V) {
     for (auto &P : V) {
       for (auto &Sum : P.second.getSummaryList()) {
@@ -316,19 +417,31 @@ template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
   }
 };
 
+/// YAMLIO custom mapping traits for \c TypeIdSummaryMapTy.
 template <> struct CustomMappingTraits<TypeIdSummaryMapTy> {
+  /// Parse one type-ID name entry into \p V.
+  /// \param io YAML input/output state.
+  /// \param Key Type-ID name used as the mapping key.
+  /// \param V Destination type-ID summary map being populated.
   static void inputOne(IO &io, StringRef Key, TypeIdSummaryMapTy &V) {
     TypeIdSummary TId;
     io.mapRequired(Key, TId);
     V.insert({GlobalValue::getGUIDAssumingExternalLinkage(Key), {Key, TId}});
   }
+  /// Write each type-ID summary in \p V keyed by its type-ID name.
+  /// \param io YAML input/output state.
+  /// \param V Source type-ID summary map being written.
   static void output(IO &io, TypeIdSummaryMapTy &V) {
     for (auto &TidIter : V)
       io.mapRequired(TidIter.second.first, TidIter.second.second);
   }
 };
 
+/// YAMLIO mapping traits for a name/GUID pair.
 template <> struct MappingTraits<std::pair<StringRef, GlobalValue::GUID>> {
+  /// Map name and GUID fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param NameAndGUID Name/GUID pair being mapped.
   static void mapping(IO &io,
                       std::pair<StringRef, GlobalValue::GUID> &NameAndGUID) {
     io.mapRequired("Name", NameAndGUID.first);
@@ -336,17 +449,26 @@ template <> struct MappingTraits<std::pair<StringRef, GlobalValue::GUID>> {
   }
 };
 
+/// Pair of a symbol name and its GUID for YAML I/O.
 using StringAndGUID = std::pair<llvm::StringRef, llvm::GlobalValue::GUID>;
+
+/// Sequences of name/GUID pairs use block formatting.
+template <> struct SequenceElementTraits<llvm::yaml::StringAndGUID> {
+  /// Emit sequences of name/GUID pairs in block style.
+  static const bool flow = false;
+};
 
 } // namespace yaml
 } // namespace llvm
 
-LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::yaml::StringAndGUID)
-
 namespace llvm {
 namespace yaml {
 
+/// YAMLIO mapping traits for \c ModuleSummaryIndex.
 template <> struct MappingTraits<ModuleSummaryIndex> {
+  /// Map module summary index fields to and from YAML.
+  /// \param io YAML input/output state.
+  /// \param index Module summary index being mapped.
   static void mapping(IO &io, ModuleSummaryIndex& index) {
     io.mapOptional("GlobalValueMap", index.GlobalValueMap);
     if (!io.outputting())

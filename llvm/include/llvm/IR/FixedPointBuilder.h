@@ -29,6 +29,7 @@
 
 namespace llvm {
 
+/// Helper for lowering fixed-point arithmetic operations to LLVM IR.
 template <class IRBuilderTy> class FixedPointBuilder {
   IRBuilderTy &B;
 
@@ -133,24 +134,30 @@ template <class IRBuilderTy> class FixedPointBuilder {
   }
 
 public:
+  /// Construct a builder that emits IR through \p Builder.
+  ///
+  /// \param Builder IR builder used to emit the generated instructions.
   FixedPointBuilder(IRBuilderTy &Builder) : B(Builder) {}
 
-  /// Convert an integer value representing a fixed-point number from one
-  /// fixed-point semantic to another fixed-point semantic.
-  /// \p Src     - The source value
-  /// \p SrcSema - The fixed-point semantic of the source value
-  /// \p DstSema - The resulting fixed-point semantic
+  /// Convert a fixed-point value from one semantic to another.
+  ///
+  /// \param Src The source value.
+  /// \param SrcSema The fixed-point semantic of the source value.
+  /// \param DstSema The resulting fixed-point semantic.
+  /// \return The converted fixed-point value.
   Value *CreateFixedToFixed(Value *Src, const FixedPointSemantics &SrcSema,
                             const FixedPointSemantics &DstSema) {
     return Convert(Src, SrcSema, DstSema, false);
   }
 
-  /// Convert an integer value representing a fixed-point number to an integer
-  /// with the given bit width and signedness.
-  /// \p Src         - The source value
-  /// \p SrcSema     - The fixed-point semantic of the source value
-  /// \p DstWidth    - The bit width of the result value
-  /// \p DstIsSigned - The signedness of the result value
+  /// Convert a fixed-point value to an integer of the given width and
+  /// signedness.
+  ///
+  /// \param Src The source value.
+  /// \param SrcSema The fixed-point semantic of the source value.
+  /// \param DstWidth The bit width of the result value.
+  /// \param DstIsSigned The signedness of the result value.
+  /// \return The converted integer value.
   Value *CreateFixedToInteger(Value *Src, const FixedPointSemantics &SrcSema,
                               unsigned DstWidth, bool DstIsSigned) {
     return Convert(
@@ -158,11 +165,12 @@ public:
         FixedPointSemantics::GetIntegerSemantics(DstWidth, DstIsSigned), true);
   }
 
-  /// Convert an integer value with the given signedness to an integer value
-  /// representing the given fixed-point semantic.
-  /// \p Src         - The source value
-  /// \p SrcIsSigned - The signedness of the source value
-  /// \p DstSema     - The resulting fixed-point semantic
+  /// Convert an integer value to a fixed-point value with the given semantic.
+  ///
+  /// \param Src The source value.
+  /// \param SrcIsSigned The signedness of the source value.
+  /// \param DstSema The resulting fixed-point semantic.
+  /// \return The converted fixed-point value.
   Value *CreateIntegerToFixed(Value *Src, unsigned SrcIsSigned,
                               const FixedPointSemantics &DstSema) {
     return Convert(Src,
@@ -171,6 +179,12 @@ public:
                    DstSema, false);
   }
 
+  /// Convert a fixed-point value to a floating-point value of type \p DstTy.
+  ///
+  /// \param Src The source fixed-point value.
+  /// \param SrcSema The fixed-point semantic of the source value.
+  /// \param DstTy The destination floating-point type.
+  /// \return The converted floating-point value.
   Value *CreateFixedToFloating(Value *Src, const FixedPointSemantics &SrcSema,
                                Type *DstTy) {
     Value *Result;
@@ -188,6 +202,12 @@ public:
     return Result;
   }
 
+  /// Convert a floating-point value to a fixed-point value with the given
+  /// semantic.
+  ///
+  /// \param Src The source floating-point value.
+  /// \param DstSema The resulting fixed-point semantic.
+  /// \return The converted fixed-point value.
   Value *CreateFloatingToFixed(Value *Src, const FixedPointSemantics &DstSema) {
     bool UseSigned = DstSema.isSigned() || DstSema.hasUnsignedPadding();
     Value *Result = Src;
@@ -221,10 +241,12 @@ public:
   }
 
   /// Add two fixed-point values and return the result in their common semantic.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return The sum in the common semantic of \p LHS and \p RHS.
   Value *CreateAdd(Value *LHS, const FixedPointSemantics &LHSSema,
                    Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -247,10 +269,12 @@ public:
 
   /// Subtract two fixed-point values and return the result in their common
   /// semantic.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return The difference in the common semantic of \p LHS and \p RHS.
   Value *CreateSub(Value *LHS, const FixedPointSemantics &LHSSema,
                    Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -281,10 +305,12 @@ public:
 
   /// Multiply two fixed-point values and return the result in their common
   /// semantic.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return The product in the common semantic of \p LHS and \p RHS.
   Value *CreateMul(Value *LHS, const FixedPointSemantics &LHSSema,
                    Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -309,10 +335,12 @@ public:
 
   /// Divide two fixed-point values and return the result in their common
   /// semantic.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return The quotient in the common semantic of \p LHS and \p RHS.
   Value *CreateDiv(Value *LHS, const FixedPointSemantics &LHSSema,
                    Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -335,11 +363,13 @@ public:
                               LHSSema.getCommonSemantics(RHSSema));
   }
 
-  /// Left shift a fixed-point value by an unsigned integer value. The integer
-  /// value can be any bit width.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
+  /// Left shift a fixed-point value by an unsigned integer value.
+  ///
+  /// The integer value can be any bit width.
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The unsigned integer shift amount.
+  /// \return The shifted fixed-point value.
   Value *CreateShl(Value *LHS, const FixedPointSemantics &LHSSema, Value *RHS) {
     bool UseSigned = LHSSema.isSigned() || LHSSema.hasUnsignedPadding();
 
@@ -356,11 +386,13 @@ public:
     return Result;
   }
 
-  /// Right shift a fixed-point value by an unsigned integer value. The integer
-  /// value can be any bit width.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
+  /// Right shift a fixed-point value by an unsigned integer value.
+  ///
+  /// The integer value can be any bit width.
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The unsigned integer shift amount.
+  /// \return The shifted fixed-point value.
   Value *CreateShr(Value *LHS, const FixedPointSemantics &LHSSema, Value *RHS) {
     RHS = B.CreateIntCast(RHS, LHS->getType(), false);
 
@@ -368,10 +400,12 @@ public:
   }
 
   /// Compare two fixed-point values for equality.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return An i1 value that is true when \p LHS equals \p RHS.
   Value *CreateEQ(Value *LHS, const FixedPointSemantics &LHSSema,
                   Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -383,10 +417,12 @@ public:
   }
 
   /// Compare two fixed-point values for inequality.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return An i1 value that is true when \p LHS is not equal to \p RHS.
   Value *CreateNE(Value *LHS, const FixedPointSemantics &LHSSema,
                   Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -397,11 +433,13 @@ public:
     return B.CreateICmpNE(WideLHS, WideRHS);
   }
 
-  /// Compare two fixed-point values as LHS < RHS.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  /// Compare two fixed-point values for less-than.
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return An i1 value that is true when \p LHS is less than \p RHS.
   Value *CreateLT(Value *LHS, const FixedPointSemantics &LHSSema,
                   Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -413,11 +451,14 @@ public:
                                  : B.CreateICmpULT(WideLHS, WideRHS);
   }
 
-  /// Compare two fixed-point values as LHS <= RHS.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  /// Compare two fixed-point values for less-than-or-equal.
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return An i1 value that is true when \p LHS is less than or equal to
+  /// \p RHS.
   Value *CreateLE(Value *LHS, const FixedPointSemantics &LHSSema,
                   Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -429,11 +470,13 @@ public:
                                  : B.CreateICmpULE(WideLHS, WideRHS);
   }
 
-  /// Compare two fixed-point values as LHS > RHS.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  /// Compare two fixed-point values for greater-than.
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return An i1 value that is true when \p LHS is greater than \p RHS.
   Value *CreateGT(Value *LHS, const FixedPointSemantics &LHSSema,
                   Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);
@@ -445,11 +488,14 @@ public:
                                  : B.CreateICmpUGT(WideLHS, WideRHS);
   }
 
-  /// Compare two fixed-point values as LHS >= RHS.
-  /// \p LHS     - The left hand side
-  /// \p LHSSema - The semantic of the left hand side
-  /// \p RHS     - The right hand side
-  /// \p RHSSema - The semantic of the right hand side
+  /// Compare two fixed-point values for greater-than-or-equal.
+  ///
+  /// \param LHS The left-hand side value.
+  /// \param LHSSema The fixed-point semantic of \p LHS.
+  /// \param RHS The right-hand side value.
+  /// \param RHSSema The fixed-point semantic of \p RHS.
+  /// \return An i1 value that is true when \p LHS is greater than or equal to
+  /// \p RHS.
   Value *CreateGE(Value *LHS, const FixedPointSemantics &LHSSema,
                   Value *RHS, const FixedPointSemantics &RHSSema) {
     auto CommonSema = getCommonBinopSemantic(LHSSema, RHSSema);

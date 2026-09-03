@@ -28,6 +28,12 @@ class LLVMContext;
 class Module;
 class OptimizationRemarkEmitter;
 
+/// Disambiguates memprof allocation contexts for profile-guided heap
+/// optimization.
+///
+/// Uses memprof metadata to clone functions so that allocation calls with
+/// distinct calling contexts can receive different heap-optimization
+/// treatments. See the implementation file for details.
 class MemProfContextDisambiguation
     : public OptionalPassInfoMixin<MemProfContextDisambiguation> {
   /// Run the context disambiguator on \p M, returns true if any changes made.
@@ -87,12 +93,34 @@ class MemProfContextDisambiguation
   std::unique_ptr<ICallPromotionAnalysis> ICallAnalysis;
 
 public:
+  /// Construct a memprof context disambiguation pass.
+  ///
+  /// \param Summary Optional import summary containing cloning decisions for
+  /// the ThinLTO backend; when null, the pass may load a testing summary from
+  /// internal options.
+  /// \param isSamplePGO Whether the build uses SamplePGO, needed to update
+  /// profile metadata on speculatively promoted calls.
   LLVM_ABI
   MemProfContextDisambiguation(const ModuleSummaryIndex *Summary = nullptr,
                                bool isSamplePGO = false);
 
+  /// Run memprof context disambiguation over the given module.
+  ///
+  /// \param M Module whose allocation contexts may be disambiguated.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
+  /// Run memprof context disambiguation over the module summary index.
+  ///
+  /// Used during ThinLTO to record cloning decisions in \p Index.
+  ///
+  /// \param Index Module summary index updated with cloning decisions.
+  /// \param isPrevailing Callback that reports whether a given GUID/summary is
+  /// the prevailing definition.
+  /// \param Ctx LLVM context used for remark analysis decisions.
+  /// \param EmitRemark Optional callback that emits an optimization remark
+  /// with a pass name, remark name, and message.
   LLVM_ABI void
   run(ModuleSummaryIndex &Index,
       function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
@@ -107,6 +135,11 @@ public:
 /// Can be invoked by the pass pipeline when we don't have an index that has recorded that we are linking with allocation libraries containing the necessary APIs for downstream transformations.
 class MemProfRemoveInfo : public OptionalPassInfoMixin<MemProfRemoveInfo> {
 public:
+  /// Strip MemProf attributes and metadata from the given module.
+  ///
+  /// \param M Module whose MemProf attributes and metadata are removed.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -42,6 +42,7 @@ class TargetLibraryInfo;
 class TypeSize;
 class Value;
 
+/// Pass that eliminates memcpy calls and turns store sets into memsets.
 class MemCpyOptPass : public OptionalPassInfoMixin<MemCpyOptPass> {
   TargetLibraryInfo *TLI = nullptr;
   AAResults *AA = nullptr;
@@ -53,8 +54,13 @@ class MemCpyOptPass : public OptionalPassInfoMixin<MemCpyOptPass> {
   EarliestEscapeAnalysis *EEA = nullptr;
 
 public:
+  /// Construct a memcpy optimizer pass.
   MemCpyOptPass() = default;
 
+  /// Run memcpy-related optimizations over the function.
+  /// @param F Function whose memcpy, memmove, and memset uses may be optimized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
 private:

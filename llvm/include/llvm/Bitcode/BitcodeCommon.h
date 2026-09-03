@@ -18,14 +18,21 @@
 
 namespace llvm {
 
+/// Bitfield layout for packed flags stored in an alloca bitcode record.
+///
+/// We increased the number of bits needed to represent alignment to be more
+/// than 5, but to preserve backward compatibility we store the upper bits
+/// separately.
 struct AllocaPackedValues {
-  // We increased the number of bits needed to represent alignment to be more
-  // than 5, but to preserve backward compatibility we store the upper bits
-  // separately.
+  /// Bitfield element for the lower 5 bits of the encoded alignment.
   using AlignLower = Bitfield::Element<unsigned, 0, 5>;
+  /// Bitfield element for the inalloca flag.
   using UsedWithInAlloca = Bitfield::Element<bool, AlignLower::NextBit, 1>;
+  /// Bitfield element indicating the allocated type is stored explicitly.
   using ExplicitType = Bitfield::Element<bool, UsedWithInAlloca::NextBit, 1>;
+  /// Bitfield element for the Swift error flag.
   using SwiftError = Bitfield::Element<bool, ExplicitType::NextBit, 1>;
+  /// Bitfield element for the upper bits of the encoded alignment.
   using AlignUpper = Bitfield::Element<unsigned, SwiftError::NextBit, 3>;
 };
 

@@ -19,9 +19,10 @@
 
 namespace llvm {
 
-/// raw_os_ostream - A raw_ostream that writes to an std::ostream.  This is a
-/// simple adaptor class.  It does not check for output errors; clients should
-/// use the underlying stream to detect errors.
+/// A raw_ostream that writes to an std::ostream.
+///
+/// This is a simple adaptor class. It does not check for output errors;
+/// clients should use the underlying stream to detect errors.
 class LLVM_ABI raw_os_ostream : public raw_ostream {
   std::ostream &OS;
 
@@ -33,7 +34,11 @@ class LLVM_ABI raw_os_ostream : public raw_ostream {
   uint64_t current_pos() const override;
 
 public:
+  /// Construct a stream that writes into std::ostream \p O.
+  ///
+  /// \param O Stream that receives all written output.
   raw_os_ostream(std::ostream &O) : OS(O) {}
+  /// Destroy the stream, flushing any buffered output.
   ~raw_os_ostream() override;
 };
 

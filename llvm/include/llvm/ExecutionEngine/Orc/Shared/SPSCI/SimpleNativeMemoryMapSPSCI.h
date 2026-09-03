@@ -29,23 +29,28 @@
 
 namespace llvm::orc::rt::sps_ci {
 
-/// The executor-side memory-manager instance. This is a data symbol (the
-/// allocator object) -- passed as the first argument to each call below -- not
-/// a wrapper to call.
+/// The executor-side memory-manager instance.
+///
+/// This is a data symbol (the allocator object) -- passed as the first
+/// argument to each call below -- not a wrapper to call.
 inline constexpr char SimpleNativeMemoryMapInstanceName[] =
     "orc_rt_ci_SimpleNativeMemoryMap_Instance";
 
 /// Reserve an address range of the given size; returns its base.
 struct MemMgrReserve {
+  /// Name of the MemMgrReserve SPS wrapper function.
   static constexpr char Name[] = "orc_rt_ci_sps_SimpleNativeMemoryMap_reserve";
+  /// SPS signature for MemMgrReserve.
   using SPSSig = shared::SPSExpected<shared::SPSExecutorAddr>(
       shared::SPSExecutorAddr, uint64_t);
 };
 
 /// Apply a finalize request; returns a key for the initialized allocation.
 struct MemMgrInitialize {
+  /// Name of the MemMgrInitialize SPS wrapper function.
   static constexpr char Name[] =
       "orc_rt_ci_sps_SimpleNativeMemoryMap_initialize";
+  /// SPS signature for MemMgrInitialize.
   using SPSSig = shared::SPSExpected<shared::SPSExecutorAddr>(
       shared::SPSExecutorAddr, shared::SPSFinalizeRequest);
 };
@@ -53,16 +58,20 @@ struct MemMgrInitialize {
 /// Deinitialize the allocations with the given base addresses (running their
 /// deallocation actions) without releasing their memory.
 struct MemMgrDeinitialize {
+  /// Name of the MemMgrDeinitialize SPS wrapper function.
   static constexpr char Name[] =
       "orc_rt_ci_sps_SimpleNativeMemoryMap_deinitializeMultiple";
+  /// SPS signature for MemMgrDeinitialize.
   using SPSSig = shared::SPSError(shared::SPSExecutorAddr,
                                   shared::SPSSequence<shared::SPSExecutorAddr>);
 };
 
 /// Release the allocations with the given base addresses.
 struct MemMgrRelease {
+  /// Name of the MemMgrRelease SPS wrapper function.
   static constexpr char Name[] =
       "orc_rt_ci_sps_SimpleNativeMemoryMap_releaseMultiple";
+  /// SPS signature for MemMgrRelease.
   using SPSSig = shared::SPSError(shared::SPSExecutorAddr,
                                   shared::SPSSequence<shared::SPSExecutorAddr>);
 };

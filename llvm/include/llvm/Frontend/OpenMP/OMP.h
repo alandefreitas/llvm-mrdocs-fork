@@ -70,14 +70,23 @@ private:
 };
 } // namespace detail
 
+/// A set of enumeration values backed by a fixed-size bitset.
 template <typename Enum, size_t Size>
 struct EnumSet : public llvm::Bitset<Size> {
+  /// The enumeration type stored in this set.
   using value_type = Enum;
+  /// The underlying fixed-size bitset type.
   using Base = llvm::Bitset<Size>;
+  /// Inherit constructors from \c Base.
   using Base::Base;
+  /// Iterator over the enumeration values present in the set.
   using iterator = detail::EnumSetIterator<Enum, Size>;
 
+  /// Construct from an existing bitset.
+  /// @param B Bitset to move into this set.
   constexpr EnumSet(Base &&B) : Base(std::move(B)) {}
+  /// Construct a set containing each listed enumeration value.
+  /// @param Init Enumeration values to include.
   constexpr EnumSet(std::initializer_list<value_type> Init) {
     for (value_type E : Init) {
       auto Value = static_cast<unsigned>(E);
@@ -86,49 +95,86 @@ struct EnumSet : public llvm::Bitset<Size> {
     }
   }
 
+  /// Return true if the set contains no enumeration values.
+  /// @return True if the set is empty.
   constexpr bool empty() const { return Base::none(); }
+  /// Return the number of enumeration values in the set.
+  /// @return The number of enumeration values in the set.
   constexpr size_t size() const { return Base::count(); }
+  /// Return the maximum number of distinct enumeration values.
+  /// @return The maximum number of distinct enumeration values.
   constexpr size_t max_size() const { return Size; }
 
+  /// Return true if \p E is present in the set.
+  /// @param E Enumeration value to test.
+  /// @return True if \p E is present in the set.
   constexpr bool test(Enum E) const {
     return Base::test(static_cast<unsigned>(E));
   }
+  /// Return true if \p E is present in the set.
+  /// @param E Enumeration value to test.
+  /// @return True if \p E is present in the set.
   constexpr bool operator[](Enum E) const {
     return Base::operator[](static_cast<unsigned>(E));
   }
+  /// Toggle membership of \p E and return this set.
+  /// @param E Enumeration value to flip.
+  /// @return This set.
   constexpr EnumSet &flip(Enum E) {
     Base::flip(static_cast<unsigned>(E));
     return *this;
   }
+  /// Remove \p E from the set and return this set.
+  /// @param E Enumeration value to clear.
+  /// @return This set.
   constexpr EnumSet &reset(Enum E) {
     Base::reset(static_cast<unsigned>(E));
     return *this;
   }
+  /// Insert \p E into the set and return this set.
+  /// @param E Enumeration value to set.
+  /// @return This set.
   constexpr EnumSet &set(Enum E) {
     Base::set(static_cast<unsigned>(E));
     return *this;
   }
 
+  /// Union this set with \p S in place.
+  /// @param S Set to OR with.
+  /// @return This set.
   constexpr EnumSet &operator|=(const EnumSet &S) {
     Base::operator|=(S);
     return *this;
   }
+  /// Intersect this set with \p S in place.
+  /// @param S Set to AND with.
+  /// @return This set.
   constexpr EnumSet &operator&=(const EnumSet &S) {
     Base::operator&=(S);
     return *this;
   }
+  /// Return the union of this set and \p S.
+  /// @param S Set to OR with.
+  /// @return A new set with the union of this set and \p S.
   constexpr EnumSet operator|(const EnumSet &S) const {
     EnumSet T{*this};
     return T |= S;
   }
+  /// Return the intersection of this set and \p S.
+  /// @param S Set to AND with.
+  /// @return A new set with the intersection of this set and \p S.
   constexpr EnumSet operator&(const EnumSet &S) const {
     EnumSet T{*this};
     return T &= S;
   }
 
+  /// Return an iterator to the first present enumeration value.
+  /// @return An iterator to the first present enumeration value.
   constexpr iterator begin() const {
     return iterator(*this, detail::findFirstSet<Size>(0, Size, *this));
   }
+  /// Return a past-the-end iterator for the set.
+  /// @return A past-the-end iterator for the set.
   constexpr iterator end() const { return iterator(*this, Size); }
 };
 
@@ -147,20 +193,44 @@ constexpr auto &EnumSetIterator<Enum, Size>::operator++() {
 }
 } // namespace detail
 
+/// Set of OpenMP clause identifiers.
 using ClauseSet = EnumSet<llvm::omp::Clause, llvm::omp::Clause_enumSize>;
+/// Set of OpenMP directive identifiers.
 using DirectiveSet =
     EnumSet<llvm::omp::Directive, llvm::omp::Directive_enumSize>;
 
+/// Return the leaf constructs that make up compound directive \p D.
+/// @param D Directive whose leaf constructs are requested.
+/// @return The leaf constructs that make up \p D.
 LLVM_ABI ArrayRef<Directive> getLeafConstructs(Directive D);
+/// Return the leaf constructs of \p D, or \p D itself if it is a leaf.
+/// @param D Directive whose leaf constructs are requested.
+/// @return The leaf constructs of \p D, or \p D itself if it is a leaf.
 LLVM_ABI ArrayRef<Directive> getLeafConstructsOrSelf(Directive D);
 
+/// Append the leaf and composite constituents of \p D to \p Output.
+/// @param D Directive to decompose into leaf and composite constructs.
+/// @param Output Destination for the constituent directives.
+/// @return A view of the leaf and composite constituents written to \p Output.
 LLVM_ABI ArrayRef<Directive>
 getLeafOrCompositeConstructs(Directive D, SmallVectorImpl<Directive> &Output);
 
+/// Return the compound directive formed by \p Parts, or \c OMPD_unknown.
+/// @param Parts Leaf or compound directives to combine, in order.
+/// @return The compound directive formed by \p Parts, or \c OMPD_unknown.
 LLVM_ABI Directive getCompoundConstruct(ArrayRef<Directive> Parts);
 
+/// Return true if \p D is a leaf construct (not combined or composite).
+/// @param D Directive to classify.
+/// @return True if \p D is a leaf construct.
 LLVM_ABI bool isLeafConstruct(Directive D);
+/// Return true if \p D is a composite construct per the OpenMP spec.
+/// @param D Directive to classify.
+/// @return True if \p D is a composite construct.
 LLVM_ABI bool isCompositeConstruct(Directive D);
+/// Return true if \p D is a combined construct per the OpenMP spec.
+/// @param D Directive to classify.
+/// @return True if \p D is a combined construct.
 LLVM_ABI bool isCombinedConstruct(Directive D);
 
 static constexpr inline auto clauses() {
@@ -245,19 +315,31 @@ static constexpr inline bool isEndClause(Clause C) {
 }
 
 static constexpr unsigned FallbackVersion = 52;
+/// Return the OpenMP language versions supported by this frontend.
+/// @return The OpenMP language versions supported by this frontend.
 LLVM_ABI ArrayRef<unsigned> getOpenMPVersions();
 
 /// Can directive D, under some circumstances, create a private copy
 /// of a variable in given OpenMP version?
+/// @param D Directive to check for privatizing behavior.
+/// @param Version OpenMP language version to evaluate against.
+/// @return True if \p D can create a private copy under some circumstances.
 LLVM_ABI bool isPrivatizingConstruct(Directive D, unsigned Version);
 
+/// Return the reserved OpenMP locator names (lowercase).
+/// @return The reserved OpenMP locator names (lowercase).
 LLVM_ABI ArrayRef<StringRef> getReservedLocatorNames();
 
 /// Create a nicer version of a function name for humans to look at.
+/// @param FunctionName Mangled or kernel function name to prettify.
+/// @return A human-readable version of \p FunctionName.
 LLVM_ABI std::string prettifyFunctionName(StringRef FunctionName);
 
 /// Deconstruct an OpenMP kernel name into the parent function name and the line
 /// number.
+/// @param KernelName OpenMP offloading kernel symbol name to parse.
+/// @param LineNo Set to the source line number encoded in the kernel name.
+/// @return The parent function name extracted from \p KernelName.
 LLVM_ABI std::string deconstructOpenMPKernelName(StringRef KernelName,
                                                  unsigned &LineNo);
 

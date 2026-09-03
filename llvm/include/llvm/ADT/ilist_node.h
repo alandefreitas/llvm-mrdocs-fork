@@ -32,18 +32,22 @@ struct NodeAccess;
 template <class NodeTy, class ParentTy> class node_parent_access {
 public:
   /// Return a const pointer to the owning parent object.
+  /// @return Const pointer to the owning parent object.
   inline const ParentTy *getParent() const {
     return static_cast<const NodeTy *>(this)->getNodeBaseParent();
   }
   /// Return a mutable pointer to the owning parent object.
+  /// @return Mutable pointer to the owning parent object.
   inline ParentTy *getParent() {
     return static_cast<NodeTy *>(this)->getNodeBaseParent();
   }
   /// Record \p Parent as the owner of this node.
+  /// @param Parent Pointer to the owning parent object.
   void setParent(ParentTy *Parent) {
     return static_cast<NodeTy *>(this)->setNodeBaseParent(Parent);
   }
 };
+/// Empty specialization when no parent type is configured.
 template <class NodeTy> class node_parent_access<NodeTy, void> {};
 
 } // end namespace ilist_detail
@@ -130,21 +134,27 @@ private:
 
 public:
   /// Return a mutable forward iterator referring to this node.
+  /// @return Mutable forward iterator referring to this node.
   self_iterator getIterator() { return self_iterator(*this); }
   /// Return a const forward iterator referring to this node.
+  /// @return Const forward iterator referring to this node.
   const_self_iterator getIterator() const { return const_self_iterator(*this); }
 
   /// Return a mutable reverse iterator referring to this node.
+  /// @return Mutable reverse iterator referring to this node.
   reverse_self_iterator getReverseIterator() {
     return reverse_self_iterator(*this);
   }
 
   /// Return a const reverse iterator referring to this node.
+  /// @return Const reverse iterator referring to this node.
   const_reverse_self_iterator getReverseIterator() const {
     return const_reverse_self_iterator(*this);
   }
 
-  // Under-approximation, but always available for assertions.
+  /// Return whether this node is known to be a list sentinel.
+  ///
+  /// This is an under-approximation, but always available for assertions.
   using node_base_type::isKnownSentinel;
 
   /// Check whether this is the sentinel node.
@@ -156,6 +166,7 @@ public:
   /// configured with is_sentinel_tracking_explicit=false, the method is
   /// conditionally provided using std::enable_if.  This way, clients of
   /// ilist_node_impl can be fully instantiated for DLLExport on Windows.
+  /// @return True if this node is the list sentinel.
   template <typename T = OptionsT>
   std::enable_if_t<T::is_sentinel_tracking_explicit, bool> isSentinel() const {
     return node_base_type::isSentinel();
@@ -237,6 +248,7 @@ struct NodeAccess {
 protected:
   /// Return the intrusive node for value pointer \p N.
   /// @param N Pointer to a list element.
+  /// @return Intrusive node for \p N.
   template <class OptionsT>
   static ilist_node_impl<OptionsT> *getNodePtr(typename OptionsT::pointer N) {
     return N;
@@ -244,6 +256,7 @@ protected:
 
   /// Return the const intrusive node for const value pointer \p N.
   /// @param N Const pointer to a list element.
+  /// @return Const intrusive node for \p N.
   template <class OptionsT>
   static const ilist_node_impl<OptionsT> *
   getNodePtr(typename OptionsT::const_pointer N) {
@@ -251,12 +264,16 @@ protected:
   }
 
   /// Downcast node \p N to a mutable value pointer.
+  /// @param N Intrusive node to downcast.
+  /// @return Mutable value pointer for \p N.
   template <class OptionsT>
   static typename OptionsT::pointer getValuePtr(ilist_node_impl<OptionsT> *N) {
     return static_cast<typename OptionsT::pointer>(N);
   }
 
   /// Downcast node \p N to a const value pointer.
+  /// @param N Const intrusive node to downcast.
+  /// @return Const value pointer for \p N.
   template <class OptionsT>
   static typename OptionsT::const_pointer
   getValuePtr(const ilist_node_impl<OptionsT> *N) {
@@ -264,18 +281,24 @@ protected:
   }
 
   /// Return the previous node linked from mutable node \p N.
+  /// @param N Intrusive node whose predecessor is requested.
+  /// @return Previous node linked from \p N.
   template <class OptionsT>
   static ilist_node_impl<OptionsT> *getPrev(ilist_node_impl<OptionsT> &N) {
     return N.getPrev();
   }
 
   /// Return the next node linked from mutable node \p N.
+  /// @param N Intrusive node whose successor is requested.
+  /// @return Next node linked from \p N.
   template <class OptionsT>
   static ilist_node_impl<OptionsT> *getNext(ilist_node_impl<OptionsT> &N) {
     return N.getNext();
   }
 
   /// Return the previous node linked from const node \p N.
+  /// @param N Const intrusive node whose predecessor is requested.
+  /// @return Const previous node linked from \p N.
   template <class OptionsT>
   static const ilist_node_impl<OptionsT> *
   getPrev(const ilist_node_impl<OptionsT> &N) {
@@ -283,6 +306,8 @@ protected:
   }
 
   /// Return the next node linked from const node \p N.
+  /// @param N Const intrusive node whose successor is requested.
+  /// @return Const next node linked from \p N.
   template <class OptionsT>
   static const ilist_node_impl<OptionsT> *
   getNext(const ilist_node_impl<OptionsT> &N) {
@@ -301,21 +326,29 @@ protected:
   using node_type = ilist_node_impl<OptionsT>;
 
   /// Return the intrusive node for value pointer \p N.
+  /// @param N Pointer to a list element.
+  /// @return Intrusive node for \p N.
   static node_type *getNodePtr(pointer N) {
     return NodeAccess::getNodePtr<OptionsT>(N);
   }
 
   /// Return the const intrusive node for const value pointer \p N.
+  /// @param N Const pointer to a list element.
+  /// @return Const intrusive node for \p N.
   static const node_type *getNodePtr(const_pointer N) {
     return NodeAccess::getNodePtr<OptionsT>(N);
   }
 
   /// Downcast \p N to a mutable value pointer for these options.
+  /// @param N Intrusive node to downcast.
+  /// @return Mutable value pointer for \p N.
   static pointer getValuePtr(node_type *N) {
     return NodeAccess::getValuePtr<OptionsT>(N);
   }
 
   /// Downcast \p N to a const value pointer for these options.
+  /// @param N Const intrusive node to downcast.
+  /// @return Const value pointer for \p N.
   static const_pointer getValuePtr(const node_type *N) {
     return NodeAccess::getValuePtr<OptionsT>(N);
   }
@@ -340,6 +373,7 @@ public:
   }
 
   /// Return true if the list contains no real nodes (only this sentinel).
+  /// @return True if the list contains no real nodes.
   bool empty() const { return this == this->getPrev(); }
 };
 
@@ -367,6 +401,7 @@ public:
   /// @name Adjacent Node Accessors
   /// @{
   /// Get the previous node, or \c nullptr for the list head.
+  /// @return Previous node, or \c nullptr for the list head.
   NodeTy *getPrevNode() {
     // Should be separated to a reused function, but then we couldn't use auto
     // (and would need the type of the list).
@@ -376,11 +411,13 @@ public:
   }
 
   /// Get the previous node, or \c nullptr for the list head.
+  /// @return Const previous node, or \c nullptr for the list head.
   const NodeTy *getPrevNode() const {
     return const_cast<ilist_node_with_parent *>(this)->getPrevNode();
   }
 
   /// Get the next node, or \c nullptr for the list tail.
+  /// @return Next node, or \c nullptr for the list tail.
   NodeTy *getNextNode() {
     // Should be separated to a reused function, but then we couldn't use auto
     // (and would need the type of the list).
@@ -390,6 +427,7 @@ public:
   }
 
   /// Get the next node, or \c nullptr for the list tail.
+  /// @return Const next node, or \c nullptr for the list tail.
   const NodeTy *getNextNode() const {
     return const_cast<ilist_node_with_parent *>(this)->getNextNode();
   }

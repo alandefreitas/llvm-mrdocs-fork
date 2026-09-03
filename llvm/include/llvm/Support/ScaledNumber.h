@@ -31,6 +31,7 @@
 #include <utility>
 
 namespace llvm {
+/// Helpers for arithmetic on pairs of digits and a binary scale.
 namespace ScaledNumbers {
 
 /// Maximum scale; same as APFloat for easy debug printing.
@@ -40,6 +41,8 @@ const int32_t MaxScale = 16383;
 const int32_t MinScale = -16382;
 
 /// Get the width of a number.
+///
+/// \return Bit width of DigitsT.
 template <class DigitsT> inline int getWidth() { return sizeof(DigitsT) * 8; }
 
 /// Conditionally round up a scaled number.
@@ -49,6 +52,11 @@ template <class DigitsT> inline int getWidth() { return sizeof(DigitsT) * 8; }
 /// returns \c 1+Scale.
 ///
 /// \pre adding 1 to \c Scale will not overflow INT16_MAX.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \param ShouldRound Whether to round up by adding one to \p Digits.
+/// \return Digits and scale after conditional rounding.
 template <class DigitsT>
 inline std::pair<DigitsT, int16_t> getRounded(DigitsT Digits, int16_t Scale,
                                               bool ShouldRound) {
@@ -62,12 +70,22 @@ inline std::pair<DigitsT, int16_t> getRounded(DigitsT Digits, int16_t Scale,
 }
 
 /// Convenience helper for 32-bit rounding.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \param ShouldRound Whether to round up by adding one to \p Digits.
+/// \return Digits and scale after conditional rounding.
 inline std::pair<uint32_t, int16_t> getRounded32(uint32_t Digits, int16_t Scale,
                                                  bool ShouldRound) {
   return getRounded(Digits, Scale, ShouldRound);
 }
 
 /// Convenience helper for 64-bit rounding.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \param ShouldRound Whether to round up by adding one to \p Digits.
+/// \return Digits and scale after conditional rounding.
 inline std::pair<uint64_t, int16_t> getRounded64(uint64_t Digits, int16_t Scale,
                                                  bool ShouldRound) {
   return getRounded(Digits, Scale, ShouldRound);
@@ -76,6 +94,10 @@ inline std::pair<uint64_t, int16_t> getRounded64(uint64_t Digits, int16_t Scale,
 /// Adjust a 64-bit scaled number down to the appropriate width.
 ///
 /// \pre Adding 64 to \c Scale will not overflow INT16_MAX.
+///
+/// \param Digits Digit field, possibly wider than DigitsT.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Digits and scale adjusted to DigitsT width.
 template <class DigitsT>
 inline std::pair<DigitsT, int16_t> getAdjusted(uint64_t Digits,
                                                int16_t Scale = 0) {
@@ -92,12 +114,20 @@ inline std::pair<DigitsT, int16_t> getAdjusted(uint64_t Digits,
 }
 
 /// Convenience helper for adjusting to 32 bits.
+///
+/// \param Digits Digit field to narrow to 32 bits.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Digits and scale adjusted to 32 bits.
 inline std::pair<uint32_t, int16_t> getAdjusted32(uint64_t Digits,
                                                   int16_t Scale = 0) {
   return getAdjusted<uint32_t>(Digits, Scale);
 }
 
 /// Convenience helper for adjusting to 64 bits.
+///
+/// \param Digits Digit field to adjust to 64 bits.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Digits and scale adjusted to 64 bits.
 inline std::pair<uint64_t, int16_t> getAdjusted64(uint64_t Digits,
                                                   int16_t Scale = 0) {
   return getAdjusted<uint64_t>(Digits, Scale);
@@ -106,11 +136,19 @@ inline std::pair<uint64_t, int16_t> getAdjusted64(uint64_t Digits,
 /// Multiply two 64-bit integers to create a 64-bit scaled number.
 ///
 /// Implemented with four 64-bit integer multiplies.
+///
+/// \param LHS Left-hand factor.
+/// \param RHS Right-hand factor.
+/// \return Product as a digits/scale pair.
 LLVM_ABI std::pair<uint64_t, int16_t> multiply64(uint64_t LHS, uint64_t RHS);
 
 /// Multiply two 32-bit integers to create a 32-bit scaled number.
 ///
 /// Implemented with one 64-bit integer multiply.
+///
+/// \param LHS Left-hand factor.
+/// \param RHS Right-hand factor.
+/// \return Product as a digits/scale pair.
 template <class DigitsT>
 inline std::pair<DigitsT, int16_t> getProduct(DigitsT LHS, DigitsT RHS) {
   static_assert(!std::numeric_limits<DigitsT>::is_signed, "expected unsigned");
@@ -122,11 +160,19 @@ inline std::pair<DigitsT, int16_t> getProduct(DigitsT LHS, DigitsT RHS) {
 }
 
 /// Convenience helper for 32-bit product.
+///
+/// \param LHS Left-hand factor.
+/// \param RHS Right-hand factor.
+/// \return Product as a digits/scale pair.
 inline std::pair<uint32_t, int16_t> getProduct32(uint32_t LHS, uint32_t RHS) {
   return getProduct(LHS, RHS);
 }
 
 /// Convenience helper for 64-bit product.
+///
+/// \param LHS Left-hand factor.
+/// \param RHS Right-hand factor.
+/// \return Product as a digits/scale pair.
 inline std::pair<uint64_t, int16_t> getProduct64(uint64_t LHS, uint64_t RHS) {
   return getProduct(LHS, RHS);
 }
@@ -136,6 +182,10 @@ inline std::pair<uint64_t, int16_t> getProduct64(uint64_t LHS, uint64_t RHS) {
 /// Implemented with long division.
 ///
 /// \pre \c Dividend and \c Divisor are non-zero.
+///
+/// \param Dividend Numerator.
+/// \param Divisor Denominator; must be non-zero.
+/// \return Quotient as a digits/scale pair.
 LLVM_ABI std::pair<uint64_t, int16_t> divide64(uint64_t Dividend,
                                                uint64_t Divisor);
 
@@ -144,6 +194,10 @@ LLVM_ABI std::pair<uint64_t, int16_t> divide64(uint64_t Dividend,
 /// Implemented with one 64-bit integer divide/remainder pair.
 ///
 /// \pre \c Dividend and \c Divisor are non-zero.
+///
+/// \param Dividend Numerator.
+/// \param Divisor Denominator; must be non-zero.
+/// \return Quotient as a digits/scale pair.
 LLVM_ABI std::pair<uint32_t, int16_t> divide32(uint32_t Dividend,
                                                uint32_t Divisor);
 
@@ -152,6 +206,10 @@ LLVM_ABI std::pair<uint32_t, int16_t> divide32(uint32_t Dividend,
 /// Implemented with one 64-bit integer divide/remainder pair.
 ///
 /// Returns \c (DigitsT_MAX, MaxScale) for divide-by-zero (0 for 0/0).
+///
+/// \param Dividend Numerator.
+/// \param Divisor Denominator.
+/// \return Quotient as a digits/scale pair.
 template <class DigitsT>
 std::pair<DigitsT, int16_t> getQuotient(DigitsT Dividend, DigitsT Divisor) {
   static_assert(!std::numeric_limits<DigitsT>::is_signed, "expected unsigned");
@@ -170,12 +228,20 @@ std::pair<DigitsT, int16_t> getQuotient(DigitsT Dividend, DigitsT Divisor) {
 }
 
 /// Convenience helper for 32-bit quotient.
+///
+/// \param Dividend Numerator.
+/// \param Divisor Denominator.
+/// \return Quotient as a digits/scale pair.
 inline std::pair<uint32_t, int16_t> getQuotient32(uint32_t Dividend,
                                                   uint32_t Divisor) {
   return getQuotient(Dividend, Divisor);
 }
 
 /// Convenience helper for 64-bit quotient.
+///
+/// \param Dividend Numerator.
+/// \param Divisor Denominator.
+/// \return Quotient as a digits/scale pair.
 inline std::pair<uint64_t, int16_t> getQuotient64(uint64_t Dividend,
                                                   uint64_t Divisor) {
   return getQuotient(Dividend, Divisor);
@@ -187,6 +253,10 @@ inline std::pair<uint64_t, int16_t> getQuotient64(uint64_t Dividend,
 /// this was rounded up (1), down (-1), or exact (0).
 ///
 /// Returns \c INT32_MIN when \c Digits is zero.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Rounded lg and whether it was rounded up (1), down (-1), or exact (0).
 template <class DigitsT>
 inline std::pair<int32_t, int> getLgImpl(DigitsT Digits, int16_t Scale) {
   static_assert(!std::numeric_limits<DigitsT>::is_signed, "expected unsigned");
@@ -214,6 +284,10 @@ inline std::pair<int32_t, int> getLgImpl(DigitsT Digits, int16_t Scale) {
 /// Get the lg of \c Digits*2^Scale.
 ///
 /// Returns \c INT32_MIN when \c Digits is zero.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Rounded lg of Digits*2^Scale, or INT32_MIN if Digits is zero.
 template <class DigitsT> int32_t getLg(DigitsT Digits, int16_t Scale) {
   return getLgImpl(Digits, Scale).first;
 }
@@ -223,6 +297,10 @@ template <class DigitsT> int32_t getLg(DigitsT Digits, int16_t Scale) {
 /// Get the floor of the lg of \c Digits*2^Scale.
 ///
 /// Returns \c INT32_MIN when \c Digits is zero.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Floor of the lg of Digits*2^Scale, or INT32_MIN if Digits is zero.
 template <class DigitsT> int32_t getLgFloor(DigitsT Digits, int16_t Scale) {
   auto Lg = getLgImpl(Digits, Scale);
   return Lg.first - (Lg.second > 0);
@@ -233,6 +311,10 @@ template <class DigitsT> int32_t getLgFloor(DigitsT Digits, int16_t Scale) {
 /// Get the ceiling of the lg of \c Digits*2^Scale.
 ///
 /// Returns \c INT32_MIN when \c Digits is zero.
+///
+/// \param Digits Digit field of the scaled number.
+/// \param Scale Scale (exponent) of the scaled number.
+/// \return Ceiling of the lg of Digits*2^Scale, or INT32_MIN if Digits is zero.
 template <class DigitsT> int32_t getLgCeiling(DigitsT Digits, int16_t Scale) {
   auto Lg = getLgImpl(Digits, Scale);
   return Lg.first + (Lg.second < 0);
@@ -245,12 +327,23 @@ template <class DigitsT> int32_t getLgCeiling(DigitsT Digits, int16_t Scale) {
 /// 1, and 0 for less than, greater than, and equal, respectively.
 ///
 /// \pre 0 <= ScaleDiff < 64.
+///
+/// \param L Digits of the left-hand scaled number.
+/// \param R Digits of the right-hand scaled number.
+/// \param ScaleDiff How much higher the scale of \p L is than that of \p R.
+/// \return -1 if less, 0 if equal, and 1 if greater.
 LLVM_ABI int compareImpl(uint64_t L, uint64_t R, int ScaleDiff);
 
 /// Compare two scaled numbers.
 ///
 /// Compare two scaled numbers.  Returns 0 for equal, -1 for less than, and 1
 /// for greater than.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return -1 if less, 0 if equal, and 1 if greater.
 template <class DigitsT>
 int compare(DigitsT LDigits, int16_t LScale, DigitsT RDigits, int16_t RScale) {
   static_assert(!std::numeric_limits<DigitsT>::is_signed, "expected unsigned");
@@ -286,6 +379,12 @@ int compare(DigitsT LDigits, int16_t LScale, DigitsT RDigits, int16_t RScale) {
 /// As a convenience, returns the matching scale.  If the output value of one
 /// number is zero, returns the scale of the other.  If both are zero, which
 /// scale is returned is unspecified.
+///
+/// \param LDigits Digits of the left-hand scaled number; updated in place.
+/// \param LScale Scale of the left-hand scaled number; updated in place.
+/// \param RDigits Digits of the right-hand scaled number; updated in place.
+/// \param RScale Scale of the right-hand scaled number; updated in place.
+/// \return The matching scale after adjustment.
 template <class DigitsT>
 int16_t matchScales(DigitsT &LDigits, int16_t &LScale, DigitsT &RDigits,
                     int16_t &RScale) {
@@ -332,6 +431,12 @@ int16_t matchScales(DigitsT &LDigits, int16_t &LScale, DigitsT &RDigits,
 /// Get the sum of two scaled numbers with as much precision as possible.
 ///
 /// \pre Adding 1 to \c LScale (or \c RScale) will not overflow INT16_MAX.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return Sum as a digits/scale pair.
 template <class DigitsT>
 std::pair<DigitsT, int16_t> getSum(DigitsT LDigits, int16_t LScale,
                                    DigitsT RDigits, int16_t RScale) {
@@ -356,12 +461,24 @@ std::pair<DigitsT, int16_t> getSum(DigitsT LDigits, int16_t LScale,
 }
 
 /// Convenience helper for 32-bit sum.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return Sum as a digits/scale pair.
 inline std::pair<uint32_t, int16_t> getSum32(uint32_t LDigits, int16_t LScale,
                                              uint32_t RDigits, int16_t RScale) {
   return getSum(LDigits, LScale, RDigits, RScale);
 }
 
 /// Convenience helper for 64-bit sum.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return Sum as a digits/scale pair.
 inline std::pair<uint64_t, int16_t> getSum64(uint64_t LDigits, int16_t LScale,
                                              uint64_t RDigits, int16_t RScale) {
   return getSum(LDigits, LScale, RDigits, RScale);
@@ -372,6 +489,12 @@ inline std::pair<uint64_t, int16_t> getSum64(uint64_t LDigits, int16_t LScale,
 /// Get LHS minus RHS with as much precision as possible.
 ///
 /// Returns \c (0, 0) if the RHS is larger than the LHS.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return Difference as a digits/scale pair, or (0, 0) if RHS is larger.
 template <class DigitsT>
 std::pair<DigitsT, int16_t> getDifference(DigitsT LDigits, int16_t LScale,
                                           DigitsT RDigits, int16_t RScale) {
@@ -399,6 +522,12 @@ std::pair<DigitsT, int16_t> getDifference(DigitsT LDigits, int16_t LScale,
 }
 
 /// Convenience helper for 32-bit difference.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return Difference as a digits/scale pair, or (0, 0) if RHS is larger.
 inline std::pair<uint32_t, int16_t> getDifference32(uint32_t LDigits,
                                                     int16_t LScale,
                                                     uint32_t RDigits,
@@ -407,6 +536,12 @@ inline std::pair<uint32_t, int16_t> getDifference32(uint32_t LDigits,
 }
 
 /// Convenience helper for 64-bit difference.
+///
+/// \param LDigits Digits of the left-hand scaled number.
+/// \param LScale Scale of the left-hand scaled number.
+/// \param RDigits Digits of the right-hand scaled number.
+/// \param RScale Scale of the right-hand scaled number.
+/// \return Difference as a digits/scale pair, or (0, 0) if RHS is larger.
 inline std::pair<uint64_t, int16_t> getDifference64(uint64_t LDigits,
                                                     int16_t LScale,
                                                     uint64_t RDigits,
@@ -420,25 +555,70 @@ inline std::pair<uint64_t, int16_t> getDifference64(uint64_t LDigits,
 namespace llvm {
 
 class raw_ostream;
+/// Shared helpers for printing and converting scaled numbers.
 class ScaledNumberBase {
 public:
+  /// Default number of decimal digits of precision for printing.
   static constexpr int DefaultPrecision = 10;
 
+  /// Dump a scaled number to the debug stream.
+  ///
+  /// \param D Digit field.
+  /// \param E Scale (exponent).
+  /// \param Width Bit width of the digit type.
   LLVM_ABI static void dump(uint64_t D, int16_t E, int Width);
+  /// Print a scaled number to \p OS.
+  ///
+  /// \param OS Stream to write to.
+  /// \param D Digit field.
+  /// \param E Scale (exponent).
+  /// \param Width Bit width of the digit type.
+  /// \param Precision Number of decimal digits of precision; 0 means maximum.
+  /// \return The output stream \p OS.
   LLVM_ABI static raw_ostream &print(raw_ostream &OS, uint64_t D, int16_t E,
                                      int Width, unsigned Precision);
+  /// Convert a scaled number to a decimal string.
+  ///
+  /// \param D Digit field.
+  /// \param E Scale (exponent).
+  /// \param Width Bit width of the digit type.
+  /// \param Precision Number of decimal digits of precision; 0 means maximum.
+  /// \return Decimal representation of the scaled number.
   LLVM_ABI static std::string toString(uint64_t D, int16_t E, int Width,
                                        unsigned Precision);
+  /// Count leading zeros in a 32-bit value.
+  ///
+  /// \param N Value to count leading zeros of.
+  /// \return Number of leading zero bits in \p N.
   static int countLeadingZeros32(uint32_t N) { return llvm::countl_zero(N); }
+  /// Count leading zeros in a 64-bit value.
+  ///
+  /// \param N Value to count leading zeros of.
+  /// \return Number of leading zero bits in \p N.
   static int countLeadingZeros64(uint64_t N) { return llvm::countl_zero(N); }
+  /// Return \p N divided by two, rounding odd values up.
+  ///
+  /// \param N Value to halve.
+  /// \return \p N / 2, rounding odd values up.
   static uint64_t getHalf(uint64_t N) { return (N >> 1) + (N & 1); }
 
+  /// Split a signed integer into an unsigned magnitude and a sign flag.
+  ///
+  /// \param N Signed value to split.
+  /// \return Pair of absolute value and whether \p N was negative.
   static std::pair<uint64_t, bool> splitSigned(int64_t N) {
     if (N >= 0)
       return {N, false};
     uint64_t Unsigned = N == INT64_MIN ? UINT64_C(1) << 63 : uint64_t(-N);
     return {Unsigned, true};
   }
+  /// Join an unsigned magnitude and sign flag into a signed integer.
+  ///
+  /// Saturates to INT64_MIN or INT64_MAX when \p U does not fit in int64_t.
+  ///
+  /// \param U Unsigned magnitude.
+  /// \param IsNeg Whether the result should be negative.
+  /// \return Signed integer for \p U with sign \p IsNeg, saturating on overflow.
   static int64_t joinSigned(uint64_t U, bool IsNeg) {
     if (U > uint64_t(INT64_MAX))
       return IsNeg ? INT64_MIN : INT64_MAX;
@@ -498,6 +678,7 @@ public:
   static_assert(!std::numeric_limits<DigitsT>::is_signed,
                 "only unsigned floats supported");
 
+  /// Unsigned integer type used for the digit (mantissa) field.
   using DigitsType = DigitsT;
 
 private:
@@ -511,8 +692,13 @@ private:
   int16_t Scale = 0;
 
 public:
+  /// Construct a zero scaled number.
   ScaledNumber() = default;
 
+  /// Construct a scaled number from \p Digits and \p Scale.
+  ///
+  /// \param Digits Unsigned digit field.
+  /// \param Scale Scale (exponent); the value is Digits * 2^Scale.
   constexpr ScaledNumber(DigitsType Digits, int16_t Scale)
       : Digits(Digits), Scale(Scale) {}
 
@@ -521,30 +707,69 @@ private:
       : Digits(X.first), Scale(X.second) {}
 
 public:
+  /// Return a scaled number representing zero.
+  ///
+  /// \return A scaled number equal to zero.
   static ScaledNumber getZero() { return ScaledNumber(0, 0); }
+  /// Return a scaled number representing one.
+  ///
+  /// \return A scaled number equal to one.
   static ScaledNumber getOne() { return ScaledNumber(1, 0); }
+  /// Return the largest representable scaled number.
+  ///
+  /// \return The largest representable scaled number.
   static ScaledNumber getLargest() {
     return ScaledNumber(DigitsLimits::max(), ScaledNumbers::MaxScale);
   }
+  /// Construct a scaled number from the integer \p N.
+  ///
+  /// \param N Non-negative integer value.
+  /// \return Scaled number representing \p N.
   static ScaledNumber get(uint64_t N) { return adjustToWidth(N, 0); }
+  /// Return the reciprocal of the integer \p N as a scaled number.
+  ///
+  /// \param N Non-negative integer to invert.
+  /// \return Scaled number representing 1 / \p N.
   static ScaledNumber getInverse(uint64_t N) {
     return get(N).invert();
   }
+  /// Return the scaled number representing the fraction \p N / \p D.
+  ///
+  /// \param N Numerator.
+  /// \param D Denominator.
+  /// \return Scaled number representing \p N / \p D.
   static ScaledNumber getFraction(DigitsType N, DigitsType D) {
     return getQuotient(N, D);
   }
 
+  /// Return the scale (exponent) of this number.
+  ///
+  /// \return The scale (exponent) of this number.
   int16_t getScale() const { return Scale; }
+  /// Return the digit (mantissa) field of this number.
+  ///
+  /// \return The digit (mantissa) field of this number.
   DigitsType getDigits() const { return Digits; }
 
   /// Convert to the given integer type.
   ///
   /// Convert to \c IntT using simple saturating arithmetic, truncating if
   /// necessary.
+  ///
+  /// \return This number converted to IntT, saturating on overflow.
   template <class IntT> IntT toInt() const;
 
+  /// Return true if this number is zero.
+  ///
+  /// \return True if this number is zero.
   bool isZero() const { return !Digits; }
+  /// Return true if this number is the largest representable value.
+  ///
+  /// \return True if this number is the largest representable value.
   bool isLargest() const { return *this == getLargest(); }
+  /// Return true if this number equals one.
+  ///
+  /// \return True if this number equals one.
   bool isOne() const {
     if (Scale > 0 || Scale <= -Width)
       return false;
@@ -554,27 +779,60 @@ public:
   /// The log base 2, rounded.
   ///
   /// Get the lg of the scalar.  lg 0 is defined to be INT32_MIN.
+  ///
+  /// \return Rounded log base 2 of this number, or INT32_MIN if zero.
   int32_t lg() const { return ScaledNumbers::getLg(Digits, Scale); }
 
   /// The log base 2, rounded towards INT32_MIN.
   ///
   /// Get the lg floor.  lg 0 is defined to be INT32_MIN.
+  ///
+  /// \return Floor of the log base 2 of this number, or INT32_MIN if zero.
   int32_t lgFloor() const { return ScaledNumbers::getLgFloor(Digits, Scale); }
 
   /// The log base 2, rounded towards INT32_MAX.
   ///
   /// Get the lg ceiling.  lg 0 is defined to be INT32_MIN.
+  ///
+  /// \return Ceiling of the log base 2 of this number, or INT32_MIN if zero.
   int32_t lgCeiling() const {
     return ScaledNumbers::getLgCeiling(Digits, Scale);
   }
 
+  /// Return true if this number equals \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return True if this number equals \p X.
   bool operator==(const ScaledNumber &X) const { return compare(X) == 0; }
+  /// Return true if this number is strictly less than \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return True if this number is strictly less than \p X.
   bool operator<(const ScaledNumber &X) const { return compare(X) < 0; }
+  /// Return true if this number differs from \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return True if this number differs from \p X.
   bool operator!=(const ScaledNumber &X) const { return compare(X) != 0; }
+  /// Return true if this number is strictly greater than \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return True if this number is strictly greater than \p X.
   bool operator>(const ScaledNumber &X) const { return compare(X) > 0; }
+  /// Return true if this number is less than or equal to \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return True if this number is less than or equal to \p X.
   bool operator<=(const ScaledNumber &X) const { return compare(X) <= 0; }
+  /// Return true if this number is greater than or equal to \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return True if this number is greater than or equal to \p X.
   bool operator>=(const ScaledNumber &X) const { return compare(X) >= 0; }
 
+  /// Return true if this number is zero.
+  ///
+  /// \return True if this number is zero.
   bool operator!() const { return isZero(); }
 
   /// Convert to a decimal representation in a string.
@@ -596,6 +854,9 @@ public:
   ///       765432198.7654... =>   765432198.8
   ///        65432198.7654... =>    65432198.77
   ///         5432198.7654... =>     5432198.765
+  ///
+  /// \param Precision Number of decimal digits of precision; 0 means maximum.
+  /// \return Decimal representation of this number.
   std::string toString(unsigned Precision = DefaultPrecision) {
     return ScaledNumberBase::toString(Digits, Scale, Width, Precision);
   }
@@ -603,12 +864,21 @@ public:
   /// Print a decimal representation.
   ///
   /// Print a string.  See toString for documentation.
+  ///
+  /// \param OS Stream to write to.
+  /// \param Precision Number of decimal digits of precision; 0 means maximum.
+  /// \return The output stream \p OS.
   raw_ostream &print(raw_ostream &OS,
                      unsigned Precision = DefaultPrecision) const {
     return ScaledNumberBase::print(OS, Digits, Scale, Width, Precision);
   }
+  /// Dump this number to the debug stream.
   void dump() const { return ScaledNumberBase::dump(Digits, Scale, Width); }
 
+  /// Add \p X to this number using saturating arithmetic.
+  ///
+  /// \param X Value to add.
+  /// \return Reference to this number after addition.
   ScaledNumber &operator+=(const ScaledNumber &X) {
     std::tie(Digits, Scale) =
         ScaledNumbers::getSum(Digits, Scale, X.Digits, X.Scale);
@@ -617,17 +887,37 @@ public:
       *this = getLargest();
     return *this;
   }
+  /// Subtract \p X from this number using saturating arithmetic.
+  ///
+  /// \param X Value to subtract.
+  /// \return Reference to this number after subtraction.
   ScaledNumber &operator-=(const ScaledNumber &X) {
     std::tie(Digits, Scale) =
         ScaledNumbers::getDifference(Digits, Scale, X.Digits, X.Scale);
     return *this;
   }
+  /// Multiply this number by \p X using saturating arithmetic.
+  ///
+  /// \param X Value to multiply by.
+  /// \return Reference to this number after multiplication.
   ScaledNumber &operator*=(const ScaledNumber &X);
+  /// Divide this number by \p X using saturating arithmetic.
+  ///
+  /// \param X Value to divide by.
+  /// \return Reference to this number after division.
   ScaledNumber &operator/=(const ScaledNumber &X);
+  /// Shift this number left by \p Shift (or right if negative).
+  ///
+  /// \param Shift Number of places to shift; negative means shift right.
+  /// \return Reference to this number after the shift.
   ScaledNumber &operator<<=(int16_t Shift) {
     shiftLeft(Shift);
     return *this;
   }
+  /// Shift this number right by \p Shift (or left if negative).
+  ///
+  /// \param Shift Number of places to shift; negative means shift left.
+  /// \return Reference to this number after the shift.
   ScaledNumber &operator>>=(int16_t Shift) {
     shiftRight(Shift);
     return *this;
@@ -654,30 +944,65 @@ public:
   ///
   /// Scale N (multiply it by this).  Uses full precision multiplication, even
   /// if Width is smaller than 64, so information is not lost.
+  ///
+  /// \param N Unsigned integer to multiply by this scaled number.
+  /// \return \p N multiplied by this scaled number.
   uint64_t scale(uint64_t N) const;
+  /// Scale a large number by the inverse of this value.
+  ///
+  /// \param N Unsigned integer to multiply by the inverse of this.
+  /// \return \p N multiplied by the inverse of this scaled number.
   uint64_t scaleByInverse(uint64_t N) const {
     // TODO: implement directly, rather than relying on inverse.  Inverse is
     // expensive.
     return inverse().scale(N);
   }
+  /// Scale a signed integer accurately.
+  ///
+  /// \param N Signed integer to multiply by this scaled number.
+  /// \return \p N multiplied by this scaled number.
   int64_t scale(int64_t N) const {
     std::pair<uint64_t, bool> Unsigned = splitSigned(N);
     return joinSigned(scale(Unsigned.first), Unsigned.second);
   }
+  /// Scale a signed integer by the inverse of this value.
+  ///
+  /// \param N Signed integer to multiply by the inverse of this.
+  /// \return \p N multiplied by the inverse of this scaled number.
   int64_t scaleByInverse(int64_t N) const {
     std::pair<uint64_t, bool> Unsigned = splitSigned(N);
     return joinSigned(scaleByInverse(Unsigned.first), Unsigned.second);
   }
 
+  /// Compare this number to \p X.
+  ///
+  /// \param X Value to compare against.
+  /// \return -1 if less, 0 if equal, and 1 if greater.
   int compare(const ScaledNumber &X) const {
     return ScaledNumbers::compare(Digits, Scale, X.Digits, X.Scale);
   }
+  /// Compare this number to the unsigned integer \p N.
+  ///
+  /// \param N Unsigned integer to compare against.
+  /// \return -1 if less, 0 if equal, and 1 if greater.
   int compareTo(uint64_t N) const {
     return ScaledNumbers::compare<uint64_t>(Digits, Scale, N, 0);
   }
+  /// Compare this number to the signed integer \p N.
+  ///
+  /// Negative \p N is treated as less than every non-negative scaled number.
+  ///
+  /// \param N Signed integer to compare against.
+  /// \return -1 if less, 0 if equal, and 1 if greater.
   int compareTo(int64_t N) const { return N < 0 ? 1 : compareTo(uint64_t(N)); }
 
+  /// Replace this number with its reciprocal.
+  ///
+  /// \return Reference to this number after inversion.
   ScaledNumber &invert() { return *this = ScaledNumber::get(1) / *this; }
+  /// Return the reciprocal of this number.
+  ///
+  /// \return The reciprocal of this number.
   ScaledNumber inverse() const { return ScaledNumber(*this).invert(); }
 
 private:
@@ -724,24 +1049,59 @@ private:
                                     const ScaledNumber<DigitsT> &R) {          \
     return ScaledNumber<DigitsT>(L) base R;                                    \
   }
+/// Return the sum of \p L and \p R using saturating arithmetic.
+///
+/// \param L Left-hand scaled number.
+/// \param R Right-hand scaled number.
+/// \return Sum of \p L and \p R.
 SCALED_NUMBER_BOP(+, += )
+/// Return the difference of \p L and \p R using saturating arithmetic.
+///
+/// \param L Left-hand scaled number.
+/// \param R Right-hand scaled number.
+/// \return Difference of \p L and \p R.
 SCALED_NUMBER_BOP(-, -= )
+/// Return the product of \p L and \p R using saturating arithmetic.
+///
+/// \param L Left-hand scaled number.
+/// \param R Right-hand scaled number.
+/// \return Product of \p L and \p R.
 SCALED_NUMBER_BOP(*, *= )
+/// Return the quotient of \p L and \p R using saturating arithmetic.
+///
+/// \param L Left-hand scaled number.
+/// \param R Right-hand scaled number.
+/// \return Quotient of \p L and \p R.
 SCALED_NUMBER_BOP(/, /= )
 #undef SCALED_NUMBER_BOP
 
+/// Return \p L shifted left by \p Shift places.
+///
+/// \param L Scaled number to shift.
+/// \param Shift Number of places to shift; negative means shift right.
+/// \return \p L shifted left by \p Shift.
 template <class DigitsT>
 ScaledNumber<DigitsT> operator<<(const ScaledNumber<DigitsT> &L,
                                  int16_t Shift) {
   return ScaledNumber<DigitsT>(L) <<= Shift;
 }
 
+/// Return \p L shifted right by \p Shift places.
+///
+/// \param L Scaled number to shift.
+/// \param Shift Number of places to shift; negative means shift left.
+/// \return \p L shifted right by \p Shift.
 template <class DigitsT>
 ScaledNumber<DigitsT> operator>>(const ScaledNumber<DigitsT> &L,
                                  int16_t Shift) {
   return ScaledNumber<DigitsT>(L) >>= Shift;
 }
 
+/// Print \p X to \p OS.
+///
+/// \param OS Stream to write to.
+/// \param X Scaled number to print.
+/// \return The output stream \p OS.
 template <class DigitsT>
 raw_ostream &operator<<(raw_ostream &OS, const ScaledNumber<DigitsT> &X) {
   return X.print(OS, 10);
@@ -761,11 +1121,41 @@ raw_ostream &operator<<(raw_ostream &OS, const ScaledNumber<DigitsT> &X) {
   SCALED_NUMBER_COMPARE_TO_TYPE(op, uint32_t, uint64_t)                        \
   SCALED_NUMBER_COMPARE_TO_TYPE(op, int64_t, int64_t)                          \
   SCALED_NUMBER_COMPARE_TO_TYPE(op, int32_t, int64_t)
+/// Return true if \p L is strictly less than \p R.
+///
+/// \param L Left-hand operand.
+/// \param R Right-hand operand.
+/// \return True if \p L is strictly less than \p R.
 SCALED_NUMBER_COMPARE_TO(< )
+/// Return true if \p L is strictly greater than \p R.
+///
+/// \param L Left-hand operand.
+/// \param R Right-hand operand.
+/// \return True if \p L is strictly greater than \p R.
 SCALED_NUMBER_COMPARE_TO(> )
+/// Return true if \p L equals \p R.
+///
+/// \param L Left-hand operand.
+/// \param R Right-hand operand.
+/// \return True if \p L equals \p R.
 SCALED_NUMBER_COMPARE_TO(== )
+/// Return true if \p L differs from \p R.
+///
+/// \param L Left-hand operand.
+/// \param R Right-hand operand.
+/// \return True if \p L differs from \p R.
 SCALED_NUMBER_COMPARE_TO(!= )
+/// Return true if \p L is less than or equal to \p R.
+///
+/// \param L Left-hand operand.
+/// \param R Right-hand operand.
+/// \return True if \p L is less than or equal to \p R.
 SCALED_NUMBER_COMPARE_TO(<= )
+/// Return true if \p L is greater than or equal to \p R.
+///
+/// \param L Left-hand operand.
+/// \param R Right-hand operand.
+/// \return True if \p L is greater than or equal to \p R.
 SCALED_NUMBER_COMPARE_TO(>= )
 #undef SCALED_NUMBER_COMPARE_TO
 #undef SCALED_NUMBER_COMPARE_TO_TYPE

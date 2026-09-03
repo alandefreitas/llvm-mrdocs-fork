@@ -44,11 +44,15 @@ LLVM_ABI void RunInterruptHandlers();
 /// This function registers signal handlers to ensure that if a signal gets
 /// delivered that the named file is removed.
 /// Remove a file if a fatal signal occurs.
+/// \param Filename Path of the file to remove if a fatal signal occurs.
+/// \param ErrMsg Optional string populated with an error message on failure.
+/// \return True if registration failed; false on success.
 LLVM_ABI bool RemoveFileOnSignal(StringRef Filename,
                                  std::string *ErrMsg = nullptr);
 
 /// This function removes a file from the list of files to be removed on
 /// signal delivery.
+/// \param Filename Path previously registered with RemoveFileOnSignal.
 LLVM_ABI void DontRemoveFileOnSignal(StringRef Filename);
 
 /// When an error signal (such as SIGABRT or SIGSEGV) is delivered to the
@@ -66,6 +70,7 @@ LLVM_ABI void PrintStackTraceOnErrorSignal(StringRef Argv0,
 LLVM_ABI void DisableSystemDialogsOnCrash();
 
 /// Print the stack trace using the given \c raw_ostream object.
+/// \param OS Stream to which the stack trace is written.
 /// \param Depth refers to the number of stackframes to print. If not
 ///        specified, the entire frame is printed.
 LLVM_ABI void PrintStackTrace(raw_ostream &OS, int Depth = 0);
@@ -101,14 +106,21 @@ LLVM_ABI void RunSignalHandlers();
 using SignalHandlerCallback = void (*)(void *);
 
 /// Add a function to be called when an abort/kill signal is delivered to the
-/// process. The handler can have a cookie passed to it to identify what
-/// instance of the handler it is. The NeedsPOSIXUtilitySignalHandling
-/// argument indicates whether POSIX signal handling semantics are followed,
-/// so that the signal handler resignals itself to terminate after handling
-/// the signal.
+/// process.
+///
+/// The handler can have a cookie passed to it to identify what instance of
+/// the handler it is. The NeedsPOSIXUtilitySignalHandling argument indicates
+/// whether POSIX signal handling semantics are followed, so that the signal
+/// handler resignals itself to terminate after handling the signal.
+/// \param FnPtr Callback invoked when an abort/kill signal is delivered.
+/// \param Cookie Opaque user data passed through to \p FnPtr.
+/// \param NeedsPOSIXUtilitySignalHandling If true, follow POSIX utility
+///        signal handling so the process resignals itself after the handler.
 LLVM_ABI void AddSignalHandler(SignalHandlerCallback FnPtr, void *Cookie,
                                bool NeedsPOSIXUtilitySignalHandling = false);
 
+/// Register a function to be called when the user interrupts the program.
+///
 /// This function registers a function to be called when the user "interrupts"
 /// the program (typically by pressing ctrl-c).  When the user interrupts the
 /// program, the specified interrupt function is called instead of the program
@@ -118,6 +130,8 @@ LLVM_ABI void AddSignalHandler(SignalHandlerCallback FnPtr, void *Cookie,
 /// functions.  An null interrupt function pointer disables the current
 /// installed function.  Note also that the handler may be executed on a
 /// different thread on some platforms.
+/// \param IF Interrupt function to install, or null to disable the current
+///        handler.
 LLVM_ABI void SetInterruptFunction(void (*IF)());
 
 /// Registers a function to be called when an "info" signal is delivered to
@@ -130,6 +144,8 @@ LLVM_ABI void SetInterruptFunction(void (*IF)());
 /// functions.  An null function pointer disables the current installed
 /// function.  Note also that the handler may be executed on a different
 /// thread on some platforms.
+/// \param Handler Function to call on an info signal, or null to disable
+///        the current handler.
 LLVM_ABI void SetInfoSignalFunction(void (*Handler)());
 
 /// Register a one-shot handler for a failed write to a pipe.
@@ -146,6 +162,8 @@ LLVM_ABI void SetInfoSignalFunction(void (*Handler)());
 /// functions.  A null handler pointer disables the current installed
 /// function.  Note also that the handler may be executed on a
 /// different thread on some platforms.
+/// \param Handler Function to call on a pipe write failure, or null to
+///        disable the current handler.
 LLVM_ABI void SetOneShotPipeSignalFunction(void (*Handler)());
 
 /// On Unix systems and Windows, this function exits with an "IO error" exit
@@ -157,13 +175,16 @@ LLVM_ABI void DefaultOneShotPipeSignalHandler();
 LLVM_ABI void CallOneShotPipeSignalHandler();
 #endif
 
+/// Clean up temporary files, dump the stack, run handlers, and create a crash
+/// dump after a fatal signal.
+///
 /// This function does the following:
 /// - clean up any temporary files registered with RemoveFileOnSignal()
 /// - dump the callstack from the exception context
 /// - call any relevant interrupt/signal handlers
 /// - create a core/mini dump of the exception context whenever possible
-/// Context is a system-specific failure context: it is the signal type on
-/// Unix; the ExceptionContext on Windows.
+/// \param Context System-specific failure context: the signal type on Unix;
+///        the ExceptionContext on Windows.
 LLVM_ABI void CleanupOnSignal(uintptr_t Context);
 
 /// Unregister previously installed signal handlers, restoring prior behavior.

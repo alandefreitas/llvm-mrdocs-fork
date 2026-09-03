@@ -31,100 +31,149 @@ class DataExtractor;
 template <typename T> class SmallVectorImpl;
 
 namespace dwarf_linker {
+/// Classic (non-parallel) DWARF linker implementation.
 namespace classic {
 class DeclContextTree;
 
+/// Map from DIE or section offset to the owning compile unit.
 using Offset2UnitMap = DenseMap<uint64_t, CompileUnit *>;
+/// Indexed pool of DIE attribute values used while emitting.
 using DebugDieValuePool = IndexedValuesMap<uint64_t>;
 
 /// DwarfEmitter presents interface to generate all debug info tables.
 class DwarfEmitter {
 public:
+  /// Destroy this DwarfEmitter.
   virtual ~DwarfEmitter() = default;
 
   /// Emit section named SecName with data SecData.
+  /// \param SecData Bytes to write into the section.
+  /// \param SecKind Which debug section to emit into.
   virtual void emitSectionContents(StringRef SecData,
                                    DebugSectionKind SecKind) = 0;
 
   /// Emit the abbreviation table \p Abbrevs to the .debug_abbrev section.
+  /// \param Abbrevs Abbreviations to emit.
+  /// \param DwarfVersion DWARF version of the output.
   virtual void
   emitAbbrevs(const std::vector<std::unique_ptr<DIEAbbrev>> &Abbrevs,
               unsigned DwarfVersion) = 0;
 
   /// Emit the string table described by \p Pool into .debug_str table.
+  /// \param Pool String pool whose contents are written to .debug_str.
   virtual void emitStrings(const NonRelocatableStringpool &Pool) = 0;
 
   /// Emit the debug string offset table described by \p StringOffsets into the
   /// .debug_str_offsets table.
+  /// \param StringOffsets Offsets into .debug_str to emit.
+  /// \param TargetDWARFVersion DWARF version that controls the table format.
   virtual void emitStringOffsets(const SmallVector<uint64_t> &StringOffsets,
                                  uint16_t TargetDWARFVersion) = 0;
 
   /// Emit the string table described by \p Pool into .debug_line_str table.
+  /// \param Pool String pool whose contents are written to .debug_line_str.
   virtual void emitLineStrings(const NonRelocatableStringpool &Pool) = 0;
 
   /// Emit DWARF debug names.
+  /// \param Table Accelerator table to emit as .debug_names.
   virtual void emitDebugNames(DWARF5AccelTable &Table) = 0;
 
   /// Emit Apple namespaces accelerator table.
+  /// \param Table Accelerator table to emit as .apple_namespaces.
   virtual void
   emitAppleNamespaces(AccelTable<AppleAccelTableStaticOffsetData> &Table) = 0;
 
   /// Emit Apple names accelerator table.
+  /// \param Table Accelerator table to emit as .apple_names.
   virtual void
   emitAppleNames(AccelTable<AppleAccelTableStaticOffsetData> &Table) = 0;
 
   /// Emit Apple Objective-C accelerator table.
+  /// \param Table Accelerator table to emit as .apple_objc.
   virtual void
   emitAppleObjc(AccelTable<AppleAccelTableStaticOffsetData> &Table) = 0;
 
   /// Emit Apple type accelerator table.
+  /// \param Table Accelerator table to emit as .apple_types.
   virtual void
   emitAppleTypes(AccelTable<AppleAccelTableStaticTypeData> &Table) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) header.
+  /// \param Unit Compile unit the range list belongs to.
+  /// \returns Label marking the end of the range list header.
   virtual MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) fragment.
+  /// \param Unit Compile unit the range list belongs to.
+  /// \param LinkedRanges Relocated address ranges to emit.
+  /// \param Patch Location that must be updated with the fragment offset.
+  /// \param AddrPool Pool of addresses referenced by rnglists.
+  /// \returns Success, or an Error if emission fails.
   virtual Error emitDwarfDebugRangeListFragment(
       const CompileUnit &Unit, const AddressRanges &LinkedRanges,
       PatchLocation Patch, DebugDieValuePool &AddrPool) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) footer.
+  /// \param Unit Compile unit the range list belongs to.
+  /// \param EndLabel Label marking the end of the range list.
   virtual void emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
                                              MCSymbol *EndLabel) = 0;
 
   /// Emit debug locations (.debug_loc, .debug_loclists) header.
+  /// \param Unit Compile unit the location list belongs to.
+  /// \returns Label marking the end of the location list header.
   virtual MCSymbol *emitDwarfDebugLocListHeader(const CompileUnit &Unit) = 0;
 
   /// Emit debug locations (.debug_loc, .debug_loclists) fragment.
+  /// \param Unit Compile unit the location list belongs to.
+  /// \param LinkedLocationExpression Relocated location expressions to emit.
+  /// \param Patch Location that must be updated with the fragment offset.
+  /// \param AddrPool Pool of addresses referenced by loclists.
+  /// \returns Success, or an Error if emission fails.
   virtual Error emitDwarfDebugLocListFragment(
       const CompileUnit &Unit,
       const DWARFLocationExpressionsVector &LinkedLocationExpression,
       PatchLocation Patch, DebugDieValuePool &AddrPool) = 0;
 
   /// Emit debug locations (.debug_loc, .debug_loclists) footer.
+  /// \param Unit Compile unit the location list belongs to.
+  /// \param EndLabel Label marking the end of the location list.
   virtual void emitDwarfDebugLocListFooter(const CompileUnit &Unit,
                                            MCSymbol *EndLabel) = 0;
 
   /// Emit .debug_addr header.
+  /// \param Unit Compile unit the address table belongs to.
+  /// \returns Label marking the end of the address table header.
   virtual MCSymbol *emitDwarfDebugAddrsHeader(const CompileUnit &Unit) = 0;
 
   /// Emit the addresses described by \p Addrs into the .debug_addr section.
+  /// \param Addrs Addresses to write.
+  /// \param AddrSize Size in bytes of each address entry.
   virtual void emitDwarfDebugAddrs(const SmallVector<uint64_t> &Addrs,
                                    uint8_t AddrSize) = 0;
 
   /// Emit .debug_addr footer.
+  /// \param Unit Compile unit the address table belongs to.
+  /// \param EndLabel Label marking the end of the address table.
   virtual void emitDwarfDebugAddrsFooter(const CompileUnit &Unit,
                                          MCSymbol *EndLabel) = 0;
 
   /// Emit .debug_aranges entries for \p Unit
+  /// \param Unit Compile unit whose address ranges are emitted.
+  /// \param LinkedRanges Relocated address ranges to emit.
   virtual void
   emitDwarfDebugArangesTable(const CompileUnit &Unit,
                              const AddressRanges &LinkedRanges) = 0;
 
-  /// Emit specified \p LineTable into .debug_line table.
-  /// The optional parameter RowOffsets, if provided, will be populated with the
-  /// offsets of each line table row in the output .debug_line section.
+  /// Emit \p LineTable into the .debug_line section for \p Unit.
+  ///
+  /// The optional parameter \p RowOffsets, if provided, will be populated with
+  /// the offsets of each line table row in the output .debug_line section.
+  /// \param LineTable Line table to emit.
+  /// \param Unit Compile unit the line table belongs to.
+  /// \param DebugStrPool Pool for .debug_str strings referenced by the table.
+  /// \param DebugLineStrPool Pool for .debug_line_str strings.
+  /// \param RowOffsets Optional output of per-row offsets in .debug_line.
   virtual void
   emitLineTableForUnit(const DWARFDebugLine::LineTable &LineTable,
                        const CompileUnit &Unit, OffsetsStringPool &DebugStrPool,
@@ -132,15 +181,22 @@ public:
                        std::vector<uint64_t> *RowOffsets = nullptr) = 0;
 
   /// Emit the .debug_pubnames contribution for \p Unit.
+  /// \param Unit Compile unit whose public names are emitted.
   virtual void emitPubNamesForUnit(const CompileUnit &Unit) = 0;
 
   /// Emit the .debug_pubtypes contribution for \p Unit.
+  /// \param Unit Compile unit whose public types are emitted.
   virtual void emitPubTypesForUnit(const CompileUnit &Unit) = 0;
 
   /// Emit a CIE.
+  /// \param CIEBytes Raw CIE bytes to emit into .debug_frame.
   virtual void emitCIE(StringRef CIEBytes) = 0;
 
   /// Emit an FDE with data \p Bytes.
+  /// \param CIEOffset Offset of the CIE this FDE refers to.
+  /// \param AddreSize Size in bytes of addresses in the FDE.
+  /// \param Address Initial location covered by the FDE.
+  /// \param Bytes Raw FDE payload to emit.
   virtual void emitFDE(uint32_t CIEOffset, uint32_t AddreSize, uint64_t Address,
                        StringRef Bytes) = 0;
 
@@ -149,46 +205,62 @@ public:
   ///
   /// As a side effect, this also switches the current Dwarf version
   /// of the MC layer to the one of U.getOrigUnit().
+  /// \param Unit Compile unit whose header is emitted.
+  /// \param DwarfVersion DWARF version to use for the header.
   virtual void emitCompileUnitHeader(CompileUnit &Unit,
                                      unsigned DwarfVersion) = 0;
 
   /// Recursively emit the DIE tree rooted at \p Die.
+  /// \param Die Root DIE of the tree to emit into .debug_info.
   virtual void emitDIE(DIE &Die) = 0;
 
-  /// Emit all available macro tables(DWARFv4 and DWARFv5).
-  /// Use \p UnitMacroMap to get compilation unit by macro table offset.
-  /// Side effects: Fill \p StringPool with macro strings, update
-  /// DW_AT_macro_info, DW_AT_macros attributes for corresponding compile
+  /// Emit DWARFv4 and DWARFv5 macro tables for \p Context.
+  ///
+  /// Use \p UnitMacroMap to get the compilation unit by macro table offset.
+  /// Side effects: fills \p StringPool with macro strings and updates
+  /// DW_AT_macro_info / DW_AT_macros attributes for corresponding compile
   /// units.
+  /// \param Context DWARF context providing the macro tables to emit.
+  /// \param UnitMacroMap Map from macro table offset to compile unit.
+  /// \param StringPool String pool that receives macro strings.
   virtual void emitMacroTables(DWARFContext *Context,
                                const Offset2UnitMap &UnitMacroMap,
                                OffsetsStringPool &StringPool) = 0;
 
   /// Returns size of generated .debug_line section.
+  /// \returns Size in bytes of the generated .debug_line section.
   virtual uint64_t getLineSectionSize() const = 0;
 
   /// Returns size of generated .debug_frame section.
+  /// \returns Size in bytes of the generated .debug_frame section.
   virtual uint64_t getFrameSectionSize() const = 0;
 
   /// Returns size of generated .debug_ranges section.
+  /// \returns Size in bytes of the generated .debug_ranges section.
   virtual uint64_t getRangesSectionSize() const = 0;
 
   /// Returns size of generated .debug_rnglists section.
+  /// \returns Size in bytes of the generated .debug_rnglists section.
   virtual uint64_t getRngListsSectionSize() const = 0;
 
   /// Returns size of generated .debug_info section.
+  /// \returns Size in bytes of the generated .debug_info section.
   virtual uint64_t getDebugInfoSectionSize() const = 0;
 
   /// Returns size of generated .debug_macinfo section.
+  /// \returns Size in bytes of the generated .debug_macinfo section.
   virtual uint64_t getDebugMacInfoSectionSize() const = 0;
 
   /// Returns size of generated .debug_macro section.
+  /// \returns Size in bytes of the generated .debug_macro section.
   virtual uint64_t getDebugMacroSectionSize() const = 0;
 
   /// Returns size of generated .debug_loclists section.
+  /// \returns Size in bytes of the generated .debug_loclists section.
   virtual uint64_t getLocListsSectionSize() const = 0;
 
   /// Returns size of generated .debug_addr section.
+  /// \returns Size in bytes of the generated .debug_addr section.
   virtual uint64_t getDebugAddrSectionSize() const = 0;
 
   /// Dump the file to the disk.
@@ -196,6 +268,7 @@ public:
 };
 
 class DwarfStreamer;
+/// List of uniquely owned compile units produced while linking.
 using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 
 /// The core of the Dwarf linking logic.
@@ -214,11 +287,22 @@ using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 /// processing a object file.
 class LLVM_ABI DWARFLinker : public DWARFLinkerBase {
 public:
+  /// Construct a DWARF linker with the given message handlers.
+  /// \param ErrorHandler Called to report linking errors.
+  /// \param WarningHandler Called to report linking warnings.
+  /// \param StringsTranslator Optional translator applied to string table
+  /// entries.
   DWARFLinker(MessageHandlerTy ErrorHandler, MessageHandlerTy WarningHandler,
               std::function<StringRef(StringRef)> StringsTranslator)
       : StringsTranslator(StringsTranslator), ErrorHandler(ErrorHandler),
         WarningHandler(WarningHandler) {}
 
+  /// Create a DWARFLinker with the given message handlers.
+  /// \param ErrorHandler Called to report linking errors.
+  /// \param WarningHandler Called to report linking warnings.
+  /// \param StringsTranslator Optional translator applied to string table
+  /// entries.
+  /// \returns A newly created DWARFLinker instance.
   static std::unique_ptr<DWARFLinker> createLinker(
       MessageHandlerTy ErrorHandler, MessageHandlerTy WarningHandler,
       std::function<StringRef(StringRef)> StringsTranslator = nullptr) {
@@ -227,91 +311,113 @@ public:
   }
 
   /// Set output DWARF emitter.
+  /// \param Emitter Emitter used to write the linked DWARF sections.
   void setOutputDWARFEmitter(DwarfEmitter *Emitter) {
     TheDwarfEmitter = Emitter;
   }
 
-  /// Add object file to be linked. Pre-load compile unit die. Call
-  /// \p OnCUDieLoaded for each compile unit die. If specified \p File
-  /// has reference to the Clang module then such module would be
-  /// pre-loaded by \p Loader for !Update case.
+  /// Add an object file to be linked.
+  ///
+  /// Pre-load compile unit DIEs. Call \p OnCUDieLoaded for each compile unit
+  /// DIE. If specified \p File has a reference to a Clang module then that
+  /// module is pre-loaded by \p Loader when not in Update mode.
   ///
   /// \pre NoODR, Update options should be set before call to addObjectFile.
+  /// \param File Object file whose DWARF will be linked.
+  /// \param Loader Optional loader used to resolve Clang module references.
+  /// \param OnCUDieLoaded Callback invoked for each loaded compile unit DIE.
   void addObjectFile(
       DWARFFile &File, ObjFileLoaderTy Loader = nullptr,
       CompileUnitHandlerTy OnCUDieLoaded = [](const DWARFUnit &) {}) override;
 
   /// Link debug info for added objFiles. Object files are linked all together.
+  /// \returns Success, or an Error describing why linking failed.
   Error link() override;
 
   /// A number of methods setting various linking options:
 
   /// Allows to generate log of linking process to the standard output.
+  /// \param Verbose When true, emit a verbose linking log to stdout.
   void setVerbosity(bool Verbose) override { Options.Verbose = Verbose; }
 
   /// Print statistics to standard output.
+  /// \param Statistics When true, print linking statistics to stdout.
   void setStatistics(bool Statistics) override {
     Options.Statistics = Statistics;
   }
 
   /// Verify the input DWARF.
+  /// \param Verify When true, verify input DWARF before linking.
   void setVerifyInputDWARF(bool Verify) override {
     Options.VerifyInputDWARF = Verify;
   }
 
   /// Do not unique types according to ODR.
+  /// \param NoODR When true, disable ODR-based type uniquing.
   void setNoODR(bool NoODR) override { Options.NoODR = NoODR; }
 
   /// Update index tables only(do not modify rest of DWARF).
+  /// \param Update When true, only update index tables.
   void setUpdateIndexTablesOnly(bool Update) override {
     Options.Update = Update;
   }
 
   /// Set whether to keep the enclosing function for a static variable.
+  /// \param KeepFunctionForStatic When true, keep the enclosing function.
   void setKeepFunctionForStatic(bool KeepFunctionForStatic) override {
     Options.KeepFunctionForStatic = KeepFunctionForStatic;
   }
 
   /// Use specified number of threads for parallel files linking.
+  /// \param NumThreads Number of threads to use for linking.
   void setNumThreads(unsigned NumThreads) override {
     Options.Threads = NumThreads;
   }
 
   /// The classic linker does not use a shared thread pool.
+  /// \param Pool Unused; classic linking ignores a shared thread pool.
   void setThreadPool(ThreadPoolInterface *Pool) override {}
 
   /// Add kind of accelerator tables to be generated.
+  /// \param Kind Accelerator table kind to generate.
   void addAccelTableKind(AccelTableKind Kind) override {
     assert(!llvm::is_contained(Options.AccelTables, Kind));
     Options.AccelTables.emplace_back(Kind);
   }
 
   /// Set prepend path for clang modules.
+  /// \param Ppath Path prepended when resolving Clang module references.
   void setPrependPath(StringRef Ppath) override { Options.PrependPath = Ppath; }
 
   /// Set estimated objects files amount, for preliminary data allocation.
+  /// \param ObjFilesNum Estimated number of object files to reserve for.
   void setEstimatedObjfilesAmount(unsigned ObjFilesNum) override {
     ObjectContexts.reserve(ObjFilesNum);
   }
 
   /// Set verification handler which would be used to report verification
   /// errors.
+  /// \param Handler Callback invoked with verification diagnostics.
   void
   setInputVerificationHandler(InputVerificationHandlerTy Handler) override {
     Options.InputVerificationHandler = Handler;
   }
 
   /// Set map for Swift interfaces.
+  /// \param Map Map from module name to .swiftinterface path.
   void setSwiftInterfacesMap(SwiftInterfacesMapTy *Map) override {
     Options.ParseableSwiftInterfaces = Map;
   }
 
   /// Set prefix map for objects.
+  /// \param Map Path-prefix remapping applied to object file paths.
   void setObjectPrefixMap(ObjectPrefixMapTy *Map) override {
     Options.ObjectPrefixMap = Map;
   }
 
   /// Set target DWARF version.
+  /// \param TargetDWARFVersion DWARF version to emit in the output.
+  /// \returns Success, or an Error if \p TargetDWARFVersion is unsupported.
   Error setTargetDWARFVersion(uint16_t TargetDWARFVersion) override {
     if ((TargetDWARFVersion < 1) || (TargetDWARFVersion > 5))
       return createStringError(std::errc::invalid_argument,

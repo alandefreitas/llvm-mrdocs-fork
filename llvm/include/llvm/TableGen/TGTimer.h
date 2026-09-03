@@ -20,7 +20,7 @@
 
 namespace llvm {
 
-// Timer related functionality f or TableGen backends.
+/// Thin wrapper around Timer support for TableGen backends.
 class TGTimer {
 private:
   std::unique_ptr<TimerGroup> TimingGroup;
@@ -28,7 +28,9 @@ private:
   bool BackendTimer = false; // Is last timer special backend overall timer?
 
 public:
+  /// Construct a TableGen timer with timing inactive.
   TGTimer() = default;
+  /// Destroy this TableGen timer.
   ~TGTimer() = default;
 
   /// Start phase timing; called if the --time-phases option is specified.
@@ -38,6 +40,8 @@ public:
   }
 
   /// Start timing a phase. Automatically stops any previous phase timer.
+  ///
+  /// \param Name Name of the phase being timed.
   LLVM_ABI void startTimer(StringRef Name);
 
   /// Stop timing a phase.
@@ -45,6 +49,8 @@ public:
 
   /// Start timing the overall backend. If the backend itself starts a timer,
   /// then this timer is cleared.
+  ///
+  /// \param Name Name of the backend being timed.
   LLVM_ABI void startBackendTimer(StringRef Name);
 
   /// Stop timing the overall backend.

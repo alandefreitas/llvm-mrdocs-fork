@@ -44,32 +44,44 @@ public:
   void init() { llvm_blake3_hasher_init(&Hasher); }
 
   /// Reinitialize the internal state with the given key.
+  ///
+  /// \param Key Key material used to initialize keyed hashing.
   void init_keyed(ArrayRef<uint8_t> Key) {
     // TODO: maybe assert on the size of the key?
     llvm_blake3_hasher_init_keyed(&Hasher, Key.data());
   }
 
   /// Digest more data.
+  ///
+  /// \param Data Bytes to absorb into the hash state.
   void update(ArrayRef<uint8_t> Data) {
     llvm_blake3_hasher_update(&Hasher, Data.data(), Data.size());
   }
 
   /// Digest more data.
+  ///
+  /// \param Str String bytes to absorb into the hash state.
   void update(StringRef Str) {
     llvm_blake3_hasher_update(&Hasher, Str.data(), Str.size());
   }
 
   /// Finalize the hasher and put the result in \p Result.
+  ///
   /// This doesn't modify the hasher itself, and it's possible to finalize again
   /// after adding more input.
+  ///
+  /// \param Result Buffer that receives the finalized hash output.
   template <size_t NumBytes = LLVM_BLAKE3_OUT_LEN>
   void final(BLAKE3Result<NumBytes> &Result) {
     llvm_blake3_hasher_finalize(&Hasher, Result.data(), Result.size());
   }
 
-  /// Finalize the hasher and return an output of any length, given in bytes.
+  /// Finalize the hasher and return a hash of the requested length.
+  ///
   /// This doesn't modify the hasher itself, and it's possible to finalize again
   /// after adding more input.
+  ///
+  /// \returns The finalized hash of the requested length.
   template <size_t NumBytes = LLVM_BLAKE3_OUT_LEN>
   BLAKE3Result<NumBytes> final() {
     BLAKE3Result<NumBytes> Result;
@@ -77,18 +89,22 @@ public:
     return Result;
   }
 
-  /// Return the current output for the digested data since the last call to
-  /// init().
+  /// Return the current hash of the digested data since the last init().
   ///
   /// Other hash functions distinguish between \p result() and \p final(), with
   /// \p result() allowing more calls into \p update(), but there's no
-  // difference for the BLAKE3 hash function.
+  /// difference for the BLAKE3 hash function.
+  ///
+  /// \returns The current hash of the digested data.
   template <size_t NumBytes = LLVM_BLAKE3_OUT_LEN>
   BLAKE3Result<NumBytes> result() {
     return final<NumBytes>();
   }
 
   /// Returns a BLAKE3 hash for the given data.
+  ///
+  /// \param Data Bytes to hash in one shot.
+  /// \returns The BLAKE3 hash of \p Data.
   template <size_t NumBytes = LLVM_BLAKE3_OUT_LEN>
   static BLAKE3Result<NumBytes> hash(ArrayRef<uint8_t> Data) {
     BLAKE3 Hasher;
@@ -108,21 +124,28 @@ private:
 template <size_t NumBytes> class TruncatedBLAKE3 : public BLAKE3 {
 public:
   /// Finalize the hasher and put the result in \p Result.
+  ///
   /// This doesn't modify the hasher itself, and it's possible to finalize again
   /// after adding more input.
+  ///
+  /// \param Result Buffer that receives the finalized hash output.
   void final(BLAKE3Result<NumBytes> &Result) { return BLAKE3::final(Result); }
 
-  /// Finalize the hasher and return an output of any length, given in bytes.
+  /// Finalize the hasher and return a hash of the requested length.
+  ///
   /// This doesn't modify the hasher itself, and it's possible to finalize again
   /// after adding more input.
+  ///
+  /// \returns The finalized hash of the requested length.
   BLAKE3Result<NumBytes> final() { return BLAKE3::final<NumBytes>(); }
 
-  /// Return the current output for the digested data since the last call to
-  /// init().
+  /// Return the current hash of the digested data since the last init().
   ///
   /// Other hash functions distinguish between \p result() and \p final(), with
   /// \p result() allowing more calls into \p update(), but there's no
-  // difference for the BLAKE3 hash function.
+  /// difference for the BLAKE3 hash function.
+  ///
+  /// \returns The current hash of the digested data.
   BLAKE3Result<NumBytes> result() { return BLAKE3::result<NumBytes>(); }
 };
 

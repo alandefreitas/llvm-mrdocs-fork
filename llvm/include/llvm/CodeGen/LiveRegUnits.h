@@ -37,14 +37,23 @@ public:
   LiveRegUnits() = default;
 
   /// Constructs and initialize an empty LiveRegUnits set.
+  ///
+  /// \param TRI Target register info used to size the register unit universe.
   LiveRegUnits(const TargetRegisterInfo &TRI) {
     init(TRI);
   }
 
+  /// Tracks used and modified register units for a machine instruction.
+  ///
   /// For a machine instruction \p MI, adds all register units used in
   /// \p UsedRegUnits and defined or clobbered in \p ModifiedRegUnits. This is
   /// useful when walking over a range of instructions to track registers
   /// used or defined separately.
+  ///
+  /// \param MI Machine instruction whose operands are examined.
+  /// \param ModifiedRegUnits Set that receives defined or clobbered units.
+  /// \param UsedRegUnits Set that receives used units.
+  /// \param TRI Target register info used for constant-register checks.
   static void accumulateUsedDefed(const MachineInstr &MI,
                                   LiveRegUnits &ModifiedRegUnits,
                                   LiveRegUnits &UsedRegUnits,
@@ -71,6 +80,8 @@ public:
   }
 
   /// Initialize and clear the set.
+  ///
+  /// \param TRI Target register info used to size the register unit universe.
   void init(const TargetRegisterInfo &TRI) {
     this->TRI = &TRI;
     Units.reset();
@@ -81,9 +92,13 @@ public:
   void clear() { Units.reset(); }
 
   /// Returns true if the set is empty.
+  ///
+  /// \return True if no register units are marked live.
   bool empty() const { return Units.none(); }
 
   /// Adds register units covered by physical register \p Reg.
+  ///
+  /// \param Reg Physical register whose units are added.
   void addReg(MCRegister Reg) {
     for (MCRegUnit Unit : TRI->regunits(Reg))
       Units.set(static_cast<unsigned>(Unit));
@@ -91,6 +106,9 @@ public:
 
   /// Adds register units covered by physical register \p Reg that are
   /// part of the lanemask \p Mask.
+  ///
+  /// \param Reg Physical register whose units are considered.
+  /// \param Mask Lane mask selecting which units of \p Reg to add.
   void addRegMasked(MCRegister Reg, LaneBitmask Mask) {
     for (MCRegUnitMaskIterator I(Reg, TRI); I.isValid(); ++I) {
       auto [Unit, UnitMask] = *I;
@@ -100,6 +118,8 @@ public:
   }
 
   /// Removes all register units covered by physical register \p Reg.
+  ///
+  /// \param Reg Physical register whose units are removed.
   void removeReg(MCRegister Reg) {
     for (MCRegUnit Unit : TRI->regunits(Reg))
       Units.reset(static_cast<unsigned>(Unit));
@@ -107,13 +127,20 @@ public:
 
   /// Removes register units not preserved by the regmask \p RegMask.
   /// The regmask has the same format as the one in the RegMask machine operand.
+  ///
+  /// \param RegMask Register mask describing preserved registers.
   LLVM_ABI void removeRegsNotPreserved(const uint32_t *RegMask);
 
   /// Adds register units not preserved by the regmask \p RegMask.
   /// The regmask has the same format as the one in the RegMask machine operand.
+  ///
+  /// \param RegMask Register mask describing clobbered registers.
   LLVM_ABI void addRegsInMask(const uint32_t *RegMask);
 
   /// Returns true if no part of physical register \p Reg is live.
+  ///
+  /// \param Reg Physical register to test for availability.
+  /// \return True if no register unit of \p Reg is live.
   bool available(MCRegister Reg) const {
     for (MCRegUnit Unit : TRI->regunits(Reg)) {
       if (Units.test(static_cast<unsigned>(Unit)))
@@ -122,34 +149,50 @@ public:
     return true;
   }
 
-  /// Updates liveness when stepping backwards over the instruction \p MI.
+  /// Updates liveness when stepping backwards over instruction \p MI.
+  ///
   /// This removes all register units defined or clobbered in \p MI and then
   /// adds the units used (as in use operands) in \p MI.
+  ///
+  /// \param MI Instruction to step over backwards.
   LLVM_ABI void stepBackward(const MachineInstr &MI);
 
   /// Adds all register units used, defined or clobbered in \p MI.
   /// This is useful when walking over a range of instruction to find registers
   /// unused over the whole range.
+  ///
+  /// \param MI Instruction whose used, defined, and clobbered units are added.
   LLVM_ABI void accumulate(const MachineInstr &MI);
 
   /// Adds registers living out of block \p MBB.
+  ///
   /// Live out registers are the union of the live-in registers of the successor
   /// blocks and pristine registers. Live out registers of the end block are the
   /// callee saved registers.
+  ///
+  /// \param MBB Basic block whose live-out registers are added.
   LLVM_ABI void addLiveOuts(const MachineBasicBlock &MBB);
 
   /// Adds registers living into block \p MBB.
+  ///
+  /// \param MBB Basic block whose live-in registers are added.
   LLVM_ABI void addLiveIns(const MachineBasicBlock &MBB);
 
   /// Adds all register units marked in the bitvector \p RegUnits.
+  ///
+  /// \param RegUnits Bitvector of register units to add.
   void addUnits(const BitVector &RegUnits) {
     Units |= RegUnits;
   }
   /// Removes all register units marked in the bitvector \p RegUnits.
+  ///
+  /// \param RegUnits Bitvector of register units to remove.
   void removeUnits(const BitVector &RegUnits) {
     Units.reset(RegUnits);
   }
   /// Return the internal bitvector representation of the set.
+  ///
+  /// \return Const reference to the bitvector of live register units.
   const BitVector &getBitVector() const {
     return Units;
   }
@@ -162,6 +205,9 @@ private:
 
 /// Returns an iterator range over all physical register and mask operands for
 /// \p MI and bundled instructions. This also skips any debug operands.
+///
+/// \param MI Machine instruction (or bundle) whose operands are filtered.
+/// \return Iterator range over physical register and mask operands of \p MI.
 inline iterator_range<
     filter_iterator<ConstMIBundleOperands, bool (*)(const MachineOperand &)>>
 phys_regs_and_masks(const MachineInstr &MI) {

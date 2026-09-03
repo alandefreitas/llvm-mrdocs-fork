@@ -21,12 +21,19 @@ namespace llvm {
 
 class TargetMachine;
 
+/// Pass that emits optimization remarks about GPU kernel function properties.
 class KernelInfoPrinter : public RequiredPassInfoMixin<KernelInfoPrinter> {
   TargetMachine *TM;
 
 public:
+  /// Construct a kernel-info printer for target \p TM.
+  /// @param TM Target machine used when collecting kernel properties.
   explicit KernelInfoPrinter(TargetMachine *TM) : TM(TM) {}
 
+  /// Emit kernel-info remarks for function \p F when enabled.
+  /// @param F Function to analyze as a GPU kernel.
+  /// @param AM Function analysis manager providing supporting analyses.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // namespace llvm

@@ -46,6 +46,8 @@ class LLVM_ABI MCSectionMachO final : public MCSection {
                  unsigned reserved2, SectionKind K, MCSymbol *Begin);
 public:
 
+  /// Return the Mach-O segment name for this section.
+  /// @return The Mach-O segment name for this section.
   StringRef getSegmentName() const {
     // SegmentName is not necessarily null terminated!
     if (SegmentName[15])
@@ -53,23 +55,40 @@ public:
     return StringRef(SegmentName);
   }
 
+  /// Return the combined SECTION_TYPE and SECTION_ATTRIBUTES value.
+  /// @return The combined SECTION_TYPE and SECTION_ATTRIBUTES value.
   unsigned getTypeAndAttributes() const { return TypeAndAttributes; }
+  /// Return the stub size stored in the section's reserved2 field.
+  /// @return The stub size stored in the section's reserved2 field.
   unsigned getStubSize() const { return Reserved2; }
 
+  /// Return the SECTION_TYPE portion of TypeAndAttributes.
+  /// @return The SECTION_TYPE portion of TypeAndAttributes.
   MachO::SectionType getType() const {
     return static_cast<MachO::SectionType>(TypeAndAttributes &
                                            MachO::SECTION_TYPE);
   }
+  /// Return true if TypeAndAttributes includes the given attribute bit.
+  /// @param Value SECTION_ATTRIBUTES flag to test.
+  /// @return True if TypeAndAttributes includes the given attribute bit.
   bool hasAttribute(unsigned Value) const {
     return (TypeAndAttributes & Value) != 0;
   }
 
-  /// Parse the section specifier indicated by "Spec". This is a string that can
-  /// appear after a .section directive in a mach-o flavored .s file.  If
-  /// successful, this fills in the specified Out parameters and returns an
-  /// empty string.  When an invalid section specifier is present, this returns
-  /// an Error indicating the problem. If no TAA was parsed, TAA is not altered,
-  /// and TAAWasSet becomes false.
+  /// Parse a Mach-O `.section` specifier string into its out parameters.
+  ///
+  /// Spec is a string that can appear after a .section directive in a mach-o
+  /// flavored .s file. If successful, this fills in the specified Out
+  /// parameters and returns success. When an invalid section specifier is
+  /// present, this returns an Error indicating the problem. If no TAA was
+  /// parsed, TAA is not altered, and TAAParsed becomes false.
+  /// @param Spec Section specifier string to parse.
+  /// @param Segment Set to the segment name from Spec.
+  /// @param Section Set to the section name from Spec.
+  /// @param TAA Set to the combined SECTION_TYPE and SECTION_ATTRIBUTES value.
+  /// @param TAAParsed Set to true if a type/attributes field was present.
+  /// @param StubSize Set to the stub size when Spec includes one.
+  /// @return Success, or an Error describing an invalid section specifier.
   static Error ParseSectionSpecifier(StringRef Spec,      // In.
                                      StringRef &Segment,  // Out.
                                      StringRef &Section,  // Out.
@@ -77,11 +96,22 @@ public:
                                      bool &TAAParsed,     // Out.
                                      unsigned &StubSize); // Out.
 
+  /// Allocate atom storage for each fragment in this section.
   void allocAtoms();
+  /// Return the defining atom symbol for fragment index \p I, or null.
+  /// @param I Fragment layout-order index.
+  /// @return The defining atom symbol for fragment index \p I, or null.
   const MCSymbol *getAtom(size_t I) const;
+  /// Set the defining atom symbol for fragment index \p I.
+  /// @param I Fragment layout-order index.
+  /// @param Sym Defining non-temporary symbol for the fragment.
   void setAtom(size_t I, const MCSymbol *Sym);
 
+  /// Return this section's index in MachObjectWriter::SectionOrder.
+  /// @return This section's index in MachObjectWriter::SectionOrder.
   unsigned getLayoutOrder() const { return LayoutOrder; }
+  /// Set this section's index in MachObjectWriter::SectionOrder.
+  /// @param Value New layout order index.
   void setLayoutOrder(unsigned Value) { LayoutOrder = Value; }
 };
 

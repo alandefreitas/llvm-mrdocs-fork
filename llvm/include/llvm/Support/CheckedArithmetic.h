@@ -42,6 +42,8 @@ checkedOp(T LHS, T RHS, F Op, bool Signed = true) {
 namespace llvm {
 
 /// Add two signed integers \p LHS and \p RHS.
+/// \param LHS Left-hand operand of the sum.
+/// \param RHS Right-hand operand of the sum.
 /// \return Optional of sum if no signed overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>
@@ -51,6 +53,8 @@ std::enable_if_t<std::is_signed_v<T>, std::optional<T>> checkedAdd(T LHS,
 }
 
 /// Subtract two signed integers \p LHS and \p RHS.
+/// \param LHS Left-hand operand of the difference.
+/// \param RHS Right-hand operand of the difference.
 /// \return Optional of sum if no signed overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>
@@ -60,6 +64,8 @@ std::enable_if_t<std::is_signed_v<T>, std::optional<T>> checkedSub(T LHS,
 }
 
 /// Multiply two signed integers \p LHS and \p RHS.
+/// \param LHS Left-hand operand of the product.
+/// \param RHS Right-hand operand of the product.
 /// \return Optional of product if no signed overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>
@@ -69,6 +75,9 @@ std::enable_if_t<std::is_signed_v<T>, std::optional<T>> checkedMul(T LHS,
 }
 
 /// Multiply A and B, and add C to the resulting product.
+/// \param A Left-hand factor of the product.
+/// \param B Right-hand factor of the product.
+/// \param C Value added to the product.
 /// \return Optional of result if no signed overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>
@@ -80,6 +89,8 @@ std::enable_if_t<std::is_signed_v<T>, std::optional<T>> checkedMulAdd(T A, T B,
 }
 
 /// Add two unsigned integers \p LHS and \p RHS.
+/// \param LHS Left-hand operand of the sum.
+/// \param RHS Right-hand operand of the sum.
 /// \return Optional of sum if no unsigned overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>
@@ -89,6 +100,8 @@ checkedAddUnsigned(T LHS, T RHS) {
 }
 
 /// Multiply two unsigned integers \p LHS and \p RHS.
+/// \param LHS Left-hand operand of the product.
+/// \param RHS Right-hand operand of the product.
 /// \return Optional of product if no unsigned overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>
@@ -98,6 +111,9 @@ checkedMulUnsigned(T LHS, T RHS) {
 }
 
 /// Multiply unsigned integers A and B, and add C to the resulting product.
+/// \param A Left-hand factor of the product.
+/// \param B Right-hand factor of the product.
+/// \param C Value added to the product.
 /// \return Optional of result if no unsigned overflow occurred,
 /// \c std::nullopt otherwise.
 template <typename T>

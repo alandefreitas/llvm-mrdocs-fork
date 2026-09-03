@@ -105,6 +105,7 @@ public:
 
   public:
     /// Copy a singleton node; the source must be a leader with no next member.
+    /// \param RHS Singleton node to copy.
     ECValue(const ECValue &RHS)
         : Leader(this),
           Next(reinterpret_cast<ECValue *>(static_cast<intptr_t>(1))),
@@ -114,11 +115,14 @@ public:
     }
 
     /// True if this node is the leader of its equivalence class.
+    /// @return True if this node is the leader.
     bool isLeader() const { return (intptr_t)Next & 1; }
     /// Stored element value for this member.
+    /// @return Const reference to the stored element.
     const ElemTy &getData() const { return Data; }
 
     /// Next member in the circular class list, or null at the end.
+    /// @return Pointer to the next member, or null at the end.
     const ECValue *getNext() const {
       return reinterpret_cast<ECValue *>(reinterpret_cast<intptr_t>(Next) &
                                          ~static_cast<intptr_t>(1));
@@ -139,9 +143,12 @@ public:
   /// Construct an empty collection of equivalence classes.
   EquivalenceClasses() = default;
   /// Deep-copy another collection of equivalence classes.
+  /// \param RHS Collection to copy from.
   EquivalenceClasses(const EquivalenceClasses &RHS) { operator=(RHS); }
 
   /// Replace this collection with a deep copy of \p RHS.
+  /// @param RHS Collection to copy from.
+  /// @return Reference to this collection after assignment.
   EquivalenceClasses &operator=(const EquivalenceClasses &RHS) {
     TheMapping.clear();
     Members.clear();
@@ -163,35 +170,47 @@ public:
   using iterator = typename SmallVector<const ECValue *>::const_iterator;
 
   /// Iterator to the first stored member pointer.
+  /// @return Iterator to the first stored member pointer.
   iterator begin() const { return Members.begin(); }
   /// Iterator past the last stored member pointer.
+  /// @return Iterator past the last stored member pointer.
   iterator end() const { return Members.end(); }
 
   /// True if no elements have been inserted.
+  /// @return True if no elements have been inserted.
   bool empty() const { return TheMapping.empty(); }
 
   /// member_* Iterate over the members of an equivalence class.
   class member_iterator;
   /// Begin iterating members of the class led by \p ECV (or end if not a leader).
+  /// @param ECV Leader (or non-leader) whose class members are iterated.
+  /// @return Member iterator at the first member, or end if not a leader.
   member_iterator member_begin(const ECValue &ECV) const {
     // Only leaders provide anything to iterate over.
     return member_iterator(ECV.isLeader() ? &ECV : nullptr);
   }
 
   /// Past-the-end iterator for member walks.
+  /// @return Past-the-end member iterator.
   member_iterator member_end() const { return member_iterator(nullptr); }
 
   /// Range over members of the equivalence class of \p ECV.
+  /// @param ECV Member whose class members are iterated.
+  /// @return Iterator range over members of the class of \p ECV.
   iterator_range<member_iterator> members(const ECValue &ECV) const {
     return make_range(member_begin(ECV), member_end());
   }
 
   /// Range over members of the equivalence class containing \p V.
+  /// @param V Value whose class members are iterated.
+  /// @return Iterator range over members of the class containing \p V.
   iterator_range<member_iterator> members(const ElemTy &V) const {
     return make_range(findLeader(V), member_end());
   }
 
   /// Returns true if \p V is contained an equivalence class.
+  /// @param V Value to look up in the mapping.
+  /// @return True if \p V is in an equivalence class.
   [[nodiscard]] bool contains(const ElemTy &V) const {
     return TheMapping.contains(V);
   }
@@ -200,6 +219,8 @@ public:
   ///
   /// It is an error to call this for a value that is not yet in the set; use
   /// getOrInsertLeaderValue(V) instead.
+  /// @param V Value whose class leader is requested.
+  /// @return Const reference to the leader value for \p V.
   const ElemTy &getLeaderValue(const ElemTy &V) const {
     member_iterator MI = findLeader(V);
     assert(MI != member_end() && "Value is not in the set!");
@@ -207,6 +228,8 @@ public:
   }
 
   /// Return the leader for \p V, inserting \p V first if needed.
+  /// @param V Value whose class leader is requested.
+  /// @return Const reference to the leader value for \p V.
   const ElemTy &getOrInsertLeaderValue(const ElemTy &V) {
     member_iterator MI = findLeader(insert(V));
     assert(MI != member_end() && "Value is not in the set!");
@@ -214,6 +237,7 @@ public:
   }
 
   /// Return the number of equivalence classes (linear time).
+  /// @return The number of equivalence classes.
   unsigned getNumClasses() const {
     unsigned NC = 0;
     for (const auto &E : *this)
@@ -227,6 +251,8 @@ public:
 
   /// Insert a new value into the union/find set, ignoring the request if the
   /// value already exists.
+  /// @param Data Value to insert as its own singleton class if absent.
+  /// @return Const reference to the \c ECValue for \p Data.
   const ECValue &insert(const ElemTy &Data) {
     auto [I, Inserted] = TheMapping.try_emplace(Data);
     if (!Inserted)
@@ -240,6 +266,8 @@ public:
 
   /// Erase a value from the union/find set, return true if erase succeeded, or
   /// false when the value was not found.
+  /// @param V Value to remove from its equivalence class.
+  /// @return True if the value was erased, false if it was not found.
   bool erase(const ElemTy &V) {
     if (!TheMapping.contains(V))
       return false;
@@ -294,6 +322,8 @@ public:
   /// Find the leader iterator for the equivalence class containing \p V.
   ///
   /// Performs path compression. Returns member_end() if \p V is not in the set.
+  /// @param V Value whose class leader is requested.
+  /// @return Member iterator for the class leader, or member_end() if absent.
   member_iterator findLeader(const ElemTy &V) const {
     auto I = TheMapping.find(V);
     if (I == TheMapping.end())
@@ -301,12 +331,15 @@ public:
     return findLeader(*I->second);
   }
   /// Return a member iterator for the leader of the class containing \p ECV.
+  /// @param ECV Member whose class leader is requested.
+  /// @return Member iterator for the leader of the class containing \p ECV.
   member_iterator findLeader(const ECValue &ECV) const {
     return member_iterator(ECV.getLeader());
   }
 
   /// Erase the class containing \p V, i.e. erase all members of the class from
   /// the set.
+  /// \param V Value whose equivalence class should be erased.
   void eraseClass(const ElemTy &V) {
     if (!TheMapping.contains(V))
       return;
@@ -324,11 +357,17 @@ public:
 
   /// Merge the two equivalence sets for the specified values, inserting
   /// them if they do not already exist in the equivalence set.
+  /// @param V1 First value whose class should be merged.
+  /// @param V2 Second value whose class should be merged.
+  /// @return Member iterator for the leader of the merged class.
   member_iterator unionSets(const ElemTy &V1, const ElemTy &V2) {
     const ECValue &V1I = insert(V1), &V2I = insert(V2);
     return unionSets(findLeader(V1I), findLeader(V2I));
   }
   /// Merge the equivalence classes whose leaders are \p L1 and \p L2.
+  /// @param L1 Leader of the first class to merge.
+  /// @param L2 Leader of the second class to merge.
+  /// @return Member iterator for the leader of the merged class.
   member_iterator unionSets(member_iterator L1, member_iterator L2) {
     assert(L1 != member_end() && L2 != member_end() && "Illegal inputs!");
     if (L1 == L2)
@@ -354,6 +393,9 @@ public:
   ///
   /// This holds when the values compare equal or already share an equivalence
   /// class.
+  /// @param V1 First value to compare.
+  /// @param V2 Second value to compare.
+  /// @return True if \p V1 and \p V2 are in the same equivalence class.
   bool isEquivalent(const ElemTy &V1, const ElemTy &V2) const {
     // Fast path: any element is equivalent to itself.
     if (V1 == V2)
@@ -385,17 +427,21 @@ public:
     /// Construct a past-the-end member iterator.
     explicit member_iterator() = default;
     /// Construct an iterator positioned at member node \p N.
+    /// \param N Member node to point at, or null for end.
     explicit member_iterator(const ECValue *N) : Node(N) {}
 
     /// Dereference to the stored element.
+    /// @return Const reference to the stored element.
     reference operator*() const {
       assert(Node != nullptr && "Dereferencing end()!");
       return Node->getData();
     }
     /// Access the stored element through a pointer.
+    /// @return Pointer to the stored element.
     pointer operator->() const { return &operator*(); }
 
     /// Advance to the next member in the class.
+    /// @return Reference to this iterator after advancing.
     member_iterator &operator++() {
       assert(Node != nullptr && "++'d off the end of the list!");
       Node = Node->getNext();
@@ -403,17 +449,23 @@ public:
     }
 
     /// Post-increment; return the previous position.
-    member_iterator operator++(int) { // postincrement operators.
+    /// @param Unused Unused postfix-discriminator parameter.
+    /// @return Copy of the iterator before advancing.
+    member_iterator operator++(int Unused) { // postincrement operators.
       member_iterator tmp = *this;
       ++*this;
       return tmp;
     }
 
     /// True if both iterators refer to the same member node.
+    /// @param RHS Iterator to compare against.
+    /// @return True if both iterators refer to the same member node.
     bool operator==(const member_iterator &RHS) const {
       return Node == RHS.Node;
     }
     /// True if the iterators refer to different member nodes.
+    /// @param RHS Iterator to compare against.
+    /// @return True if the iterators refer to different member nodes.
     bool operator!=(const member_iterator &RHS) const {
       return Node != RHS.Node;
     }

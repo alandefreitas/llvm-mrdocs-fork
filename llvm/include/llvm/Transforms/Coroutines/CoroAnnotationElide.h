@@ -23,10 +23,24 @@
 
 namespace llvm {
 
+/// Pass that elides heap allocation for coroutine calls marked coro_elide_safe.
+///
+/// Call and Invoke instructions annotated \c coro_elide_safe are rewritten to
+/// call the \c .noalloc variant of the coroutine. The callee's frame is
+/// allocated in the caller and a pointer to it is passed into the \c .noalloc
+/// ramp function.
 struct CoroAnnotationElidePass
     : OptionalPassInfoMixin<CoroAnnotationElidePass> {
+  /// Construct a coroutine annotation elide pass.
   CoroAnnotationElidePass() = default;
 
+  /// Elide annotated coroutine calls in SCC \p C.
+  ///
+  /// \param C The SCC whose calls are considered for elision.
+  /// \param AM The CGSCC analysis manager.
+  /// \param CG The lazy call graph.
+  /// \param UR The CGSCC update result.
+  /// \return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &C,
                                  CGSCCAnalysisManager &AM, LazyCallGraph &CG,
                                  CGSCCUpdateResult &UR);

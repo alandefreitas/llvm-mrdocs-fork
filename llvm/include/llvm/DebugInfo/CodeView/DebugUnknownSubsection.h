@@ -15,11 +15,19 @@
 namespace llvm {
 namespace codeview {
 
+/// Read-only view of an unrecognized CodeView debug subsection.
 class DebugUnknownSubsectionRef final : public DebugSubsectionRef {
 public:
+  /// Construct a reference to an unknown subsection of kind \p Kind.
+  ///
+  /// \param Kind The subsection kind from the CodeView header.
+  /// \param Data Raw bytes of the subsection contents.
   DebugUnknownSubsectionRef(DebugSubsectionKind Kind, BinaryStreamRef Data)
       : DebugSubsectionRef(Kind), Data(Data) {}
 
+  /// Return the raw bytes of this unknown subsection.
+  ///
+  /// \returns The raw bytes of this unknown subsection.
   BinaryStreamRef getData() const { return Data; }
 
 private:

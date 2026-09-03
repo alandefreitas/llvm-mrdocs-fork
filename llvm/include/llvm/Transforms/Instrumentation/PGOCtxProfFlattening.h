@@ -15,13 +15,20 @@
 #include "llvm/IR/PassManager.h"
 namespace llvm {
 
+/// Pass that flattens contextual profiles into MD_prof metadata.
 class PGOCtxProfFlatteningPass
     : public OptionalPassInfoMixin<PGOCtxProfFlatteningPass> {
   const bool IsPreThinlink;
 
 public:
+  /// Construct a contextual profile flattening pass.
+  /// @param IsPreThinlink True when running before ThinLTO linking.
   explicit PGOCtxProfFlatteningPass(bool IsPreThinlink)
       : IsPreThinlink(IsPreThinlink) {}
+  /// Flatten contextual profiles in \p M into MD_prof metadata.
+  /// @param M Module whose contextual profiles are flattened.
+  /// @param MAM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 } // namespace llvm

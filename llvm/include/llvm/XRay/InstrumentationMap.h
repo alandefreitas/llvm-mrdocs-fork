@@ -30,6 +30,8 @@ class InstrumentationMap;
 
 /// Loads the instrumentation map from |Filename|. This auto-deduces the type of
 /// the instrumentation map.
+/// \param Filename Path to an XRay-instrumented object file or YAML map.
+/// \return The loaded instrumentation map, or an error on failure.
 LLVM_ABI Expected<InstrumentationMap>
 loadInstrumentationMap(StringRef Filename);
 
@@ -37,7 +39,18 @@ loadInstrumentationMap(StringRef Filename);
 struct SledEntry {
   /// Each entry here represents the kinds of supported instrumentation map
   /// entries.
-  enum class FunctionKinds { ENTRY, EXIT, TAIL, LOG_ARGS_ENTER, CUSTOM_EVENT };
+  enum class FunctionKinds {
+    /// Function entry sled.
+    ENTRY,
+    /// Function exit sled.
+    EXIT,
+    /// Tail-call exit sled.
+    TAIL,
+    /// Function entry sled that logs arguments.
+    LOG_ARGS_ENTER,
+    /// Custom event sled.
+    CUSTOM_EVENT
+  };
 
   /// The address of the sled.
   uint64_t Address;
@@ -51,19 +64,30 @@ struct SledEntry {
   /// Whether the sled was annotated to always be instrumented.
   bool AlwaysInstrument;
 
+  /// Version of the sled entry encoding.
   unsigned char Version;
 };
 
+/// YAML-serializable form of an XRay instrumentation sled entry.
 struct YAMLXRaySledEntry {
+  /// Computed XRay function identifier for this sled.
   int32_t FuncId;
+  /// Address of the sled.
   yaml::Hex64 Address;
+  /// Address of the function containing the sled.
   yaml::Hex64 Function;
+  /// Kind of instrumentation sled.
   SledEntry::FunctionKinds Kind;
+  /// Whether the sled was annotated to always be instrumented.
   bool AlwaysInstrument;
+  /// Optional human-readable name of the function.
   std::string FunctionName;
+  /// Version of the sled entry encoding.
   unsigned char Version;
 };
 
+/// Maps XRay function ids to addresses from an object or YAML file.
+///
 /// The InstrumentationMap represents the computed function id's and indicated
 /// function addresses from an object file (or a YAML file). This provides an
 /// interface to just the mapping between the function id, and the function
@@ -71,11 +95,13 @@ struct YAMLXRaySledEntry {
 ///
 /// We also provide raw access to the actual instrumentation map entries we find
 /// associated with a particular object file.
-///
 class InstrumentationMap {
 public:
+  /// Map from XRay function id to function address.
   using FunctionAddressMap = DenseMap<int32_t, uint64_t>;
+  /// Map from function address to XRay function id.
   using FunctionAddressReverseMap = DenseMap<uint64_t, int32_t>;
+  /// Container of instrumentation sled entries.
   using SledContainer = std::vector<SledEntry>;
 
 private:
@@ -88,15 +114,21 @@ private:
 
 public:
   /// Provides a raw accessor to the unordered map of function addresses.
+  /// \return Const reference to the map from function id to address.
   const FunctionAddressMap &getFunctionAddresses() { return FunctionAddresses; }
 
   /// Returns an XRay computed function id, provided a function address.
+  /// \param Addr Function address to look up.
+  /// \return The XRay function id, or std::nullopt if Addr is unknown.
   LLVM_ABI std::optional<int32_t> getFunctionId(uint64_t Addr) const;
 
   /// Returns the function address for a function id.
+  /// \param FuncId XRay function id to look up.
+  /// \return The function address, or std::nullopt if FuncId is unknown.
   LLVM_ABI std::optional<uint64_t> getFunctionAddr(int32_t FuncId) const;
 
   /// Provide read-only access to the entries of the instrumentation map.
+  /// \return Const reference to the container of sled entries.
   const SledContainer &sleds() const { return Sleds; };
 };
 
@@ -129,8 +161,12 @@ template <> struct yaml::MappingTraits<xray::YAMLXRaySledEntry> {
 
   static constexpr bool flow = true;
 };
-} // namespace llvm
 
-LLVM_YAML_IS_SEQUENCE_VECTOR(xray::YAMLXRaySledEntry)
+/// Sequences of YAML XRay sled entries use block formatting.
+template <> struct yaml::SequenceElementTraits<xray::YAMLXRaySledEntry> {
+  /// Emit sequences of YAML XRay sled entries in block style.
+  static const bool flow = false;
+};
+} // namespace llvm
 
 #endif // LLVM_XRAY_INSTRUMENTATIONMAP_H

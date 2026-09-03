@@ -48,6 +48,14 @@ struct OptimizedStructLayoutField {
   /// anywhere.
   static constexpr uint64_t FlexibleOffset = ~(uint64_t)0;
 
+  /// Construct a field with the given identity, size, alignment, and optional
+  /// fixed offset.
+  ///
+  /// \param Id Opaque value that uniquely identifies this field.
+  /// \param Size Required size in bytes; must be non-zero.
+  /// \param Alignment Required alignment of the field.
+  /// \param FixedOffset Fixed offset in the layout, or FlexibleOffset if the
+  /// field may move.
   OptimizedStructLayoutField(const void *Id, uint64_t Size, Align Alignment,
                              uint64_t FixedOffset = FlexibleOffset)
       : Offset(FixedOffset), Size(Size), Id(Id), Alignment(Alignment) {
@@ -75,12 +83,16 @@ struct OptimizedStructLayoutField {
 
   /// Return true if this field has been assigned a fixed offset.
   /// After layout, this will be true of all the fields.
+  ///
+  /// \return True if this field has a fixed offset.
   bool hasFixedOffset() const {
     return (Offset != FlexibleOffset);
   }
 
   /// Given that this field has a fixed offset, return the offset
   /// of the first byte following it.
+  ///
+  /// \return The offset of the first byte following this field.
   uint64_t getEndOffset() const {
     assert(hasFixedOffset());
     return Offset + Size;
@@ -133,9 +145,13 @@ struct OptimizedStructLayoutField {
 /// means that the fixed-offset fields may no longer form a strict prefix
 /// if there's any padding before they end.
 ///
-/// The return value is the total size of the struct and its required
-/// alignment.  Note that the total size is not rounded up to a multiple
-/// of the required alignment; clients which require this can do so easily.
+/// Note that the total size is not rounded up to a multiple of the required
+/// alignment; clients which require this can do so easily.
+///
+/// \param Fields Mutable array of fields to lay out; fixed-offset fields must
+/// appear first and be ordered by increasing offset. On return, all fields
+/// have fixed offsets and the array is sorted by ascending offset.
+/// \return The total size of the struct and its required alignment.
 LLVM_ABI std::pair<uint64_t, Align> performOptimizedStructLayout(
     MutableArrayRef<OptimizedStructLayoutField> Fields);
 

@@ -22,9 +22,17 @@ namespace gsym {
 
 class GsymReader;
 struct FunctionInfo;
+
+/// Stores FunctionInfo objects that share the same address range.
+///
+/// When multiple functions are merged (for example by identical code folding),
+/// their debug info is preserved as a list of FunctionInfo entries under a
+/// single MergedFunctionsInfo.
 struct MergedFunctionsInfo {
+  /// FunctionInfo entries that were merged into this range.
   std::vector<FunctionInfo> MergedFunctions;
 
+  /// Clear the list of merged FunctionInfo entries.
   LLVM_ABI void clear();
 
   /// Query if a MergedFunctionsInfo object is valid.
@@ -66,6 +74,12 @@ struct MergedFunctionsInfo {
   LLVM_ABI llvm::Error encode(FileWriter &O) const;
 };
 
+/// Equality comparison operator for MergedFunctionsInfo.
+///
+/// \param LHS The left-hand MergedFunctionsInfo to compare.
+/// \param RHS The right-hand MergedFunctionsInfo to compare.
+/// \returns True if both MergedFunctionsInfo objects contain the same
+/// FunctionInfo entries.
 LLVM_ABI bool operator==(const MergedFunctionsInfo &LHS,
                          const MergedFunctionsInfo &RHS);
 

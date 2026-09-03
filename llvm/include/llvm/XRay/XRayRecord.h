@@ -38,38 +38,48 @@ struct XRayFileHeader {
   /// Whether the CPU that produced the timestamp counters (TSC) do not stop.
   bool NonstopTSC = false;
 
-  /// The number of cycles per second for the CPU that produced the timestamp
-  /// counter (TSC) values. Useful for estimating the amount of time that
-  /// elapsed between two TSCs on some platforms.
+  /// Number of cycles per second for the CPU that produced the TSC values.
+  ///
+  /// Useful for estimating the amount of time that elapsed between two TSCs on
+  /// some platforms.
   uint64_t CycleFrequency = 0;
 
-  // This is different depending on the type of xray record. The naive format
-  // stores a Wallclock timespec. FDR logging stores the size of a thread
-  // buffer.
+  /// Type-dependent free-form data whose layout varies by XRay record format.
+  ///
+  /// The naive format stores a Wallclock timespec. FDR logging stores the size
+  /// of a thread buffer.
   char FreeFormData[16] = {};
 };
 
 /// Determines the supported types of records that could be seen in XRay traces.
+///
 /// This may or may not correspond to actual record types in the raw trace (as
 /// the loader implementation may synthesize this information in the process of
 /// of loading).
 enum class RecordTypes {
+  /// Function entry record.
   ENTER,
+  /// Function exit record.
   EXIT,
+  /// Tail-call exit record.
   TAIL_EXIT,
+  /// Function entry record that includes call arguments.
   ENTER_ARG,
+  /// Custom event record with user-defined payload.
   CUSTOM_EVENT,
+  /// Typed event record with a type identifier and payload.
   TYPED_EVENT
 };
 
-/// An XRayRecord is the denormalized view of data associated in a trace. These
-/// records may not correspond to actual entries in the raw traces, but they are
-/// the logical representation of records in a higher-level event log.
+/// Denormalized view of data associated with a record in an XRay trace.
+///
+/// These records may not correspond to actual entries in the raw traces, but
+/// they are the logical representation of records in a higher-level event log.
 struct XRayRecord {
-  /// RecordType values are used as "sub-types" which have meaning in the
-  /// context of the `Type` below. For function call and custom event records,
-  /// the RecordType is always 0, while for typed events we store the type in
-  /// the RecordType field.
+  /// Sub-type of the record, interpreted in the context of Type.
+  ///
+  /// For function call and custom event records, the RecordType is always 0,
+  /// while for typed events we store the type in the RecordType field.
   uint16_t RecordType;
 
   /// The CPU where the thread is running. We assume number of CPUs <= 65536.

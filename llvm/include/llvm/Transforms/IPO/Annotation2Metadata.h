@@ -23,6 +23,11 @@ class Module;
 /// Pass to convert @llvm.global.annotations to !annotation metadata.
 struct Annotation2MetadataPass
     : public OptionalPassInfoMixin<Annotation2MetadataPass> {
+  /// Convert @llvm.global.annotations in \p M into !annotation metadata.
+  ///
+  /// \param M The module whose annotations are converted.
+  /// \param AM The module analysis manager.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -74,6 +74,11 @@ protected:
   ///
   /// The new function will eventually be passed to populateThunk. If multiple
   /// thunks are created, populateThunk can distinguish them by their names.
+  ///
+  /// \param MMI Machine module info used to create the thunk's MachineFunction.
+  /// \param Name Name of the thunk function; must start with getThunkPrefix().
+  /// \param Comdat If true, give the thunk linkonce_odr linkage and a comdat.
+  /// \param TargetAttrs Optional target-features attribute string for the thunk.
   void createThunkFunction(MachineModuleInfo &MMI, StringRef Name,
                            bool Comdat = true, StringRef TargetAttrs = "");
 
@@ -84,15 +89,27 @@ protected:
   // Note: only doInitialization() has an implementation.
 
   /// Initializes thunk inserter.
+  ///
+  /// \param M Module being processed; default implementation does nothing.
   void doInitialization(Module &M) {}
 
   /// Returns common prefix for thunk function's names.
+  ///
+  /// \return Pointer to the null-terminated common prefix for thunk names.
   const char *getThunkPrefix(); // undefined
 
   /// Checks if MF may use thunks (true - maybe, false - definitely not).
+  ///
+  /// \param MF Machine function to inspect for possible thunk use.
+  /// \return True if \p MF may use thunks; false if it definitely does not.
   bool mayUseThunk(const MachineFunction &MF); // undefined
 
   /// Rewrites the function if necessary, returns the set of thunks added.
+  ///
+  /// \param MMI Machine module info for the module containing \p MF.
+  /// \param MF Machine function that may need rewriting or thunk insertion.
+  /// \param ExistingThunks Thunks already inserted; used to avoid duplicates.
+  /// \return The set of thunks inserted for \p MF (combined with existing ones).
   InsertedThunksTy insertThunks(MachineModuleInfo &MMI, MachineFunction &MF,
                                 InsertedThunksTy ExistingThunks); // undefined
 
@@ -104,14 +121,24 @@ protected:
   /// Depending on the preceding passes in the pass manager, by the time
   /// populateThunk is called, MF may have a few target-specific instructions
   /// (such as a single MBB containing the return instruction).
+  ///
+  /// \param MF Thunk machine function whose body should be filled in.
   void populateThunk(MachineFunction &MF); // undefined
 
 public:
+  /// Reset inserted-thunk state and run derived initialization on \p M.
+  ///
+  /// \param M Module for which thunk insertion is about to begin.
   void init(Module &M) {
     InsertedThunks = InsertedThunksTy{};
     getDerived().doInitialization(M);
   }
-  // return `true` if `MMI` or `MF` was modified
+
+  /// Insert or populate thunks for \p MF; returns true if \p MMI or \p MF changed.
+  ///
+  /// \param MMI Machine module info for the current module.
+  /// \param MF Machine function to process (either a caller or a thunk).
+  /// \return True if the module or \p MF was modified.
   bool run(MachineModuleInfo &MMI, MachineFunction &MF);
 };
 
@@ -188,16 +215,28 @@ bool ThunkInserter<Derived, InsertedThunksTy>::run(MachineModuleInfo &MMI,
 template <typename... Inserters>
 class ThunkInserterPass : public MachineFunctionPass {
 protected:
+  /// Tuple of thunk inserters driven by this pass.
   std::tuple<Inserters...> TIs;
 
+  /// Construct a pass that owns the configured thunk inserters.
+  ///
+  /// \param ID Address of the pass's static identification character.
   ThunkInserterPass(char &ID) : MachineFunctionPass(ID) {}
 
 public:
+  /// Initialize every owned thunk inserter for \p M.
+  ///
+  /// \param M Module being processed.
+  /// \return Always false; initialization does not modify the module.
   bool doInitialization(Module &M) override {
     initTIs(M, TIs);
     return false;
   }
 
+  /// Run every owned thunk inserter on \p MF.
+  ///
+  /// \param MF Machine function to rewrite or populate with thunks.
+  /// \return True if any inserter modified the module or \p MF.
   bool runOnMachineFunction(MachineFunction &MF) override {
     auto &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
     return runTIs(MMI, MF, TIs);

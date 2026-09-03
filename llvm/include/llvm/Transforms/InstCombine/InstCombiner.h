@@ -73,6 +73,7 @@ public:
   /// An IRBuilder that automatically inserts new instructions into the
   /// worklist.
   using BuilderTy = IRBuilder<TargetFolder, IRBuilderInstCombineInserter>;
+  /// IR builder that inserts new instructions and adds them to the worklist.
   BuilderTy Builder;
 
 protected:
@@ -82,28 +83,38 @@ protected:
   /// The function being simplified by the combiner.
   Function &F;
 
-  // Mode in which we are running the combiner.
+  /// Whether the combiner is running in minimize-size mode.
   const bool MinimizeSize;
 
+  /// Optional alias-analysis results used by some combines.
   AAResults *AA;
 
   // Required analyses.
   /// The assumption cache for the function.
   AssumptionCache &AC;
+  /// Target library information for recognized libcalls.
   TargetLibraryInfo &TLI;
   /// The dominator tree for the function.
   DominatorTree &DT;
   /// The data layout for the module or function.
   const DataLayout &DL;
+  /// Simplify query bundling analyses used by value-tracking helpers.
   SimplifyQuery SQ;
+  /// Emitter for optimization remarks produced by the combiner.
   OptimizationRemarkEmitter &ORE;
+  /// Optional block-frequency information for profile-guided combines.
   BlockFrequencyInfo *BFI;
+  /// Optional branch-probability information for profile-guided combines.
   BranchProbabilityInfo *BPI;
+  /// Optional profile-summary information for profile-guided combines.
   ProfileSummaryInfo *PSI;
+  /// Cache of dominating conditions used to refine known bits.
   DomConditionCache DC;
 
+  /// Reverse post-order traversal of the function's basic blocks.
   ReversePostOrderTraversal<BasicBlock *> &RPOT;
 
+  /// Whether this combiner instance has modified the IR.
   bool MadeIRChange = false;
 
   /// Edges that are known to never be taken.
@@ -116,12 +127,27 @@ protected:
   ///
   /// where this may result in infinite combine loops. For irreducible loops this picks an arbitrary backedge.
   SmallDenseSet<std::pair<const BasicBlock *, const BasicBlock *>, 8> BackEdges;
+  /// Whether \c BackEdges has already been computed for this function.
   bool ComputedBackEdges = false;
 
   /// Source for annotation metadata, used by the IRBuilder inserter.
   Instruction *AnnotationMetadataSource = nullptr;
 
 public:
+  /// Construct an instruction combiner for \p F with the given analyses.
+  /// \param Worklist Worklist of instructions to simplify.
+  /// \param F Function being simplified.
+  /// \param AA Optional alias-analysis results.
+  /// \param AC Assumption cache for the function.
+  /// \param TLI Target library information.
+  /// \param TTI Target transform info used only for intrinsic combines.
+  /// \param DT Dominator tree for the function.
+  /// \param ORE Emitter for optimization remarks.
+  /// \param BFI Optional block-frequency information.
+  /// \param BPI Optional branch-probability information.
+  /// \param PSI Optional profile-summary information.
+  /// \param DL Data layout for the module or function.
+  /// \param RPOT Reverse post-order traversal of the function.
   InstCombiner(InstructionWorklist &Worklist, Function &F, AAResults *AA,
                AssumptionCache &AC, TargetLibraryInfo &TLI,
                TargetTransformInfo &TTI, DominatorTree &DT,
@@ -138,11 +164,17 @@ public:
            /*CanUseUndef*/ true, &DC),
         ORE(ORE), BFI(BFI), BPI(BPI), PSI(PSI), RPOT(RPOT) {}
 
+  /// Destroy the instruction combiner.
   virtual ~InstCombiner() = default;
 
+  /// Return the source of a bitcast, or \p V if there is none.
+  ///
   /// Return the source operand of a potentially bitcasted value while
   /// optionally checking if it has one use. If there is no bitcast or the one
   /// use check is not met, return the input value itself.
+  /// \param V Value that may be a bitcast.
+  /// \param OneUseOnly If true, only peek through a one-use bitcast.
+  /// @return The bitcast source, or \p V if there is none.
   static Value *peekThroughBitcast(Value *V, bool OneUseOnly = false) {
     if (auto *BitCast = dyn_cast<BitCastInst>(V))
       if (!OneUseOnly || BitCast->hasOneUse())
@@ -152,6 +184,8 @@ public:
     return V;
   }
 
+  /// Assign a complexity rank to \p V for canonicalization.
+  ///
   /// Assign a complexity or rank value to LLVM Values. This is used to reduce
   /// the amount of pattern matching needed for compares and commutative
   /// instructions. For example, if we have:
@@ -167,6 +201,8 @@ public:
   ///   1 -> Constants
   ///   2 -> Cast and (f)neg/not instructions
   ///   3 -> Other instructions and arguments
+  /// \param V Value whose complexity rank is computed.
+  /// @return Complexity rank of \p V.
   static unsigned getComplexity(Value *V) {
     if (isa<Constant>(V))
       return isa<UndefValue>(V) ? 0 : 1;
@@ -182,6 +218,8 @@ public:
   /// Predicate canonicalization reduces the number of patterns that need to be matched by other transforms.
   ///
   /// For example, we may swap the operands of a conditional branch or select to create a compare with a canonical (inverted) predicate which is then more likely to be matched with other values.
+  /// \param Pred Compare predicate to test for canonical form.
+  /// @return True if \p Pred is in canonical form.
   static bool isCanonicalPredicate(CmpPredicate Pred) {
     switch (Pred) {
     case CmpInst::ICMP_NE:
@@ -200,15 +238,27 @@ public:
   }
 
   /// Add one to a Constant
+  /// \param C Constant to increment.
+  /// @return \p C plus one.
   static Constant *AddOne(Constant *C) {
     return ConstantExpr::getAdd(C, ConstantInt::get(C->getType(), 1));
   }
 
   /// Subtract one from a Constant
+  /// \param C Constant to decrement.
+  /// @return \p C minus one.
   static Constant *SubOne(Constant *C) {
     return ConstantExpr::getSub(C, ConstantInt::get(C->getType(), 1));
   }
 
+  /// Return true if absorbing a not into \p SI would break canonical form.
+  ///
+  /// a ? b : false and a ? true : b are the canonical form of logical and/or.
+  /// This includes !a ? b : false and !a ? true : b. Absorbing the not into
+  /// the select by swapping operands would break recognition of this pattern
+  /// in other analyses, so don't do that.
+  /// \param SI Select that may be a logical and/or.
+  /// @return True if absorbing a not into \p SI would break canonical form.
   static bool shouldAvoidAbsorbingNotIntoSelect(const SelectInst &SI) {
     // a ? b : false and a ? true : b are the canonical form of logical and/or.
     // This includes !a ? b : false and !a ? true : b. Absorbing the not into
@@ -220,6 +270,8 @@ public:
                                                 PatternMatch::m_Value()));
   }
 
+  /// Return a freely inverted form of \p V, or null if none exists.
+  ///
   /// Return nonnull value if V is free to invert under the condition of
   /// WillInvertAllUses.
   /// If Builder is nonnull, it will return a simplified ~V.
@@ -227,10 +279,22 @@ public:
   /// dereferenceable).
   /// If the inversion will consume instructions, `DoesConsume` will be set to
   /// true. Otherwise it will be false.
+  /// \param V Value to invert if free.
+  /// \param WillInvertAllUses Whether all uses of \p V will become uses of ~V.
+  /// \param Builder Optional builder used to materialize a simplified ~V.
+  /// \param DoesConsume Set to true if inversion consumes instructions.
+  /// \param Depth Current recursion depth for this query.
+  /// @return A freely inverted form of \p V, or null if none exists.
   LLVM_ABI Value *getFreelyInvertedImpl(Value *V, bool WillInvertAllUses,
                                         BuilderTy *Builder, bool &DoesConsume,
                                         unsigned Depth);
 
+  /// Return a freely inverted form of \p V, or null if none exists.
+  /// \param V Value to invert if free.
+  /// \param WillInvertAllUses Whether all uses of \p V will become uses of ~V.
+  /// \param Builder Optional builder used to materialize a simplified ~V.
+  /// \param DoesConsume Set to true if inversion consumes instructions.
+  /// @return A freely inverted form of \p V, or null if none exists.
   Value *getFreelyInverted(Value *V, bool WillInvertAllUses,
                                   BuilderTy *Builder, bool &DoesConsume) {
     DoesConsume = false;
@@ -238,6 +302,11 @@ public:
                                  /*Depth*/ 0);
   }
 
+  /// Return a freely inverted form of \p V, or null if none exists.
+  /// \param V Value to invert if free.
+  /// \param WillInvertAllUses Whether all uses of \p V will become uses of ~V.
+  /// \param Builder Optional builder used to materialize a simplified ~V.
+  /// @return A freely inverted form of \p V, or null if none exists.
   Value *getFreelyInverted(Value *V, bool WillInvertAllUses,
                                   BuilderTy *Builder) {
     bool Unused;
@@ -247,22 +316,35 @@ public:
   /// Return true if the specified value is free to invert (apply ~ to).
   ///
   /// This happens in cases where the ~ can be eliminated. If WillInvertAllUses is true, work under the assumption that the caller intends to remove all uses of V and only keep uses of ~V. See also: canFreelyInvertAllUsersOf()
+  /// \param V Value to test for free inversion.
+  /// \param WillInvertAllUses Whether all uses of \p V will become uses of ~V.
+  /// \param DoesConsume Set to true if inversion consumes instructions.
+  /// @return True if \p V is free to invert under \p WillInvertAllUses.
   bool isFreeToInvert(Value *V, bool WillInvertAllUses,
                              bool &DoesConsume) {
     return getFreelyInverted(V, WillInvertAllUses, /*Builder*/ nullptr,
                              DoesConsume) != nullptr;
   }
 
+  /// Return true if \p V is free to invert under \p WillInvertAllUses.
+  /// \param V Value to test for free inversion.
+  /// \param WillInvertAllUses Whether all uses of \p V will become uses of ~V.
+  /// @return True if \p V is free to invert under \p WillInvertAllUses.
   bool isFreeToInvert(Value *V, bool WillInvertAllUses) {
     bool Unused;
     return isFreeToInvert(V, WillInvertAllUses, Unused);
   }
 
+  /// Return true if every user of i1 \p V can adapt to !V for free.
+  ///
   /// Given i1 V, can every user of V be freely adapted if V is changed to !V ?
   /// InstCombine's freelyInvertAllUsersOf() must be kept in sync with this fn.
   /// NOTE: for Instructions only!
   ///
   /// See also: isFreeToInvert()
+  /// \param V Instruction whose users are checked for free inversion.
+  /// \param IgnoredUser Optional user to skip while checking.
+  /// @return True if every user of \p V can adapt to !V for free.
   bool canFreelyInvertAllUsersOf(Instruction *V, Value *IgnoredUser) {
     // Look at every user of V.
     for (Use &U : V->uses()) {
@@ -296,6 +378,10 @@ public:
   /// Some binary operators require special handling to avoid poison and undefined behavior.
   ///
   /// If a constant vector has undef elements, replace those undefs with identity constants if possible because those are always safe to execute. If no identity constant exists, replace undef with some other safe constant.
+  /// \param Opcode Binary operator whose identity or safe constant is needed.
+  /// \param In Constant vector that may contain undef elements.
+  /// \param IsRHSConstant Whether \p In is used as the right-hand operand.
+  /// @return A constant vector with undef elements replaced by safe constants.
   static Constant *
   getSafeVectorConstantForBinop(BinaryOperator::BinaryOps Opcode, Constant *In,
                                 bool IsRHSConstant) {
@@ -351,6 +437,8 @@ public:
 
   /// Ignore all operations which only change the sign of a value, returning the
   /// underlying magnitude value.
+  /// \param Val Floating-point value whose sign-only ops are stripped.
+  /// @return The magnitude value after stripping sign-only operations.
   static Value *stripSignOnlyFPOps(Value *Val) {
     using namespace llvm::PatternMatch;
 
@@ -360,33 +448,72 @@ public:
     return Val;
   }
 
+  /// Add \p I to the combiner worklist.
+  /// \param I Instruction to schedule for further combining.
   void addToWorklist(Instruction *I) { Worklist.push(I); }
 
+  /// Return the assumption cache used by this combiner.
+  /// @return The assumption cache for the function.
   AssumptionCache &getAssumptionCache() const { return AC; }
+  /// Return the target library information used by this combiner.
+  /// @return The target library information.
   TargetLibraryInfo &getTargetLibraryInfo() const { return TLI; }
+  /// Return the dominator tree used by this combiner.
+  /// @return The dominator tree for the function.
   DominatorTree &getDominatorTree() const { return DT; }
+  /// Return the data layout used by this combiner.
+  /// @return The data layout for the module or function.
   const DataLayout &getDataLayout() const { return DL; }
+  /// Return the simplify query used by this combiner.
+  /// @return The simplify query bundling analyses for value tracking.
   const SimplifyQuery &getSimplifyQuery() const { return SQ; }
+  /// Return the optimization-remark emitter used by this combiner.
+  /// @return The optimization-remark emitter.
   OptimizationRemarkEmitter &getOptimizationRemarkEmitter() const {
     return ORE;
   }
+  /// Return optional block-frequency information, or null if unavailable.
+  /// @return Block-frequency info, or null if unavailable.
   BlockFrequencyInfo *getBlockFrequencyInfo() const { return BFI; }
+  /// Return optional profile-summary information, or null if unavailable.
+  /// @return Profile-summary info, or null if unavailable.
   ProfileSummaryInfo *getProfileSummaryInfo() const { return PSI; }
 
-  // Call target specific combiners
+  /// Attempt a target-specific combine of intrinsic \p II.
+  /// \param II Intrinsic call to combine.
+  /// @return An optional replacement instruction, or nullopt if unchanged.
   LLVM_ABI std::optional<Instruction *>
   targetInstCombineIntrinsic(IntrinsicInst &II);
+  /// Simplify demanded bits of a target-specific intrinsic use.
+  /// \param II Intrinsic whose result bits are being demanded.
+  /// \param DemandedMask Bits of the result that are demanded.
+  /// \param Known Output known-zero and known-one bits.
+  /// \param KnownBitsComputed Set when \p Known has been computed.
+  /// @return An optional simplified value, or nullopt if unchanged.
   LLVM_ABI std::optional<Value *>
   targetSimplifyDemandedUseBitsIntrinsic(IntrinsicInst &II, APInt DemandedMask,
                                          KnownBits &Known,
                                          bool &KnownBitsComputed);
+  /// Simplify demanded vector elements of a target-specific intrinsic.
+  /// \param II Intrinsic whose result elements are being demanded.
+  /// \param DemandedElts Elements of the result that are demanded.
+  /// \param UndefElts Output mask of elements known undef/poison.
+  /// \param UndefElts2 Additional undef/poison element mask for operand 2.
+  /// \param UndefElts3 Additional undef/poison element mask for operand 3.
+  /// \param SimplifyAndSetOp Callback to simplify and rewrite an operand.
+  /// @return An optional simplified value, or nullopt if unchanged.
   LLVM_ABI std::optional<Value *> targetSimplifyDemandedVectorEltsIntrinsic(
       IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
       APInt &UndefElts2, APInt &UndefElts3,
       std::function<void(Instruction *, unsigned, APInt, APInt &)>
           SimplifyAndSetOp);
 
+  /// Compute the set of backedges in the function.
   LLVM_ABI void computeBackEdges();
+  /// Return true if the edge from \p From to \p To is a backedge.
+  /// \param From Source basic block of the candidate edge.
+  /// \param To Destination basic block of the candidate edge.
+  /// @return True if (\p From, \p To) is a backedge.
   bool isBackEdge(const BasicBlock *From, const BasicBlock *To) {
     if (!ComputedBackEdges)
       computeBackEdges();
@@ -397,6 +524,9 @@ public:
   ///
   /// Also adds the new instruction to the worklist and returns \p New so that
   /// it is suitable for use as the return from the visitation patterns.
+  /// \param New Instruction to insert.
+  /// \param Old Insertion point; \p New is inserted before this iterator.
+  /// @return \p New after insertion and worklist update.
   Instruction *InsertNewInstBefore(Instruction *New, BasicBlock::iterator Old) {
     assert(New && !New->getParent() &&
            "New instruction already inserted into a basic block!");
@@ -406,6 +536,9 @@ public:
   }
 
   /// Same as InsertNewInstBefore, but also sets the debug loc.
+  /// \param New Instruction to insert.
+  /// \param Old Insertion point whose debug location is copied.
+  /// @return \p New after insertion and worklist update.
   Instruction *InsertNewInstWith(Instruction *New, BasicBlock::iterator Old) {
     New->setDebugLoc(Old->getDebugLoc());
     return InsertNewInstBefore(New, Old);
@@ -417,6 +550,9 @@ public:
   /// replaceable with another preexisting expression. Here we add all uses of
   /// I to the worklist, replace all uses of I with the new value, then return
   /// I, so that the inst combiner will know that I was modified.
+  /// \param I Instruction whose uses are replaced.
+  /// \param V Replacement value for all uses of \p I.
+  /// @return \p I if uses were replaced, or null if \p I had no uses.
   Instruction *replaceInstUsesWith(Instruction &I, Value *V) {
     // If there are no uses to replace, then we return nullptr to indicate that
     // no changes were made to the program.
@@ -441,6 +577,10 @@ public:
   }
 
   /// Replace operand of instruction and add old operand to the worklist.
+  /// \param I Instruction whose operand is replaced.
+  /// \param OpNum Operand index to replace.
+  /// \param V New operand value.
+  /// @return \p I, so the combiner knows the instruction was modified.
   Instruction *replaceOperand(Instruction &I, unsigned OpNum, Value *V) {
     Value *OldOp = I.getOperand(OpNum);
     I.setOperand(OpNum, V);
@@ -449,6 +589,8 @@ public:
   }
 
   /// Replace use and add the previously used value to the worklist.
+  /// \param U Use to rewrite.
+  /// \param NewValue Value that \p U should refer to.
   void replaceUse(Use &U, Value *NewValue) {
     Value *OldOp = U;
     U = NewValue;
@@ -460,18 +602,36 @@ public:
   /// When dealing with an instruction that has side effects or produces a void
   /// value, we can't rely on DCE to delete the instruction. Instead, visit
   /// methods should return the value returned by this function.
+  /// \param I Instruction to erase from the function.
+  /// @return Null, indicating the instruction was erased.
   virtual Instruction *eraseInstFromFunction(Instruction &I) = 0;
 
+  /// Compute known bits for \p V into \p Known using combiner context.
+  /// \param V Value to analyze.
+  /// \param Known Output known-zero and known-one bits.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param Depth Current recursion depth for this query.
   void computeKnownBits(const Value *V, KnownBits &Known,
                         const Instruction *CxtI, unsigned Depth = 0) const {
     llvm::computeKnownBits(V, Known, SQ.getWithInstruction(CxtI), Depth);
   }
 
+  /// Compute and return known bits for \p V using combiner context.
+  /// \param V Value to analyze.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param Depth Current recursion depth for this query.
+  /// @return Known-zero and known-one bits of \p V.
   KnownBits computeKnownBits(const Value *V, const Instruction *CxtI,
                              unsigned Depth = 0) const {
     return llvm::computeKnownBits(V, SQ.getWithInstruction(CxtI), Depth);
   }
 
+  /// Return true if \p V is known to be a power of two (or zero).
+  /// \param V Value to test for being a power of two.
+  /// \param OrZero Also accept zero as a successful result.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param Depth Current recursion depth for this query.
+  /// @return True if \p V is known to be a power of two (or zero if allowed).
   bool isKnownToBeAPowerOfTwo(const Value *V, bool OrZero = false,
                               const Instruction *CxtI = nullptr,
                               unsigned Depth = 0) {
@@ -479,18 +639,34 @@ public:
                                         Depth);
   }
 
+  /// Return true if \p V masked by \p Mask is known to be zero.
+  /// \param V Value being masked.
+  /// \param Mask Bits of \p V that must be proven zero.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param Depth Current recursion depth for this query.
+  /// @return True if \p V masked by \p Mask is known zero.
   bool MaskedValueIsZero(const Value *V, const APInt &Mask,
                          const Instruction *CxtI = nullptr,
                          unsigned Depth = 0) const {
     return llvm::MaskedValueIsZero(V, Mask, SQ.getWithInstruction(CxtI), Depth);
   }
 
+  /// Compute the number of known sign bits of \p Op.
+  /// \param Op Value whose sign bits are counted.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param Depth Current recursion depth for this query.
+  /// @return Number of bits known to match the sign bit of \p Op.
   unsigned ComputeNumSignBits(const Value *Op,
                               const Instruction *CxtI = nullptr,
                               unsigned Depth = 0) const {
     return llvm::ComputeNumSignBits(Op, DL, &AC, CxtI, &DT, Depth);
   }
 
+  /// Compute an upper bound on significant bits needed for \p Op.
+  /// \param Op Value whose maximum significant bit width is computed.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param Depth Current recursion depth for this query.
+  /// @return Upper bound on the number of significant bits in \p Op.
   unsigned ComputeMaxSignificantBits(const Value *Op,
                                      const Instruction *CxtI = nullptr,
                                      unsigned Depth = 0) const {
@@ -499,11 +675,25 @@ public:
 
   /// Return true if the cast from integer to FP can be proven to be exact
   /// for all possible inputs (the conversion does not lose any precision).
+  /// \param I Integer-to-FP cast to analyze.
+  /// @return True if the cast is exact for all possible inputs.
   LLVM_ABI bool isKnownExactCastIntToFP(CastInst &I) const;
+  /// Return true if \p V can be cast exactly to floating-point type \p FPTy.
+  /// \param V Integer value being cast.
+  /// \param FPTy Destination floating-point type.
+  /// \param IsSigned Whether \p V is treated as a signed integer.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// @return True if the integer-to-FP cast does not lose precision.
   LLVM_ABI bool
   canBeCastedExactlyIntToFP(Value *V, Type *FPTy, bool IsSigned,
                             const Instruction *CxtI = nullptr) const;
 
+  /// Compute whether an unsigned multiply of \p LHS and \p RHS can overflow.
+  /// \param LHS Left-hand operand of the multiply.
+  /// \param RHS Right-hand operand of the multiply.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// \param IsNSW Whether the multiply is known NSW.
+  /// @return Whether the unsigned multiply can overflow.
   OverflowResult computeOverflowForUnsignedMul(const Value *LHS,
                                                const Value *RHS,
                                                const Instruction *CxtI,
@@ -512,12 +702,22 @@ public:
         LHS, RHS, SQ.getWithInstruction(CxtI), IsNSW);
   }
 
+  /// Compute whether a signed multiply of \p LHS and \p RHS can overflow.
+  /// \param LHS Left-hand operand of the multiply.
+  /// \param RHS Right-hand operand of the multiply.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// @return Whether the signed multiply can overflow.
   OverflowResult computeOverflowForSignedMul(const Value *LHS, const Value *RHS,
                                              const Instruction *CxtI) const {
     return llvm::computeOverflowForSignedMul(LHS, RHS,
                                              SQ.getWithInstruction(CxtI));
   }
 
+  /// Compute whether an unsigned add of \p LHS and \p RHS can overflow.
+  /// \param LHS Left-hand operand of the add.
+  /// \param RHS Right-hand operand of the add.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// @return Whether the unsigned add can overflow.
   OverflowResult
   computeOverflowForUnsignedAdd(const WithCache<const Value *> &LHS,
                                 const WithCache<const Value *> &RHS,
@@ -526,6 +726,11 @@ public:
                                                SQ.getWithInstruction(CxtI));
   }
 
+  /// Compute whether a signed add of \p LHS and \p RHS can overflow.
+  /// \param LHS Left-hand operand of the add.
+  /// \param RHS Right-hand operand of the add.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// @return Whether the signed add can overflow.
   OverflowResult
   computeOverflowForSignedAdd(const WithCache<const Value *> &LHS,
                               const WithCache<const Value *> &RHS,
@@ -534,6 +739,11 @@ public:
                                              SQ.getWithInstruction(CxtI));
   }
 
+  /// Compute whether an unsigned subtract of \p LHS and \p RHS can overflow.
+  /// \param LHS Left-hand operand of the subtract.
+  /// \param RHS Right-hand operand of the subtract.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// @return Whether the unsigned subtract can overflow.
   OverflowResult computeOverflowForUnsignedSub(const Value *LHS,
                                                const Value *RHS,
                                                const Instruction *CxtI) const {
@@ -541,28 +751,58 @@ public:
                                                SQ.getWithInstruction(CxtI));
   }
 
+  /// Compute whether a signed subtract of \p LHS and \p RHS can overflow.
+  /// \param LHS Left-hand operand of the subtract.
+  /// \param RHS Right-hand operand of the subtract.
+  /// \param CxtI Optional context instruction for local analysis.
+  /// @return Whether the signed subtract can overflow.
   OverflowResult computeOverflowForSignedSub(const Value *LHS, const Value *RHS,
                                              const Instruction *CxtI) const {
     return llvm::computeOverflowForSignedSub(LHS, RHS,
                                              SQ.getWithInstruction(CxtI));
   }
 
+  /// Simplify operand \p OpNo of \p I based on demanded bits.
+  /// \param I Instruction whose operand may be simplified.
+  /// \param OpNo Operand index to simplify.
+  /// \param DemandedMask Bits of the operand that are demanded.
+  /// \param Known Output known-zero and known-one bits for the operand.
+  /// \param Q Simplify query providing context for the analysis.
+  /// \param Depth Current recursion depth for this query.
+  /// @return True if the operand or instruction was simplified.
   virtual bool SimplifyDemandedBits(Instruction *I, unsigned OpNo,
                                     const APInt &DemandedMask, KnownBits &Known,
                                     const SimplifyQuery &Q,
                                     unsigned Depth = 0) = 0;
 
+  /// Simplify operand \p OpNo of \p I based on demanded bits.
+  /// \param I Instruction whose operand may be simplified.
+  /// \param OpNo Operand index to simplify.
+  /// \param DemandedMask Bits of the operand that are demanded.
+  /// \param Known Output known-zero and known-one bits for the operand.
+  /// @return True if the operand or instruction was simplified.
   bool SimplifyDemandedBits(Instruction *I, unsigned OpNo,
                             const APInt &DemandedMask, KnownBits &Known) {
     return SimplifyDemandedBits(I, OpNo, DemandedMask, Known,
                                 SQ.getWithInstruction(I));
   }
 
+  /// Simplify \p V based on which vector elements are demanded.
+  /// \param V Value whose demanded elements may be simplified.
+  /// \param DemandedElts Elements of \p V that are demanded.
+  /// \param UndefElts Output mask of elements known undef/poison.
+  /// \param Depth Current recursion depth for this query.
+  /// \param AllowMultipleUsers Whether multi-use values may still be simplified.
+  /// @return The simplified value, or null if no change was made.
   virtual Value *
   SimplifyDemandedVectorElts(Value *V, APInt DemandedElts, APInt &UndefElts,
                              unsigned Depth = 0,
                              bool AllowMultipleUsers = false) = 0;
 
+  /// Return true if casting from address space \p FromAS to \p ToAS is valid.
+  /// \param FromAS Source address space.
+  /// \param ToAS Destination address space.
+  /// @return True if the address-space cast is valid.
   LLVM_ABI bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const;
 };
 

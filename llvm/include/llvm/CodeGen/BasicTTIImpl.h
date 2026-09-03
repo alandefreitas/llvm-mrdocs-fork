@@ -68,6 +68,7 @@ class ScalarEvolution;
 class SCEV;
 class TargetMachine;
 
+/// Threshold controlling partial loop unrolling in BasicTTIImplBase.
 extern LLVM_ABI cl::opt<unsigned> PartialUnrollingThreshold;
 
 /// Base class which can be used to help build a TTI implementation.
@@ -375,16 +376,30 @@ private:
   }
 
 protected:
+  /// Construct a BasicTTIImplBase using data layout \p DL.
+  /// \param TM Target machine (unused directly; retained for subclasses).
+  /// \param DL Data layout for the module/target.
   explicit BasicTTIImplBase(const TargetMachine *TM, const DataLayout &DL)
       : BaseT(DL) {}
+  /// Destroy a BasicTTIImplBase.
   ~BasicTTIImplBase() override = default;
 
+  /// Data layout associated with this TTI implementation.
   using TargetTransformInfoImplBase::DL;
+  /// Expose base-class scalarization overhead helpers.
   using TargetTransformInfoImplBase::getScalarizationOverhead;
 
 public:
   /// \name Scalar TTI Implementations
   /// @{
+
+  /// Return true if the target supports misaligned memory accesses.
+  /// \param Context LLVM context used to build the access EVT.
+  /// \param BitWidth Width in bits of the accessed integer value.
+  /// \param AddressSpace Address space of the access.
+  /// \param Alignment Alignment of the access.
+  /// \param Fast Optional out-parameter set when the access is fast.
+  /// \returns True if the target supports misaligned memory accesses.
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
                                       unsigned AddressSpace, Align Alignment,
                                       unsigned *Fast) const override {
@@ -393,6 +408,10 @@ public:
         E, AddressSpace, Alignment, MachineMemOperand::MONone, Fast);
   }
 
+  /// Return true if \p Caller and \p Callee have compatible inline attributes.
+  /// \param Caller Function into which inlining is considered.
+  /// \param Callee Function being considered for inlining.
+  /// \returns True if \p Caller and \p Callee have compatible inline attributes.
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const override {
     const TargetMachine &TM = getTLI()->getTargetMachine();
@@ -420,63 +439,119 @@ public:
     return (CallerBits & CalleeBits) == CalleeBits;
   }
 
+  /// Return true if branch divergence exists for threads executing \p F.
+  /// \param F Optional context function for single-threaded checks.
+  /// \returns True if branch divergence exists for threads executing \p F.
   bool hasBranchDivergence(const Function *F = nullptr) const override {
     return false;
   }
 
+  /// Return true if casting from \p FromAS to \p ToAS is valid on this target.
+  /// \param FromAS Source address space.
+  /// \param ToAS Destination address space.
+  /// \returns True if casting from \p FromAS to \p ToAS is valid on this target.
   bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const override {
     return false;
   }
 
+  /// Return false if an \p AS0 address cannot possibly alias an \p AS1 address.
+  /// \param AS0 First address space.
+  /// \param AS1 Second address space.
+  /// \returns False if an \p AS0 address cannot possibly alias an \p AS1 address.
   bool addrspacesMayAlias(unsigned AS0, unsigned AS1) const override {
     return true;
   }
 
+  /// Return the flat address space used to optimize addrspacecasts, or ~0u.
+  /// \returns The flat address space, or ~0u if none.
   unsigned getFlatAddressSpace() const override {
     // Return an invalid address space.
     return -1;
   }
 
+  /// Collect flat-address operand indexes of intrinsic \p IID into \p OpIndexes.
+  /// \param OpIndexes Filled with operand indexes that may be rewritten.
+  /// \param IID Intrinsic whose operands are inspected.
+  /// \returns True if any operand indexes were collected.
   bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                   Intrinsic::ID IID) const override {
     return false;
   }
 
+  /// Return true if casting from \p FromAS to \p ToAS is a no-op.
+  /// \param FromAS Source address space.
+  /// \param ToAS Destination address space.
+  /// \returns True if casting from \p FromAS to \p ToAS is a no-op.
   bool isNoopAddrSpaceCast(unsigned FromAS, unsigned ToAS) const override {
     return getTLI()->getTargetMachine().isNoopAddrSpaceCast(FromAS, ToAS);
   }
 
+  /// Return an address space the target assumes for pointer value \p V.
+  /// \param V Pointer value being queried.
+  /// \returns An address space the target assumes for pointer value \p V.
   unsigned getAssumedAddrSpace(const Value *V) const override {
     return getTLI()->getTargetMachine().getAssumedAddrSpace(V);
   }
 
+  /// Return true if the target is configured for a single-threaded model.
+  /// \returns True if the target is configured for a single-threaded model.
   bool isSingleThreaded() const override {
     return getTLI()->getTargetMachine().Options.ThreadModel ==
            ThreadModel::Single;
   }
 
+  /// Return a predicate value and address space assumed for pointer \p V.
+  /// \param V Pointer value being queried.
+  /// \returns A predicate value and assumed address space for \p V.
   std::pair<const Value *, unsigned>
   getPredicatedAddrSpace(const Value *V) const override {
     return getTLI()->getTargetMachine().getPredicatedAddrSpace(V);
   }
 
+  /// Rewrite intrinsic \p II replacing flat-address operand \p OldV with \p NewV.
+  /// \param II Intrinsic call to rewrite.
+  /// \param OldV Flat-address value being replaced.
+  /// \param NewV Replacement value in a different address space.
+  /// \returns The rewritten value, or nullptr if unchanged.
   Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
                                           Value *NewV) const override {
     return nullptr;
   }
 
+  /// Return true if \p imm is a legal immediate for an add on this target.
+  /// \param imm Immediate added to a register.
+  /// \returns True if \p imm is a legal immediate for an add on this target.
   bool isLegalAddImmediate(int64_t imm) const override {
     return getTLI()->isLegalAddImmediate(imm);
   }
 
+  /// Return true if adding scalable immediate \p Imm (times vscale) is legal.
+  /// \param Imm Scalable immediate multiplier.
+  /// \returns True if adding scalable immediate \p Imm (times vscale) is legal.
   bool isLegalAddScalableImmediate(int64_t Imm) const override {
     return getTLI()->isLegalAddScalableImmediate(Imm);
   }
 
+  /// Return true if \p imm is a legal immediate for an icmp on this target.
+  /// \param imm Immediate compared against a register.
+  /// \returns True if \p imm is a legal immediate for an icmp on this target.
   bool isLegalICmpImmediate(int64_t imm) const override {
     return getTLI()->isLegalICmpImmediate(imm);
   }
 
+  /// Return true if the described addressing mode is legal for type \p Ty.
+  ///
+  /// \p Ty may be VoidTy to mean any legal memory type. \p ScalableOffset is a
+  /// byte quantity multiplied by vscale.
+  /// \param Ty Type of the load/store, or void for any legal type.
+  /// \param BaseGV Optional global base.
+  /// \param BaseOffset Fixed base offset in bytes.
+  /// \param HasBaseReg Whether a base register is present.
+  /// \param Scale Scaled-index multiplier.
+  /// \param AddrSpace Address space of the pointer.
+  /// \param I Optional context instruction for targets that need it.
+  /// \param ScalableOffset Scalable (vscale-multiplied) offset in bytes.
+  /// \returns True if the described addressing mode is legal for type \p Ty.
   bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
                              bool HasBaseReg, int64_t Scale, unsigned AddrSpace,
                              Instruction *I = nullptr,
@@ -490,10 +565,21 @@ public:
     return getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace, I);
   }
 
+  /// Return a preferred large GEP base offset within [\p MinOffset, \p MaxOffset].
+  /// \param MinOffset Minimum acceptable base offset.
+  /// \param MaxOffset Maximum acceptable base offset.
+  /// \returns A preferred large GEP base offset within [\p MinOffset, \p MaxOffset].
   int64_t getPreferredLargeGEPBaseOffset(int64_t MinOffset, int64_t MaxOffset) {
     return getTLI()->getPreferredLargeGEPBaseOffset(MinOffset, MaxOffset);
   }
 
+  /// Return a smaller store VF that may still be profitable to vectorize.
+  /// \param VF Initial estimate of the minimum vector factor.
+  /// \param ScalarMemTy Scalar memory type of the store.
+  /// \param ScalarValTy Scalar type of the stored value.
+  /// \param Alignment Alignment of the store.
+  /// \param AddrSpace Address space of the store.
+  /// \returns A smaller store VF that may still be profitable to vectorize.
   unsigned getStoreMinimumVF(unsigned VF, Type *ScalarMemTy, Type *ScalarValTy,
                              Align Alignment,
                              unsigned AddrSpace) const override {
@@ -517,33 +603,62 @@ public:
     return VF;
   }
 
+  /// Return true if an indexed load of mode \p M for type \p Ty is legal.
+  /// \param M Indexed addressing mode.
+  /// \param Ty Loaded value type.
+  /// \returns True if an indexed load of mode \p M for type \p Ty is legal.
   bool isIndexedLoadLegal(TTI::MemIndexedMode M, Type *Ty) const override {
     EVT VT = getTLI()->getValueType(DL, Ty, /*AllowUnknown=*/true);
     return getTLI()->isIndexedLoadLegal(getISDIndexedMode(M), VT);
   }
 
+  /// Return true if an indexed store of mode \p M for type \p Ty is legal.
+  /// \param M Indexed addressing mode.
+  /// \param Ty Stored value type.
+  /// \returns True if an indexed store of mode \p M for type \p Ty is legal.
   bool isIndexedStoreLegal(TTI::MemIndexedMode M, Type *Ty) const override {
     EVT VT = getTLI()->getValueType(DL, Ty, /*AllowUnknown=*/true);
     return getTLI()->isIndexedStoreLegal(getISDIndexedMode(M), VT);
   }
 
+  /// Return true if LSR cost \p C1 is lower than \p C2.
+  /// \param C1 First LSR cost.
+  /// \param C2 Second LSR cost.
+  /// \returns True if LSR cost \p C1 is lower than \p C2.
   bool isLSRCostLess(const TTI::LSRCost &C1,
                      const TTI::LSRCost &C2) const override {
     return TargetTransformInfoImplBase::isLSRCostLess(C1, C2);
   }
 
+  /// Return true if register count is the major cost metric for LSR.
+  /// \returns True if register count is the major cost metric for LSR.
   bool isNumRegsMajorCostOfLSR() const override {
     return TargetTransformInfoImplBase::isNumRegsMajorCostOfLSR();
   }
 
+  /// Return true if LSR should drop solutions worse than the baseline.
+  /// \returns True if LSR should drop solutions worse than the baseline.
   bool shouldDropLSRSolutionIfLessProfitable() const override {
     return TargetTransformInfoImplBase::shouldDropLSRSolutionIfLessProfitable();
   }
 
+  /// Return true if LSR should keep optimizing a chain that includes \p I.
+  /// \param I Instruction in the LSR chain.
+  /// \returns True if LSR should keep optimizing a chain that includes \p I.
   bool isProfitableLSRChainElement(Instruction *I) const override {
     return TargetTransformInfoImplBase::isProfitableLSRChainElement(I);
   }
 
+  /// Return the cost of the scaling factor in addressing mode for type \p Ty.
+  ///
+  /// Returns a non-negative cost when the mode is supported, otherwise invalid.
+  /// \param Ty Type of the load/store.
+  /// \param BaseGV Optional global base.
+  /// \param BaseOffset Fixed plus scalable base offset.
+  /// \param HasBaseReg Whether a base register is present.
+  /// \param Scale Scaled-index multiplier.
+  /// \param AddrSpace Address space of the pointer.
+  /// \returns The cost of the scaling factor, or an invalid cost if unsupported.
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
                                        int64_t Scale,
@@ -559,26 +674,48 @@ public:
     return InstructionCost::getInvalid();
   }
 
+  /// Return true if truncating \p Ty1 to \p Ty2 is free on this target.
+  /// \param Ty1 Wider source type.
+  /// \param Ty2 Narrower destination type.
+  /// \returns True if truncating \p Ty1 to \p Ty2 is free on this target.
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override {
     return getTLI()->isTruncateFree(Ty1, Ty2);
   }
 
+  /// Return true if it is profitable to hoist \p I out of a then/else region.
+  /// \param I Instruction being considered for hoisting.
+  /// \returns True if it is profitable to hoist \p I out of a then/else region.
   bool isProfitableToHoist(Instruction *I) const override {
     return getTLI()->isProfitableToHoist(I);
   }
 
+  /// Return true if the target benefits from alias-analysis in codegen.
+  /// \returns True if the target benefits from alias-analysis in codegen.
   bool useAA() const override { return getST()->useAA(); }
 
+  /// Return true if \p Ty is a legal type for this target.
+  /// \param Ty Type being queried.
+  /// \returns True if \p Ty is a legal type for this target.
   bool isTypeLegal(Type *Ty) const override {
     EVT VT = getTLI()->getValueType(DL, Ty, /*AllowUnknown=*/true);
     return getTLI()->isTypeLegal(VT);
   }
 
+  /// Return the estimated number of registers required to represent \p Ty.
+  /// \param Ty Type whose register usage is estimated.
+  /// \returns The estimated number of registers required to represent \p Ty.
   unsigned getRegUsageForType(Type *Ty) const override {
     EVT ETy = getTLI()->getValueType(DL, Ty);
     return getTLI()->getNumRegisters(Ty->getContext(), ETy);
   }
 
+  /// Estimate the cost of a GEP when lowered.
+  /// \param PointeeType Source element type of the GEP.
+  /// \param Ptr Base pointer operand.
+  /// \param Operands Index operands following the base pointer.
+  /// \param CostKind Kind of cost to compute.
+  /// \param AccessType Hint for the memory type accessed through the GEP.
+  /// \returns The estimated cost of a GEP when lowered.
   InstructionCost getGEPCost(Type *PointeeType, const Value *Ptr,
                              ArrayRef<const Value *> Operands,
                              TTI::TargetCostKind CostKind,
@@ -586,16 +723,19 @@ public:
     return BaseT::getGEPCost(PointeeType, Ptr, Operands, CostKind, AccessType);
   }
 
+  /// Estimate how many case clusters \p SI would lower into.
+  ///
+  /// The number of clusters identified here can differ from lowering. Switches
+  /// lowered with a mix of jump table / bit test / BTree are ignored. Useful
+  /// for inline cost and other heuristics such as loop unrolling.
+  /// \param SI Switch instruction being analyzed.
+  /// \param JumpTableSize Set to the jump-table size when a table is suitable.
+  /// \param PSI Optional profile summary info.
+  /// \param BFI Optional block frequency info.
+  /// \returns The estimated number of case clusters \p SI would lower into.
   unsigned getEstimatedNumberOfCaseClusters(
       const SwitchInst &SI, unsigned &JumpTableSize, ProfileSummaryInfo *PSI,
       BlockFrequencyInfo *BFI) const override {
-    /// Try to find the estimated number of clusters. Note that the number of
-    /// clusters identified in this function could be different from the actual
-    /// numbers found in lowering. This function ignore switches that are
-    /// lowered with a mix of jump table / bit test / BTree. This function was
-    /// initially intended to be used when estimating the cost of switch in
-    /// inline cost heuristic, but it's a generic cost model to be used in other
-    /// places (e.g., in loop unrolling).
     unsigned N = SI.getNumCases();
     const TargetLoweringBase *TLI = getTLI();
     const DataLayout &DL = this->getDataLayout();
@@ -645,12 +785,16 @@ public:
     return N;
   }
 
+  /// Return true if switches should be turned into lookup tables on this target.
+  /// \returns True if switches should be turned into lookup tables on this target.
   bool shouldBuildLookupTables() const override {
     const TargetLoweringBase *TLI = getTLI();
     return TLI->isOperationLegalOrCustom(ISD::BR_JT, MVT::Other) ||
            TLI->isOperationLegalOrCustom(ISD::BRIND, MVT::Other);
   }
 
+  /// Return true if lookup tables should use relative offsets on this target.
+  /// \returns True if lookup tables should use relative offsets on this target.
   bool shouldBuildRelLookupTables() const override {
     const TargetMachine &TM = getTLI()->getTargetMachine();
     // If non-PIC mode, do not generate a relative lookup table.
@@ -677,6 +821,9 @@ public:
     return true;
   }
 
+  /// Return true if the hardware has a fast square-root for type \p Ty.
+  /// \param Ty Floating-point type of the square-root.
+  /// \returns True if the hardware has a fast square-root for type \p Ty.
   bool haveFastSqrt(Type *Ty) const override {
     const TargetLoweringBase *TLI = getTLI();
     EVT VT = TLI->getValueType(DL, Ty);
@@ -684,6 +831,9 @@ public:
            TLI->isOperationLegalOrCustom(ISD::FSQRT, VT);
   }
 
+  /// Return true if the hardware has a fast carry-less multiply for \p Ty.
+  /// \param Ty Integer type of the clmul operands.
+  /// \returns True if the hardware has a fast carry-less multiply for \p Ty.
   bool haveFastClmul(IntegerType *Ty) const override {
     // FIXME: clmul should really be Promote for any bitwidth under the largest
     // legal bitwidth for clmul. Using IndexTy instead of Ty is a hack to get
@@ -699,8 +849,14 @@ public:
     return TLI->isOperationLegalOrCustom(ISD::CLMUL, VT);
   }
 
+  /// Return true if an ordered FP compare is cheaper than comparing against zero.
+  /// \param Ty Floating-point type being compared.
+  /// \returns True if an ordered FP compare is cheaper than comparing against zero.
   bool isFCmpOrdCheaperThanFCmpZero(Type *Ty) const override { return true; }
 
+  /// Return the expected cost of supporting floating-point ops of type \p Ty.
+  /// \param Ty Floating-point type being queried.
+  /// \returns The expected cost of supporting floating-point ops of type \p Ty.
   InstructionCost getFPOpCost(Type *Ty) const override {
     // Check whether FADD is available, as a proxy for floating-point in
     // general.
@@ -711,6 +867,10 @@ public:
     return TargetTransformInfo::TCC_Expensive;
   }
 
+  /// Return true if constants should stay attached to \p Inst for codegen quality.
+  /// \param Inst Instruction whose constant operands are considered.
+  /// \param Fn Function containing \p Inst.
+  /// \returns True if constants should stay attached to \p Inst for codegen quality.
   bool preferToKeepConstantsAttached(const Instruction &Inst,
                                      const Function &Fn) const override {
     switch (Inst.getOpcode()) {
@@ -730,17 +890,33 @@ public:
     return false;
   }
 
+  /// Return a multiplier applied to the inlining threshold for this target.
+  /// \returns A multiplier applied to the inlining threshold for this target.
   unsigned getInliningThresholdMultiplier() const override { return 1; }
+  /// Return an additive adjustment to the inlining threshold for call \p CB.
+  /// \param CB Call site being considered for inlining.
+  /// \returns An additive adjustment to the inlining threshold for call \p CB.
   unsigned adjustInliningThreshold(const CallBase *CB) const override {
     return 0;
   }
+  /// Return the extra inlining threshold cost of leaving alloca \p AI in the caller.
+  /// \param CB Call site being considered for inlining.
+  /// \param AI Alloca that would remain in the caller if not inlined.
+  /// \returns The extra inlining threshold cost of leaving alloca \p AI in the caller.
   unsigned getCallerAllocaCost(const CallBase *CB,
                                const AllocaInst *AI) const override {
     return 0;
   }
 
+  /// Return the inliner bonus percent for vector-dense callers/callees.
+  /// \returns The inliner bonus percent for vector-dense callers/callees.
   int getInlinerVectorBonusPercent() const override { return 150; }
 
+  /// Fill \p UP with target preferences for unrolling loop \p L.
+  /// \param L Loop being considered for unrolling.
+  /// \param SE Scalar evolution analysis for \p L.
+  /// \param UP Unrolling preferences to populate.
+  /// \param ORE Optional remark emitter for diagnostics.
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
                                OptimizationRemarkEmitter *ORE) const override {
@@ -813,6 +989,10 @@ public:
     UP.BEInsns = 2;
   }
 
+  /// Fill \p PP with target preferences for peeling loop \p L.
+  /// \param L Loop being considered for peeling.
+  /// \param SE Scalar evolution analysis for \p L.
+  /// \param PP Peeling preferences to populate.
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                              TTI::PeelingPreferences &PP) const override {
     PP.PeelCount = 0;
@@ -821,29 +1001,54 @@ public:
     PP.PeelProfiledIterations = true;
   }
 
+  /// Return true if converting loop \p L into a hardware loop looks profitable.
+  /// \param L Loop being considered.
+  /// \param SE Scalar evolution analysis for \p L.
+  /// \param AC Assumption cache for the function.
+  /// \param LibInfo Target library info.
+  /// \param HWLoopInfo Filled with hardware-loop parameters when profitable.
+  /// \returns True if converting loop \p L into a hardware loop looks profitable.
   bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
                                 AssumptionCache &AC, TargetLibraryInfo *LibInfo,
                                 HardwareLoopInfo &HWLoopInfo) const override {
     return BaseT::isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
   }
 
+  /// Return the minimum VF for which epilogue vectorization should be considered.
+  /// \returns The minimum VF for which epilogue vectorization should be considered.
   unsigned getEpilogueVectorizationMinVF() const override {
     return BaseT::getEpilogueVectorizationMinVF();
   }
 
+  /// Return true if a tail-folded vector loop is preferred over a scalar epilogue.
+  /// \param TFI Information about the candidate tail-folded loop.
+  /// \returns True if a tail-folded vector loop is preferred over a scalar epilogue.
   bool preferTailFoldingOverEpilogue(TailFoldingInfo *TFI) const override {
     return BaseT::preferTailFoldingOverEpilogue(TFI);
   }
 
+  /// Return the preferred style of tail folding for this target.
+  /// \returns The preferred tail-folding style for this target.
   TailFoldingStyle getPreferredTailFoldingStyle() const override {
     return BaseT::getPreferredTailFoldingStyle();
   }
 
+  /// Attempt target-specific InstCombine folds for intrinsic \p II.
+  /// \param IC InstCombiner performing the transform.
+  /// \param II Target intrinsic being combined.
+  /// \returns An optional replacement instruction when a fold applies.
   std::optional<Instruction *>
   instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const override {
     return BaseT::instCombineIntrinsic(IC, II);
   }
 
+  /// Simplify a target intrinsic using demanded result bits.
+  /// \param IC InstCombiner performing the transform.
+  /// \param II Intrinsic being simplified.
+  /// \param DemandedMask Bits demanded from the result.
+  /// \param Known Known bits of the result, updated on success.
+  /// \param KnownBitsComputed Set when \p Known was computed.
+  /// \returns An optional simplified value when successful.
   std::optional<Value *>
   simplifyDemandedUseBitsIntrinsic(InstCombiner &IC, IntrinsicInst &II,
                                    APInt DemandedMask, KnownBits &Known,
@@ -852,6 +1057,15 @@ public:
                                                    KnownBitsComputed);
   }
 
+  /// Simplify a target intrinsic using demanded vector elements.
+  /// \param IC InstCombiner performing the transform.
+  /// \param II Intrinsic being simplified.
+  /// \param DemandedElts Elements demanded from the result.
+  /// \param UndefElts Set to elements known undef in the result.
+  /// \param UndefElts2 Set to elements known undef in operand 2, if used.
+  /// \param UndefElts3 Set to elements known undef in operand 3, if used.
+  /// \param SimplifyAndSetOp Callback to simplify an operand in place.
+  /// \returns An optional simplified value when successful.
   std::optional<Value *> simplifyDemandedVectorEltsIntrinsic(
       InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
       APInt &UndefElts2, APInt &UndefElts3,
@@ -862,16 +1076,24 @@ public:
         SimplifyAndSetOp);
   }
 
+  /// Return the estimated latency penalty of a branch misprediction.
+  /// \returns The estimated latency penalty of a branch misprediction.
   InstructionCost getBranchMispredictPenalty() const override {
     return getST()->getMispredictionPenalty();
   }
 
+  /// Return the size of cache level \p Level in bytes, if available.
+  /// \param Level Cache level being queried.
+  /// \returns The cache size in bytes, or std::nullopt if unavailable.
   std::optional<unsigned>
   getCacheSize(TargetTransformInfo::CacheLevel Level) const override {
     return std::optional<unsigned>(
         getST()->getCacheSize(static_cast<unsigned>(Level)));
   }
 
+  /// Return the associativity of cache level \p Level, if available.
+  /// \param Level Cache level being queried.
+  /// \returns The cache associativity, or std::nullopt if unavailable.
   std::optional<unsigned>
   getCacheAssociativity(TargetTransformInfo::CacheLevel Level) const override {
     std::optional<unsigned> TargetResult =
@@ -883,14 +1105,24 @@ public:
     return BaseT::getCacheAssociativity(Level);
   }
 
+  /// Return the size of a cache line in bytes.
+  /// \returns The size of a cache line in bytes.
   unsigned getCacheLineSize() const override {
     return getST()->getCacheLineSize();
   }
 
+  /// Return how far before a load to place a prefetch, in instructions.
+  /// \returns How far before a load to place a prefetch, in instructions.
   unsigned getPrefetchDistance() const override {
     return getST()->getPrefetchDistance();
   }
 
+  /// Return the minimum stride in bytes where software prefetching helps.
+  /// \param NumMemAccesses Number of memory accesses in the loop.
+  /// \param NumStridedMemAccesses Number of accesses with a known stride.
+  /// \param NumPrefetches Number of software prefetches that would be emitted.
+  /// \param HasCall Whether the loop contains a call.
+  /// \returns The minimum stride in bytes where software prefetching helps.
   unsigned getMinPrefetchStride(unsigned NumMemAccesses,
                                 unsigned NumStridedMemAccesses,
                                 unsigned NumPrefetches,
@@ -899,14 +1131,21 @@ public:
                                          NumPrefetches, HasCall);
   }
 
+  /// Return the maximum number of iterations to prefetch ahead.
+  /// \returns The maximum number of iterations to prefetch ahead.
   unsigned getMaxPrefetchIterationsAhead() const override {
     return getST()->getMaxPrefetchIterationsAhead();
   }
 
+  /// Return true if prefetching should also be done for writes.
+  /// \returns True if prefetching should also be done for writes.
   bool enableWritePrefetching() const override {
     return getST()->enableWritePrefetching();
   }
 
+  /// Return true if the target wants a prefetch in address space \p AS.
+  /// \param AS Address space under consideration.
+  /// \returns True if the target wants a prefetch in address space \p AS.
   bool shouldPrefetchAddressSpace(unsigned AS) const override {
     return getST()->shouldPrefetchAddressSpace(AS);
   }
@@ -917,19 +1156,36 @@ public:
   /// @{
 
   /// Return the bit width of the largest register of kind \p K.
+  /// \param K Register kind (scalar, fixed-width vector, or scalable vector).
+  /// \returns The bit width of the largest register of kind \p K.
   TypeSize
   getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override {
     return TypeSize::getFixed(32);
   }
 
+  /// Return the architectural maximum vscale, if the target specifies one.
+  /// \returns The architectural maximum vscale, or std::nullopt if unspecified.
   std::optional<unsigned> getMaxVScale() const override { return std::nullopt; }
+  /// Return the vscale value to use when tuning the cost model.
+  /// \returns The vscale used for cost-model tuning, or std::nullopt.
   std::optional<unsigned> getVScaleForTuning() const override {
     return std::nullopt;
   }
 
-  /// Estimate the overhead of scalarizing an instruction. Insert and Extract
-  /// are set if the demanded result elements need to be inserted and/or
-  /// extracted from vectors.
+  /// Estimate the overhead of scalarizing demanded elements of an instruction.
+  ///
+  /// \p Insert and \p Extract are set if demanded result elements need to be
+  /// inserted and/or extracted from vectors. Involved values may be passed in
+  /// \p VL when inserting.
+  /// \param InTy Vector type being scalarized.
+  /// \param DemandedElts Bitmask of demanded result elements.
+  /// \param Insert Whether demanded elements must be inserted into a vector.
+  /// \param Extract Whether demanded elements must be extracted from a vector.
+  /// \param CostKind Kind of cost to compute.
+  /// \param ForPoisonSrc Whether the source may be poison.
+  /// \param VL Optional per-lane values when inserting.
+  /// \param VIC Hint about how inserts/extracts are used.
+  /// \returns The estimated overhead of scalarizing demanded elements of an instruction.
   InstructionCost
   getScalarizationOverhead(VectorType *InTy, const APInt &DemandedElts,
                            bool Insert, bool Extract,
@@ -966,24 +1222,48 @@ public:
     return Cost;
   }
 
+  /// Return true if the vector form of the intrinsic has a scalar at \p ScalarOpdIdx.
+  /// \param ID Target intrinsic ID.
+  /// \param ScalarOpdIdx Operand index that remains scalar.
+  /// \returns True if the vector form of the intrinsic has a scalar at \p ScalarOpdIdx.
   bool
   isTargetIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
                                      unsigned ScalarOpdIdx) const override {
     return false;
   }
 
+  /// Return true if the vector intrinsic overloads on the type at \p OpdIdx.
+  ///
+  /// \p OpdIdx of -1 means the return type.
+  /// \param ID Target intrinsic ID.
+  /// \param OpdIdx Operand index, or -1 for the return type.
+  /// \returns True if the vector intrinsic overloads on the type at \p OpdIdx.
   bool isTargetIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID,
                                               int OpdIdx) const override {
     return OpdIdx == -1;
   }
 
+  /// Return true if a struct-returning target intrinsic overloads field \p RetIdx.
+  /// \param ID Target intrinsic ID.
+  /// \param RetIdx Struct element index of the overload.
+  /// \returns True if a struct-returning target intrinsic overloads field \p RetIdx.
   bool
   isTargetIntrinsicWithStructReturnOverloadAtField(Intrinsic::ID ID,
                                                    int RetIdx) const override {
     return RetIdx == 0;
   }
 
+  /// Estimate scalarization overhead for all elements of \p InTy.
+  ///
   /// Helper wrapper for the DemandedElts variant of getScalarizationOverhead.
+  /// \param InTy Vector type being scalarized.
+  /// \param Insert Whether result elements must be inserted into a vector.
+  /// \param Extract Whether result elements must be extracted from a vector.
+  /// \param CostKind Kind of cost to compute.
+  /// \param ForPoisonSrc Whether the source may be poison.
+  /// \param VL Optional per-lane values when inserting.
+  /// \param VIC Hint about how inserts/extracts are used.
+  /// \returns The estimated scalarization overhead for all elements of \p InTy.
   InstructionCost getScalarizationOverhead(
       VectorType *InTy, bool Insert, bool Extract, TTI::TargetCostKind CostKind,
       bool ForPoisonSrc = true, ArrayRef<Value *> VL = {},
@@ -998,9 +1278,14 @@ public:
                                              CostKind, ForPoisonSrc, VL, VIC);
   }
 
-  /// Estimate the overhead of scalarizing an instruction's
-  /// operands. The (potentially vector) types to use for each of
-  /// argument are passes via Tys.
+  /// Estimate the overhead of scalarizing an instruction's operands.
+  ///
+  /// The (potentially vector) types to use for each argument are passed via
+  /// \p Tys.
+  /// \param Tys Operand types to scalarize.
+  /// \param CostKind Kind of cost to compute.
+  /// \param VIC Hint about how related inserts/extracts are used.
+  /// \returns The estimated overhead of scalarizing an instruction's operands.
   InstructionCost getOperandsScalarizationOverhead(
       ArrayRef<Type *> Tys, TTI::TargetCostKind CostKind,
       TTI::VectorInstrContext VIC =
@@ -1021,10 +1306,15 @@ public:
     return Cost;
   }
 
-  /// Estimate the overhead of scalarizing the inputs and outputs of an
-  /// instruction, with return type RetTy and arguments Args of type Tys. If
-  /// Args are unknown (empty), then the cost associated with one argument is
-  /// added as a heuristic.
+  /// Estimate scalarization overhead for a call-like instruction signature.
+  ///
+  /// Uses return type \p RetTy and arguments \p Args of types \p Tys. If \p Args
+  /// is empty, the cost of one argument is added as a heuristic.
+  /// \param RetTy Vector return type being scalarized.
+  /// \param Args Argument values, or empty if unknown.
+  /// \param Tys Argument types corresponding to \p Args.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The estimated scalarization overhead for a call-like instruction signature.
   InstructionCost getScalarizationOverhead(VectorType *RetTy,
                                            ArrayRef<const Value *> Args,
                                            ArrayRef<Type *> Tys,
@@ -1044,6 +1334,8 @@ public:
   }
 
   /// Estimate the cost of type-legalization and the legalized type.
+  /// \param Ty Type to legalize.
+  /// \returns A pair of the legalization cost and the legalized MVT.
   std::pair<InstructionCost, MVT> getTypeLegalizationCost(Type *Ty) const {
     LLVMContext &C = Ty->getContext();
     EVT MTy = getTLI()->getValueType(DL, Ty);
@@ -1078,11 +1370,27 @@ public:
     }
   }
 
+  /// Return the maximum interleave factor transforms should try for this target.
+  /// \param VF Vectorization factor under consideration.
+  /// \param HasUnorderedReductions Whether unordered reductions are present.
+  /// \returns The maximum interleave factor transforms should try for this target.
   unsigned getMaxInterleaveFactor(ElementCount VF,
                                   bool HasUnorderedReductions) const override {
     return 1;
   }
 
+  /// Approximate the reciprocal throughput of an arithmetic or logic op.
+  ///
+  /// A higher cost means lower expected throughput. Costs should be scaled for
+  /// multiple execution units. \p Args and \p CxtI can reveal special cases.
+  /// \param Opcode Arithmetic or logic opcode.
+  /// \param Ty Type of the operation.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Opd1Info Operand info for the first operand.
+  /// \param Opd2Info Operand info for the second operand.
+  /// \param Args Optional operand values for special-case analysis.
+  /// \param CxtI Optional original context instruction.
+  /// \returns An approximation of the reciprocal throughput of an arithmetic or logic op.
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Opd1Info = {TTI::OK_AnyValue, TTI::OP_None},
@@ -1161,6 +1469,15 @@ public:
     return OpCost;
   }
 
+  /// Refine \p Kind using \p Mask, updating \p Index and \p SubTy when needed.
+  /// \param Kind Initial shuffle kind classification.
+  /// \param Mask Shuffle mask to inspect.
+  /// \param SrcTy Source vector type of the shuffle.
+  /// \param Index Set to a subvector index when Kind is refined to insert or
+  ///              extract subvector.
+  /// \param SubTy Set to the subvector type when Kind is refined to insert or
+  ///              extract subvector.
+  /// \returns The refined shuffle kind.
   TTI::ShuffleKind improveShuffleKindFromMask(TTI::ShuffleKind Kind,
                                               ArrayRef<int> Mask,
                                               VectorType *SrcTy, int &Index,
@@ -1216,6 +1533,21 @@ public:
     return Kind;
   }
 
+  /// Return the cost of a shuffle producing \p DstTy from \p SrcTy.
+  ///
+  /// \p Mask may be empty when the exact mask is unknown. \p Index and \p SubTp
+  /// are used by subvector insert/extract shuffle kinds. \p Args can improve
+  /// estimates such as broadcast loads.
+  /// \param Kind Kind of shuffle being costed.
+  /// \param DstTy Result vector type.
+  /// \param SrcTy Source vector type.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Mask Shuffle mask, or empty if unknown.
+  /// \param Index Insert/extract index for subvector shuffles.
+  /// \param SubTp Subvector type for insert/extract shuffles.
+  /// \param Args Optional shuffle operands.
+  /// \param CxtI Optional context instruction.
+  /// \returns The cost of a shuffle producing \p DstTy from \p SrcTy.
   InstructionCost
   getShuffleCost(TTI::ShuffleKind Kind, VectorType *DstTy, VectorType *SrcTy,
                  TTI::TargetCostKind CostKind, ArrayRef<int> Mask, int Index,
@@ -1245,6 +1577,17 @@ public:
     llvm_unreachable("Unknown TTI::ShuffleKind");
   }
 
+  /// Return the expected cost of a cast instruction.
+  ///
+  /// Covers bitcast, trunc, zext, and similar casts. If an existing instruction
+  /// holds \p Opcode, it may be passed as \p I.
+  /// \param Opcode Cast opcode.
+  /// \param Dst Destination type.
+  /// \param Src Source type.
+  /// \param CCH Hint about the cast context.
+  /// \param CostKind Kind of cost to compute.
+  /// \param I Optional context instruction.
+  /// \returns The expected cost of a cast instruction.
   InstructionCost
   getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                    TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
@@ -1427,6 +1770,15 @@ public:
     llvm_unreachable("Unhandled cast");
   }
 
+  /// Return the expected cost of a sign- or zero-extended vector extract.
+  ///
+  /// Use Index = -1 when there is no information about the index value.
+  /// \param Opcode Extend opcode (SExt or ZExt).
+  /// \param Dst Destination scalar type after the extend.
+  /// \param VecTy Source vector type.
+  /// \param Index Lane being extracted, or -1 if unknown.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The expected cost of a sign- or zero-extended vector extract.
   InstructionCost
   getExtractWithExtendCost(unsigned Opcode, Type *Dst, VectorType *VecTy,
                            unsigned Index,
@@ -1437,12 +1789,33 @@ public:
                                      TTI::CastContextHint::None, CostKind);
   }
 
+  /// Return the expected cost of a control-flow instruction.
+  ///
+  /// Covers Phi, Ret, Br, Switch, and similar opcodes.
+  /// \param Opcode Control-flow opcode.
+  /// \param CostKind Kind of cost to compute.
+  /// \param I Optional context instruction.
+  /// \returns The expected cost of a control-flow instruction.
   InstructionCost
   getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
                  const Instruction *I = nullptr) const override {
     return BaseT::getCFInstrCost(Opcode, CostKind, I);
   }
 
+  /// Return the expected cost of a compare or select instruction.
+  ///
+  /// If an existing instruction holds \p Opcode, it may be passed as \p I.
+  /// \p VecPred indicates the select uses a compare with that predicate; for
+  /// vector types it must apply to all lanes.
+  /// \param Opcode Compare or select opcode.
+  /// \param ValTy Type of the value operands.
+  /// \param CondTy Type of the condition.
+  /// \param VecPred Predicate of the compare used as select condition.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Op1Info Operand info for the first value operand.
+  /// \param Op2Info Operand info for the second value operand.
+  /// \param I Optional context instruction.
+  /// \returns The expected cost of a compare or select instruction.
   InstructionCost getCmpSelInstrCost(
       unsigned Opcode, Type *ValTy, Type *CondTy, CmpInst::Predicate VecPred,
       TTI::TargetCostKind CostKind,
@@ -1495,6 +1868,18 @@ public:
     return 1;
   }
 
+  /// Return the expected cost of a vector insert or extract.
+  ///
+  /// Use -1 for \p Index when the lane is unknown. Typical for provisioning
+  /// vectorization/scalarization costs when the instruction is not available.
+  /// \param Opcode Insert or extract element opcode.
+  /// \param Val Vector type of the operation.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Index Lane index, or -1 if unknown.
+  /// \param Op0 First operand value, if known.
+  /// \param Op1 Second operand value, if known.
+  /// \param VIC Hint about how the insert/extract is used.
+  /// \returns The expected cost of a vector insert or extract.
   InstructionCost
   getVectorInstrCost(unsigned Opcode, Type *Val, TTI::TargetCostKind CostKind,
                      unsigned Index, const Value *Op0, const Value *Op1,
@@ -1503,10 +1888,20 @@ public:
     return getRegUsageForType(Val->getScalarType());
   }
 
-  /// \param ScalarUserAndIdx encodes the information about extracts from a
-  /// vector with 'Scalar' being the value being extracted,'User' being the user
-  /// of the extract(nullptr if user is not known before vectorization) and
-  /// 'Idx' being the extract lane.
+  /// Return the expected cost of a vector insert or extract with scalar users.
+  ///
+  /// Use -1 for \p Index when the lane is unknown. Typical for provisioning
+  /// vectorization/scalarization costs when the instruction is not available.
+  /// \param Opcode Insert or extract element opcode.
+  /// \param Val Vector type of the operation.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Index Lane index, or -1 if unknown.
+  /// \param Scalar Scalar value being inserted or extracted.
+  /// \param ScalarUserAndIdx Encodes extracts from a vector with 'Scalar' the
+  ///        value extracted, 'User' the user of the extract (nullptr if unknown
+  ///        before vectorization), and 'Idx' the extract lane.
+  /// \param VIC Hint about how the insert/extract is used.
+  /// \returns The expected cost of a vector insert or extract with scalar users.
   InstructionCost getVectorInstrCost(
       unsigned Opcode, Type *Val, TTI::TargetCostKind CostKind, unsigned Index,
       Value *Scalar,
@@ -1517,6 +1912,15 @@ public:
                               VIC);
   }
 
+  /// Return the expected cost of a vector insert or extract for instruction \p I.
+  ///
+  /// Used when the instruction is available; \p I must not be null.
+  /// \param I Insert or extract instruction being costed.
+  /// \param Val Vector type of the operation.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Index Lane index, or -1 if unknown.
+  /// \param VIC Hint about how the insert/extract is used.
+  /// \returns The expected cost of a vector insert or extract for instruction \p I.
   InstructionCost
   getVectorInstrCost(const Instruction &I, Type *Val,
                      TTI::TargetCostKind CostKind, unsigned Index,
@@ -1535,6 +1939,15 @@ public:
                                        Op1, VIC);
   }
 
+  /// Return the cost of insert/extract Index lanes from the end of a vector.
+  ///
+  /// The mathematical lane is (VF - 1 - Index). Needed for scalable vectors
+  /// where the exact lane index is unknown at compile time.
+  /// \param Opcode Insert or extract element opcode.
+  /// \param Val Vector type of the operation.
+  /// \param CostKind Kind of cost to compute.
+  /// \param Index Offset from the last lane.
+  /// \returns The cost of insert/extract Index lanes from the end of a vector.
   InstructionCost
   getIndexedVectorInstrCostFromEnd(unsigned Opcode, Type *Val,
                                    TTI::TargetCostKind CostKind,
@@ -1549,6 +1962,16 @@ public:
                                        nullptr);
   }
 
+  /// Return the cost of replicating \p VF elements of type \p EltTy.
+  ///
+  /// For example, ReplicationFactor=3 and VF=4 yields mask
+  /// <0,0,0,1,1,1,2,2,2,3,3,3>.
+  /// \param EltTy Element type being shuffled.
+  /// \param ReplicationFactor How many times each lane is repeated.
+  /// \param VF Number of unique source lanes.
+  /// \param DemandedDstElts Bitmask of demanded destination elements.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of replicating \p VF elements of type \p EltTy.
   InstructionCost
   getReplicationShuffleCost(Type *EltTy, int ReplicationFactor, int VF,
                             const APInt &DemandedDstElts,
@@ -1582,6 +2005,17 @@ public:
     return Cost;
   }
 
+  /// Return the cost of a load or store of type \p Src.
+  ///
+  /// \p OpInfo refers to the stored value for stores and the address for loads.
+  /// \param Opcode Load or store opcode.
+  /// \param Src Data type being loaded or stored.
+  /// \param Alignment Access alignment.
+  /// \param AddressSpace Address space of the pointer.
+  /// \param CostKind Kind of cost to compute.
+  /// \param OpInfo Operand value info for the memory operand.
+  /// \param I Optional context instruction.
+  /// \returns The cost of a load or store of type \p Src.
   InstructionCost getMemoryOpCost(
       unsigned Opcode, Type *Src, Align Alignment, unsigned AddressSpace,
       TTI::TargetCostKind CostKind,
@@ -1633,6 +2067,17 @@ public:
     return Cost;
   }
 
+  /// Return the cost of an interleaved memory operation.
+  /// \param Opcode Memory operation code (load or store).
+  /// \param VecTy Vector type of the interleaved access.
+  /// \param Factor Interleave factor.
+  /// \param Indices Indices for interleaved load members (gaps allowed).
+  /// \param Alignment Alignment of the memory operation.
+  /// \param AddressSpace Address space of the pointer.
+  /// \param CostKind Kind of cost to compute.
+  /// \param UseMaskForCond Whether the memory access is predicated.
+  /// \param UseMaskForGaps Whether gaps should be masked.
+  /// \returns The cost of an interleaved memory operation.
   InstructionCost getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
       Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
@@ -1779,7 +2224,12 @@ public:
     return Cost;
   }
 
-  /// Get intrinsic cost based on arguments.
+  /// Return the cost of an intrinsic, analyzing real arguments when present.
+  ///
+  /// Handles scalar, vector, and scalar-to-be-vectorized cases.
+  /// \param ICA Attributes describing the intrinsic call.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of an intrinsic, analyzing real arguments when present.
   InstructionCost
   getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                         TTI::TargetCostKind CostKind) const override {
@@ -2285,10 +2735,14 @@ public:
     return thisT()->getTypeBasedIntrinsicInstrCost(Attrs, CostKind);
   }
 
-  /// Get intrinsic cost based on argument types.
+  /// Return an intrinsic cost based on argument types only.
+  ///
   /// If ScalarizationCostPassed is std::numeric_limits<unsigned>::max(), the
   /// cost of scalarizing the arguments and the return value will be computed
   /// based on types.
+  /// \param ICA Attributes describing the intrinsic and its types.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns An intrinsic cost based on argument types only.
   InstructionCost
   getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                  TTI::TargetCostKind CostKind) const {
@@ -3186,7 +3640,12 @@ public:
     return SingleCallCost;
   }
 
-  /// Get memory intrinsic cost based on arguments.
+  /// Return the cost of a memory intrinsic described by \p MICA.
+  ///
+  /// Used when an IntrinsicInst is not materialized.
+  /// \param MICA Attributes describing the memory intrinsic.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of a memory intrinsic described by \p MICA.
   InstructionCost
   getMemIntrinsicInstrCost(const MemIntrinsicCostAttributes &MICA,
                            TTI::TargetCostKind CostKind) const override {
@@ -3248,23 +3707,28 @@ public:
     }
   }
 
-  /// Compute a cost of the given call instruction.
+  /// Compute the cost of a call with the given signature.
   ///
-  /// Compute the cost of calling function F with return type RetTy and
-  /// argument types Tys. F might be nullptr, in this case the cost of an
-  /// arbitrary call with the specified signature will be returned.
-  /// This is used, for instance,  when we estimate call of a vector
-  /// counterpart of the given function.
+  /// Computes the cost of calling function \p F with return type \p RetTy and
+  /// argument types \p Tys. \p F may be nullptr, in which case the cost of an
+  /// arbitrary call with the specified signature is returned. This is used,
+  /// for instance, when estimating a vector counterpart of a given function.
   /// \param F Called function, might be nullptr.
-  /// \param RetTy Return value types.
+  /// \param RetTy Return value type.
   /// \param Tys Argument types.
-  /// \returns The cost of Call instruction.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of the Call instruction.
   InstructionCost
   getCallInstrCost(Function *F, Type *RetTy, ArrayRef<Type *> Tys,
                    TTI::TargetCostKind CostKind) const override {
     return 10;
   }
 
+  /// Return how many pieces \p Tp must be split into during legalization.
+  ///
+  /// Returns zero when the answer is unknown.
+  /// \param Tp Type whose legalization width is queried.
+  /// \returns The number of parts, or zero when unknown.
   unsigned getNumberOfParts(Type *Tp) const override {
     std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
     if (!LT.first.isValid())
@@ -3282,14 +3746,24 @@ public:
     return LT.first.getValue();
   }
 
+  /// Return the cost of address computation for a memory access.
+  ///
+  /// Most targets fold this into indexing modes; the default is free.
+  /// \param PtrTy Pointer type of the address being computed.
+  /// \param SE Scalar evolution analysis used to derive \p Ptr, or null.
+  /// \param Ptr SCEV of the access pointer, or null.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of address computation for a memory access.
   InstructionCost
-  getAddressComputationCost(Type *PtrTy, ScalarEvolution *, const SCEV *,
-                            TTI::TargetCostKind) const override {
+  getAddressComputationCost(Type *PtrTy, ScalarEvolution *SE, const SCEV *Ptr,
+                            TTI::TargetCostKind CostKind) const override {
     return 0;
   }
 
-  /// Try to calculate arithmetic and shuffle op costs for reduction intrinsics.
-  /// We're assuming that reduction operation are performing the following way:
+  /// Estimate arithmetic and shuffle costs for a tree-wise reduction.
+  ///
+  /// Tree reductions repeatedly shuffle half the lanes and combine with the
+  /// other half until a scalar remains. For example:
   ///
   /// %val1 = shufflevector<n x t> %val, <n x t> %undef,
   /// <n x i32> <i32 n/2, i32 n/2 + 1, ..., i32 n, i32 undef, ..., i32 undef>
@@ -3309,6 +3783,10 @@ public:
   ///
   /// The cost model should take into account that the actual length of the
   /// vector is reduced on each iteration.
+  /// \param Opcode Arithmetic opcode of the reduction.
+  /// \param Ty Vector type being reduced.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The estimated arithmetic and shuffle costs for a tree-wise reduction.
   InstructionCost getTreeReductionCost(unsigned Opcode, VectorType *Ty,
                                        TTI::TargetCostKind CostKind) const {
     // Targets must implement a default value for the scalable case, since
@@ -3369,22 +3847,23 @@ public:
                                        CostKind, 0, nullptr, nullptr);
   }
 
-  /// Try to calculate the cost of performing strict (in-order) reductions,
-  /// which involves doing a sequence of floating point additions in lane
-  /// order, starting with an initial value. For example, consider a scalar
-  /// initial value 'InitVal' of type float and a vector of type <4 x float>:
+  /// Estimate the cost of a strict in-order (ordered) reduction.
   ///
-  ///   Vector = <float %v0, float %v1, float %v2, float %v3>
+  /// Ordered reductions perform a sequence of floating-point operations in
+  /// lane order, starting from an initial scalar value. For example, with
+  /// InitVal and <4 x float> %v0..%v3:
   ///
   ///   %add1 = %InitVal + %v0
   ///   %add2 = %add1 + %v1
   ///   %add3 = %add2 + %v2
   ///   %add4 = %add3 + %v3
   ///
-  /// As a simple estimate we can say the cost of such a reduction is 4 times
-  /// the cost of a scalar FP addition. We can only estimate the costs for
-  /// fixed-width vectors here because for scalable vectors we do not know the
-  /// runtime number of operations.
+  /// As a simple estimate the cost is N times a scalar FP op. Only fixed-width
+  /// vectors are supported here because scalable VF is unknown at compile time.
+  /// \param Opcode Arithmetic opcode of the reduction.
+  /// \param Ty Vector type being reduced.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The estimated cost of a strict in-order (ordered) reduction.
   InstructionCost getOrderedReductionCost(unsigned Opcode, VectorType *Ty,
                                           TTI::TargetCostKind CostKind) const {
     // Targets must implement a default value for the scalable case, since
@@ -3402,6 +3881,15 @@ public:
     return ExtractCost + ArithCost;
   }
 
+  /// Calculate the cost of a vector arithmetic reduction.
+  ///
+  /// Chooses an ordered or tree-wise reduction based on \p FMF.
+  /// \param Opcode Arithmetic opcode of the reduction.
+  /// \param Ty Vector type being reduced to a scalar.
+  /// \param FMF Optional fast-math flags; ordered reductions when reassoc is
+  ///            disallowed.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of a vector arithmetic reduction.
   InstructionCost
   getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                              std::optional<FastMathFlags> FMF,
@@ -3412,8 +3900,12 @@ public:
     return getTreeReductionCost(Opcode, Ty, CostKind);
   }
 
-  /// Try to calculate op costs for min/max reduction operations.
-  /// \param CondTy Conditional type for the Select instruction.
+  /// Calculate the cost of min/max reduction operations.
+  /// \param IID Min/max intrinsic ID selecting the reduction kind.
+  /// \param Ty Vector type being reduced.
+  /// \param FMF Fast-math flags governing the reduction.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of min/max reduction operations.
   InstructionCost
   getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty, FastMathFlags FMF,
                          TTI::TargetCostKind CostKind) const override {
@@ -3462,6 +3954,16 @@ public:
                                        CostKind, 0, nullptr, nullptr);
   }
 
+  /// Return the cost of an extended reduction pattern.
+  ///
+  /// Models ResTy vecreduce.opcode(ext(Ty A)).
+  /// \param Opcode Reduction opcode.
+  /// \param IsUnsigned Whether the extend is a zero-extend.
+  /// \param ResTy Scalar result type of the reduction.
+  /// \param Ty Vector operand type before extension.
+  /// \param FMF Optional fast-math flags for the reduction.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of an extended reduction pattern.
   InstructionCost
   getExtendedReductionCost(unsigned Opcode, bool IsUnsigned, Type *ResTy,
                            VectorType *Ty, std::optional<FastMathFlags> FMF,
@@ -3491,6 +3993,16 @@ public:
     return RedCost + ExtCost;
   }
 
+  /// Return the cost of a multiply-accumulate reduction pattern.
+  ///
+  /// Models vecreduce.add/sub(mul(A, B)) or the same with optional extends.
+  /// \param IsUnsigned Whether extensions are zero-extends rather than
+  ///                   sign-extends.
+  /// \param RedOpcode Reduction opcode (Add or Sub).
+  /// \param ResTy Scalar result type of the reduction.
+  /// \param Ty Vector operand type before any extension.
+  /// \param CostKind Kind of cost to compute.
+  /// \returns The cost of a multiply-accumulate reduction pattern.
   InstructionCost
   getMulAccReductionCost(bool IsUnsigned, unsigned RedOpcode, Type *ResTy,
                          VectorType *Ty,
@@ -3513,6 +4025,23 @@ public:
     return RedCost + MulCost + 2 * ExtCost;
   }
 
+  /// Return the cost of a partial reduction to a narrower vector.
+  ///
+  /// Partial reductions use llvm.vector.partial.reduce.* intrinsics that
+  /// accumulate into \p AccumType from a second vector with element count
+  /// \p VF. \p BinOp and the extend kinds describe optional extends or a
+  /// binary operation on extends.
+  /// \param Opcode Reduction opcode.
+  /// \param InputTypeA Type of the first input before any extend.
+  /// \param InputTypeB Type of the second input before any extend, or null.
+  /// \param AccumType Accumulator vector element/result type.
+  /// \param VF Element count of the vector being reduced into the accumulator.
+  /// \param OpAExtend Extend kind applied to the first input, if any.
+  /// \param OpBExtend Extend kind applied to the second input, if any.
+  /// \param BinOp Optional binary opcode on extended inputs.
+  /// \param CostKind Kind of cost to compute.
+  /// \param FMF Fast-math flags for FP partial reductions, else nullopt.
+  /// \returns The cost of a partial reduction to a narrower vector.
   InstructionCost getPartialReductionCost(
       unsigned Opcode, Type *InputTypeA, Type *InputTypeB, Type *AccumType,
       ElementCount VF, TTI::PartialReductionExtendKind OpAExtend,
@@ -3556,6 +4085,8 @@ public:
            getArithmeticInstrCost(*BinOp, ExtInputVectorType, CostKind);
   }
 
+  /// Return the cost of splitting a vector into legal parts.
+  /// \returns The cost of splitting a vector into legal parts.
   InstructionCost getVectorSplitCost() const { return 1; }
 
   /// @}
@@ -3575,6 +4106,9 @@ class BasicTTIImpl : public BasicTTIImplBase<BasicTTIImpl> {
   const TargetLoweringBase *getTLI() const { return TLI; }
 
 public:
+  /// Construct a BasicTTIImpl for function \p F under target machine \p TM.
+  /// \param TM Target machine providing subtarget and lowering info.
+  /// \param F Function whose subtarget is queried.
   LLVM_ABI explicit BasicTTIImpl(const TargetMachine *TM, const Function &F);
 };
 

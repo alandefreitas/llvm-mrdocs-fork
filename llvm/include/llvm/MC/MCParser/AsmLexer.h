@@ -30,15 +30,21 @@ class MCAsmInfo;
 /// it is lexed.
 class AsmCommentConsumer {
 public:
+  /// Destroy this comment consumer.
   virtual ~AsmCommentConsumer() = default;
 
-  /// Callback function for when a comment is lexed. Loc is the start of the
-  /// comment text (excluding the comment-start marker). CommentText is the text
-  /// of the comment, excluding the comment start and end markers, and the
-  /// newline for single-line comments.
+  /// Callback invoked when a comment is lexed.
+  ///
+  /// Loc is the start of the comment text (excluding the comment-start marker).
+  /// CommentText is the text of the comment, excluding the comment start and
+  /// end markers, and the newline for single-line comments.
+  ///
+  /// \param Loc Start of the comment text, excluding the comment-start marker.
+  /// \param CommentText Comment body, excluding start/end markers and newline.
   virtual void HandleComment(SMLoc Loc, StringRef CommentText) = 0;
 };
 
+/// Lexer that tokenizes assembly source for the MC assembler parser.
 class AsmLexer {
   /// The current token, stored in the base class for faster access.
   SmallVector<AsmToken, 1> CurTok;
@@ -81,14 +87,25 @@ class AsmLexer {
   }
 
 public:
+  /// Construct a lexer using target assembly information \p MAI.
+  ///
+  /// \param MAI Target-specific comment, separator, and integer-literal rules.
   LLVM_ABI AsmLexer(const MCAsmInfo &MAI);
-  AsmLexer(const AsmLexer &) = delete;
-  AsmLexer &operator=(const AsmLexer &) = delete;
+  /// Copy construction is deleted; AsmLexer is not copyable.
+  ///
+  /// \param Other Unused; copy construction is deleted.
+  AsmLexer(const AsmLexer &Other) = delete;
+  /// Copy assignment is deleted; AsmLexer is not copyable.
+  ///
+  /// \param Other Unused; copy assignment is deleted.
+  AsmLexer &operator=(const AsmLexer &Other) = delete;
 
   /// Consume the next token from the input stream and return it.
   ///
   /// The lexer will continuously return the end-of-file token once the end of
   /// the main input file has been reached.
+  ///
+  /// \return The next token from the input stream.
   const AsmToken &Lex() {
     assert(!CurTok.empty());
     // Mark if we parsing out a EndOfStatement.
@@ -103,21 +120,37 @@ public:
     return CurTok.front();
   }
 
+  /// Push \p Token onto the front of the token queue.
+  ///
+  /// \param Token Token to restore or inject as the current token.
   void UnLex(AsmToken const &Token) {
     CurTok.insert(CurTok.begin(), Token);
   }
 
+  /// Return true if the last consumed token was an end-of-statement.
+  ///
+  /// \return True if the previously consumed token was EndOfStatement.
   bool justConsumedEOL() { return JustConsumedEOL; }
 
+  /// Lex raw text until a comment, statement separator, or newline.
+  ///
+  /// \return The consumed text, not including the terminator.
   LLVM_ABI StringRef LexUntilEndOfStatement();
 
   /// Get the current source location.
+  ///
+  /// \return The source location of the start of the current token.
   SMLoc getLoc() const { return SMLoc::getFromPointer(TokStart); }
 
   /// Get the current (last) lexed token.
+  ///
+  /// \return The current token at the front of the token queue.
   const AsmToken &getTok() const { return CurTok[0]; }
 
   /// Look ahead at the next token to be lexed.
+  ///
+  /// \param ShouldSkipSpace If true, skip whitespace while peeking.
+  /// \return The next token that would be lexed, without consuming it.
   const AsmToken peekTok(bool ShouldSkipSpace = true) {
     AsmToken Tok;
 
@@ -131,75 +164,133 @@ public:
   }
 
   /// Look ahead an arbitrary number of tokens.
+  ///
+  /// \param Buf Output buffer filled with the peeked tokens.
+  /// \param ShouldSkipSpace If true, skip whitespace while peeking.
+  /// \return Number of tokens written into \p Buf.
   LLVM_ABI size_t peekTokens(MutableArrayRef<AsmToken> Buf,
                              bool ShouldSkipSpace = true);
 
-  /// Get the current error location
+  /// Get the current error location.
+  ///
+  /// \return The source location of the current error.
   SMLoc getErrLoc() { return ErrLoc; }
 
-  /// Get the current error string
+  /// Get the current error string.
+  ///
+  /// \return The description of the current error.
   const std::string &getErr() { return Err; }
 
   /// Get the kind of current token.
+  ///
+  /// \return The token kind of the current (last) lexed token.
   AsmToken::TokenKind getKind() const { return getTok().getKind(); }
 
   /// Check if the current token has kind \p K.
+  ///
+  /// \param K Token kind to compare against.
+  /// \return True if the current token's kind is \p K.
   bool is(AsmToken::TokenKind K) const { return getTok().is(K); }
 
-  /// Check if the current token has kind \p K.
+  /// Check if the current token does not have kind \p K.
+  ///
+  /// \param K Token kind to compare against.
+  /// \return True if the current token's kind is not \p K.
   bool isNot(AsmToken::TokenKind K) const { return getTok().isNot(K); }
 
-  /// Set whether spaces should be ignored by the lexer
+  /// Set whether spaces should be ignored by the lexer.
+  ///
+  /// \param val If true, the lexer skips whitespace tokens.
   void setSkipSpace(bool val) { SkipSpace = val; }
 
+  /// Return whether '@' is allowed in identifiers.
+  ///
+  /// \return True if '@' may appear in identifier tokens.
   bool getAllowAtInIdentifier() { return AllowAtInIdentifier; }
+  /// Set whether '@' is allowed in identifiers.
+  ///
+  /// \param v If true, '@' may appear in identifier tokens.
   void setAllowAtInIdentifier(bool v) { AllowAtInIdentifier = v; }
 
+  /// Set whether '#' is allowed in identifiers.
+  ///
+  /// \param V If true, '#' may appear in identifier tokens.
   void setAllowHashInIdentifier(bool V) { AllowHashInIdentifier = V; }
 
+  /// Set the callback invoked when a comment is lexed.
+  ///
+  /// \param CommentConsumer Callback, or nullptr to disable comment handling.
   void setCommentConsumer(AsmCommentConsumer *CommentConsumer) {
     this->CommentConsumer = CommentConsumer;
   }
 
   /// Set whether to lex masm-style binary (e.g., 0b1101) and radix-specified
   /// literals (e.g., 0ABCh [hex], 576t [decimal], 77o [octal], 1101y [binary]).
+  ///
+  /// \param V If true, recognize MASM-style integer literals.
   void setLexMasmIntegers(bool V) { LexMasmIntegers = V; }
 
   /// Set whether to use masm-style default-radix integer literals. If disabled,
   /// assume decimal unless prefixed (e.g., 0x2c [hex], 077 [octal]).
+  ///
+  /// \param V If true, use the MASM default radix for unprefixed integers.
   void useMasmDefaultRadix(bool V) { UseMasmDefaultRadix = V; }
 
+  /// Return the default radix used for MASM integer literals.
+  ///
+  /// \return The radix assumed for unprefixed MASM integers.
   unsigned getMasmDefaultRadix() const { return DefaultRadix; }
+  /// Set the default radix used for MASM integer literals.
+  ///
+  /// \param Radix Radix to assume for unprefixed MASM integers.
   void setMasmDefaultRadix(unsigned Radix) { DefaultRadix = Radix; }
 
   /// Set whether to lex masm-style hex float literals, such as 3f800000r.
+  ///
+  /// \param V If true, recognize MASM-style hex float literals.
   void setLexMasmHexFloats(bool V) { LexMasmHexFloats = V; }
 
   /// Set whether to lex masm-style string literals, such as 'Can''t find file'
   /// and "This ""value"" not found".
+  ///
+  /// \param V If true, recognize MASM-style string literals.
   void setLexMasmStrings(bool V) { LexMasmStrings = V; }
 
   /// Set whether to lex Motorola-style integer literals, such as $deadbeef or
   /// %01010110.
+  ///
+  /// \param V If true, recognize Motorola-style integer literals.
   void setLexMotorolaIntegers(bool V) { LexMotorolaIntegers = V; }
 
   /// Set whether to lex HLASM-flavour integers. For now this is only [0-9]*
+  ///
+  /// \param V If true, lex HLASM-style decimal integers.
   void setLexHLASMIntegers(bool V) { LexHLASMIntegers = V; }
 
   /// Set whether to "lex" HLASM-flavour character and string literals. For now,
   /// setting this option to true, will disable lexing for character and string
   /// literals.
+  ///
+  /// \param V If true, do not lex character and string literals.
   void setLexHLASMStrings(bool V) { LexHLASMStrings = V; }
 
-  /// Set buffer to be lexed.
+  /// Set the source buffer that this lexer will tokenize.
+  ///
   /// `Buf` must be NULL-terminated. NULL terminator must reside at `Buf.end()`.
   /// `ptr` if provided must be in range [`Buf.begin()`, `buf.end()`] or NULL.
   /// Specifies where lexing of buffer should begin.
   /// `EndStatementAtEOF` specifies whether `AsmToken::EndOfStatement` should be
   /// returned upon reaching end of buffer.
+  ///
+  /// \param Buf NULL-terminated buffer; terminator must be at \p Buf.end().
+  /// \param ptr Start of lexing, or nullptr to start at \p Buf.begin().
+  /// \param EndStatementAtEOF If true, emit EndOfStatement at end of buffer.
   LLVM_ABI void setBuffer(StringRef Buf, const char *ptr = nullptr,
                           bool EndStatementAtEOF = true);
 
+  /// Return the MCAsmInfo used by this lexer.
+  ///
+  /// \return The target assembly info associated with this lexer.
   const MCAsmInfo &getMAI() const { return MAI; }
 
 private:

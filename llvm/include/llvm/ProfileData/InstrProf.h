@@ -57,43 +57,60 @@ class Instruction;
 class MDNode;
 class Module;
 
-// A struct to define how the data stream should be patched. For Indexed
-// profiling, only uint64_t data type is needed.
+/// Describes a deferred patch of uint64_t values in an indexed profile stream.
 struct PatchItem {
-  uint64_t Pos;         // Where to patch.
-  ArrayRef<uint64_t> D; // An array of source data.
+  /// Byte offset in the stream where the patch should be applied.
+  uint64_t Pos;
+  /// Source words written at \p Pos when the stream is patched.
+  ArrayRef<uint64_t> D;
 };
 
-// A wrapper class to abstract writer stream with support of bytes
-// back patching.
+/// Profile writer stream that supports deferred byte-level back-patching.
 class ProfOStream {
 public:
+  /// Construct a profile stream over a file descriptor stream.
+  /// @param FD Destination file stream.
   LLVM_ABI ProfOStream(raw_fd_ostream &FD);
+  /// Construct a profile stream over an in-memory string stream.
+  /// @param STR Destination string stream.
   LLVM_ABI ProfOStream(raw_string_ostream &STR);
 
+  /// Return the current write offset in bytes.
+  /// @return Current write offset in bytes.
   [[nodiscard]] LLVM_ABI uint64_t tell() const;
+  /// Write a 64-bit value in the stream's endianness.
+  /// @param V Value to write.
   LLVM_ABI void write(uint64_t V);
+  /// Write a 32-bit value in the stream's endianness.
+  /// @param V Value to write.
   LLVM_ABI void write32(uint32_t V);
+  /// Write a single byte.
+  /// @param V Byte to write.
   LLVM_ABI void writeByte(uint8_t V);
 
-  // \c patch can only be called when all data is written and flushed.
-  // For raw_string_ostream, the patch is done on the target string
-  // directly and it won't be reflected in the stream's internal buffer.
+  /// Apply deferred patches after all data has been written and flushed.
+  ///
+  /// For \c raw_string_ostream, the patch is done on the target string
+  /// directly and it won't be reflected in the stream's internal buffer.
+  /// @param P Patch items describing offsets and replacement words.
   LLVM_ABI void patch(ArrayRef<PatchItem> P);
 
-  // If \c OS is an instance of \c raw_fd_ostream, this field will be
-  // true. Otherwise, \c OS will be an raw_string_ostream.
+  /// True when \c OS is a \c raw_fd_ostream; otherwise it is a string stream.
   bool IsFDOStream;
+  /// Underlying output stream being written.
   raw_ostream &OS;
+  /// Endian-aware writer used for multi-byte stores.
   support::endian::Writer LE;
 };
 
+/// Identifiers for instrumented-profiling and coverage object-file sections.
 enum InstrProfSectKind {
 #define INSTR_PROF_SECT_ENTRY(Kind, SectNameCommon, SectNameCoff, Prefix) Kind,
 #include "llvm/ProfileData/InstrProfData.inc"
 };
 
 /// Return the max count value. We reserver a few large values for special use.
+/// @return Maximum usable profile count value.
 inline uint64_t getInstrMaxCountValue() {
   return std::numeric_limits<uint64_t>::max() - 2;
 }
@@ -103,239 +120,330 @@ inline uint64_t getInstrMaxCountValue() {
 /// The name of the section depends on the object format type \p OF. If
 /// \p AddSegmentInfo is true, a segment prefix and additional linker hints may
 /// be added to the section name (this is the default).
+/// @param IPSK Profile section kind to name.
+/// @param OF Object file format that determines section naming.
+/// @param AddSegmentInfo If true, add segment prefixes and linker hints.
+/// @return Object-format-specific name of the profile section.
 LLVM_ABI std::string getInstrProfSectionName(InstrProfSectKind IPSK,
                                              Triple::ObjectFormatType OF,
                                              bool AddSegmentInfo = true);
 
 /// Return the name profile runtime entry point to do value profiling
 /// for a given site.
+/// @return Runtime entry-point name for value profiling.
 inline StringRef getInstrProfValueProfFuncName() {
   return INSTR_PROF_VALUE_PROF_FUNC_STR;
 }
 
 /// Return the name profile runtime entry point to do memop size value
 /// profiling.
+/// @return Runtime entry-point name for memop size value profiling.
 inline StringRef getInstrProfValueProfMemOpFuncName() {
   return INSTR_PROF_VALUE_PROF_MEMOP_FUNC_STR;
 }
 
 /// Return the prefix of the name of the variables to function as a filter.
+/// @return Common prefix for instrumented-profiling variable names.
 inline StringRef getInstrProfVarPrefix() { return "__prof"; }
 
 /// Return the name of the GPU wave-cooperative counter increment helper.
+/// @return Name of the GPU counter-increment helper function.
 inline StringRef getInstrProfInstrumentGPUFuncName() {
   return INSTR_PROF_INSTRUMENT_GPU_FUNC_STR;
 }
 
 /// Return the name prefix of variables containing instrumented function names.
+/// @return Prefix for instrumented function-name variables.
 inline StringRef getInstrProfNameVarPrefix() { return "__profn_"; }
 
 /// Return the name prefix of variables containing virtual table profile data.
+/// @return Prefix for virtual-table profile data variables.
 inline StringRef getInstrProfVTableVarPrefix() { return "__profvt_"; }
 
 /// Return the name prefix of variables containing per-function control data.
+/// @return Prefix for per-function control data variables.
 inline StringRef getInstrProfDataVarPrefix() { return "__profd_"; }
 
 /// Return the name prefix of profile counter variables.
+/// @return Prefix for profile counter variables.
 inline StringRef getInstrProfCountersVarPrefix() { return "__profc_"; }
 
 /// Return the name prefix of profile bitmap variables.
+/// @return Prefix for profile bitmap variables.
 inline StringRef getInstrProfBitmapVarPrefix() { return "__profbm_"; }
 
 /// Return the name prefix of value profile variables.
+/// @return Prefix for value-profile variables.
 inline StringRef getInstrProfValuesVarPrefix() { return "__profvp_"; }
 
 /// Return the name of value profile node array variables:
+/// @return Name of the value-profile node array variable.
 inline StringRef getInstrProfVNodesVarName() { return "__llvm_prf_vnodes"; }
 
 /// Return the name of the variable holding the strings (possibly compressed)
 /// of all function's PGO names.
+/// @return Name of the PGO function-names variable.
 inline StringRef getInstrProfNamesVarName() { return "__llvm_prf_nm"; }
 
+/// Return the name of the post-fix marker for the PGO names variable.
+/// @return Name of the PGO names post-fix marker variable.
 inline StringRef getInstrProfNamesVarPostfixVarName() {
   return "__llvm_prf_nm_postfix";
 }
 
+/// Return the name of the variable holding (possibly compressed) vtable names.
+/// @return Name of the vtable-names variable.
 inline StringRef getInstrProfVTableNamesVarName() { return "__llvm_prf_vnm"; }
 
-/// Return the name of a covarage mapping variable (internal linkage)
-/// for each instrumented source module. Such variables are allocated
-/// in the __llvm_covmap section.
+/// Return the name of a coverage mapping variable for an instrumented module.
+///
+/// The variable has internal linkage and is allocated in the __llvm_covmap
+/// section.
+/// @return Name of the coverage mapping variable.
 inline StringRef getCoverageMappingVarName() {
   return "__llvm_coverage_mapping";
 }
 
-/// Return the name of the internal variable recording the array
-/// of PGO name vars referenced by the coverage mapping. The owning
-/// functions of those names are not emitted by FE (e.g, unused inline
-/// functions.)
+/// Return the name of the variable listing PGO names referenced by coverage.
+///
+/// Owning functions of those names may not be emitted by the frontend (for
+/// example unused inline functions).
+/// @return Name of the coverage unused-names variable.
 inline StringRef getCoverageUnusedNamesVarName() {
   return "__llvm_coverage_names";
 }
 
-/// Return the name of function that registers all the per-function control
-/// data at program startup time by calling __llvm_register_function. This
-/// function has internal linkage and is called by  __llvm_profile_init
-/// runtime method. This function is not generated for these platforms:
-/// Darwin, Linux, and FreeBSD.
+/// Return the name of the function that registers per-function control data.
+///
+/// The generated function has internal linkage, calls __llvm_register_function
+/// for each instrumented function, and is invoked from __llvm_profile_init.
+/// It is not generated on Darwin, Linux, or FreeBSD.
+/// @return Name of the per-function control-data registration function.
 inline StringRef getInstrProfRegFuncsName() {
   return "__llvm_profile_register_functions";
 }
 
 /// Return the name of the runtime interface that registers per-function control
 /// data for one instrumented function.
+/// @return Name of the single-function registration runtime entry point.
 inline StringRef getInstrProfRegFuncName() {
   return "__llvm_profile_register_function";
 }
 
 /// Return the name of the runtime interface that registers the PGO name
 /// strings.
+/// @return Name of the PGO names registration runtime entry point.
 inline StringRef getInstrProfNamesRegFuncName() {
   return "__llvm_profile_register_names_function";
 }
 
-/// Return the name of the runtime initialization method that is generated by
-/// the compiler. The function calls __llvm_profile_register_functions and
-/// __llvm_profile_override_default_filename functions if needed. This function
-/// has internal linkage and invoked at startup time via init_array.
+/// Return the name of the compiler-generated profile runtime initializer.
+///
+/// The function calls __llvm_profile_register_functions and
+/// __llvm_profile_override_default_filename when needed. It has internal
+/// linkage and is invoked at startup via init_array.
+/// @return Name of the profile runtime initializer function.
 inline StringRef getInstrProfInitFuncName() { return "__llvm_profile_init"; }
 
-/// Return the name of the hook variable defined in profile runtime library.
-/// A reference to the variable causes the linker to link in the runtime
-/// initialization module (which defines the hook variable).
+/// Return the name of the profile runtime hook variable.
+///
+/// A reference to the variable causes the linker to pull in the runtime
+/// initialization module that defines the hook.
+/// @return Name of the profile runtime hook variable.
 inline StringRef getInstrProfRuntimeHookVarName() {
   return INSTR_PROF_QUOTE(INSTR_PROF_PROFILE_RUNTIME_VAR);
 }
 
 /// Return the name of the compiler generated function that references the
 /// runtime hook variable. The function is a weak global.
+/// @return Name of the weak function that references the runtime hook.
 inline StringRef getInstrProfRuntimeHookVarUseFuncName() {
   return "__llvm_profile_runtime_user";
 }
 
+/// Return the name of the runtime counter-bias global variable.
+/// @return Name of the counter-bias global variable.
 inline StringRef getInstrProfCounterBiasVarName() {
   return INSTR_PROF_QUOTE(INSTR_PROF_PROFILE_COUNTER_BIAS_VAR);
 }
 
+/// Return the name of the runtime bitmap-bias global variable.
+/// @return Name of the bitmap-bias global variable.
 inline StringRef getInstrProfBitmapBiasVarName() {
   return INSTR_PROF_QUOTE(INSTR_PROF_PROFILE_BITMAP_BIAS_VAR);
 }
 
 /// Return the marker used to separate PGO names during serialization.
+/// @return Separator string inserted between serialized PGO names.
 inline StringRef getInstrProfNameSeparator() { return "\01"; }
 
-/// Determines whether module targets a GPU eligable for PGO
-/// instrumentation
+/// Return true if \p M targets a GPU eligible for PGO instrumentation.
+/// @param M Module whose target triple is inspected.
+/// @return True if \p M is a GPU target eligible for PGO instrumentation.
 LLVM_ABI bool isGPUProfTarget(const Module &M);
 
-/// Please use getIRPGOFuncName for LLVM IR instrumentation. This function is
-/// for front-end (Clang, etc) instrumentation.
-/// Return the modified name for function \c F suitable to be
-/// used the key for profile lookup. Variable \c InLTO indicates if this
-/// is called in LTO optimization passes.
+/// Return a front-end PGO lookup name for function \p F.
+///
+/// Prefer \c getIRPGOFuncName for LLVM IR instrumentation. This overload is for
+/// front-end (Clang, etc.) instrumentation.
+/// @param F Function whose profile name is formed.
+/// @param InLTO Whether this is called from LTO optimization passes.
+/// @param Version Indexed profile format version used when forming the name.
+/// @return Front-end PGO lookup name for \p F.
 LLVM_ABI std::string
 getPGOFuncName(const Function &F, bool InLTO = false,
                uint64_t Version = INSTR_PROF_INDEX_VERSION);
 
-/// Return the modified name for a function suitable to be
-/// used the key for profile lookup. The function's original
-/// name is \c RawFuncName and has linkage of type \c Linkage.
-/// The function is defined in module \c FileName.
+/// Return a front-end PGO lookup name from raw name, linkage, and file name.
+///
+/// The function's original name is \c RawFuncName and has linkage of type
+/// \c Linkage. The function is defined in module \c FileName.
+/// @param RawFuncName Original function name.
+/// @param Linkage Linkage of the function.
+/// @param FileName Source module file name used for local-linkage mangling.
+/// @param Version Indexed profile format version used when forming the name.
+/// @return Front-end PGO lookup name for the given function identity.
 LLVM_ABI std::string
 getPGOFuncName(StringRef RawFuncName, GlobalValue::LinkageTypes Linkage,
                StringRef FileName, uint64_t Version = INSTR_PROF_INDEX_VERSION);
 
-/// \return the modified name for function \c F suitable to be
-/// used as the key for IRPGO profile lookup. \c InLTO indicates if this is
-/// called from LTO optimization passes.
+/// Return the IRPGO profile lookup name for function \p F.
+/// @param F Function whose IRPGO name is formed.
+/// @param InLTO Whether this is called from LTO optimization passes.
+/// @return IRPGO profile lookup name for \p F.
 LLVM_ABI std::string getIRPGOFuncName(const Function &F, bool InLTO = false);
 
-/// \return the filename and the function name parsed from the output of
-/// \c getIRPGOFuncName()
+/// Parse a filename and function name from an IRPGO name string.
+/// @param IRPGOName String produced by \c getIRPGOFuncName().
+/// @return Pair of (filename, function name) parsed from \p IRPGOName.
 LLVM_ABI std::pair<StringRef, StringRef>
 getParsedIRPGOName(StringRef IRPGOName);
 
-/// Return the name of the global variable used to store a function
-/// name in PGO instrumentation. \c FuncName is the IRPGO function name
-/// (returned by \c getIRPGOFuncName) for LLVM IR instrumentation and PGO
-/// function name (returned by \c getPGOFuncName) for front-end instrumentation.
+/// Return the global variable name used to store a PGO function name.
+///
+/// \c FuncName is the IRPGO function name (from \c getIRPGOFuncName) for LLVM
+/// IR instrumentation, or the PGO function name (from \c getPGOFuncName) for
+/// front-end instrumentation.
+/// @param FuncName PGO function name stored in the variable.
+/// @param Linkage Linkage used to select the variable name scheme.
+/// @return Global variable name used to store \p FuncName.
 LLVM_ABI std::string getPGOFuncNameVarName(StringRef FuncName,
                                            GlobalValue::LinkageTypes Linkage);
 
-/// Create and return the global variable for function name used in PGO
-/// instrumentation. \c FuncName is the IRPGO function name (returned by
-/// \c getIRPGOFuncName) for LLVM IR instrumentation and PGO function name
-/// (returned by \c getPGOFuncName) for front-end instrumentation.
+/// Create the global variable that stores \p F's PGO function name.
+///
+/// \c PGOFuncName is the IRPGO name for LLVM IR instrumentation or the PGO name
+/// for front-end instrumentation.
+/// @param F Function that owns the name variable.
+/// @param PGOFuncName PGO name string stored in the variable.
+/// @return Newly created PGO function-name global variable.
 LLVM_ABI GlobalVariable *createPGOFuncNameVar(Function &F,
                                               StringRef PGOFuncName);
 
-/// Create and return the global variable for function name used in PGO
-/// instrumentation. \c FuncName is the IRPGO function name (returned by
-/// \c getIRPGOFuncName) for LLVM IR instrumentation and PGO function name
-/// (returned by \c getPGOFuncName) for front-end instrumentation.
+/// Create a PGO function-name global variable in module \p M.
+///
+/// \c PGOFuncName is the IRPGO name for LLVM IR instrumentation or the PGO name
+/// for front-end instrumentation.
+/// @param M Module that receives the name variable.
+/// @param Linkage Linkage of the created variable.
+/// @param PGOFuncName PGO name string stored in the variable.
+/// @return Newly created PGO function-name global variable.
 LLVM_ABI GlobalVariable *createPGOFuncNameVar(Module &M,
                                               GlobalValue::LinkageTypes Linkage,
                                               StringRef PGOFuncName);
 
-/// Return the initializer in string of the PGO name var \c NameVar.
+/// Return the string initializer of PGO name variable \p NameVar.
+/// @param NameVar Global variable created by \c createPGOFuncNameVar.
+/// @return String initializer stored in \p NameVar.
 LLVM_ABI StringRef getPGOFuncNameVarInitializer(GlobalVariable *NameVar);
 
-/// Given a PGO function name, remove the filename prefix and return
-/// the original (static) function name.
+/// Strip the filename prefix from a PGO function name.
+/// @param PGOFuncName Possibly prefixed PGO function name.
+/// @param FileName Filename prefix to strip when present.
+/// @return \p PGOFuncName without the leading \p FileName prefix when present.
 LLVM_ABI StringRef getFuncNameWithoutPrefix(StringRef PGOFuncName,
                                             StringRef FileName = "<unknown>");
 
-/// Given a vector of strings (names of global objects like functions or,
-/// virtual tables) \c NameStrs, the method generates a combined string \c
-/// Result that is ready to be serialized.  The \c Result string is comprised of
-/// three fields: The first field is the length of the uncompressed strings, and
-/// the the second field is the length of the zlib-compressed string. Both
-/// fields are encoded in ULEB128.  If \c doCompress is false, the
-///  third field is the uncompressed strings; otherwise it is the
-/// compressed string. When the string compression is off, the
-/// second field will have value zero.
+/// Serialize global-object name strings into a profile-ready blob.
+///
+/// \c Result has three ULEB128-framed fields: uncompressed length, compressed
+/// length (zero when compression is off), and the payload (compressed or raw).
+/// @param NameStrs Names of functions or vtables to serialize.
+/// @param doCompression Whether to zlib-compress the payload.
+/// @param Result Serialized output string.
+/// @return Success, or an error if serialization or compression fails.
 LLVM_ABI Error collectGlobalObjectNameStrings(ArrayRef<std::string> NameStrs,
                                               bool doCompression,
                                               std::string &Result);
 
-/// Produce \c Result string with the same format described above. The input
-/// is vector of PGO function name variables that are referenced.
-/// The global variable element in 'NameVars' is a string containing the pgo
-/// name of a function. See `createPGOFuncNameVar` that creates these global
-/// variables.
+/// Serialize referenced PGO function-name variables into \p Result.
+///
+/// Each element of \p NameVars holds a function's PGO name string (see
+/// \c createPGOFuncNameVar). The output format matches
+/// \c collectGlobalObjectNameStrings.
+/// @param NameVars Referenced PGO function-name globals.
+/// @param Result Serialized output string.
+/// @param doCompression Whether to zlib-compress the payload.
+/// @return Success, or an error if serialization or compression fails.
 LLVM_ABI Error collectPGOFuncNameStrings(ArrayRef<GlobalVariable *> NameVars,
                                          std::string &Result,
                                          bool doCompression = true);
 
+/// Serialize vtable name strings into a profile-ready blob.
+/// @param VTables Vtable globals whose names are collected.
+/// @param Result Serialized output string.
+/// @param doCompression Whether to zlib-compress the payload.
+/// @return Success, or an error if serialization or compression fails.
 LLVM_ABI Error collectVTableStrings(ArrayRef<GlobalVariable *> VTables,
                                     std::string &Result, bool doCompression);
 
-/// Check if INSTR_PROF_RAW_VERSION_VAR is defined. This global is only being
-/// set in IR PGO compilation.
+/// Return true if INSTR_PROF_RAW_VERSION_VAR is defined in \p M.
+///
+/// That global is set only for IR PGO compilations.
+/// @param M Module to inspect.
+/// @return True if INSTR_PROF_RAW_VERSION_VAR is defined in \p M.
 LLVM_ABI bool isIRPGOFlagSet(const Module *M);
 
-/// Check if we can safely rename this Comdat function. Instances of the same
-/// comdat function may have different control flows thus can not share the
-/// same counter variable.
+/// Return true if Comdat function \p F can safely share renamed counters.
+///
+/// Instances of the same Comdat may have different control flow and therefore
+/// cannot always share one counter variable.
+/// @param F Function being considered for Comdat renaming.
+/// @param CheckAddressTaken If true, reject address-taken functions.
+/// @return True if \p F can safely share renamed Comdat counters.
 LLVM_ABI bool canRenameComdatFunc(const Function &F,
                                   bool CheckAddressTaken = false);
 
+/// Kinds of value-profile data recorded at instrumented sites.
 enum InstrProfValueKind : uint32_t {
 #define VALUE_PROF_KIND(Enumerator, Value, Descr) Enumerator = Value,
 #include "llvm/ProfileData/InstrProfData.inc"
 };
 
-/// Get the value profile data for value site \p SiteIdx from \p InstrProfR
-/// and annotate the instruction \p Inst with the value profile meta data.
-/// Annotate up to \p MaxMDCount (default 3) number of records per value site.
+/// Annotate \p Inst with value-profile metadata from record \p InstrProfR.
+///
+/// Reads site \p SiteIndx of kind \p ValueKind and writes up to \p MaxMDCount
+/// records (default 3).
+/// @param M Module providing context for metadata creation.
+/// @param Inst Instruction to annotate.
+/// @param InstrProfR Profile record supplying value data.
+/// @param ValueKind Value-profile kind to read.
+/// @param SiteIndx Value site index within that kind.
+/// @param MaxMDCount Maximum metadata records to attach per site.
 LLVM_ABI void annotateValueSite(Module &M, Instruction &Inst,
                                 const InstrProfRecord &InstrProfR,
                                 InstrProfValueKind ValueKind, uint32_t SiteIndx,
                                 uint32_t MaxMDCount = 3);
 
-/// Same as the above interface but using an ArrayRef, as well as \p Sum.
-/// This function will not annotate !prof metadata on the instruction if the
-/// referenced array is empty.
+/// Annotate \p Inst with value-profile metadata from array \p VDs.
+///
+/// Does not attach !prof metadata when \p VDs is empty.
+/// @param M Module providing context for metadata creation.
+/// @param Inst Instruction to annotate.
+/// @param VDs Value-profile data to attach.
+/// @param Sum Total count used when forming metadata.
+/// @param ValueKind Value-profile kind being annotated.
+/// @param MaxMDCount Maximum metadata records to attach.
 LLVM_ABI void annotateValueSite(Module &M, Instruction &Inst,
                                 ArrayRef<InstrProfValueData> VDs, uint64_t Sum,
                                 InstrProfValueKind ValueKind,
@@ -343,144 +451,231 @@ LLVM_ABI void annotateValueSite(Module &M, Instruction &Inst,
 
 // TODO: Unify metadata name 'PGOFuncName' and 'PGOName', by supporting read
 // of this metadata for backward compatibility and generating 'PGOName' only.
-/// Extract the value profile data from \p Inst and returns them if \p Inst is
-/// annotated with value profile data. Returns an empty vector otherwise.
+/// Extract value-profile data annotated on instruction \p Inst.
+/// @param Inst Instruction that may carry !prof value data.
+/// @param ValueKind Value-profile kind to extract.
+/// @param MaxNumValueData Maximum number of values to return.
+/// @param TotalC Receives the total count across returned values.
+/// @param GetNoICPValue If true, include values not used for ICP.
+/// @return Value-profile data extracted from \p Inst.
 LLVM_ABI SmallVector<InstrProfValueData, 4>
 getValueProfDataFromInst(const Instruction &Inst, InstrProfValueKind ValueKind,
                          uint32_t MaxNumValueData, uint64_t &TotalC,
                          bool GetNoICPValue = false);
 
+/// Return the metadata kind name used for legacy PGO function names.
+/// @return Metadata kind name for legacy PGO function names.
 inline StringRef getPGOFuncNameMetadataName() { return "PGOFuncName"; }
 
+/// Return the metadata kind name used for PGO global-object names.
+/// @return Metadata kind name for PGO global-object names.
 inline StringRef getPGONameMetadataName() { return "PGOName"; }
 
-/// Return the PGOFuncName meta data associated with a function.
+/// Return the PGOFuncName metadata node associated with function \p F.
+/// @param F Function whose metadata is queried.
+/// @return PGOFuncName metadata node for \p F, or nullptr if none.
 LLVM_ABI MDNode *getPGOFuncNameMetadata(const Function &F);
 
+/// Return the PGO name for global variable \p V.
+/// @param V Global variable whose PGO name is formed.
+/// @param InLTO Whether this is called from LTO optimization passes.
+/// @return PGO name for \p V.
 LLVM_ABI std::string getPGOName(const GlobalVariable &V, bool InLTO = false);
 
-/// Create the PGOFuncName meta data if PGOFuncName is different from
-/// function's raw name. This should only apply to internal linkage functions
-/// declared by users only.
+/// Create PGOFuncName metadata when it differs from \p F's raw name.
+///
+/// Intended for user-declared internal-linkage functions.
 /// TODO: Update all callers to 'createPGONameMetadata' and deprecate this
 /// function.
+/// @param F Function that receives the metadata.
+/// @param PGOFuncName PGO name to store when it differs from the raw name.
 LLVM_ABI void createPGOFuncNameMetadata(Function &F, StringRef PGOFuncName);
 
-/// Create the PGOName metadata if a global object's PGO name is different from
-/// its mangled name. This should apply to local-linkage global objects only.
+/// Create PGOName metadata when it differs from \p GO's mangled name.
+///
+/// Applies to local-linkage global objects only.
+/// @param GO Global object that receives the metadata.
+/// @param PGOName PGO name to store when it differs from the mangled name.
 LLVM_ABI void createPGONameMetadata(GlobalObject &GO, StringRef PGOName);
 
-/// Check if we can use Comdat for profile variables. This will eliminate
-/// the duplicated profile variables for Comdat functions.
+/// Return true if profile counters for \p GV should use Comdat.
+///
+/// Comdat counters eliminate duplicates for Comdat functions.
+/// @param GV Global object whose counters are being created.
+/// @param M Module providing Comdat and target context.
+/// @return True if profile counters for \p GV should use Comdat.
 LLVM_ABI bool needsComdatForCounter(const GlobalObject &GV, const Module &M);
 
-/// \c NameStrings is a string composed of one or more possibly encoded
-/// sub-strings. The substrings are separated by `\01` (returned by
-/// InstrProf.h:getInstrProfNameSeparator). This method decodes the string and
-/// calls `NameCallback` for each substring.
+/// Decode concatenated PGO name strings and invoke a callback for each name.
+///
+/// \c NameStrings contains one or more possibly encoded substrings separated by
+/// the separator from \c getInstrProfNameSeparator().
+/// @param NameStrings Encoded name blob to decode.
+/// @param NameCallback Called with each decoded substring; may return an error.
+/// @return Success, or the first error returned by decoding or \p NameCallback.
 LLVM_ABI Error readAndDecodeStrings(
     StringRef NameStrings, std::function<Error(StringRef)> NameCallback);
 
-/// An enum describing the attributes of an instrumented profile.
+/// Bitmask describing attributes of an instrumented profile.
 enum class InstrProfKind {
+  /// No known instrumentation attributes.
   Unknown = 0x0,
-  // A frontend clang profile, incompatible with other attrs.
+  /// A frontend Clang profile; incompatible with other attrs.
   FrontendInstrumentation = 0x1,
-  // An IR-level profile (default when -fprofile-generate is used).
+  /// An IR-level profile (default with -fprofile-generate).
   IRInstrumentation = 0x2,
-  // A profile with entry basic block instrumentation.
+  /// Profile instruments function entry basic blocks.
   FunctionEntryInstrumentation = 0x4,
-  // A context sensitive IR-level profile.
+  /// A context-sensitive IR-level profile.
   ContextSensitive = 0x8,
-  // Use single byte probes for coverage.
+  /// Coverage uses single-byte probes.
   SingleByteCoverage = 0x10,
-  // Only instrument the function entry basic block.
+  /// Only the function entry basic block is instrumented.
   FunctionEntryOnly = 0x20,
-  // A memory profile collected using -fprofile=memory.
+  /// Memory profile collected with -fprofile=memory.
   MemProf = 0x40,
-  // A temporal profile.
+  /// Temporal (startup-order) profile data is present.
   TemporalProfile = 0x80,
-  // A profile with loop entry basic blocks instrumentation.
+  /// Profile instruments loop entry basic blocks.
   LoopEntriesInstrumentation = 0x100,
+  /// Sentinel equal to the largest individual enumerator value.
   LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/LoopEntriesInstrumentation)
 };
 
+/// Return the std::error_category used by instrprof_error codes.
+/// @return Error category for instrprof_error values.
 LLVM_ABI const std::error_category &instrprof_category();
 
+/// Error codes returned while reading or writing instrumented profiles.
 enum class instrprof_error {
+  /// No error.
   success = 0,
+  /// End of profile input reached.
   eof,
+  /// Input is not a recognized profile format.
   unrecognized_format,
+  /// Profile magic number is invalid.
   bad_magic,
+  /// Profile header is invalid.
   bad_header,
+  /// Header size does not match the expected size for this version.
   header_size_mismatch,
+  /// Profile version is not supported by this reader/writer.
   unsupported_version,
+  /// Hash type in the profile is not supported.
   unsupported_hash_type,
+  /// Profile section or value exceeds an allowed size.
   too_large,
+  /// Input ended before a complete record could be read.
   truncated,
+  /// Profile contents are malformed.
   malformed,
+  /// Required profile correlation information is missing.
   missing_correlation_info,
+  /// Unexpected profile correlation information was present.
   unexpected_correlation_info,
+  /// Profile could not be correlated with debug/object data.
   unable_to_correlate_profile,
+  /// Referenced function is not present in the profile.
   unknown_function,
+  /// Profile file is invalid for the requested operation.
   invalid_prof,
+  /// Function hash does not match the expected hash.
   hash_mismatch,
+  /// Counter counts disagree between profiles or records.
   count_mismatch,
+  /// Bitmap contents disagree between profiles or records.
   bitmap_mismatch,
+  /// A counter value overflowed during merge or scaling.
   counter_overflow,
+  /// Number of value sites disagrees between records.
   value_site_count_mismatch,
+  /// Compression of profile name data failed.
   compress_failed,
+  /// Decompression of profile name data failed.
   uncompress_failed,
+  /// Raw profile contained no usable data.
   empty_raw_profile,
+  /// zlib support is required but unavailable.
   zlib_unavailable,
+  /// Raw profile version does not match the reader.
   raw_profile_version_mismatch,
+  /// A counter value exceeded the representable maximum.
   counter_value_too_large,
+  /// Coverage mapping counts disagree with profile data.
   coverage_count_mismatch,
 };
 
-/// An ordered list of functions identified by their NameRef found in
-/// INSTR_PROF_DATA
+/// Ordered temporal profile trace of functions identified by NameRef.
 struct TemporalProfTraceTy {
+  /// Function name references (NameRef) in temporal order.
   std::vector<uint64_t> FunctionNameRefs;
+  /// Relative weight of this trace among all traces.
   uint64_t Weight;
+  /// Construct a trace from optional name refs and weight.
+  /// @param Trace Ordered function name references.
+  /// @param Weight Relative weight of the trace (default 1).
   TemporalProfTraceTy(std::initializer_list<uint64_t> Trace = {},
                       uint64_t Weight = 1)
       : FunctionNameRefs(Trace), Weight(Weight) {}
 
-  /// Use a set of temporal profile traces to create a list of balanced
-  /// partitioning function nodes used by BalancedPartitioning to generate a
-  /// function order that reduces page faults during startup
+  /// Build balanced-partitioning nodes from temporal profile traces.
+  ///
+  /// The nodes are consumed by BalancedPartitioning to produce a function order
+  /// that reduces page faults during startup.
+  /// @param Traces Temporal traces used to construct nodes.
+  /// @param Nodes Output vector of balanced-partitioning nodes.
+  /// @param RemoveOutlierUNs If true, drop outlier utility nodes.
   LLVM_ABI static void
   createBPFunctionNodes(ArrayRef<TemporalProfTraceTy> Traces,
                         std::vector<BPFunctionNode> &Nodes,
                         bool RemoveOutlierUNs = true);
 };
 
+/// Convert an instrprof_error into a std::error_code.
+/// @param E InstrProf error enumerator to convert.
+/// @return std::error_code corresponding to \p E.
 inline std::error_code make_error_code(instrprof_error E) {
   return std::error_code(static_cast<int>(E), instrprof_category());
 }
 
+/// ErrorInfo specialization carrying an instrprof_error and message.
 class LLVM_ABI InstrProfError : public ErrorInfo<InstrProfError> {
 public:
+  /// Construct an InstrProfError from an enumerator and optional message.
+  /// @param Err Non-success instrprof_error value.
+  /// @param ErrStr Optional diagnostic message.
   InstrProfError(instrprof_error Err, const Twine &ErrStr = Twine())
       : Err(Err), Msg(ErrStr.str()) {
     assert(Err != instrprof_error::success && "Not an error");
   }
 
+  /// Return a human-readable description of this error.
+  /// @return Human-readable description of this error.
   std::string message() const override;
 
+  /// Write the error message to \p OS.
+  /// @param OS Output stream.
   void log(raw_ostream &OS) const override { OS << message(); }
 
+  /// Convert this error into a std::error_code.
+  /// @return std::error_code for the underlying instrprof_error.
   std::error_code convertToErrorCode() const override {
     return make_error_code(Err);
   }
 
+  /// Return the underlying instrprof_error enumerator.
+  /// @return Underlying instrprof_error enumerator.
   instrprof_error get() const { return Err; }
+  /// Return the optional diagnostic message.
+  /// @return Optional diagnostic message string.
   const std::string &getMessage() const { return Msg; }
 
-  /// Consume an Error and return the raw enum value contained within it, and
-  /// the optional error message. The Error must either be a success value, or
-  /// contain a single InstrProfError.
+  /// Extract the instrprof_error and message from an Error.
+  ///
+  /// \p E must be success or contain a single InstrProfError.
+  /// @param E Error to consume.
+  /// @return Pair of (instrprof_error, message) extracted from \p E.
   static std::pair<instrprof_error, std::string> take(Error E) {
     auto Err = instrprof_error::success;
     std::string Msg = "";
@@ -492,6 +687,7 @@ public:
     return {Err, Msg};
   }
 
+  /// ErrorInfo class identity key.
   static char ID;
 
 private:
@@ -505,24 +701,31 @@ class SectionRef;
 
 } // end namespace object
 
+/// Indexed (on-disk) instrumented profile format helpers and structures.
 namespace IndexedInstrProf {
 
+/// Compute the indexed-profile name hash for string \p K.
+/// @param K Key string to hash.
+/// @return Indexed-profile name hash of \p K.
 uint64_t ComputeHash(StringRef K);
 
 } // end namespace IndexedInstrProf
 
-/// A symbol table used for function [IR]PGO name look-up with keys
-/// (such as pointers, md5hash values) to the function. A function's
-/// [IR]PGO name or name's md5hash are used in retrieving the profile
-/// data of the function. See \c getIRPGOFuncName() and \c getPGOFuncName
-/// methods for details how [IR]PGO name is formed.
+/// Symbol table mapping PGO name keys to functions and globals.
+///
+/// Keys may be pointers or MD5 hashes of a function's [IR]PGO name. See
+/// \c getIRPGOFuncName() and \c getPGOFuncName for how those names are formed.
 class InstrProfSymtab {
 public:
+  /// Vector of (address, MD5 hash) pairs used by the raw profile reader.
   using AddrHashMap = std::vector<std::pair<uint64_t, uint64_t>>;
 
-  // Returns the canonical name of the given PGOName. This shares the same
-  // logic of FunctionSamples::getCanonicalFnName() but only strips ".llvm."
-  // and ".part", and leaves out ".__uniq.".
+  /// Return the canonical form of PGO name \p PGOName.
+  ///
+  /// Shares FunctionSamples::getCanonicalFnName() logic but only strips
+  /// ".llvm." and ".part", leaving ".__uniq." intact.
+  /// @param PGOName Name to canonicalize.
+  /// @return Canonical form of \p PGOName.
   LLVM_ABI static StringRef getCanonicalName(StringRef PGOName);
 
 private:
@@ -587,65 +790,87 @@ private:
   inline void finalizeSymtab() const;
 
 public:
+  /// Construct an empty symbol table.
   InstrProfSymtab() : VTableAddrMap(VTableAddrMapAllocator) {}
 
-  // Not copyable or movable.
-  // Consider std::unique_ptr for move.
-  InstrProfSymtab(const InstrProfSymtab &) = delete;
-  InstrProfSymtab &operator=(const InstrProfSymtab &) = delete;
-  InstrProfSymtab(InstrProfSymtab &&) = delete;
-  InstrProfSymtab &operator=(InstrProfSymtab &&) = delete;
+  /// Copy construction is deleted; use std::unique_ptr to transfer ownership.
+  /// @param RHS Symbol table that would be copied.
+  InstrProfSymtab(const InstrProfSymtab &RHS) = delete;
+  /// Copy assignment is deleted.
+  /// @param RHS Symbol table that would be copied.
+  InstrProfSymtab &operator=(const InstrProfSymtab &RHS) = delete;
+  /// Move construction is deleted; use std::unique_ptr to transfer ownership.
+  /// @param RHS Symbol table that would be moved from.
+  InstrProfSymtab(InstrProfSymtab &&RHS) = delete;
+  /// Move assignment is deleted.
+  /// @param RHS Symbol table that would be moved from.
+  InstrProfSymtab &operator=(InstrProfSymtab &&RHS) = delete;
 
-  /// Create InstrProfSymtab from an object file section which
-  /// contains function PGO names. When section may contain raw
-  /// string data or string data in compressed form. This method
-  /// only initialize the symtab with reference to the data and
-  /// the section base address. The decompression will be delayed
-  /// until before it is used. See also \c create(StringRef) method.
+  /// Initialize from an object-file section of function PGO names.
+  ///
+  /// The section may hold raw or compressed strings. Only a reference to the
+  /// data and the section base address are stored; decompression is delayed
+  /// until first use. See also \c create(StringRef).
+  /// @param Section Object-file section containing PGO names.
+  /// @return Success, or an error if initialization fails.
   LLVM_ABI Error create(object::SectionRef &Section);
 
-  /// \c NameStrings is a string composed of one of more sub-strings
-  ///  encoded in the format described in \c collectPGOFuncNameStrings.
-  /// This method is a wrapper to \c readAndDecodeStrings method.
+  /// Initialize from concatenated name strings.
+  ///
+  /// \p NameStrings uses the encoding from \c collectPGOFuncNameStrings.
+  /// This is a wrapper around \c readAndDecodeStrings.
+  /// @param NameStrings Encoded function-name blob.
+  /// @return Success, or an error if decoding fails.
   LLVM_ABI Error create(StringRef NameStrings);
 
-  /// Initialize symtab states with function names and vtable names. \c
-  /// FuncNameStrings is a string composed of one or more encoded function name
-  /// strings, and \c VTableNameStrings composes of one or more encoded vtable
-  /// names. This interface is solely used by raw profile reader.
+  /// Initialize from encoded function and vtable name strings.
+  ///
+  /// Used by the raw profile reader.
+  /// @param FuncNameStrings Encoded function-name blob.
+  /// @param VTableNameStrings Encoded vtable-name blob.
+  /// @return Success, or an error if decoding fails.
   LLVM_ABI Error create(StringRef FuncNameStrings, StringRef VTableNameStrings);
 
-  /// Initialize 'this' with the set of vtable names encoded in
-  /// \c CompressedVTableNames.
+  /// Initialize vtable names from a compressed name blob.
+  /// @param CompressedVTableNames Compressed vtable-name payload.
+  /// @return Success, or an error if decompression or decoding fails.
   LLVM_ABI Error
   initVTableNamesFromCompressedStrings(StringRef CompressedVTableNames);
 
-  /// This interface is used by reader of CoverageMapping test
-  /// format.
+  /// Initialize from CoverageMapping test-format name data.
+  /// @param D Name section bytes.
+  /// @param BaseAddr Base address of the name section.
+  /// @return Success after storing the name data reference.
   inline Error create(StringRef D, uint64_t BaseAddr);
 
-  /// A wrapper interface to populate the PGO symtab with functions
-  /// decls from module \c M. This interface is used by transformation
-  /// passes such as indirect function call promotion. Variable \c InLTO
-  /// indicates if this is called from LTO optimization passes.
-  /// A canonical name, removing non-__uniq suffixes, is added if
-  /// \c AddCanonical is true.
+  /// Populate the symtab from function declarations in module \p M.
+  ///
+  /// Used by transforms such as indirect call promotion. When \p AddCanonical
+  /// is true, a canonical name with non-__uniq suffixes removed is also added.
+  /// @param M Module whose functions are added.
+  /// @param InLTO Whether this is called from LTO optimization passes.
+  /// @param AddCanonical Whether to also record canonical name variants.
+  /// @return Success, or an error if population fails.
   LLVM_ABI Error create(Module &M, bool InLTO = false,
                         bool AddCanonical = true);
 
-  /// Create InstrProfSymtab from a set of names iteratable from
-  /// \p IterRange. This interface is used by IndexedProfReader.
+  /// Initialize from a range of names (IndexedProfReader).
+  /// @param IterRange Range of name strings to insert.
+  /// @return Success, or an error if any name insertion fails.
   template <typename NameIterRange>
   Error create(const NameIterRange &IterRange);
 
-  /// Create InstrProfSymtab from a set of function names and vtable
-  /// names iteratable from \p IterRange. This interface is used by
-  /// IndexedProfReader.
+  /// Initialize from function-name and vtable-name ranges (IndexedProfReader).
+  /// @param FuncIterRange Range of function name strings.
+  /// @param VTableIterRange Range of vtable name strings.
+  /// @return Success, or an error if any name insertion fails.
   template <typename FuncNameIterRange, typename VTableNameIterRange>
   Error create(const FuncNameIterRange &FuncIterRange,
                const VTableNameIterRange &VTableIterRange);
 
-  // Map the MD5 of the symbol name to the name.
+  /// Record \p SymbolName and map its MD5 hash to the name string.
+  /// @param SymbolName Symbol name to insert.
+  /// @return Success, or an error if \p SymbolName is empty.
   Error addSymbolName(StringRef SymbolName) {
     if (SymbolName.empty())
       return make_error<InstrProfError>(instrprof_error::malformed,
@@ -662,12 +887,14 @@ public:
     return Error::success();
   }
 
-  /// The method name is kept since there are many callers.
-  /// It just forwards to 'addSymbolName'.
+  /// Add a function name; forwards to \c addSymbolName.
+  /// @param FuncName Function name to insert.
+  /// @return Success, or an error if \p FuncName is empty.
   Error addFuncName(StringRef FuncName) { return addSymbolName(FuncName); }
 
-  /// Adds VTableName as a known symbol, and inserts it to a map that
-  /// tracks all vtable names.
+  /// Add a vtable name and track it in the vtable-name set.
+  /// @param VTableName Vtable name to insert.
+  /// @return Success, or an error if \p VTableName is empty.
   Error addVTableName(StringRef VTableName) {
     if (Error E = addSymbolName(VTableName))
       return E;
@@ -678,62 +905,85 @@ public:
     return Error::success();
   }
 
+  /// Return the map from MD5 hash to Function pointer.
+  /// @return Map from MD5 hash to Function pointer.
   const std::vector<std::pair<uint64_t, Function *>> &getIDToNameMap() const {
     return MD5FuncMap;
   }
 
+  /// Return the set of known vtable names.
+  /// @return Set of known vtable names.
   const StringSet<> &getVTableNames() const { return VTableNames; }
 
-  /// Map a function address to its name's MD5 hash. This interface
-  /// is only used by the raw profiler reader.
+  /// Map function address \p Addr to name MD5 \p MD5Val (raw reader).
+  /// @param Addr Runtime address of the function.
+  /// @param MD5Val MD5 hash of the function's PGO name.
   void mapAddress(uint64_t Addr, uint64_t MD5Val) {
     AddrToMD5Map.push_back(std::make_pair(Addr, MD5Val));
   }
 
-  /// Map the address range (i.e., [start_address, end_address)) of a variable
-  /// to  its names' MD5 hash. This interface is only used by the raw profile
-  /// reader.
+  /// Map vtable address range [\p StartAddr, \p EndAddr) to MD5 \p MD5Val.
+  /// @param StartAddr Start of the vtable address range.
+  /// @param EndAddr End of the vtable address range (exclusive).
+  /// @param MD5Val MD5 hash of the vtable's PGO name.
   void mapVTableAddress(uint64_t StartAddr, uint64_t EndAddr, uint64_t MD5Val) {
     VTableAddrMap.insert(StartAddr, EndAddr, MD5Val);
   }
 
-  /// Return a function's hash, or 0, if the function isn't in this SymTab.
+  /// Return the function name hash for \p Address, or 0 if unknown.
+  /// @param Address Runtime function address to look up.
+  /// @return Function name MD5 hash for \p Address, or 0 if unknown.
   LLVM_ABI uint64_t getFunctionHashFromAddress(uint64_t Address) const;
 
-  /// Return a vtable's hash, or 0 if the vtable doesn't exist in this SymTab.
+  /// Return the vtable name hash for \p Address, or 0 if unknown.
+  /// @param Address Runtime vtable address to look up.
+  /// @return Vtable name MD5 hash for \p Address, or 0 if unknown.
   LLVM_ABI uint64_t getVTableHashFromAddress(uint64_t Address) const;
 
-  /// Return function's PGO name from the function name's symbol
-  /// address in the object file. If an error occurs, return
-  /// an empty string.
+  /// Return a function's PGO name from its name symbol address.
+  ///
+  /// Returns an empty string on error.
+  /// @param FuncNameAddress Object-file address of the name symbol.
+  /// @param NameSize Size in bytes of the name at that address.
+  /// @return Function PGO name at \p FuncNameAddress, or empty on error.
   LLVM_ABI StringRef getFuncName(uint64_t FuncNameAddress,
                                  size_t NameSize) const;
 
-  /// Return name of functions or global variables from the name's md5 hash
-  /// value. If not found, return an empty string.
+  /// Return a function or global name for MD5 hash \p ValMD5Hash.
+  ///
+  /// Returns an empty string if not found.
+  /// @param ValMD5Hash MD5 hash of the name.
+  /// @return Function or global name for \p ValMD5Hash, or empty if not found.
   inline StringRef getFuncOrVarName(uint64_t ValMD5Hash) const;
 
-  /// Just like getFuncOrVarName, except that it will return literal string
-  /// 'External Symbol' if the function or global variable is external to
-  /// this symbol table.
+  /// Like \c getFuncOrVarName, but map missing names to "External Symbol".
+  /// @param ValMD5Hash MD5 hash of the name.
+  /// @return Name for \p ValMD5Hash, or the external-symbol sentinel if missing.
   inline StringRef getFuncOrVarNameIfDefined(uint64_t ValMD5Hash) const;
 
-  /// True if Symbol is the value used to represent external symbols.
+  /// Return true if \p Symbol is the external-symbol sentinel string.
+  /// @param Symbol Name string to test.
+  /// @return True if \p Symbol is the external-symbol sentinel.
   static bool isExternalSymbol(const StringRef &Symbol) {
     return Symbol == InstrProfSymtab::getExternalSymbol();
   }
 
-  /// Return function from the name's md5 hash. Return nullptr if not found.
+  /// Return the Function for MD5 hash \p FuncMD5Hash, or nullptr.
+  /// @param FuncMD5Hash MD5 hash of the function name.
+  /// @return Function for \p FuncMD5Hash, or nullptr if not found.
   inline Function *getFunction(uint64_t FuncMD5Hash) const;
 
-  /// Return the global variable corresponding to md5 hash. Return nullptr if
-  /// not found.
+  /// Return the GlobalVariable for MD5 hash \p MD5Hash, or nullptr.
+  /// @param MD5Hash MD5 hash of the global/vtable name.
+  /// @return GlobalVariable for \p MD5Hash, or nullptr if not found.
   inline GlobalVariable *getGlobalVariable(uint64_t MD5Hash) const;
 
   /// Return the name section data.
+  /// @return Name section data stored in this symbol table.
   inline StringRef getNameData() const { return Data; }
 
-  /// Dump the symbols in this table.
+  /// Dump the symbols in this table to \p OS.
+  /// @param OS Output stream.
   LLVM_ABI void dumpNames(raw_ostream &OS) const;
 };
 
@@ -812,13 +1062,17 @@ GlobalVariable *InstrProfSymtab::getGlobalVariable(uint64_t MD5Hash) const {
   return MD5VTableMap.lookup(MD5Hash);
 }
 
-// To store the sums of profile count values, or the percentage of
-// the sums of the total count values.
+/// Aggregate of profile count sums or percentages for overlap reporting.
 struct CountSumOrPercent {
+  /// Number of count entries included in the aggregate.
   uint64_t NumEntries = 0;
+  /// Sum of edge/block counts (or percentage of that sum).
   double CountSum = 0.0f;
+  /// Per-value-kind sums or percentages of value-profile counts.
   std::array<double, IPVK_Last - IPVK_First + 1> ValueCounts = {};
+  /// Construct an empty aggregate.
   CountSumOrPercent() = default;
+  /// Reset all sums and entry counts to zero.
   void reset() {
     NumEntries = 0;
     CountSum = 0.0f;
@@ -826,38 +1080,74 @@ struct CountSumOrPercent {
   }
 };
 
-// Function level or program level overlap information.
+/// Function-level or program-level profile overlap statistics.
 struct OverlapStats {
-  enum OverlapStatsLevel { ProgramLevel, FunctionLevel };
-  // Sum of the total count values for the base profile.
+  /// Granularity at which overlap is computed.
+  enum OverlapStatsLevel {
+    /// Aggregate overlap across the whole program/profile.
+    ProgramLevel,
+    /// Overlap for a single function.
+    FunctionLevel
+  };
+  /// Sum of total count values for the base profile.
   CountSumOrPercent Base;
-  // Sum of the total count values for the test profile.
+  /// Sum of total count values for the test profile.
   CountSumOrPercent Test;
-  // Overlap lap score. Should be in range of [0.0f to 1.0f].
+  /// Overlap score aggregates; values should be in [0.0, 1.0].
   CountSumOrPercent Overlap;
+  /// Counts present in one profile but mismatched in the other.
   CountSumOrPercent Mismatch;
+  /// Counts unique to one of the profiles.
   CountSumOrPercent Unique;
+  /// Whether these stats are program- or function-scoped.
   OverlapStatsLevel Level;
+  /// Path of the base profile file, if known.
   const std::string *BaseFilename = nullptr;
+  /// Path of the test profile file, if known.
   const std::string *TestFilename = nullptr;
+  /// Function name when \c Level is FunctionLevel.
   StringRef FuncName;
+  /// Function hash when \c Level is FunctionLevel.
   uint64_t FuncHash = 0;
+  /// True when the stats have been successfully computed.
   bool Valid = false;
 
+  /// Construct overlap stats at level \p L (default ProgramLevel).
+  /// @param L Overlap aggregation level.
   OverlapStats(OverlapStatsLevel L = ProgramLevel) : Level(L) {}
 
+  /// Print overlap statistics to \p OS.
+  /// @param OS Output stream.
   LLVM_ABI void dump(raw_fd_ostream &OS) const;
 
+  /// Set the function name and hash for function-level stats.
+  /// @param Name Function name.
+  /// @param Hash Function structural hash.
   void setFuncInfo(StringRef Name, uint64_t Hash) {
     FuncName = Name;
     FuncHash = Hash;
   }
 
+  /// Accumulate counts from base and test profile files.
+  /// @param BaseFilename Path to the base profile.
+  /// @param TestFilename Path to the test profile.
+  /// @param IsCS Whether the profiles are context-sensitive.
+  /// @return Success, or an error if profile reading fails.
   LLVM_ABI Error accumulateCounts(const std::string &BaseFilename,
                                   const std::string &TestFilename, bool IsCS);
+  /// Record mismatch statistics for one function.
+  /// @param MismatchFunc Per-function mismatch aggregate.
   LLVM_ABI void addOneMismatch(const CountSumOrPercent &MismatchFunc);
+  /// Record uniqueness statistics for one function.
+  /// @param UniqueFunc Per-function unique-count aggregate.
   LLVM_ABI void addOneUnique(const CountSumOrPercent &UniqueFunc);
 
+  /// Return a normalized overlap contribution for two count values.
+  /// @param Val1 Count from the first profile.
+  /// @param Val2 Count from the second profile.
+  /// @param Sum1 Total sum of the first profile.
+  /// @param Sum2 Total sum of the second profile.
+  /// @return Normalized overlap contribution of the two counts.
   static inline double score(uint64_t Val1, uint64_t Val2, double Sum1,
                              double Sum2) {
     if (Sum1 < 1.0f || Sum2 < 1.0f)
@@ -866,18 +1156,23 @@ struct OverlapStats {
   }
 };
 
-// This is used to filter the functions whose overlap information
-// to be output.
+/// Filters controlling which functions emit overlap information.
 struct OverlapFuncFilters {
+  /// Minimum count cutoff; functions below this may be skipped.
   uint64_t ValueCutoff;
+  /// Substring filter matched against function names.
   const std::string NameFilter;
 };
 
+/// Value-profile data recorded at a single value site.
 struct InstrProfValueSiteRecord {
   /// Value profiling data pairs at a given value site.
   std::vector<InstrProfValueData> ValueData;
 
+  /// Construct an empty value-site record.
   InstrProfValueSiteRecord() = default;
+  /// Construct from an existing value-data vector.
+  /// @param VD Value/count pairs to take ownership of.
   InstrProfValueSiteRecord(std::vector<InstrProfValueData> &&VD)
       : ValueData(VD) {}
 
@@ -891,38 +1186,64 @@ struct InstrProfValueSiteRecord {
   /// Sort ValueData Descending by Count
   inline void sortByCount();
 
-  /// Merge data from another InstrProfValueSiteRecord
+  /// Merge data from another InstrProfValueSiteRecord.
+  ///
   /// Optionally scale merged counts by \p Weight.
+  /// @param Input Site record to merge from.
+  /// @param Weight Optional scaling factor applied to \p Input counts.
+  /// @param Warn Callback invoked on merge/scale warnings.
   LLVM_ABI void merge(InstrProfValueSiteRecord &Input, uint64_t Weight,
                       function_ref<void(instrprof_error)> Warn);
-  /// Scale up value profile data counts by N (Numerator) / D (Denominator).
+  /// Scale value-profile counts by \p N / \p D.
+  /// @param N Numerator of the scaling factor.
+  /// @param D Denominator of the scaling factor.
+  /// @param Warn Callback invoked on overflow or other warnings.
   LLVM_ABI void scale(uint64_t N, uint64_t D,
                       function_ref<void(instrprof_error)> Warn);
 
-  /// Compute the overlap b/w this record and Input record.
+  /// Compute overlap between this site record and \p Input.
+  /// @param Input Other site record to compare against.
+  /// @param ValueKind Value-profile kind being compared.
+  /// @param Overlap Program-level overlap accumulator.
+  /// @param FuncLevelOverlap Function-level overlap accumulator.
   LLVM_ABI void overlap(InstrProfValueSiteRecord &Input, uint32_t ValueKind,
                         OverlapStats &Overlap, OverlapStats &FuncLevelOverlap);
 };
 
 /// Profiling information for a single function.
 struct InstrProfRecord {
+  /// Per-block or per-edge execution counts.
   std::vector<uint64_t> Counts;
+  /// Bitmap bytes used by coverage / MC/DC instrumentation.
   std::vector<uint8_t> BitmapBytes;
   /// For AMDGPU offload profiling: raw or merged uniform counters. One uint64_t
   /// per instrumented block, tracking entries where all lanes were active.
   std::vector<uint64_t> UniformCounts;
-  /// For AMDGPU offload profiling: 1 bit per basic block indicating whether
-  /// the block is usually entered with all lanes active. Raw uniform counters
-  /// are reduced to these bits when profiles are written or merged.
+  /// Per-block wave-uniformity bits for AMDGPU offload profiling.
+  ///
+  /// One bit per basic block indicates whether the block is usually entered
+  /// with all lanes active. Raw uniform counters are reduced to these bits when
+  /// profiles are written or merged.
   std::vector<uint8_t> UniformityBits;
+  /// Wave size of the offload device that produced uniformity data, if any.
   uint16_t OffloadDeviceWaveSize = 0;
 
+  /// Construct an empty profile record.
   InstrProfRecord() = default;
+  /// Construct a record from edge/block counts.
+  /// @param Counts Per-block or per-edge counts.
   InstrProfRecord(std::vector<uint64_t> Counts) : Counts(std::move(Counts)) {}
+  /// Construct a record from counts and bitmap bytes.
+  /// @param Counts Per-block or per-edge counts.
+  /// @param BitmapBytes Coverage / MC/DC bitmap bytes.
   InstrProfRecord(std::vector<uint64_t> Counts,
                   std::vector<uint8_t> BitmapBytes)
       : Counts(std::move(Counts)), BitmapBytes(std::move(BitmapBytes)) {}
-  InstrProfRecord(InstrProfRecord &&) = default;
+  /// Move-construct a profile record.
+  /// @param RHS Record to move from.
+  InstrProfRecord(InstrProfRecord &&RHS) = default;
+  /// Copy-construct a profile record, cloning value-profile data.
+  /// @param RHS Record to copy.
   InstrProfRecord(const InstrProfRecord &RHS)
       : Counts(RHS.Counts), BitmapBytes(RHS.BitmapBytes),
         UniformCounts(RHS.UniformCounts), UniformityBits(RHS.UniformityBits),
@@ -930,7 +1251,13 @@ struct InstrProfRecord {
         ValueData(RHS.ValueData
                       ? std::make_unique<ValueProfData>(*RHS.ValueData)
                       : nullptr) {}
-  InstrProfRecord &operator=(InstrProfRecord &&) = default;
+  /// Move-assign a profile record.
+  /// @param RHS Record to move from.
+  /// @return Reference to this record after the move assignment.
+  InstrProfRecord &operator=(InstrProfRecord &&RHS) = default;
+  /// Copy-assign a profile record, cloning value-profile data.
+  /// @param RHS Record to copy.
+  /// @return Reference to this record after the copy assignment.
   InstrProfRecord &operator=(const InstrProfRecord &RHS) {
     Counts = RHS.Counts;
     BitmapBytes = RHS.BitmapBytes;
@@ -948,9 +1275,12 @@ struct InstrProfRecord {
     return *this;
   }
 
-  /// Check if a basic block is entered via a wave-uniform branch.
-  /// Returns true if uniform (safe for PGO spill optimization) or if no
-  /// uniformity data is available (conservative default).
+  /// Return true if basic block \p BlockIdx is entered wave-uniformly.
+  ///
+  /// Returns true when the block is uniform (safe for PGO spill optimization)
+  /// or when no uniformity data is available (conservative default).
+  /// @param BlockIdx Basic-block index within the function.
+  /// @return True if block \p BlockIdx is entered wave-uniformly.
   bool isBlockUniform(unsigned BlockIdx) const {
     if (UniformityBits.empty())
       return true; // No uniformity data, assume uniform (conservative)
@@ -964,33 +1294,54 @@ struct InstrProfRecord {
 
   /// Return the number of value profile kinds with non-zero number
   /// of profile sites.
+  /// @return Number of value-profile kinds that have at least one site.
   inline uint32_t getNumValueKinds() const;
-  /// Return the number of instrumented sites for ValueKind.
+  /// Return the number of instrumented sites for \p ValueKind.
+  /// @param ValueKind Value-profile kind to query.
+  /// @return Number of instrumented sites for \p ValueKind.
   inline uint32_t getNumValueSites(uint32_t ValueKind) const;
 
-  /// Return the total number of ValueData for ValueKind.
+  /// Return the total number of ValueData entries for \p ValueKind.
+  /// @param ValueKind Value-profile kind to query.
+  /// @return Total number of ValueData entries for \p ValueKind.
   inline uint32_t getNumValueData(uint32_t ValueKind) const;
 
-  /// Return the array of profiled values at \p Site.
+  /// Return the array of profiled values at site \p Site.
+  /// @param ValueKind Value-profile kind to query.
+  /// @param Site Value site index within that kind.
+  /// @return Profiled value/count pairs at site \p Site.
   inline ArrayRef<InstrProfValueData> getValueArrayForSite(uint32_t ValueKind,
                                                            uint32_t Site) const;
 
-  /// Reserve space for NumValueSites sites.
+  /// Reserve space for \p NumValueSites sites of kind \p ValueKind.
+  /// @param ValueKind Value-profile kind to reserve.
+  /// @param NumValueSites Number of sites to reserve.
   inline void reserveSites(uint32_t ValueKind, uint32_t NumValueSites);
 
-  /// Add ValueData for ValueKind at value Site.  We do not support adding sites
-  /// out of order.  Site must go up from 0 one by one.
+  /// Add value data for \p ValueKind at site \p Site.
+  ///
+  /// Sites must be added in order starting from 0.
+  /// @param ValueKind Value-profile kind being updated.
+  /// @param Site Value site index to append.
+  /// @param VData Value/count pairs for the site.
+  /// @param SymTab Optional symbol table for remapping values.
   LLVM_ABI void addValueData(uint32_t ValueKind, uint32_t Site,
                              ArrayRef<InstrProfValueData> VData,
                              InstrProfSymtab *SymTab);
 
-  /// Merge the counts in \p Other into this one.
+  /// Merge the counts in \p Other into this record.
+  ///
   /// Optionally scale merged counts by \p Weight.
+  /// @param Other Record to merge from.
+  /// @param Weight Optional scaling factor applied to \p Other.
+  /// @param Warn Callback invoked on merge warnings.
   LLVM_ABI void merge(InstrProfRecord &Other, uint64_t Weight,
                       function_ref<void(instrprof_error)> Warn);
 
-  /// Scale up profile counts (including value profile data) by
-  /// a factor of (N / D).
+  /// Scale profile counts (including value data) by \p N / \p D.
+  /// @param N Numerator of the scaling factor.
+  /// @param D Denominator of the scaling factor.
+  /// @param Warn Callback invoked on overflow or other warnings.
   LLVM_ABI void scale(uint64_t N, uint64_t D,
                       function_ref<void(instrprof_error)> Warn);
 
@@ -1013,27 +1364,45 @@ struct InstrProfRecord {
   /// Clear value data entries
   void clearValueData() { ValueData = nullptr; }
 
-  /// Compute the sums of all counts and store in Sum.
+  /// Accumulate all counts into \p Sum.
+  /// @param Sum Aggregate receiving the summed counts.
   LLVM_ABI void accumulateCounts(CountSumOrPercent &Sum) const;
 
-  /// Compute the overlap b/w this IntrprofRecord and Other.
+  /// Compute overlap between this record and \p Other.
+  /// @param Other Record to compare against.
+  /// @param Overlap Program-level overlap accumulator.
+  /// @param FuncLevelOverlap Function-level overlap accumulator.
+  /// @param ValueCutoff Minimum count required to include a site.
   LLVM_ABI void overlap(InstrProfRecord &Other, OverlapStats &Overlap,
                         OverlapStats &FuncLevelOverlap, uint64_t ValueCutoff);
 
-  /// Compute the overlap of value profile counts.
+  /// Compute overlap of value-profile counts for \p ValueKind.
+  /// @param ValueKind Value-profile kind to compare.
+  /// @param Src Other record supplying value-profile data.
+  /// @param Overlap Program-level overlap accumulator.
+  /// @param FuncLevelOverlap Function-level overlap accumulator.
   LLVM_ABI void overlapValueProfData(uint32_t ValueKind, InstrProfRecord &Src,
                                      OverlapStats &Overlap,
                                      OverlapStats &FuncLevelOverlap);
 
+  /// Pseudo hot/warm classification encoded in the first counter.
   enum CountPseudoKind {
+    /// Counts are ordinary measured values.
     NotPseudo = 0,
+    /// Function is marked synthetically hot.
     PseudoHot,
+    /// Function is marked synthetically warm.
     PseudoWarm,
   };
+  /// Sentinel counter values used to encode pseudo hot/warm.
   enum PseudoCountVal {
+    /// First-counter sentinel meaning the function is pseudo-hot.
     HotFunctionVal = -1,
+    /// First-counter sentinel meaning the function is pseudo-warm.
     WarmFunctionVal = -2,
   };
+  /// Return whether the first counter encodes a pseudo hot/warm kind.
+  /// @return Pseudo hot/warm kind encoded in the first counter.
   CountPseudoKind getCountPseudoKind() const {
     uint64_t FirstCount = Counts[0];
     if (FirstCount == (uint64_t)HotFunctionVal)
@@ -1042,6 +1411,8 @@ struct InstrProfRecord {
       return PseudoWarm;
     return NotPseudo;
   }
+  /// Encode pseudo hot/warm kind \p Kind into the first counter.
+  /// @param Kind Pseudo count kind to store.
   void setPseudoCount(CountPseudoKind Kind) {
     if (Kind == PseudoHot)
       Counts[0] = (uint64_t)HotFunctionVal;
@@ -1097,24 +1468,43 @@ private:
                           function_ref<void(instrprof_error)> Warn);
 };
 
+/// InstrProfRecord annotated with the function's PGO name and hash.
 struct NamedInstrProfRecord : InstrProfRecord {
+  /// PGO name of the profiled function.
   StringRef Name;
+  /// Structural / PGO hash of the function, including flag bits.
   uint64_t Hash;
 
-  // We reserve the highest 4 bits as flags.
+  /// Mask of hash bits that encode the function identity (excludes flag bits).
   static constexpr uint64_t FUNC_HASH_MASK = 0x0FFF'FFFF'FFFF'FFFF;
-  // The 60th bit is for context sensitive profile record.
+  /// Bit index in \c Hash that marks a context-sensitive profile record.
   static constexpr unsigned CS_FLAG_IN_FUNC_HASH = 60;
 
+  /// Construct an empty named profile record.
   NamedInstrProfRecord() = default;
+  /// Construct from name, hash, and counts.
+  /// @param Name PGO function name.
+  /// @param Hash Function hash (may include flag bits).
+  /// @param Counts Per-block or per-edge counts.
   NamedInstrProfRecord(StringRef Name, uint64_t Hash,
                        std::vector<uint64_t> Counts)
       : InstrProfRecord(std::move(Counts)), Name(Name), Hash(Hash) {}
+  /// Construct from name, hash, counts, and bitmap bytes.
+  /// @param Name PGO function name.
+  /// @param Hash Function hash (may include flag bits).
+  /// @param Counts Per-block or per-edge counts.
+  /// @param BitmapBytes Coverage / MC/DC bitmap bytes.
   NamedInstrProfRecord(StringRef Name, uint64_t Hash,
                        std::vector<uint64_t> Counts,
                        std::vector<uint8_t> BitmapBytes)
       : InstrProfRecord(std::move(Counts), std::move(BitmapBytes)), Name(Name),
         Hash(Hash) {}
+  /// Construct from name, hash, counts, bitmap bytes, and uniformity bits.
+  /// @param Name PGO function name.
+  /// @param Hash Function hash (may include flag bits).
+  /// @param Counts Per-block or per-edge counts.
+  /// @param BitmapBytes Coverage / MC/DC bitmap bytes.
+  /// @param UniformityBits Per-block wave-uniformity bits.
   NamedInstrProfRecord(StringRef Name, uint64_t Hash,
                        std::vector<uint64_t> Counts,
                        std::vector<uint8_t> BitmapBytes,
@@ -1124,9 +1514,14 @@ struct NamedInstrProfRecord : InstrProfRecord {
     this->UniformityBits = std::move(UniformityBits);
   }
 
+  /// Return true if \p FuncHash has the context-sensitive flag set.
+  /// @param FuncHash Function hash to test.
+  /// @return True if the context-sensitive flag bit is set in \p FuncHash.
   static bool hasCSFlagInHash(uint64_t FuncHash) {
     return ((FuncHash >> CS_FLAG_IN_FUNC_HASH) & 1);
   }
+  /// Set the context-sensitive flag bit in \p FuncHash.
+  /// @param FuncHash Function hash to update.
   static void setCSFlagInHash(uint64_t &FuncHash) {
     FuncHash |= ((uint64_t)1 << CS_FLAG_IN_FUNC_HASH);
   }
@@ -1139,6 +1534,9 @@ uint32_t InstrProfRecord::getNumValueKinds() const {
   return NumValueKinds;
 }
 
+/// Return the total number of ValueData entries for \p ValueKind.
+/// @param ValueKind Value-profile kind to query.
+/// @return Total number of ValueData entries for \p ValueKind.
 uint32_t InstrProfRecord::getNumValueData(uint32_t ValueKind) const {
   uint32_t N = 0;
   for (const auto &SR : getValueSitesForKind(ValueKind))
@@ -1146,15 +1544,25 @@ uint32_t InstrProfRecord::getNumValueData(uint32_t ValueKind) const {
   return N;
 }
 
+/// Return the number of instrumented sites for \p ValueKind.
+/// @param ValueKind Value-profile kind to query.
+/// @return Number of instrumented sites for \p ValueKind.
 uint32_t InstrProfRecord::getNumValueSites(uint32_t ValueKind) const {
   return getValueSitesForKind(ValueKind).size();
 }
 
+/// Return the array of profiled values at site \p Site.
+/// @param ValueKind Value-profile kind to query.
+/// @param Site Value site index within that kind.
+/// @return Profiled value/count pairs at site \p Site.
 ArrayRef<InstrProfValueData>
 InstrProfRecord::getValueArrayForSite(uint32_t ValueKind, uint32_t Site) const {
   return getValueSitesForKind(ValueKind)[Site].ValueData;
 }
 
+/// Reserve space for \p NumValueSites sites of kind \p ValueKind.
+/// @param ValueKind Value-profile kind to reserve.
+/// @param NumValueSites Number of sites to reserve.
 void InstrProfRecord::reserveSites(uint32_t ValueKind, uint32_t NumValueSites) {
   if (!NumValueSites)
     return;
@@ -1178,11 +1586,18 @@ void InstrProfValueSiteRecord::sortByCount() {
 
 namespace IndexedInstrProf {
 
+/// Hash algorithm identifiers used by the indexed profile format.
 enum class HashT : uint32_t {
+  /// MD5 hash of the profile key string.
   MD5,
+  /// Last supported hash type (currently MD5).
   Last = MD5
 };
 
+/// Compute hash \p Type over key string \p K.
+/// @param Type Hash algorithm to apply.
+/// @param K Key string to hash.
+/// @return Hash of \p K under algorithm \p Type.
 inline uint64_t ComputeHash(HashT Type, StringRef K) {
   switch (Type) {
   case HashT::MD5:
@@ -1191,104 +1606,110 @@ inline uint64_t ComputeHash(HashT Type, StringRef K) {
   llvm_unreachable("Unhandled hash type");
 }
 
+/// Magic number identifying an indexed LLVM profile ("\xfflprofi\x81").
 const uint64_t Magic = 0x8169666f72706cff; // "\xfflprofi\x81"
 
+/// On-disk format versions of the indexed instrumented profile.
 enum ProfVersion {
-  // Version 1 is the first version. In this version, the value of
-  // a key/value pair can only include profile data of a single function.
-  // Due to this restriction, the number of block counters for a given
-  // function is not recorded but derived from the length of the value.
+  /// First version; one function per key/value, counter count derived from size.
   Version1 = 1,
-  // The version 2 format supports recording profile data of multiple
-  // functions which share the same key in one value field. To support this,
-  // the number block counters is recorded as an uint64_t field right after the
-  // function structural hash.
+  /// Multiple functions may share one value; records explicit counter counts.
   Version2 = 2,
-  // Version 3 supports value profile data. The value profile data is expected
-  // to follow the block counter profile data.
+  /// Adds value-profile data after block counters.
   Version3 = 3,
-  // In this version, profile summary data \c IndexedInstrProf::Summary is
-  // stored after the profile header.
+  /// Stores \c IndexedInstrProf::Summary after the profile header.
   Version4 = 4,
-  // In this version, the frontend PGO stable hash algorithm defaults to V2.
+  /// Frontend PGO stable hash algorithm defaults to V2.
   Version5 = 5,
-  // In this version, the frontend PGO stable hash algorithm got fixed and
-  // may produce hashes different from Version5.
+  /// Frontend PGO stable hash fix; hashes may differ from Version5.
   Version6 = 6,
-  // An additional counter is added around logical operators.
+  /// Adds an additional counter around logical operators.
   Version7 = 7,
-  // An additional (optional) memory profile type is added.
+  /// Optional memory profile section is supported.
   Version8 = 8,
-  // Binary ids are added.
+  /// Binary ids are recorded in the profile.
   Version9 = 9,
-  // An additional (optional) temporal profile traces section is added.
+  /// Optional temporal profile traces section is supported.
   Version10 = 10,
-  // An additional field is used for bitmap bytes.
+  /// Adds a field for bitmap bytes.
   Version11 = 11,
-  // VTable profiling, decision record and bitmap are modified for mcdc.
+  /// VTable profiling and MC/DC decision/bitmap layout updates.
   Version12 = 12,
-  // In this version, the frontend PGO stable hash algorithm defaults to V4.
+  /// Frontend PGO stable hash algorithm defaults to V4.
   Version13 = 13,
-  // UniformityBits added for AMDGPU offload profiling divergence detection.
+  /// Adds UniformityBits for AMDGPU offload divergence detection.
   Version14 = 14,
-  // The current version is 14.
+  /// Newest supported indexed profile version.
   CurrentVersion = INSTR_PROF_INDEX_VERSION
 };
+/// Current indexed profile format version value.
 const uint64_t Version = ProfVersion::CurrentVersion;
 
+/// Hash algorithm used by the current indexed profile format.
 const HashT HashType = HashT::MD5;
 
+/// Compute the default indexed-profile hash of key string \p K.
+/// @param K Key string to hash.
+/// @return Indexed-profile name hash of \p K.
 inline uint64_t ComputeHash(StringRef K) { return ComputeHash(HashType, K); }
 
-// This structure defines the file header of the LLVM profile
-// data file in indexed-format. Please update llvm/docs/InstrProfileFormat.md
-// as appropriate when updating the indexed profile format.
+/// File header for an LLVM profile in indexed format.
+///
+/// Please update llvm/docs/InstrProfileFormat.md when changing the format.
 struct Header {
+  /// Magic number identifying an indexed profile.
   uint64_t Magic = IndexedInstrProf::Magic;
-  // The lower 32 bits specify the version of the indexed profile.
-  // The most significant 32 bits are reserved to specify the variant types of
-  // the profile.
+  /// Format version and variant flags.
+  ///
+  /// The lower 32 bits are the indexed profile version. The upper 32 bits are
+  /// reserved for profile variant types.
   uint64_t Version = 0;
-  uint64_t Unused = 0; // Becomes unused since version 4
+  /// Unused since version 4; retained for on-disk layout compatibility.
+  uint64_t Unused = 0;
+  /// Hash algorithm identifier (see \c HashT).
   uint64_t HashType = static_cast<uint64_t>(IndexedInstrProf::HashType);
-  // This field records the offset of this hash table's metadata (i.e., the
-  // number of buckets and entries), which follows right after the payload of
-  // the entire hash table.
+  /// Offset of the name/hash table metadata (bucket and entry counts).
+  ///
+  /// The metadata follows immediately after the hash table payload.
   uint64_t HashOffset = 0;
+  /// File offset of the optional memory profile section.
   uint64_t MemProfOffset = 0;
+  /// File offset of the binary id section.
   uint64_t BinaryIdOffset = 0;
+  /// File offset of the temporal profile traces section.
   uint64_t TemporalProfTracesOffset = 0;
+  /// File offset of the vtable names section.
   uint64_t VTableNamesOffset = 0;
   // New fields should only be added at the end to ensure that the size
   // computation is correct. The methods below need to be updated to ensure that
   // the new field is read correctly.
 
-  // Reads a header struct from the buffer. Header fields are in machine native
-  // endianness.
+  /// Read a header from \p Buffer in machine native endianness.
+  /// @param Buffer Pointer to the start of an indexed profile buffer.
+  /// @return Parsed header, or an error if the buffer is invalid.
   LLVM_ABI static Expected<Header> readFromBuffer(const unsigned char *Buffer);
 
-  // Returns the size of the header in bytes for all valid fields based on the
-  // version. I.e a older version header will return a smaller size.
+  /// Return the header size in bytes for fields valid in this version.
+  /// @return Header size in bytes for fields valid in this version.
   LLVM_ABI size_t size() const;
 
-  // Return the indexed profile version, i.e., the least significant 32 bits
-  // in Header.Version.
+  /// Return the indexed profile version (low 32 bits of \c Version).
+  /// @return Indexed profile version from the low 32 bits of \c Version.
   LLVM_ABI uint64_t getIndexedProfileVersion() const;
 };
 
-// Profile summary data recorded in the profile data file in indexed
-// format. It is introduced in version 4. The summary data follows
-// right after the profile file header.
+/// Profile summary recorded in an indexed profile (since version 4).
+///
+/// The summary follows immediately after the profile file header.
 struct Summary {
+  /// One percentile cutoff entry in the detailed summary.
   struct Entry {
     uint64_t Cutoff; ///< The required percentile of total execution count.
     uint64_t
         MinBlockCount;  ///< The minimum execution count for this percentile.
     uint64_t NumBlocks; ///< Number of blocks >= the minumum execution count.
   };
-  // The field kind enumerator to assigned value mapping should remain
-  // unchanged  when a new kind is added or an old kind gets deleted in
-  // the future.
+  /// Summary field kinds; assigned values must remain stable across versions.
   enum SummaryFieldKind {
     /// The total number of functions instrumented.
     TotalNumFunctions = 0,
@@ -1304,51 +1725,81 @@ struct Summary {
     MaxInternalBlockCount = 4,
     /// The sum of all instrumented block counts.
     TotalBlockCount = 5,
+    /// Number of summary field kinds (one past the last field).
     NumKinds = TotalBlockCount + 1
   };
 
-  // The number of summmary fields following the summary header.
+  /// Number of summary fields following the summary header.
   uint64_t NumSummaryFields;
-  // The number of Cutoff Entries (Summary::Entry) following summary fields.
+  /// Number of cutoff entries (\c Entry) following the summary fields.
   uint64_t NumCutoffEntries;
 
+  /// Default construction is deleted; use \c allocSummary.
   Summary() = delete;
+  /// Zero-initialize a summary of \p Size bytes.
+  /// @param Size Total allocation size including trailing fields/entries.
   Summary(uint32_t Size) { memset(this, 0, Size); }
 
+  /// Free summary storage allocated for a flexible-sized summary object.
+  /// @param ptr Pointer previously returned by the matching allocation.
   void operator delete(void *ptr) { ::operator delete(ptr); }
 
+  /// Return the byte size needed for the given field and cutoff counts.
+  /// @param NumSumFields Number of summary fields to store.
+  /// @param NumCutoffEntries Number of percentile cutoff entries to store.
+  /// @return Byte size needed for the given field and cutoff counts.
   static uint32_t getSize(uint32_t NumSumFields, uint32_t NumCutoffEntries) {
     return sizeof(Summary) + NumCutoffEntries * sizeof(Entry) +
            NumSumFields * sizeof(uint64_t);
   }
 
+  /// Return a pointer to the const summary field array.
+  /// @return Pointer to the const summary field array.
   const uint64_t *getSummaryDataBase() const {
     return reinterpret_cast<const uint64_t *>(this + 1);
   }
 
+  /// Return a pointer to the mutable summary field array.
+  /// @return Pointer to the mutable summary field array.
   uint64_t *getSummaryDataBase() {
     return reinterpret_cast<uint64_t *>(this + 1);
   }
 
+  /// Return a pointer to the const cutoff entry array.
+  /// @return Pointer to the const cutoff entry array.
   const Entry *getCutoffEntryBase() const {
     return reinterpret_cast<const Entry *>(
         &getSummaryDataBase()[NumSummaryFields]);
   }
 
+  /// Return a pointer to the mutable cutoff entry array.
+  /// @return Pointer to the mutable cutoff entry array.
   Entry *getCutoffEntryBase() {
     return reinterpret_cast<Entry *>(&getSummaryDataBase()[NumSummaryFields]);
   }
 
+  /// Return summary field \p K.
+  /// @param K Summary field kind to read.
+  /// @return Value of summary field \p K.
   uint64_t get(SummaryFieldKind K) const {
     return getSummaryDataBase()[K];
   }
 
+  /// Set summary field \p K to value \p V.
+  /// @param K Summary field kind to write.
+  /// @param V New field value.
   void set(SummaryFieldKind K, uint64_t V) {
     getSummaryDataBase()[K] = V;
   }
 
+  /// Return cutoff entry at index \p I.
+  /// @param I Cutoff entry index.
+  /// @return Cutoff entry at index \p I.
   const Entry &getEntry(uint32_t I) const { return getCutoffEntryBase()[I]; }
 
+  /// Set cutoff entry \p I from profile summary entry \p E.
+  /// @param I Cutoff entry index.
+  /// @param E Source profile summary entry.
   void setEntry(uint32_t I, const ProfileSummaryEntry &E) {
     Entry &ER = getCutoffEntryBase()[I];
     ER.Cutoff = E.Cutoff;
@@ -1357,6 +1808,9 @@ struct Summary {
   }
 };
 
+/// Allocate a flexible-sized \c Summary of \p TotalSize bytes.
+/// @param TotalSize Allocation size from \c Summary::getSize.
+/// @return Newly allocated flexible-sized summary object.
 inline std::unique_ptr<Summary> allocSummary(uint32_t TotalSize) {
   return std::unique_ptr<Summary>(new (::operator new(TotalSize))
                                       Summary(TotalSize));
@@ -1364,52 +1818,60 @@ inline std::unique_ptr<Summary> allocSummary(uint32_t TotalSize) {
 
 } // end namespace IndexedInstrProf
 
+/// Raw (in-memory / continuous) instrumented profile format helpers.
+///
+/// Version history:
+/// Version 1: First version.
+/// Version 2: Added value profile data section; per-function control data
+/// gained fields describing value profile information.
+/// Version 3: Compressed name section; function PGO name references became
+/// Name MD5 values instead of raw pointers.
+/// Version 4: Removed ValueDataBegin and ValueDataSizes from the raw header.
+/// Version 5: Reserved bit 60 of FuncHash for context-sensitive records.
+/// Version 6: Added binary id.
+/// Version 7: Reordered binary id and included version in the signature.
+/// Version 8: Used relative counter pointers.
+/// Version 9: Added relative bitmap bytes pointer and MC/DC counts.
+/// Version 10: Added vtable value-profile data.
 namespace RawInstrProf {
 
-// Version 1: First version
-// Version 2: Added value profile data section. Per-function control data
-// struct has more fields to describe value profile information.
-// Version 3: Compressed name section support. Function PGO name reference
-// from control data struct is changed from raw pointer to Name's MD5 value.
-// Version 4: ValueDataBegin and ValueDataSizes fields are removed from the
-// raw header.
-// Version 5: Bit 60 of FuncHash is reserved for the flag for the context
-// sensitive records.
-// Version 6: Added binary id.
-// Version 7: Reorder binary id and include version in signature.
-// Version 8: Use relative counter pointer.
-// Version 9: Added relative bitmap bytes pointer and count used by MC/DC.
-// Version 10: Added vtable, a new type of value profile data.
+/// Current raw profile format version.
 const uint64_t Version = INSTR_PROF_RAW_VERSION;
 
+/// Return the raw-profile magic for pointer width \c IntPtrT.
+/// @return Raw-profile magic number for pointer width \c IntPtrT.
 template <class IntPtrT> inline uint64_t getMagic();
+/// Return the 64-bit raw-profile magic number.
+/// @return 64-bit raw-profile magic number.
 template <> inline uint64_t getMagic<uint64_t>() {
   return INSTR_PROF_RAW_MAGIC_64;
 }
 
+/// Return the 32-bit raw-profile magic number.
+/// @return 32-bit raw-profile magic number.
 template <> inline uint64_t getMagic<uint32_t>() {
   return INSTR_PROF_RAW_MAGIC_32;
 }
 
-// Per-function profile data header/control structure.
-// The definition should match the structure defined in
-// compiler-rt/lib/profile/InstrProfiling.h.
-// It should also match the synthesized type in
-// Transforms/Instrumentation/InstrProfiling.cpp:getOrCreateRegionCounters.
+/// Per-function raw profile control data.
+///
+/// Layout must match compiler-rt/lib/profile/InstrProfiling.h and the type
+/// synthesized in InstrProfiling.cpp:getOrCreateRegionCounters.
 template <class IntPtrT> struct alignas(8) ProfileData {
 #define INSTR_PROF_DATA(Type, LLVMType, Name, Init) Type Name;
 #include "llvm/ProfileData/InstrProfData.inc"
 };
 
+/// Per-vtable raw profile data record.
 template <class IntPtrT> struct alignas(8) VTableProfileData {
 #define INSTR_PROF_VTABLE_DATA(Type, LLVMType, Name, Init) Type Name;
 #include "llvm/ProfileData/InstrProfData.inc"
 };
 
-// File header structure of the LLVM profile data in raw format.
-// The definition should match the header referenced in
-// compiler-rt/lib/profile/InstrProfilingFile.c  and
-// InstrProfilingBuffer.c.
+/// File header for an LLVM profile in raw format.
+///
+/// Layout must match the header used by InstrProfilingFile.c and
+/// InstrProfilingBuffer.c in compiler-rt.
 struct Header {
 #define INSTR_PROF_RAW_HEADER(Type, Name, Init) const Type Name;
 #include "llvm/ProfileData/InstrProfData.inc"
@@ -1417,11 +1879,14 @@ struct Header {
 
 } // end namespace RawInstrProf
 
-// Create the variable for the profile file name.
+/// Create the module global that holds the default profile output path.
+/// @param M Module that receives the filename variable.
+/// @param InstrProfileOutput Profile output path string.
 LLVM_ABI void createProfileFileNameVar(Module &M, StringRef InstrProfileOutput);
 
-// Whether to compress function names in profile records, and filenames in
-// code coverage mappings. Used by the Instrumentation library and unit tests.
+/// Whether to compress function names in profiles and filenames in coverage.
+///
+/// Used by the Instrumentation library and unit tests.
 LLVM_ABI extern cl::opt<bool> DoInstrProfNameCompression;
 
 } // end namespace llvm

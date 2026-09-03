@@ -126,10 +126,14 @@ namespace llvm {
     bit mask & shift operations.
 ------------------------------------------------------------------------ */
 
-using UTF32 = unsigned int;    /* at least 32 bits */
-using UTF16 = unsigned short;  /* at least 16 bits */
-using UTF8 = unsigned char;    /* typically 8 bits */
-using Boolean = unsigned char; /* 0 or 1 */
+/// Unicode UTF-32 code unit type; at least 32 bits.
+using UTF32 = unsigned int;
+/// Unicode UTF-16 code unit type; at least 16 bits.
+using UTF16 = unsigned short;
+/// Unicode UTF-8 code unit type; typically 8 bits.
+using UTF8 = unsigned char;
+/// Boolean type used by the ConvertUTF routines; 0 or 1.
+using Boolean = unsigned char;
 
 /* Some fundamental constants */
 #define UNI_REPLACEMENT_CHAR (UTF32)0x0000FFFD
@@ -146,15 +150,38 @@ using Boolean = unsigned char; /* 0 or 1 */
 #define UNI_UTF32_BYTE_ORDER_MARK_NATIVE 0x0000FEFF
 #define UNI_UTF32_BYTE_ORDER_MARK_SWAPPED 0xFFFE0000
 
+/// Result of a ConvertUTF* conversion between UTF encodings.
 enum ConversionResult {
-  conversionOK,    /* conversion successful */
-  sourceExhausted, /* partial character in source, but hit end */
-  targetExhausted, /* insuff. room in target for conversion */
-  sourceIllegal    /* source sequence is illegal/malformed */
+  /// Conversion completed successfully.
+  conversionOK,
+  /// Partial character in source, but hit end of input.
+  sourceExhausted,
+  /// Insufficient room in the target buffer for conversion.
+  targetExhausted,
+  /// Source sequence is illegal or malformed.
+  sourceIllegal
 };
 
-enum ConversionFlags { strictConversion = 0, lenientConversion };
+/// Controls whether conversion is strict or lenient about irregular sequences.
+enum ConversionFlags {
+  /// Reject irregular sequences and isolated surrogates as errors.
+  strictConversion = 0,
+  /// Convert irregular sequences and isolated surrogates when possible.
+  lenientConversion
+};
 
+/**
+ * Convert a UTF-8 sequence to UTF-16.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-8 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-16 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
+ */
 LLVM_ABI ConversionResult ConvertUTF8toUTF16(const UTF8 **sourceStart,
                                              const UTF8 *sourceEnd,
                                              UTF16 **targetStart,
@@ -164,6 +191,15 @@ LLVM_ABI ConversionResult ConvertUTF8toUTF16(const UTF8 **sourceStart,
 /**
  * Convert a partial UTF8 sequence to UTF32.  If the sequence ends in an
  * incomplete code unit sequence, returns \c sourceExhausted.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-8 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-32 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
  */
 LLVM_ABI ConversionResult ConvertUTF8toUTF32Partial(const UTF8 **sourceStart,
                                                     const UTF8 *sourceEnd,
@@ -174,6 +210,15 @@ LLVM_ABI ConversionResult ConvertUTF8toUTF32Partial(const UTF8 **sourceStart,
 /**
  * Convert a partial UTF8 sequence to UTF32.  If the sequence ends in an
  * incomplete code unit sequence, returns \c sourceIllegal.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-8 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-32 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
  */
 LLVM_ABI ConversionResult ConvertUTF8toUTF32(const UTF8 **sourceStart,
                                              const UTF8 *sourceEnd,
@@ -181,41 +226,133 @@ LLVM_ABI ConversionResult ConvertUTF8toUTF32(const UTF8 **sourceStart,
                                              UTF32 *targetEnd,
                                              ConversionFlags flags);
 
+/**
+ * Convert a UTF-16 sequence to UTF-8.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-16 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-8 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
+ */
 LLVM_ABI ConversionResult ConvertUTF16toUTF8(const UTF16 **sourceStart,
                                              const UTF16 *sourceEnd,
                                              UTF8 **targetStart,
                                              UTF8 *targetEnd,
                                              ConversionFlags flags);
 
+/**
+ * Convert a UTF-32 sequence to UTF-8.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-32 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-8 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
+ */
 LLVM_ABI ConversionResult ConvertUTF32toUTF8(const UTF32 **sourceStart,
                                              const UTF32 *sourceEnd,
                                              UTF8 **targetStart,
                                              UTF8 *targetEnd,
                                              ConversionFlags flags);
 
+/**
+ * Convert a UTF-16 sequence to UTF-32.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-16 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-32 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
+ */
 LLVM_ABI ConversionResult ConvertUTF16toUTF32(const UTF16 **sourceStart,
                                               const UTF16 *sourceEnd,
                                               UTF32 **targetStart,
                                               UTF32 *targetEnd,
                                               ConversionFlags flags);
 
+/**
+ * Convert a UTF-32 sequence to UTF-16.
+ *
+ * \param [in,out] sourceStart Pointer to the start of the UTF-32 source; updated
+ * past the last converted code unit on return.
+ * \param sourceEnd Pointer just past the end of the source buffer.
+ * \param [in,out] targetStart Pointer to the start of the UTF-16 target; updated
+ * past the last written code unit on return.
+ * \param targetEnd Pointer just past the end of the target buffer.
+ * \param flags Whether conversion is strict or lenient.
+ * \returns A \c ConversionResult indicating success or the failure reason.
+ */
 LLVM_ABI ConversionResult ConvertUTF32toUTF16(const UTF32 **sourceStart,
                                               const UTF32 *sourceEnd,
                                               UTF16 **targetStart,
                                               UTF16 *targetEnd,
                                               ConversionFlags flags);
 
+/**
+ * Returns true if the UTF-8 sequence starting at \p source is well-formed.
+ *
+ * \param source Pointer to the first byte of the candidate UTF-8 sequence.
+ * \param sourceEnd Pointer just past the end of the available buffer.
+ * \returns true if the sequence is well-formed.
+ */
 LLVM_ABI Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd);
 
+/**
+ * Returns true if the UTF-8 string between \p *source and \p sourceEnd is legal.
+ *
+ * On failure, \p *source is left pointing at the first illegal sequence.
+ *
+ * \param [in,out] source Pointer to the start of the UTF-8 string; advanced
+ * through the string, or left at the first illegal sequence on failure.
+ * \param sourceEnd Pointer just past the end of the string.
+ * \returns true if the string is a legal UTF-8 sequence.
+ */
 LLVM_ABI Boolean isLegalUTF8String(const UTF8 **source, const UTF8 *sourceEnd);
 
+/**
+ * Returns the byte length of the first UTF-8 sequence, or 0 if it is invalid.
+ *
+ * \param source Pointer to the first byte of the candidate UTF-8 sequence.
+ * \param sourceEnd Pointer just past the end of the available buffer.
+ * \returns the byte length of the sequence, or 0 if it is invalid.
+ */
 LLVM_ABI unsigned getUTF8SequenceSize(const UTF8 *source,
                                       const UTF8 *sourceEnd);
 
+/**
+ * Returns the length of the maximal subpart of an ill-formed UTF-8 sequence.
+ *
+ * Implements Unicode 6.3.0 D93b: the longest initial subsequence that is either
+ * a prefix of a well-formed sequence, or a single code unit. The input must not
+ * be a legal UTF-8 sequence.
+ *
+ * \param source Pointer to the start of the ill-formed UTF-8 subsequence.
+ * \param sourceEnd Pointer just past the end of the available buffer.
+ * \returns the length in bytes of the maximal subpart.
+ */
 LLVM_ABI unsigned
 findMaximalSubpartOfIllFormedUTF8Sequence(const UTF8 *source,
                                           const UTF8 *sourceEnd);
 
+/**
+ * Returns the expected byte length of a UTF-8 sequence from its first byte.
+ *
+ * Does not validate that a complete legal sequence follows; use
+ * \c isLegalUTF8Sequence or \c getUTF8SequenceSize for that.
+ *
+ * \param firstByte First byte of a UTF-8 code unit sequence.
+ * \returns the expected number of bytes in the UTF-8 sequence.
+ */
 LLVM_ABI unsigned getNumBytesForUTF8(UTF8 firstByte);
 
 /*************************************************************************/
@@ -226,31 +363,47 @@ template <typename T> class SmallVectorImpl;
 class StringRef;
 
 /**
- * Convert an UTF8 StringRef to UTF8, UTF16, or UTF32 depending on
- * WideCharWidth. The converted data is written to ResultPtr, which needs to
- * point to at least WideCharWidth * (Source.Size() + 1) bytes. On success,
- * ResultPtr will point one after the end of the copied string. On failure,
- * ResultPtr will not be changed, and ErrorPtr will be set to the location of
- * the first character which could not be converted.
+ * Convert a UTF-8 StringRef to UTF-8, UTF-16, or UTF-32 by wide character width.
+ *
+ * The converted data is written to ResultPtr, which needs to point to at least
+ * WideCharWidth * (Source.Size() + 1) bytes. On success, ResultPtr will point
+ * one after the end of the copied string. On failure, ResultPtr will not be
+ * changed, and ErrorPtr will be set to the location of the first character
+ * which could not be converted.
+ *
+ * \param WideCharWidth Width in bytes of each wide character (1, 2, or 4).
+ * \param Source UTF-8 encoded input string.
+ * \param [in,out] ResultPtr Pointer to the output buffer; advanced past the
+ * converted data on success.
+ * \param [out] ErrorPtr Set to the first unconvertible character on failure.
  * \return true on success.
  */
 LLVM_ABI bool ConvertUTF8toWide(unsigned WideCharWidth, llvm::StringRef Source,
                                 char *&ResultPtr, const UTF8 *&ErrorPtr);
 
 /**
-* Converts a UTF-8 StringRef to a std::wstring.
-* \return true on success.
-*/
+ * Converts a UTF-8 StringRef to a std::wstring.
+ *
+ * \param Source UTF-8 encoded input string.
+ * \param [out] Result Converted wide string is stored here on success.
+ * \return true on success.
+ */
 LLVM_ABI bool ConvertUTF8toWide(llvm::StringRef Source, std::wstring &Result);
 
 /**
-* Converts a UTF-8 C-string to a std::wstring.
-* \return true on success.
-*/
+ * Converts a UTF-8 C-string to a std::wstring.
+ *
+ * \param Source Null-terminated UTF-8 encoded input string.
+ * \param [out] Result Converted wide string is stored here on success.
+ * \return true on success.
+ */
 LLVM_ABI bool ConvertUTF8toWide(const char *Source, std::wstring &Result);
 
 /**
  * Converts a wide string view to a UTF-8 encoded std::string.
+ *
+ * \param Source Wide-character input string.
+ * \param [out] Result Converted UTF-8 is stored here on success.
  * \return true on success.
  */
 LLVM_ABI bool convertWideToUTF8(std::wstring_view Source, std::string &Result);
@@ -297,6 +450,9 @@ inline ConversionResult convertUTF8Sequence(const UTF8 **source,
 /**
  * Returns true if a blob of text starts with a UTF-16 big or little endian byte
  * order mark.
+ *
+ * \param SrcBytes Raw bytes to inspect for a leading UTF-16 BOM.
+ * \returns true if \p SrcBytes starts with a UTF-16 BOM.
  */
 LLVM_ABI bool hasUTF16ByteOrderMark(ArrayRef<char> SrcBytes);
 
@@ -341,14 +497,41 @@ LLVM_ABI bool convertUTF32ToUTF8String(ArrayRef<UTF32> Src, std::string &Out);
 /**
  * Converts a UTF-8 string into a UTF-16 string with native endianness.
  *
+ * \param SrcUTF8 UTF-8 encoded input string.
+ * \param [out] DstUTF16 Converted UTF-16 is stored here on success.
  * \returns true on success
  */
 LLVM_ABI bool convertUTF8ToUTF16String(StringRef SrcUTF8,
                                        SmallVectorImpl<UTF16> &DstUTF16);
 
-LLVM_ABI bool IsSingleCodeUnitUTF8Codepoint(unsigned);
-LLVM_ABI bool IsSingleCodeUnitUTF16Codepoint(unsigned);
-LLVM_ABI bool IsSingleCodeUnitUTF32Codepoint(unsigned);
+/**
+ * Returns true if \p Codepoint fits in a single UTF-8 code unit (ASCII).
+ *
+ * \param Codepoint Unicode code point to test.
+ * \returns true if \p Codepoint fits in a single UTF-8 code unit.
+ */
+LLVM_ABI bool IsSingleCodeUnitUTF8Codepoint(unsigned Codepoint);
+
+/**
+ * Returns true if \p Codepoint fits in a single UTF-16 code unit.
+ *
+ * Surrogate code points are excluded; only BMP non-surrogate scalars qualify.
+ *
+ * \param Codepoint Unicode code point to test.
+ * \returns true if \p Codepoint fits in a single UTF-16 code unit.
+ */
+LLVM_ABI bool IsSingleCodeUnitUTF16Codepoint(unsigned Codepoint);
+
+/**
+ * Returns true if \p Codepoint is a valid UTF-32 scalar value.
+ *
+ * Surrogate code points are excluded. Every legal Unicode scalar fits in one
+ * UTF-32 code unit.
+ *
+ * \param Codepoint Unicode code point to test.
+ * \returns true if \p Codepoint is a valid UTF-32 scalar value.
+ */
+LLVM_ABI bool IsSingleCodeUnitUTF32Codepoint(unsigned Codepoint);
 
 #if defined(_WIN32)
 namespace sys {

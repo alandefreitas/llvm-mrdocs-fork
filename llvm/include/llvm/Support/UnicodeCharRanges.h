@@ -20,13 +20,25 @@ namespace sys {
 
 /// Represents a closed range of Unicode code points [Lower, Upper].
 struct UnicodeCharRange {
+  /// Inclusive lower bound of the Unicode code point range.
   uint32_t Lower;
+  /// Inclusive upper bound of the Unicode code point range.
   uint32_t Upper;
 };
 
+/// Return true if \p Value is strictly less than the lower bound of \p Range.
+///
+/// \param Value Unicode code point to compare.
+/// \param Range Closed Unicode character range to compare against.
+/// \return True if \p Value is strictly less than \p Range's lower bound.
 inline bool operator<(uint32_t Value, UnicodeCharRange Range) {
   return Value < Range.Lower;
 }
+/// Return true if the upper bound of \p Range is strictly less than \p Value.
+///
+/// \param Range Closed Unicode character range to compare.
+/// \param Value Unicode code point to compare against.
+/// \return True if \p Range's upper bound is strictly less than \p Value.
 inline bool operator<(UnicodeCharRange Range, uint32_t Value) {
   return Range.Upper < Value;
 }
@@ -36,23 +48,35 @@ inline bool operator<(UnicodeCharRange Range, uint32_t Value) {
 /// array.
 class UnicodeCharSet {
 public:
+  /// Ordered array of closed Unicode character ranges.
   using CharRanges = ArrayRef<UnicodeCharRange>;
 
-  /// Constructs a UnicodeCharSet instance from an array of
-  /// UnicodeCharRanges.
-  ///
-  /// Array pointed by \p Ranges should have the lifetime at least as long as
-  /// the UnicodeCharSet instance, and should not change. Array is validated by
-  /// the constructor, so it makes sense to create as few UnicodeCharSet
-  /// instances per each array of ranges, as possible.
 #ifdef NDEBUG
 
   // FIXME: This could use constexpr + static_assert. This way we
   // may get rid of NDEBUG in this header. Unfortunately there are some
   // problems to get this working with MSVC 2013. Change this when
   // the support for MSVC 2013 is dropped.
+  /// Constructs a UnicodeCharSet instance from an array of UnicodeCharRanges.
+  ///
+  /// Array pointed by \p Ranges should have the lifetime at least as long as
+  /// the UnicodeCharSet instance, and should not change. Array is validated by
+  /// the constructor, so it makes sense to create as few UnicodeCharSet
+  /// instances per each array of ranges, as possible.
+  ///
+  /// \param Ranges Ordered, non-overlapping closed ranges owned for at least
+  ///        as long as this set.
   constexpr UnicodeCharSet(CharRanges Ranges) : Ranges(Ranges) {}
 #else
+  /// Constructs a UnicodeCharSet instance from an array of UnicodeCharRanges.
+  ///
+  /// Array pointed by \p Ranges should have the lifetime at least as long as
+  /// the UnicodeCharSet instance, and should not change. Array is validated by
+  /// the constructor, so it makes sense to create as few UnicodeCharSet
+  /// instances per each array of ranges, as possible.
+  ///
+  /// \param Ranges Ordered, non-overlapping closed ranges owned for at least
+  ///        as long as this set.
   UnicodeCharSet(CharRanges Ranges) : Ranges(Ranges) {
     assert(rangesAreValid());
   }
@@ -60,6 +84,9 @@ public:
 
   /// Returns true if the character set contains the Unicode code point
   /// \p C.
+  ///
+  /// \param C Unicode code point to test for membership.
+  /// \return True if \p C is in one of the ranges in this set.
   bool contains(uint32_t C) const { return llvm::binary_search(Ranges, C); }
 
 private:

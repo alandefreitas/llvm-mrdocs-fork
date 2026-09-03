@@ -83,51 +83,110 @@ enum RegBankSelectMode {
   Greedy
 };
 
-/// This pass implements the reg bank selector pass used in the GlobalISel
-/// pipeline. At the end of this pass, all register operands have been assigned
+/// Legacy pass that assigns register banks to generic virtual registers.
+///
+/// This pass implements the reg bank selector used in the GlobalISel pipeline.
+/// At the end of this pass, all register operands have been assigned a bank.
 class LLVM_ABI RegBankSelectLegacy : public MachineFunctionPass {
   RegBankSelectMode OptMode;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct the legacy GlobalISel register bank selection pass.
+  ///
+  /// \param RunningMode Selection strategy; defaults to Fast.
   RegBankSelectLegacy(RegBankSelectMode RunningMode = RegBankSelectMode::Fast);
 
+  /// Return the name of this pass.
+  ///
+  /// \return The name of this pass.
   StringRef getPassName() const override { return "RegBankSelect"; }
 
+  /// Declare required and preserved analyses for this pass.
+  ///
+  /// Non-Fast modes require block frequency and profile summary information.
+  ///
+  /// \param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Register bank selection expects SSA form and a legalized function.
+  ///
+  /// \return Properties requiring SSA form and a legalized function.
   MachineFunctionProperties getRequiredProperties() const override {
     return MachineFunctionProperties().setIsSSA().setLegalized();
   }
 
+  /// Return the properties this pass sets on the machine function.
+  ///
+  /// Marks the function as having completed register bank selection.
+  ///
+  /// \return Properties marking the function as register-bank selected.
   MachineFunctionProperties getSetProperties() const override {
     return MachineFunctionProperties().setRegBankSelected();
   }
 
+  /// Return the properties this pass clears on the machine function.
+  ///
+  /// Register bank selection may introduce PHIs that later passes must not
+  /// assume are absent.
+  ///
+  /// \return Properties clearing NoPHIs.
   MachineFunctionProperties getClearedProperties() const override {
     return MachineFunctionProperties().setNoPHIs();
   }
 
+  /// Assign register banks to generic virtual registers in \p MF.
+  ///
+  /// \param MF Machine function whose register banks are selected.
+  /// \return True if the machine function was modified.
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
+/// New PM pass that assigns register banks to generic virtual registers.
 class RegBankSelectPass : public RequiredPassInfoMixin<RegBankSelectPass> {
   RegBankSelectMode OptMode;
 
 public:
+  /// Construct the new-PM GlobalISel register bank selection pass.
+  ///
+  /// \param RunningMode Selection strategy; defaults to Fast.
   RegBankSelectPass(RegBankSelectMode RunningMode = RegBankSelectMode::Fast);
+  /// Assign register banks to generic virtual registers in \p MF.
+  ///
+  /// \param MF Machine function whose register banks are selected.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   PreservedAnalyses run(MachineFunction &MF,
                         MachineFunctionAnalysisManager &MFAM);
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Register bank selection expects SSA form and a legalized function.
+  ///
+  /// \return Properties requiring SSA form and a legalized function.
   MachineFunctionProperties getRequiredProperties() const {
     return MachineFunctionProperties().setIsSSA().setLegalized();
   }
 
+  /// Return the properties this pass sets on the machine function.
+  ///
+  /// Marks the function as having completed register bank selection.
+  ///
+  /// \return Properties marking the function as register-bank selected.
   MachineFunctionProperties getSetProperties() const {
     return MachineFunctionProperties().setRegBankSelected();
   }
 
+  /// Return the properties this pass clears on the machine function.
+  ///
+  /// Register bank selection may introduce PHIs that later passes must not
+  /// assume are absent.
+  ///
+  /// \return Properties clearing NoPHIs.
   MachineFunctionProperties getClearedProperties() const {
     return MachineFunctionProperties().setNoPHIs();
   }

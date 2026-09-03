@@ -26,8 +26,10 @@ enum class VPExpansionDetails {
   IntrinsicReplaced,
 };
 
-/// Expand a vector predication intrinsic. Returns the kind of expansion
-/// that was applied to the intrinsic.
+/// Expand a vector predication intrinsic.
+/// \param VPI The vector predication intrinsic to expand.
+/// \param TTI Target transform info used to guide the expansion.
+/// \return The kind of expansion that was applied to the intrinsic.
 LLVM_ABI VPExpansionDetails expandVectorPredicationIntrinsic(
     VPIntrinsic &VPI, const TargetTransformInfo &TTI);
 

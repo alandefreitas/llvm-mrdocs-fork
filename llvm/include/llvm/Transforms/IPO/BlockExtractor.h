@@ -22,10 +22,23 @@
 namespace llvm {
 class BasicBlock;
 
+/// Pass that extracts specified basic blocks into their own functions.
 struct BlockExtractorPass : OptionalPassInfoMixin<BlockExtractorPass> {
+  /// Construct a block-extractor pass.
+  ///
+  /// \param GroupsOfBlocks Groups of basic blocks to extract; each group is
+  /// extracted into one new function.
+  /// \param EraseFunctions Whether to erase the original functions after
+  /// extraction.
   LLVM_ABI
   BlockExtractorPass(std::vector<std::vector<BasicBlock *>> &&GroupsOfBlocks,
                      bool EraseFunctions);
+
+  /// Run block extraction over the given module.
+  ///
+  /// \param M Module whose basic blocks are extracted.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:

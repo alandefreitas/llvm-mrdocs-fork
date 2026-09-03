@@ -23,11 +23,10 @@ namespace llvm {
 
 class Module;
 
-/// Splits the module M into N linkable partitions. The function ModuleCallback
-/// is called N times passing each individual partition as the MPart argument.
-/// PreserveLocals: Split without externalizing locals.
-/// RoundRobin: Use round-robin distribution of functions to modules instead
-/// of the default name-hash-based one.
+/// Splits a module into multiple linkable partitions.
+///
+/// \p ModuleCallback is called \p N times, passing each individual partition
+/// as the \p MPart argument.
 ///
 /// FIXME: This function does not deal with the somewhat subtle symbol
 /// visibility issues around module splitting, including (but not limited to):
@@ -36,6 +35,14 @@ class Module;
 ///   module.
 /// - Internal symbols defined in module-level inline asm should be visible to
 ///   each partition.
+///
+/// \param M Module to split.
+/// \param N Number of linkable partitions to produce.
+/// \param ModuleCallback Callback invoked once per partition with that
+/// partition.
+/// \param PreserveLocals If true, split without externalizing locals.
+/// \param RoundRobin If true, use round-robin distribution of functions to
+/// modules instead of the default name-hash-based one.
 LLVM_ABI void
 SplitModule(Module &M, unsigned N,
             function_ref<void(std::unique_ptr<Module> MPart)> ModuleCallback,

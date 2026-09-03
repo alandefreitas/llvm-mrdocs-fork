@@ -45,11 +45,15 @@ class IntEqClasses {
 
 public:
   /// IntEqClasses - Create an equivalence class mapping for 0 .. N-1.
+  ///
+  /// \param N Number of integers initially mapped (0 .. N-1).
   IntEqClasses(unsigned N = 0) { grow(N); }
 
   /// grow - Increase capacity to hold 0 .. N-1, putting new integers in unique
   /// equivalence classes.
   /// This requires an uncompressed map.
+  ///
+  /// \param N New size; capacity covers integers 0 .. N-1.
   LLVM_ABI void grow(unsigned N);
 
   /// clear - Clear all classes so that grow() will assign a unique class to
@@ -61,12 +65,18 @@ public:
 
   /// Join the equivalence classes of a and b. After joining classes,
   /// findLeader(a) == findLeader(b). This requires an uncompressed map.
-  /// Returns the new leader.
+  ///
+  /// \param a Member of the first equivalence class to join.
+  /// \param b Member of the second equivalence class to join.
+  /// \return The new leader of the joined equivalence class.
   LLVM_ABI unsigned join(unsigned a, unsigned b);
 
   /// findLeader - Compute the leader of a's equivalence class. This is the
   /// smallest member of the class.
   /// This requires an uncompressed map.
+  ///
+  /// \param a Integer whose equivalence-class leader is computed.
+  /// \return The smallest member of \p a's equivalence class.
   LLVM_ABI unsigned findLeader(unsigned a) const;
 
   /// compress - Compress equivalence classes by numbering them 0 .. M.
@@ -75,10 +85,15 @@ public:
 
   /// getNumClasses - Return the number of equivalence classes after compress()
   /// was called.
+  ///
+  /// \return The number of equivalence classes, or 0 if uncompressed.
   unsigned getNumClasses() const { return NumClasses; }
 
   /// operator[] - Return a's equivalence class number, 0 .. getNumClasses()-1.
   /// This requires a compressed map.
+  ///
+  /// \param a Integer whose compressed equivalence class number is returned.
+  /// \return The compressed equivalence class number of \p a.
   unsigned operator[](unsigned a) const {
     assert(NumClasses && "operator[] called before compress()");
     return EC[a];

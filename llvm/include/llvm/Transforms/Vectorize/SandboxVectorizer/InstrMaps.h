@@ -24,20 +24,43 @@ namespace llvm::sandboxir {
 
 class LegalityResult;
 
+/// Describes how to vectorize a bundle of values.
 struct Action {
+  /// Index of this action in the owning actions vector.
   unsigned Idx = 0;
+  /// Legality analysis result that decided how to vectorize the bundle.
   const LegalityResult *LegalityRes = nullptr;
+  /// Bundle of original values to vectorize.
   SmallVector<Value *, 4> Bndl;
+  /// User bundle that this recursive vectorization step came from.
   SmallVector<Value *> UserBndl;
+  /// Recursion depth of this action in the vectorization walk.
   unsigned Depth;
+  /// Actions for the already-vectorized operands of this bundle.
   SmallVector<Action *> Operands;
+  /// Vector value produced when this action is emitted, if any.
   Value *Vec = nullptr;
+  /// Construct an action for \p B at \p Depth with legality result \p LR.
+  ///
+  /// \param LR Legality result describing how to vectorize the bundle.
+  /// \param B Bundle of original values to vectorize.
+  /// \param UB User bundle that this recursive step originates from.
+  /// \param Depth Recursion depth of this action in the vectorization walk.
   Action(const LegalityResult *LR, ArrayRef<Value *> B, ArrayRef<Value *> UB,
          unsigned Depth)
       : LegalityRes(LR), Bndl(B), UserBndl(UB), Depth(Depth) {}
 #ifndef NDEBUG
+  /// Print a textual representation of this action to \p OS.
+  ///
+  /// \param OS Destination stream.
   void print(raw_ostream &OS) const;
+  /// Dump this action to the debug stream.
   void dump() const;
+  /// Write a textual representation of \p A to \p OS.
+  ///
+  /// \param OS Destination stream.
+  /// \param A Action to print.
+  /// \return The output stream \p OS.
   friend raw_ostream &operator<<(raw_ostream &OS, const Action &A) {
     A.print(OS);
     return OS;
@@ -59,20 +82,30 @@ class InstrMaps {
   std::optional<Context::CallbackID> EraseInstrCB;
 
 public:
+  /// Construct an empty instruction map.
   InstrMaps() = default;
+  /// Destroy this instruction map.
   ~InstrMaps() = default;
-  /// \Returns true if \p Orig was vectorized
+  /// Return true if \p Orig was vectorized.
+  ///
+  /// \param Orig Original value to query.
+  /// \return True if \p Orig was vectorized.
   bool isVectorized(Value *Orig) const {
     return OrigToVectorMap.contains(Orig);
   }
-  /// \Returns the vector value that we got from vectorizing \p Orig, or
-  /// nullptr if not found.
+  /// Return the vectorization action for \p Orig, or nullptr if not found.
+  ///
+  /// \param Orig Original value that may have been vectorized.
+  /// \return The vectorization action for \p Orig, or nullptr if not found.
   Action *getVectorForOrig(Value *Orig) const {
     auto It = OrigToVectorMap.find(Orig);
     return It != OrigToVectorMap.end() ? It->second : nullptr;
   }
-  /// \Returns the lane of \p Orig before it got vectorized into \p Vec, or
-  /// nullopt if not found.
+  /// Return the lane of \p Orig within \p Vec, or nullopt if not found.
+  ///
+  /// \param Vec Vectorization action that combined original values.
+  /// \param Orig Original value whose lane is queried.
+  /// \return The lane of \p Orig within \p Vec, or nullopt if not found.
   std::optional<unsigned> getOrigLane(Action *Vec, Value *Orig) const {
     auto It1 = VectorToOrigLaneMap.find(Vec);
     if (It1 == VectorToOrigLaneMap.end())
@@ -84,6 +117,9 @@ public:
     return It2->second;
   }
   /// Update the map to reflect that \p Origs got vectorized into \p Vec.
+  ///
+  /// \param Origs Original values combined into the vector action.
+  /// \param Vec Vectorization action produced for \p Origs.
   void registerVector(ArrayRef<Value *> Origs, Action *Vec) {
     auto &OrigToLaneMap = VectorToOrigLaneMap[Vec];
     unsigned Lane = 0;
@@ -95,16 +131,21 @@ public:
       Lane += VecUtils::getNumLanes(Orig);
     }
   }
+  /// Clear all original-to-vector and vector-to-lane mappings.
   void clear() {
     OrigToVectorMap.clear();
     VectorToOrigLaneMap.clear();
   }
 #ifndef NDEBUG
+  /// Print the original-to-vector map to \p OS.
+  ///
+  /// \param OS Destination stream.
   void print(raw_ostream &OS) const {
     OS << "OrigToVectorMap:\n";
     for (auto [Orig, Vec] : OrigToVectorMap)
       OS << *Orig << " : " << *Vec << "\n";
   }
+  /// Dump the instruction maps to the debug stream.
   LLVM_DUMP_METHOD void dump() const;
 #endif
 };

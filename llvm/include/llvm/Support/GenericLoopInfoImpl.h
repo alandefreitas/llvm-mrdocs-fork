@@ -25,10 +25,12 @@ namespace llvm {
 //===----------------------------------------------------------------------===//
 // APIs for simple analysis of the loop. See header notes.
 
-/// getExitingBlocks - Return all blocks inside the loop that have successors
-/// outside of the loop.  These are the blocks _inside of the current loop_
-/// which branch out.  The returned list is always unique.
+/// Return all blocks inside the loop that have successors outside the loop.
 ///
+/// These are the blocks _inside of the current loop_ which branch out. The
+/// returned list is always unique.
+///
+/// \param ExitingBlocks Filled with the unique exiting blocks.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::getExitingBlocks(
     SmallVectorImpl<BlockT *> &ExitingBlocks) const {
@@ -44,6 +46,8 @@ void LoopBase<BlockT, LoopT>::getExitingBlocks(
 
 /// getExitingBlock - If getExitingBlocks would return exactly one block,
 /// return that block. Otherwise return null.
+///
+/// \returns The unique exiting block, or null if there is not exactly one.
 template <class BlockT, class LoopT>
 BlockT *LoopBase<BlockT, LoopT>::getExitingBlock() const {
   assert(!isInvalid() && "Loop not in a valid state!");
@@ -57,9 +61,11 @@ BlockT *LoopBase<BlockT, LoopT>::getExitingBlock() const {
   return find_singleton<BlockT>(blocks(), isExitBlock);
 }
 
-/// getExitBlocks - Return all of the successor blocks of this loop.  These
-/// are the blocks _outside of the current loop_ which are branched to.
+/// Return all successor blocks of this loop that lie outside the loop.
 ///
+/// These are the blocks _outside of the current loop_ which are branched to.
+///
+/// \param ExitBlocks Filled with the exit blocks (may contain duplicates).
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::getExitBlocks(
     SmallVectorImpl<BlockT *> &ExitBlocks) const {
@@ -71,8 +77,12 @@ void LoopBase<BlockT, LoopT>::getExitBlocks(
         ExitBlocks.push_back(Succ);
 }
 
-/// getExitBlock - If getExitBlocks would return exactly one block,
-/// return that block. Otherwise return null.
+/// Find an exit block of \p L, optionally requiring uniqueness.
+///
+/// \param L The loop to inspect.
+/// \param Unique If true, allow scanning past the first exit to detect others.
+/// \returns A pair of the exit block (or null) and whether multiple exits were
+///          found when \p Unique is true.
 template <class BlockT, class LoopT>
 std::pair<BlockT *, bool> getExitBlockHelper(const LoopBase<BlockT, LoopT> *L,
                                              bool Unique) {
@@ -91,6 +101,10 @@ std::pair<BlockT *, bool> getExitBlockHelper(const LoopBase<BlockT, LoopT> *L,
   return find_singleton_nested<BlockT>(L->blocks(), singleExitBlock, Unique);
 }
 
+/// Return true if \p L does not have any exit blocks.
+///
+/// \param L The loop to inspect.
+/// \returns True if \p L has no exit blocks.
 template <class BlockT, class LoopT>
 bool LoopInfoBase<BlockT, LoopT>::hasNoExitBlocks(const LoopT &L) const {
   auto RC = getExitBlockHelper(&L, false);
@@ -103,6 +117,8 @@ bool LoopInfoBase<BlockT, LoopT>::hasNoExitBlocks(const LoopT &L) const {
 
 /// getExitBlock - If getExitBlocks would return exactly one block,
 /// return that block. Otherwise return null.
+///
+/// \returns The unique exit block, or null if there is not exactly one.
 template <class BlockT, class LoopT>
 BlockT *LoopBase<BlockT, LoopT>::getExitBlock() const {
   return getExitBlockHelper(this, false).first;
@@ -122,8 +138,12 @@ bool LoopBase<BlockT, LoopT>::hasDedicatedExits() const {
   return true;
 }
 
-// Helper function to get unique loop exits. Pred is a predicate pointing to
-// BasicBlocks in a loop which should be considered to find loop exits.
+/// Append unique exit blocks of \p L whose sources satisfy \p Pred.
+///
+/// \param L The loop whose exits are collected.
+/// \param ExitBlocks Filled with unique successor blocks outside \p L.
+/// \param Pred Predicate selecting which in-loop blocks are considered as exit
+///        sources.
 template <class BlockT, class LoopT, typename PredicateT>
 void getUniqueExitBlocksHelper(const LoopT *L,
                                SmallVectorImpl<BlockT *> &ExitBlocks,
@@ -138,6 +158,11 @@ void getUniqueExitBlocksHelper(const LoopT *L,
           ExitBlocks.push_back(Successor);
 }
 
+/// Return all unique successor blocks of this loop.
+///
+/// These are the blocks _outside of the current loop_ which are branched to.
+///
+/// \param ExitBlocks Filled with the unique exit blocks.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::getUniqueExitBlocks(
     SmallVectorImpl<BlockT *> &ExitBlocks) const {
@@ -145,6 +170,13 @@ void LoopBase<BlockT, LoopT>::getUniqueExitBlocks(
                             [](const BlockT *BB) { return true; });
 }
 
+/// Return unique exit blocks of this loop, ignoring exits from the latch.
+///
+/// If an exit reached from the latch also has a non-latch predecessor in the
+/// loop, it is still added to ExitBlocks. These are the blocks _outside of the
+/// current loop_ which are branched to.
+///
+/// \param ExitBlocks Filled with the unique non-latch exit blocks.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::getUniqueNonLatchExitBlocks(
     SmallVectorImpl<BlockT *> &ExitBlocks) const {
@@ -159,6 +191,10 @@ BlockT *LoopBase<BlockT, LoopT>::getUniqueExitBlock() const {
   return getExitBlockHelper(this, true).first;
 }
 
+/// Return the unique exit block for the latch of \p L, or null if ambiguous.
+///
+/// \param L The loop whose latch exit is inspected.
+/// \returns The unique successor of the latch outside \p L, or null.
 template <class BlockT, class LoopT>
 BlockT *
 LoopInfoBase<BlockT, LoopT>::getUniqueLatchExitBlock(const LoopT &L) const {
@@ -171,7 +207,10 @@ LoopInfoBase<BlockT, LoopT>::getUniqueLatchExitBlock(const LoopT &L) const {
   return find_singleton<BlockT>(children<BlockT *>(Latch), IsExitBlock);
 }
 
-/// getExitEdges - Return all pairs of (_inside_block_,_outside_block_).
+/// Return all pairs of (_inside_block_,_outside_block_).
+///
+/// \param L The loop whose exit edges are collected.
+/// \param ExitEdges Filled with edges from an in-loop block to an outside block.
 template <class BlockT, class LoopT>
 void LoopInfoBase<BlockT, LoopT>::getExitEdges(
     const LoopT &L, SmallVectorImpl<Edge> &ExitEdges) const {
@@ -198,14 +237,14 @@ template <class BlockT> bool isLegalToHoistInto(BlockT *Block) {
 }
 } // namespace detail
 
-/// getLoopPreheader - If there is a preheader for this loop, return it.  A
-/// loop has a preheader if there is only one edge to the header of the loop
+/// Return the preheader block for this loop, or null if there is none.
+///
+/// A loop has a preheader if there is only one edge to the header of the loop
 /// from outside of the loop and it is legal to hoist instructions into the
 /// predecessor. If this is the case, the block branching to the header of the
 /// loop is the preheader node.
 ///
-/// This method returns null if there is no preheader for the loop.
-///
+/// \returns The loop preheader block, or null if there is none.
 template <class BlockT, class LoopT>
 BlockT *LoopBase<BlockT, LoopT>::getLoopPreheader() const {
   assert(!isInvalid() && "Loop not in a valid state!");
@@ -226,11 +265,12 @@ BlockT *LoopBase<BlockT, LoopT>::getLoopPreheader() const {
   return Out;
 }
 
-/// getLoopPredecessor - If the given loop's header has exactly one unique
-/// predecessor outside the loop, return it. Otherwise return null.
-/// This is less strict that the loop "preheader" concept, which requires
-/// the predecessor to have exactly one successor.
+/// Return the unique predecessor of the loop header outside the loop, or null.
 ///
+/// This is less strict than the loop "preheader" concept, which requires the
+/// predecessor to have exactly one successor.
+///
+/// \returns The unique out-of-loop predecessor of the header, or null.
 template <class BlockT, class LoopT>
 BlockT *LoopBase<BlockT, LoopT>::getLoopPredecessor() const {
   assert(!isInvalid() && "Loop not in a valid state!");
@@ -252,6 +292,8 @@ BlockT *LoopBase<BlockT, LoopT>::getLoopPredecessor() const {
 
 /// getLoopLatch - If there is a single latch block for this loop, return it.
 /// A latch block is a block that contains a branch back to the header.
+///
+/// \returns The unique latch block, or null if there is not exactly one.
 template <class BlockT, class LoopT>
 BlockT *LoopBase<BlockT, LoopT>::getLoopLatch() const {
   assert(!isInvalid() && "Loop not in a valid state!");
@@ -272,30 +314,32 @@ BlockT *LoopBase<BlockT, LoopT>::getLoopLatch() const {
 // APIs for updating loop information after changing the CFG
 //
 
-/// addBasicBlockToLoop - This method is used by other analyses to update loop
-/// information.  NewBB is set to be a new member of the current loop.
-/// Because of this, it is added as a member of all parent loops, and is added
-/// to the specified LoopInfo object as being in the current basic block.  It
-/// is not valid to replace the loop header with this method.
+/// Add \p NewBB as a member of this loop and all parent loops.
 ///
+/// This method is used by other analyses to update loop information. NewBB is
+/// also recorded in \p LI as belonging to this loop. It is not valid to replace
+/// the loop header with this method.
+///
+/// \param NewBB The basic block to add to the loop.
+/// \param LI The LoopInfo that tracks which loop contains each block.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::addBasicBlockToLoop(
-    BlockT *NewBB, LoopInfoBase<BlockT, LoopT> &LIB) {
+    BlockT *NewBB, LoopInfoBase<BlockT, LoopT> &LI) {
   assert(!isInvalid() && "Loop not in a valid state!");
 #ifndef NDEBUG
   if (!getBlocks().empty()) {
-    auto SameHeader = LIB[getHeader()];
+    auto SameHeader = LI[getHeader()];
     assert(contains(SameHeader) && getHeader() == SameHeader->getHeader() &&
            "Incorrect LI specified for this loop!");
   }
 #endif
   assert(NewBB && "Cannot add a null basic block to the loop!");
-  assert(!LIB[NewBB] && "BasicBlock already in the loop!");
+  assert(!LI[NewBB] && "BasicBlock already in the loop!");
 
   LoopT *L = static_cast<LoopT *>(this);
 
   // Add the loop mapping to the LoopInfo object...
-  LIB.changeLoopFor(NewBB, L);
+  LI.changeLoopFor(NewBB, L);
 
   // Add the basic block to this loop and all parent loops...
   while (L) {
@@ -304,10 +348,14 @@ void LoopBase<BlockT, LoopT>::addBasicBlockToLoop(
   }
 }
 
-/// replaceChildLoopWith - This is used when splitting loops up.  It replaces
-/// the OldChild entry in our children list with NewChild, and updates the
-/// parent pointer of OldChild to be null and the NewChild to be this loop.
-/// This updates the loop depth of the new child.
+/// Replace child loop \p OldChild with \p NewChild in this loop's children.
+///
+/// Used when splitting loops up. Updates the parent pointer of OldChild to
+/// null and of NewChild to this loop, and updates the loop depth of the new
+/// child.
+///
+/// \param OldChild The existing child loop to replace.
+/// \param NewChild The loop that takes OldChild's place.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::replaceChildLoopWith(LoopT *OldChild,
                                                    LoopT *NewChild) {
@@ -397,7 +445,9 @@ void LoopBase<BlockT, LoopT>::verifyLoop() const {
 #endif
 }
 
-/// verifyLoop - Verify loop structure of this loop and all nested loops.
+/// Verify loop structure of this loop and all nested loops.
+///
+/// \param Loops Set updated with every loop visited in the nest.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::verifyLoopNest(
     DenseSet<const LoopT *> *Loops) const {
@@ -410,6 +460,12 @@ void LoopBase<BlockT, LoopT>::verifyLoopNest(
     (*I)->verifyLoopNest(Loops);
 }
 
+/// Print this loop to \p OS.
+///
+/// \param OS The output stream.
+/// \param Verbose If true, print each block's full contents.
+/// \param PrintNested If true, recursively print nested subloops.
+/// \param Depth Indentation depth for nested printing.
 template <class BlockT, class LoopT>
 void LoopBase<BlockT, LoopT>::print(raw_ostream &OS, bool Verbose,
                                     bool PrintNested, unsigned Depth) const {
@@ -452,19 +508,22 @@ void LoopBase<BlockT, LoopT>::print(raw_ostream &OS, bool Verbose,
 /// result does / not depend on use list (block predecessor) order.
 ///
 
-/// Analyze LoopInfo identifies the loops during a single forward depth-first
-/// search of the CFG.
+/// Analyze the function described by \p DomTree to build the loop forest.
 ///
-/// Then build a loop-contiguous reverse postorder for in-loops blocks. Lists
-/// are header-first with each subloop's blocks contiguous, ordered by first
-/// appearance in RPO; SubLoops keep program order, TopLevelLoops reverse
-/// program order.
+/// \param DomTree Dominator tree for the function to analyze.
 template <class BlockT, class LoopT>
 void LoopInfoBase<BlockT, LoopT>::analyze(const DomTreeBase<BlockT> &DomTree) {
   analyze(DomTree.getRootNode()->getBlock()->getParent(),
           [&]() -> const DomTreeBase<BlockT> & { return DomTree; });
 }
 
+/// Create the loop forest for function \p F.
+///
+/// A dominator tree is built on demand only for an irreducible CFG, where
+/// dominance reduces a loop that an edge re-enters to the natural loop of its
+/// header's backedges.
+///
+/// \param F The function (or parent region) to analyze.
 template <class BlockT, class LoopT>
 void LoopInfoBase<BlockT, LoopT>::analyze(ParentT F) {
   DomTreeBase<BlockT> DomTree;
@@ -474,6 +533,17 @@ void LoopInfoBase<BlockT, LoopT>::analyze(ParentT F) {
   });
 }
 
+/// Create the loop forest for function \p F using \p GetDomTree when needed.
+///
+/// Identifies loops during a single forward depth-first search of the CFG,
+/// then builds a loop-contiguous reverse postorder for in-loop blocks. Lists
+/// are header-first with each subloop's blocks contiguous, ordered by first
+/// appearance in RPO; SubLoops keep program order, TopLevelLoops reverse
+/// program order. A dominator tree is needed only for an irreducible CFG.
+///
+/// \param F The function (or parent region) to analyze.
+/// \param GetDomTree Callback that returns a dominator tree when irreducible
+///        loops must be reduced.
 template <class BlockT, class LoopT>
 void LoopInfoBase<BlockT, LoopT>::analyze(
     ParentT F, function_ref<const DomTreeBase<BlockT> &()> GetDomTree) {
@@ -802,6 +872,12 @@ LoopInfoBase<BlockT, LoopT>::getLoopsInReverseSiblingPreorder() const {
   return PreOrderLoops;
 }
 
+/// Find the innermost loop containing both given loops.
+///
+/// \param A First loop.
+/// \param B Second loop.
+/// \returns the innermost loop containing both \p A and \p B, or nullptr if
+///          there is no such loop.
 template <class BlockT, class LoopT>
 LoopT *LoopInfoBase<BlockT, LoopT>::getSmallestCommonLoop(LoopT *A,
                                                           LoopT *B) const {
@@ -827,19 +903,34 @@ LoopT *LoopInfoBase<BlockT, LoopT>::getSmallestCommonLoop(LoopT *A,
   return A;
 }
 
+/// Find the innermost loop containing both given blocks.
+///
+/// \param A First basic block.
+/// \param B Second basic block.
+/// \returns the innermost loop containing both \p A and \p B, or nullptr if
+///          there is no such loop.
 template <class BlockT, class LoopT>
 LoopT *LoopInfoBase<BlockT, LoopT>::getSmallestCommonLoop(BlockT *A,
                                                           BlockT *B) const {
   return getSmallestCommonLoop(getLoopFor(A), getLoopFor(B));
 }
 
-// Debugging
+/// Print the top-level loops to \p OS.
+///
+/// \param OS The output stream.
 template <class BlockT, class LoopT>
 void LoopInfoBase<BlockT, LoopT>::print(raw_ostream &OS) const {
   for (unsigned i = 0; i < TopLevelLoops.size(); ++i)
     TopLevelLoops[i]->print(OS);
 }
 
+/// Return true if \p BB1 and \p BB2 contain the same elements ignoring order.
+///
+/// Both vectors are sorted in place before comparison.
+///
+/// \param BB1 First vector (sorted in place).
+/// \param BB2 Second vector (sorted in place).
+/// \returns True if the sorted vectors are equal.
 template <typename T>
 bool compareVectors(std::vector<T> &BB1, std::vector<T> &BB2) {
   llvm::sort(BB1);
@@ -847,6 +938,11 @@ bool compareVectors(std::vector<T> &BB1, std::vector<T> &BB2) {
   return BB1 == BB2;
 }
 
+/// Map each header in the nest of \p L to its loop in \p LoopHeaders.
+///
+/// \param LoopHeaders Map from loop header block to the corresponding loop.
+/// \param LI Loop info that owns the nest (unused; kept for call-site context).
+/// \param L Root of the loop nest to record.
 template <class BlockT, class LoopT>
 void addInnerLoopsToHeadersMap(DenseMap<BlockT *, const LoopT *> &LoopHeaders,
                                const LoopInfoBase<BlockT, LoopT> &LI,
@@ -857,6 +953,12 @@ void addInnerLoopsToHeadersMap(DenseMap<BlockT *, const LoopT *> &LoopHeaders,
 }
 
 #ifndef NDEBUG
+/// Assert that loop \p L matches \p OtherL structurally for verification.
+///
+/// \param L Loop from the LoopInfo under test.
+/// \param OtherL Corresponding loop from a freshly computed LoopInfo.
+/// \param OtherLoopHeaders Map of headers to loops in the computed LoopInfo;
+///        entries are erased as subloops are matched.
 template <class BlockT, class LoopT>
 static void compareLoops(const LoopT *L, const LoopT *OtherL,
                          DenseMap<BlockT *, const LoopT *> &OtherLoopHeaders) {
@@ -890,6 +992,7 @@ static void compareLoops(const LoopT *L, const LoopT *OtherL,
 }
 #endif
 
+/// Verify the loop forest and block-to-loop mapping are consistent.
 template <class BlockT, class LoopT>
 void LoopInfoBase<BlockT, LoopT>::verify() const {
   DenseSet<const LoopT *> Loops;

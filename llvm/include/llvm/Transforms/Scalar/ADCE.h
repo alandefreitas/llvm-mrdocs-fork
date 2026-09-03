@@ -29,7 +29,11 @@ class Function;
 /// dead computations that other DCE passes do not catch, particularly involving
 /// loop computations.
 struct ADCEPass : OptionalPassInfoMixin<ADCEPass> {
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// Run aggressive dead code elimination over the function.
+  /// @param F Function to eliminate dead code from.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 } // end namespace llvm

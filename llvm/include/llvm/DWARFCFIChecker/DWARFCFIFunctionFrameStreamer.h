@@ -26,6 +26,8 @@
 
 namespace llvm {
 
+/// MCStreamer that cuts CFI and instructions into frames for a receiver.
+///
 /// This class is an `MCStreamer` implementation that watches for machine
 /// instructions and CFI directives. It cuts the stream into function frames and
 /// channels them to `CFIFunctionFrameReceiver`. A function frame is the machine
@@ -33,32 +35,67 @@ namespace llvm {
 /// `.cfi_endproc` directives.
 class LLVM_ABI CFIFunctionFrameStreamer : public MCStreamer {
 public:
+  /// Construct a streamer that forwards function frames to \p Receiver.
+  /// \param Context - MC context that owns symbols and sections.
+  /// \param Receiver - Non-null receiver that consumes each function frame.
   CFIFunctionFrameStreamer(MCContext &Context,
                            std::unique_ptr<CFIFunctionFrameReceiver> Receiver)
       : MCStreamer(Context), Receiver(std::move(Receiver)) {
     assert(this->Receiver && "Receiver should not be null");
   }
 
+  /// Always accept raw text; it is discarded without emission.
+  /// \return Always true.
   bool hasRawTextSupport() const override { return true; }
+  /// Discard \p String; this streamer does not emit assembly text.
+  /// \param String - Raw text that would be written to a .s file.
   void emitRawTextImpl(StringRef String) override {}
 
+  /// Accept \p Attribute on \p Symbol without recording it.
+  /// \param Symbol - Symbol to attribute.
+  /// \param Attribute - Attribute to add.
+  /// \return Always true.
   bool emitSymbolAttribute(MCSymbol *Symbol, MCSymbolAttr Attribute) override {
     return true;
   }
 
+  /// No-op common-symbol emission; this streamer ignores object symbols.
+  /// \param Symbol - The common symbol to emit.
+  /// \param Size - The size of the common symbol.
+  /// \param ByteAlignment - The alignment of the symbol.
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                         Align ByteAlignment) override {}
+  /// No-op `.subsection_via_symbols` emission.
   void emitSubsectionsViaSymbols() override {};
+  /// No-op start of a COFF symbol definition.
+  /// \param Symbol - The symbol to have its External & Type fields set.
   void beginCOFFSymbolDef(const MCSymbol *Symbol) override {}
+  /// No-op COFF storage-class emission.
+  /// \param StorageClass - The storage class the symbol should have.
   void emitCOFFSymbolStorageClass(int StorageClass) override {}
+  /// No-op COFF symbol-type emission.
+  /// \param Type - A COFF type identifier (see COFF::SymbolType in X86COFF.h).
   void emitCOFFSymbolType(int Type) override {}
+  /// No-op end of a COFF symbol definition.
   void endCOFFSymbolDef() override {}
+  /// No-op XCOFF linkage and visibility emission.
+  /// \param Symbol - The symbol to emit.
+  /// \param Linkage - The linkage of the symbol to emit.
+  /// \param Visibility - The visibility of the symbol to emit or MCSA_Invalid
+  /// if the symbol does not have an explicit visibility.
   void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
                                             MCSymbolAttr Linkage,
                                             MCSymbolAttr Visibility) override {}
 
+  /// Forward \p Inst to the receiver when inside an unfinished DWARF frame.
+  /// \param Inst - Instruction to emit.
+  /// \param STI - Subtarget info in effect for \p Inst.
   void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;
+  /// Push frame state and start tracking a new `.cfi_startproc` region.
+  /// \param Frame - Frame info being started.
   void emitCFIStartProcImpl(MCDwarfFrameInfo &Frame) override;
+  /// Flush the current frame to the receiver and end `.cfi_endproc`.
+  /// \param CurFrame - Frame info being ended.
   void emitCFIEndProcImpl(MCDwarfFrameInfo &CurFrame) override;
 
 private:

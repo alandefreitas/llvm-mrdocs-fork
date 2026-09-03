@@ -20,32 +20,55 @@
 
 namespace llvm {
 
-// A definition of a single resource script token. Each token has its kind
-// (declared in ResourceScriptTokenList) and holds a value - a reference
-// representation of the token.
-// RCToken does not claim ownership on its value. A memory buffer containing
-// the token value should be stored in a safe place and cannot be freed
-// nor reallocated.
+/// A single token from a Windows resource (.rc) script.
+///
+/// Each token has a \c Kind and holds a value - a reference to the token's
+/// spelling in the input buffer. RCToken does not own that value; the memory
+/// buffer containing it must remain valid and must not be freed or reallocated
+/// while the token is in use.
 class RCToken {
 public:
+  /// Classification of a resource-script token.
   enum class Kind {
-#define TOKEN(Name) Name,
-#define SHORT_TOKEN(Name, Ch) Name,
-#include "ResourceScriptTokenList.h"
-#undef TOKEN
-#undef SHORT_TOKEN
+    Invalid,    ///< Invalid token; should not occur in a valid script.
+    Int,        ///< Integer (decimal, octal, or hexadecimal).
+    String,     ///< String literal value.
+    Identifier, ///< Script identifier (resource name or type).
+    BlockBegin, ///< Start of a script block; can also be BEGIN.
+    BlockEnd,   ///< End of a script block; can also be END.
+    Comma,      ///< Resource-argument separator.
+    Plus,       ///< Addition operator.
+    Minus,      ///< Subtraction operator.
+    Pipe,       ///< Bitwise-OR operator.
+    Amp,        ///< Bitwise-AND operator.
+    Tilde,      ///< Bitwise-NOT operator.
+    LeftParen,  ///< Left parenthesis in script expressions.
+    RightParen, ///< Right parenthesis in script expressions.
   };
 
+  /// Construct a token with the given kind and spelling.
+  /// @param RCTokenKind Kind of this token.
+  /// @param Value Spelling of the token in the input buffer (not owned).
   RCToken(RCToken::Kind RCTokenKind, StringRef Value);
 
-  // Get an integer value of the integer token.
+  /// Return the numeric value of an integer token.
+  ///
+  /// The token kind must be \c Kind::Int.
+  /// @return The integer value represented by this token.
   uint32_t intValue() const;
+  /// Return true if this integer token has a trailing L long-integer suffix.
+  /// @return True if the token has a long-integer suffix.
   bool isLongInt() const;
 
+  /// Return the token's spelling in the input buffer.
+  /// @return The token's spelling (not owned).
   StringRef value() const;
+  /// Return the kind of this token.
+  /// @return The classification of this token.
   Kind kind() const;
 
-  // Check if a token describes a binary operator.
+  /// Return true if this token is a binary operator.
+  /// @return True if this token is a binary operator.
   bool isBinaryOp() const;
 
 private:

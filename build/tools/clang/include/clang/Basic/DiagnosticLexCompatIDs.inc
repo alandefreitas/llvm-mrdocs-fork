@@ -1,3 +1,0 @@
-DIAG_COMPAT_IDS_BEGIN()
-DIAG_COMPAT_ID(0,mathematical_notation,29,compat_cxx29_mathematical_notation,compat_pre_cxx29_mathematical_notation)
-DIAG_COMPAT_IDS_END()

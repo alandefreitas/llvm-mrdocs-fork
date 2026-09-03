@@ -35,12 +35,20 @@ class StringRef;
 /// different manglings.
 class ItaniumManglingCanonicalizer {
 public:
+  /// Construct an empty mangling canonicalizer.
   LLVM_ABI ItaniumManglingCanonicalizer();
-  ItaniumManglingCanonicalizer(const ItaniumManglingCanonicalizer &) = delete;
-  void operator=(const ItaniumManglingCanonicalizer &) = delete;
+  /// Deleted copy constructor.
+  /// @param Other Unused; copy construction is deleted.
+  ItaniumManglingCanonicalizer(const ItaniumManglingCanonicalizer &Other) = delete;
+  /// Deleted copy assignment.
+  /// @param Other Unused; copy assignment is deleted.
+  void operator=(const ItaniumManglingCanonicalizer &Other) = delete;
+  /// Destroy the canonicalizer.
   LLVM_ABI ~ItaniumManglingCanonicalizer();
 
+  /// Result of attempting to add a mangling equivalence.
   enum class EquivalenceError {
+    /// The equivalence was added successfully.
     Success,
 
     /// Both the equivalent manglings have already been used as components of
@@ -55,6 +63,7 @@ public:
     InvalidSecondMangling,
   };
 
+  /// Kind of Itanium mangling fragment used in an equivalence.
   enum class FragmentKind {
     /// The mangling fragment is a <name> (or a predefined <substitution>).
     Name,
@@ -66,23 +75,35 @@ public:
 
   /// Add an equivalence between \p First and \p Second. Both manglings must
   /// live at least as long as the canonicalizer.
+  /// \param Kind Kind of mangling fragment being equated.
+  /// \param First First equivalent mangling fragment.
+  /// \param Second Second equivalent mangling fragment.
+  /// @return Success, or an error describing why the equivalence could not be
+  /// added.
   LLVM_ABI EquivalenceError addEquivalence(FragmentKind Kind, StringRef First,
                                            StringRef Second);
 
+  /// Opaque key identifying an equivalence class of mangled names.
   using Key = uintptr_t;
 
-  /// Form a canonical key for the specified mangling. They key will be the
-  /// same for all equivalent manglings, and different for any two
-  /// non-equivalent manglings, but is otherwise unspecified.
+  /// Form a canonical key for a mangling.
+  ///
+  /// The key will be the same for all equivalent manglings, and different for
+  /// any two non-equivalent manglings, but is otherwise unspecified.
   ///
   /// Returns Key() if (and only if) the mangling is not a valid Itanium C++
   /// ABI mangling.
   ///
   /// The string denoted by Mangling must live as long as the canonicalizer.
+  /// \param Mangling Mangled name to canonicalize.
+  /// @return A canonical key for \p Mangling, or Key() if the mangling is
+  /// invalid.
   LLVM_ABI Key canonicalize(StringRef Mangling);
 
   /// Find a canonical key for the specified mangling, if one has already been
   /// formed. Otherwise returns Key().
+  /// \param Mangling Mangled name to look up.
+  /// @return The previously formed canonical key, or Key() if none exists.
   LLVM_ABI Key lookup(StringRef Mangling);
 
 private:

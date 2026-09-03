@@ -23,20 +23,40 @@
 
 namespace llvm {
 
-/// An implementation of BinaryStream which holds its entire data set
-/// in a single contiguous buffer.  BinaryByteStream guarantees that no read
-/// operation will ever incur a copy.  Note that BinaryByteStream does not
-/// own the underlying buffer.
+/// BinaryStream backed by a single contiguous buffer that never copies on read.
+///
+/// BinaryByteStream does not own the underlying buffer.
 class BinaryByteStream : public BinaryStream {
 public:
+  /// Construct an empty BinaryByteStream.
   BinaryByteStream() = default;
+
+  /// Construct a BinaryByteStream over the bytes in \p Data.
+  ///
+  /// \param Data Contiguous bytes to expose as the stream contents.
+  /// \param Endian Endianness of multi-byte values in the stream.
   BinaryByteStream(ArrayRef<uint8_t> Data, llvm::endianness Endian)
       : Endian(Endian), Data(Data) {}
+
+  /// Construct a BinaryByteStream over the bytes of string \p Data.
+  ///
+  /// \param Data String whose bytes become the stream contents.
+  /// \param Endian Endianness of multi-byte values in the stream.
   BinaryByteStream(StringRef Data, llvm::endianness Endian)
       : Endian(Endian), Data(Data.bytes_begin(), Data.bytes_end()) {}
 
+  /// Return the endianness of multi-byte values in this stream.
+  ///
+  /// \returns The endianness of multi-byte values in this stream.
   llvm::endianness getEndian() const override { return Endian; }
 
+  /// Read \p Size bytes starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Size Number of bytes to read.
+  /// \param Buffer Set to the requested slice of the underlying buffer.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error readBytes(uint64_t Offset, uint64_t Size,
                   ArrayRef<uint8_t> &Buffer) override {
     if (auto EC = checkOffsetForRead(Offset, Size))
@@ -45,6 +65,12 @@ public:
     return Error::success();
   }
 
+  /// Read the longest contiguous chunk starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Buffer Set to the remaining contiguous bytes from \p Offset.
+  ///
+  /// \returns Error::success() on success, or an error if \p Offset is invalid.
   Error readLongestContiguousChunk(uint64_t Offset,
                                    ArrayRef<uint8_t> &Buffer) override {
     if (auto EC = checkOffsetForRead(Offset, 1))
@@ -53,61 +79,114 @@ public:
     return Error::success();
   }
 
+  /// Return the number of bytes in this stream.
+  ///
+  /// \returns The number of bytes in this stream.
   uint64_t getLength() override { return Data.size(); }
 
+  /// Return the underlying contiguous data buffer.
+  ///
+  /// \returns The underlying contiguous data buffer.
   ArrayRef<uint8_t> data() const { return Data; }
 
+  /// Return the underlying buffer as a StringRef.
+  ///
+  /// \returns The underlying buffer as a StringRef.
   StringRef str() const {
     const char *CharData = reinterpret_cast<const char *>(Data.data());
     return StringRef(CharData, Data.size());
   }
 
 protected:
+  /// Endianness of multi-byte values in the stream.
   llvm::endianness Endian;
+
+  /// Contiguous bytes that back this stream.
   ArrayRef<uint8_t> Data;
 };
 
-/// An implementation of BinaryStream whose data is backed by an llvm
-/// MemoryBuffer object.  MemoryBufferByteStream owns the MemoryBuffer in
-/// question.  As with BinaryByteStream, reading from a MemoryBufferByteStream
-/// will never cause a copy.
+/// BinaryStream whose data is owned by an llvm MemoryBuffer.
+///
+/// MemoryBufferByteStream owns the MemoryBuffer in question. As with
+/// BinaryByteStream, reading from a MemoryBufferByteStream will never cause a
+/// copy.
 class MemoryBufferByteStream : public BinaryByteStream {
 public:
+  /// Construct a stream that owns \p Buffer.
+  ///
+  /// \param Buffer MemoryBuffer providing the stream bytes; ownership is taken.
+  /// \param Endian Endianness of multi-byte values in the stream.
   MemoryBufferByteStream(std::unique_ptr<MemoryBuffer> Buffer,
                          llvm::endianness Endian)
       : BinaryByteStream(Buffer->getBuffer(), Endian),
         MemBuffer(std::move(Buffer)) {}
 
+  /// Owned MemoryBuffer that backs this stream.
   std::unique_ptr<MemoryBuffer> MemBuffer;
 };
 
-/// An implementation of BinaryStream which holds its entire data set
-/// in a single contiguous buffer.  As with BinaryByteStream, the mutable
-/// version also guarantees that no read operation will ever incur a copy,
-/// and similarly it does not own the underlying buffer.
+/// Writable BinaryStream backed by a single contiguous mutable buffer.
+///
+/// As with BinaryByteStream, the mutable version also guarantees that no read
+/// operation will ever incur a copy, and similarly it does not own the
+/// underlying buffer.
 class MutableBinaryByteStream : public WritableBinaryStream {
 public:
+  /// Construct an empty MutableBinaryByteStream.
   MutableBinaryByteStream() = default;
+
+  /// Construct a MutableBinaryByteStream over the bytes in \p Data.
+  ///
+  /// \param Data Contiguous mutable bytes to expose as the stream contents.
+  /// \param Endian Endianness of multi-byte values in the stream.
   MutableBinaryByteStream(MutableArrayRef<uint8_t> Data,
                           llvm::endianness Endian)
       : Data(Data), ImmutableStream(Data, Endian) {}
 
+  /// Return the endianness of multi-byte values in this stream.
+  ///
+  /// \returns The endianness of multi-byte values in this stream.
   llvm::endianness getEndian() const override {
     return ImmutableStream.getEndian();
   }
 
+  /// Read \p Size bytes starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Size Number of bytes to read.
+  /// \param Buffer Set to the requested slice of the underlying buffer.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error readBytes(uint64_t Offset, uint64_t Size,
                   ArrayRef<uint8_t> &Buffer) override {
     return ImmutableStream.readBytes(Offset, Size, Buffer);
   }
 
+  /// Read the longest contiguous chunk starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Buffer Set to the remaining contiguous bytes from \p Offset.
+  ///
+  /// \returns Error::success() on success, or an error if \p Offset is invalid.
   Error readLongestContiguousChunk(uint64_t Offset,
                                    ArrayRef<uint8_t> &Buffer) override {
     return ImmutableStream.readLongestContiguousChunk(Offset, Buffer);
   }
 
+  /// Return the number of bytes in this stream.
+  ///
+  /// \returns The number of bytes in this stream.
   uint64_t getLength() override { return ImmutableStream.getLength(); }
 
+  /// Write \p Buffer into the stream at \p Offset without resizing.
+  ///
+  /// This always copies into existing allocated space and cannot shrink or grow
+  /// the stream.
+  ///
+  /// \param Offset Byte offset at which to begin writing.
+  /// \param Buffer Bytes to copy into the stream.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error writeBytes(uint64_t Offset, ArrayRef<uint8_t> Buffer) override {
     if (Buffer.empty())
       return Error::success();
@@ -120,8 +199,14 @@ public:
     return Error::success();
   }
 
+  /// Commit buffered changes; always succeeds for this in-memory stream.
+  ///
+  /// \returns Error::success().
   Error commit() override { return Error::success(); }
 
+  /// Return the underlying contiguous mutable data buffer.
+  ///
+  /// \returns The underlying contiguous mutable data buffer.
   MutableArrayRef<uint8_t> data() const { return Data; }
 
 private:
@@ -136,13 +221,29 @@ class AppendingBinaryByteStream : public WritableBinaryStream {
   llvm::endianness Endian = llvm::endianness::little;
 
 public:
+  /// Construct an empty AppendingBinaryByteStream with little endianness.
   AppendingBinaryByteStream() = default;
+
+  /// Construct an empty AppendingBinaryByteStream with the given endianness.
+  ///
+  /// \param Endian Endianness of multi-byte values in the stream.
   AppendingBinaryByteStream(llvm::endianness Endian) : Endian(Endian) {}
 
+  /// Clear all bytes from the underlying buffer.
   void clear() { Data.clear(); }
 
+  /// Return the endianness of multi-byte values in this stream.
+  ///
+  /// \returns The endianness of multi-byte values in this stream.
   llvm::endianness getEndian() const override { return Endian; }
 
+  /// Read \p Size bytes starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Size Number of bytes to read.
+  /// \param Buffer Set to the requested slice of the underlying buffer.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error readBytes(uint64_t Offset, uint64_t Size,
                   ArrayRef<uint8_t> &Buffer) override {
     if (auto EC = checkOffsetForWrite(Offset, Buffer.size()))
@@ -152,10 +253,20 @@ public:
     return Error::success();
   }
 
+  /// Insert \p Bytes into the stream at \p Offset, shifting existing data.
+  ///
+  /// \param Offset Byte offset at which to insert.
+  /// \param Bytes Bytes to insert into the underlying buffer.
   void insert(uint64_t Offset, ArrayRef<uint8_t> Bytes) {
     Data.insert(Data.begin() + Offset, Bytes.begin(), Bytes.end());
   }
 
+  /// Read the longest contiguous chunk starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Buffer Set to the remaining contiguous bytes from \p Offset.
+  ///
+  /// \returns Error::success() on success, or an error if \p Offset is invalid.
   Error readLongestContiguousChunk(uint64_t Offset,
                                    ArrayRef<uint8_t> &Buffer) override {
     if (auto EC = checkOffsetForWrite(Offset, 1))
@@ -165,8 +276,21 @@ public:
     return Error::success();
   }
 
+  /// Return the number of bytes in this stream.
+  ///
+  /// \returns The number of bytes in this stream.
   uint64_t getLength() override { return Data.size(); }
 
+  /// Write \p Buffer into the stream at \p Offset, growing if needed.
+  ///
+  /// Writing at the current length appends. Writing beyond the current length
+  /// is an error because intermediate uninitialized bytes would be undefined.
+  ///
+  /// \param Offset Byte offset at which to begin writing.
+  /// \param Buffer Bytes to copy into the stream.
+  ///
+  /// \returns Error::success() on success, or an error if \p Offset is beyond
+  /// the current length.
   Error writeBytes(uint64_t Offset, ArrayRef<uint8_t> Buffer) override {
     if (Buffer.empty())
       return Error::success();
@@ -188,11 +312,19 @@ public:
     return Error::success();
   }
 
+  /// Commit buffered changes; always succeeds for this in-memory stream.
+  ///
+  /// \returns Error::success().
   Error commit() override { return Error::success(); }
 
   /// Return the properties of this stream.
+  ///
+  /// \returns The stream flags, including BSF_Write and BSF_Append.
   BinaryStreamFlags getFlags() const override { return BSF_Write | BSF_Append; }
 
+  /// Return the underlying contiguous mutable data buffer.
+  ///
+  /// \returns The underlying contiguous mutable data buffer.
   MutableArrayRef<uint8_t> data() { return Data; }
 };
 
@@ -228,34 +360,71 @@ private:
   };
 
 public:
+  /// Construct a stream backed by owned FileOutputBuffer \p Buffer.
+  ///
+  /// \param Buffer FileOutputBuffer providing the writable bytes; ownership is
+  /// taken.
+  /// \param Endian Endianness of multi-byte values in the stream.
   FileBufferByteStream(std::unique_ptr<FileOutputBuffer> Buffer,
                        llvm::endianness Endian)
       : Impl(std::move(Buffer), Endian) {}
 
+  /// Return the endianness of multi-byte values in this stream.
+  ///
+  /// \returns The endianness of multi-byte values in this stream.
   llvm::endianness getEndian() const override { return Impl.getEndian(); }
 
+  /// Read \p Size bytes starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Size Number of bytes to read.
+  /// \param Buffer Set to the requested slice of the underlying buffer.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error readBytes(uint64_t Offset, uint64_t Size,
                   ArrayRef<uint8_t> &Buffer) override {
     return Impl.readBytes(Offset, Size, Buffer);
   }
 
+  /// Read the longest contiguous chunk starting at \p Offset without copying.
+  ///
+  /// \param Offset Byte offset into the stream at which to begin reading.
+  /// \param Buffer Set to the remaining contiguous bytes from \p Offset.
+  ///
+  /// \returns Error::success() on success, or an error if \p Offset is invalid.
   Error readLongestContiguousChunk(uint64_t Offset,
                                    ArrayRef<uint8_t> &Buffer) override {
     return Impl.readLongestContiguousChunk(Offset, Buffer);
   }
 
+  /// Return the number of bytes in this stream.
+  ///
+  /// \returns The number of bytes in this stream.
   uint64_t getLength() override { return Impl.getLength(); }
 
+  /// Write \p Data into the stream at \p Offset without resizing.
+  ///
+  /// \param Offset Byte offset at which to begin writing.
+  /// \param Data Bytes to copy into the stream.
+  ///
+  /// \returns Error::success() on success, or an error if the range is invalid.
   Error writeBytes(uint64_t Offset, ArrayRef<uint8_t> Data) override {
     return Impl.writeBytes(Offset, Data);
   }
 
+  /// Commit buffered changes to the backing FileOutputBuffer.
+  ///
+  /// \returns Error::success() on success, or a filesystem error on failure.
   Error commit() override { return Impl.commit(); }
 
   /// Returns a pointer to the start of the buffer.
+  ///
+  /// \returns A pointer to the start of the buffer.
   uint8_t *getBufferStart() const { return Impl.getBufferStart(); }
 
   /// Returns a pointer to the end of the buffer.
+  ///
+  /// \returns A pointer to the end of the buffer.
   uint8_t *getBufferEnd() const { return Impl.getBufferEnd(); }
 
 private:

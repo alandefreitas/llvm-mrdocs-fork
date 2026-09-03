@@ -30,16 +30,20 @@ class Module;
 /// \param DetailedHash Whether or not to encode additional information in the
 /// hash. The additional information added into the hash when this flag is set
 /// to true includes instruction and operand type information.
+/// \return A stable hash of the function.
 LLVM_ABI stable_hash StructuralHash(const Function &F,
                                     bool DetailedHash = false);
 
 /// Returns a hash of the global variable \p G.
+/// \param G The global variable to hash.
+/// \return A stable hash of the global variable.
 LLVM_ABI stable_hash StructuralHash(const GlobalVariable &G);
 
 /// Returns a hash of the module \p M by hashing all functions and global
 /// variables contained within. \param M The module to hash. \param DetailedHash
 /// Whether or not to encode additional information in the function hashes that
 /// composed the module hash.
+/// \return A stable hash of the module.
 LLVM_ABI stable_hash StructuralHash(const Module &M, bool DetailedHash = false);
 
 /// The pair of an instruction index and a operand index.
@@ -55,16 +59,22 @@ using IndexOperandHashMapType = DenseMap<IndexPair, stable_hash>;
 /// if the operand should be ignored in the function hash computation.
 using IgnoreOperandFunc = std::function<bool(const Instruction *, unsigned)>;
 
+/// Holds a function's structural hash and maps for ignored-operand analysis.
 struct FunctionHashInfo {
   /// A hash value representing the structural content of the function
   stable_hash FunctionHash;
   /// A mapping from instruction indices to instruction pointers
   std::unique_ptr<IndexInstrMap> IndexInstruction;
-  /// A mapping from pairs of instruction indices and operand indices
-  /// to the hashes of the operands. This can be used to analyze or
-  /// reconstruct the differences in ignored operands
+  /// Maps instruction/operand index pairs to ignored-operand hashes.
+  ///
+  /// This can be used to analyze or reconstruct the differences in ignored
+  /// operands.
   std::unique_ptr<IndexOperandHashMapType> IndexOperandHashMap;
 
+  /// Construct from a function hash and optional instruction/operand maps.
+  /// \param FuntionHash Structural hash of the function.
+  /// \param IndexInstruction Map from instruction indices to instructions.
+  /// \param IndexOperandHashMap Map from index pairs to ignored-operand hashes.
   FunctionHashInfo(stable_hash FuntionHash,
                    std::unique_ptr<IndexInstrMap> IndexInstruction,
                    std::unique_ptr<IndexOperandHashMapType> IndexOperandHashMap)
@@ -73,11 +83,13 @@ struct FunctionHashInfo {
         IndexOperandHashMap(std::move(IndexOperandHashMap)) {}
 };
 
-/// Computes a structural hash of a given function, considering the structure
-/// and content of the function's instructions while allowing for selective
-/// ignoring of certain operands based on custom criteria. This hash can be used
-/// to identify functions that are structurally similar or identical, which is
-/// useful in optimizations, deduplication, or analysis tasks.
+/// Computes a structural hash of a function while selectively ignoring operands.
+///
+/// Considers the structure and content of the function's instructions while
+/// allowing for selective ignoring of certain operands based on custom
+/// criteria. This hash can be used to identify functions that are structurally
+/// similar or identical, which is useful in optimizations, deduplication, or
+/// analysis tasks.
 /// \param F The function to hash.
 /// \param IgnoreOp A callable that takes an instruction and an operand index,
 /// and returns true if the operand should be ignored in the hash computation.

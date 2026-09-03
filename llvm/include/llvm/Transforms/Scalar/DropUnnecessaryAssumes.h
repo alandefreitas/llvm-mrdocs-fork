@@ -17,12 +17,27 @@
 
 namespace llvm {
 
+/// Pass that drops assume intrinsics that are unlikely to be useful.
+///
+/// Removes \@llvm.assume calls and selected operand bundles whose affected
+/// values are only used ephemerally, so the assume provides no lasting
+/// information for later optimizations.
 struct DropUnnecessaryAssumesPass
     : public OptionalPassInfoMixin<DropUnnecessaryAssumesPass> {
+  /// Construct a pass, optionally also dropping dereferenceable bundles.
+  /// @param DropDereferenceable When true, also drop "dereferenceable"
+  /// operand bundles (for example after loop vectorization).
   DropUnnecessaryAssumesPass(bool DropDereferenceable = false)
       : DropDereferenceable(DropDereferenceable) {}
 
+  /// Run the pass over the function.
+  /// @param F Function whose assumes may be dropped.
+  /// @param AM Function analysis manager providing AssumptionAnalysis.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);

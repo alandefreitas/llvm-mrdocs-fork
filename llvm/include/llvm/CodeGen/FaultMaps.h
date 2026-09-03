@@ -18,23 +18,41 @@ namespace llvm {
 class AsmPrinter;
 class MCExpr;
 
+/// Collects potentially-faulting operations and serializes the __llvm_faultmaps
+/// section.
 class FaultMaps {
 public:
+  /// Kinds of potentially-faulting operations recorded in a fault map.
   enum FaultKind {
-    FaultingLoad = 1,
-    FaultingLoadStore,
-    FaultingStore,
-    FaultKindMax
+    FaultingLoad = 1, ///< A load that may fault.
+    FaultingLoadStore, ///< A load-store that may fault.
+    FaultingStore, ///< A store that may fault.
+    FaultKindMax ///< Sentinel one past the last valid fault kind.
   };
 
+  /// Construct a fault maps collector bound to AsmPrinter \p AP.
+  ///
+  /// \param AP AsmPrinter used to emit the fault map section.
   LLVM_ABI explicit FaultMaps(AsmPrinter &AP);
 
-  LLVM_ABI static const char *faultTypeToString(FaultKind);
+  /// Return a printable name for fault kind \p FT.
+  ///
+  /// \param FT Fault kind to convert to a string.
+  /// \return Null-terminated string naming \p FT.
+  LLVM_ABI static const char *faultTypeToString(FaultKind FT);
 
+  /// Record a faulting operation of kind \p FaultTy at \p FaultingLabel with
+  /// handler \p HandlerLabel.
+  ///
+  /// \param FaultTy Kind of potentially-faulting operation.
+  /// \param FaultingLabel Label at the faulting instruction.
+  /// \param HandlerLabel Label of the fault handler.
   LLVM_ABI void recordFaultingOp(FaultKind FaultTy,
                                  const MCSymbol *FaultingLabel,
                                  const MCSymbol *HandlerLabel);
+  /// Emit collected fault map data into the __llvm_faultmaps section.
   LLVM_ABI void serializeToFaultMapSection();
+  /// Clear all recorded function fault infos.
   void reset() {
     FunctionInfos.clear();
   }

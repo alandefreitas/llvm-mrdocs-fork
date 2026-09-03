@@ -10,13 +10,18 @@
 #define LLVM_FRONTEND_DEBUG_OPTIONS_H
 
 namespace llvm {
+/// Options controlling debug-info emission for frontend code generation.
 namespace codegenoptions {
 
+/// Debug information format to emit (DWARF or CodeView).
 enum DebugInfoFormat {
+  /// Emit DWARF debug information.
   DIF_DWARF,
+  /// Emit CodeView debug information.
   DIF_CodeView,
 };
 
+/// Amount of debug information to generate.
 enum DebugInfoKind {
   /// Don't generate debug info.
   NoDebugInfo,
@@ -54,7 +59,15 @@ enum DebugInfoKind {
   UnusedTypeInfo,
 };
 
-enum class DebugTemplateNamesKind { Full, Simple, Mangled };
+/// How template names are represented in debug info.
+enum class DebugTemplateNamesKind {
+  /// Include full template arguments in the textual name.
+  Full,
+  /// Omit reconstitutable template arguments from the textual name.
+  Simple,
+  /// Encode simplified names with a mangled marker for reconstitution.
+  Mangled
+};
 
 } // end namespace codegenoptions
 } // end namespace llvm

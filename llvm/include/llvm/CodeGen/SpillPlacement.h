@@ -42,6 +42,7 @@ class MachineFunction;
 class SpillPlacementWrapperLegacy;
 class SpillPlacementAnalysis;
 
+/// Computes optimal spill-code placement between basic blocks for a live range.
 class SpillPlacement {
   friend class SpillPlacementWrapperLegacy;
   friend class SpillPlacementAnalysis;
@@ -92,12 +93,18 @@ public:
     BorderConstraint Entry : 8; ///< Constraint on block entry.
     BorderConstraint Exit : 8;  ///< Constraint on block exit.
 
-    /// True when this block changes the value of the live range. This means
-    /// the block has a non-PHI def.  When this is false, a live-in value on
-    /// the stack can be live-out on the stack without inserting a spill.
+    /// True when this block changes the value of the live range.
+    ///
+    /// This means the block has a non-PHI def. When this is false, a live-in
+    /// value on the stack can be live-out on the stack without inserting a
+    /// spill.
     bool ChangesValue;
 
+    /// Print this block constraint to \p OS.
+    ///
+    /// \param OS Output stream for the dump.
     LLVM_ABI void print(raw_ostream &OS) const;
+    /// Dump this block constraint to dbgs().
     LLVM_ABI void dump() const;
   };
 
@@ -116,22 +123,26 @@ public:
   ///                   live out.
   LLVM_ABI void addConstraints(ArrayRef<BlockConstraint> LiveBlocks);
 
-  /// addPrefSpill - Add PrefSpill constraints to all blocks listed.  This is
-  /// equivalent to calling addConstraint with identical BlockConstraints with
-  /// Entry = Exit = PrefSpill, and ChangesValue = false.
+  /// Add PrefSpill constraints to all blocks listed.
+  ///
+  /// This is equivalent to calling addConstraint with identical
+  /// BlockConstraints with Entry = Exit = PrefSpill, and ChangesValue = false.
   ///
   /// @param Blocks Array of block numbers that prefer to spill in and out.
   /// @param Strong When true, double the negative bias for these blocks.
   LLVM_ABI void addPrefSpill(ArrayRef<unsigned> Blocks, bool Strong);
 
   /// addLinks - Add transparent blocks with the given numbers.
+  /// @param Links Array of block numbers that link bundles without constraints.
   LLVM_ABI void addLinks(ArrayRef<unsigned> Links);
 
-  /// scanActiveBundles - Perform an initial scan of all bundles activated by
-  /// addConstraints and addLinks, updating their state. Add all the bundles
-  /// that now prefer a register to RecentPositive.
-  /// Prepare internal data structures for iterate.
-  /// Return true is there are any positive nodes.
+  /// Perform an initial scan of all bundles activated by addConstraints and
+  /// addLinks.
+  ///
+  /// Updates bundle state, adds bundles that prefer a register to
+  /// RecentPositive, and prepares internal data structures for iterate.
+  ///
+  /// \return True if there are any positive nodes.
   LLVM_ABI bool scanActiveBundles();
 
   /// iterate - Update the network iteratively until convergence, or new bundles
@@ -140,27 +151,41 @@ public:
 
   /// getRecentPositive - Return an array of bundles that became positive during
   /// the previous call to scanActiveBundles or iterate.
+  /// @return Bundles that recently preferred a register.
   ArrayRef<unsigned> getRecentPositive() { return RecentPositive; }
 
-  /// finish - Compute the optimal spill code placement given the
-  /// constraints. No MustSpill constraints will be violated, and the smallest
-  /// possible number of PrefX constraints will be violated, weighted by
-  /// expected execution frequencies.
-  /// The selected bundles are returned in the bitvector passed to prepare().
+  /// Compute the optimal spill code placement given the constraints.
+  ///
+  /// No MustSpill constraints will be violated, and the smallest possible
+  /// number of PrefX constraints will be violated, weighted by expected
+  /// execution frequencies. The selected bundles are returned in the bitvector
+  /// passed to prepare().
+  ///
   /// @return True if a perfect solution was found, allowing the variable to be
   ///         in a register through all relevant bundles.
   LLVM_ABI bool finish();
 
   /// getBlockFrequency - Return the estimated block execution frequency per
   /// function invocation.
+  /// @param Number Basic block number (from MBB::getNumber()).
+  /// @return Estimated execution frequency of block \p Number.
   BlockFrequency getBlockFrequency(unsigned Number) const {
     return BlockFrequencies[Number];
   }
 
+  /// Invalidate this analysis result when required by the new pass manager.
+  ///
+  /// \param MF Machine function whose analysis result may be invalidated.
+  /// \param PA Set of analyses preserved by the transform.
+  /// \param Inv Invalidator for resolving analysis dependencies.
+  /// \return True if this result should be discarded.
   LLVM_ABI bool invalidate(MachineFunction &MF, const PreservedAnalyses &PA,
                            MachineFunctionAnalysisManager::Invalidator &Inv);
 
-  LLVM_ABI SpillPlacement(SpillPlacement &&);
+  /// Move-construct spill placement state from another instance.
+  /// @param Other SpillPlacement to move from.
+  LLVM_ABI SpillPlacement(SpillPlacement &&Other);
+  /// Destroy the spill placement analysis and free node storage.
   LLVM_ABI ~SpillPlacement();
 
 private:
@@ -176,12 +201,19 @@ private:
   bool update(unsigned n);
 };
 
+/// Legacy machine function pass wrapping SpillPlacement.
 class LLVM_ABI SpillPlacementWrapperLegacy : public MachineFunctionPass {
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+  /// Construct the legacy SpillPlacement wrapper pass.
   SpillPlacementWrapperLegacy() : MachineFunctionPass(ID) {}
 
+  /// Return the SpillPlacement owned by this pass.
+  /// @return Mutable spill placement analysis result.
   SpillPlacement &getResult() { return Impl; }
+  /// Return the SpillPlacement owned by this pass.
+  /// @return Const spill placement analysis result.
   const SpillPlacement &getResult() const { return Impl; }
 
 private:
@@ -191,15 +223,22 @@ private:
   void releaseMemory() override { Impl.releaseMemory(); }
 };
 
+/// Analysis pass that computes \c SpillPlacement for a machine function.
 class SpillPlacementAnalysis
     : public AnalysisInfoMixin<SpillPlacementAnalysis> {
   friend AnalysisInfoMixin<SpillPlacementAnalysis>;
   static AnalysisKey Key;
 
 public:
+  /// Result type produced by this analysis.
   using Result = SpillPlacement;
-  LLVM_ABI SpillPlacement run(MachineFunction &,
-                              MachineFunctionAnalysisManager &);
+  /// Compute SpillPlacement for machine function \p MF.
+  ///
+  /// \param MF Machine function to analyze.
+  /// \param MFAM Analysis manager for the machine function.
+  /// \return Spill placement analysis for \p MF.
+  LLVM_ABI SpillPlacement run(MachineFunction &MF,
+                              MachineFunctionAnalysisManager &MFAM);
 };
 
 } // end namespace llvm

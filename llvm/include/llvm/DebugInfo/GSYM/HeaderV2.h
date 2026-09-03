@@ -58,10 +58,14 @@ enum class StringTableEncoding : uint8_t {
 /// EndOfList and all other fields set to zero. See GlobalInfoType (in
 /// GlobalData.h) for all section types.
 struct HeaderV2 {
+  /// The magic bytes that identify a GSYM file or section.
+  ///
   /// The magic bytes should be set to GSYM_MAGIC. This helps detect if a file
   /// is a GSYM file by scanning the first 4 bytes of a file or section.
   /// This value might appear byte swapped when endianness is swapped.
   uint32_t Magic;
+  /// The GSYM format version number.
+  ///
   /// The version number determines how the header is decoded. As version
   /// numbers increase, "Magic" and "Version" members should always appear at
   /// offset zero and 4 respectively to ensure clients figure out if they can
@@ -71,25 +75,34 @@ struct HeaderV2 {
   uint8_t AddrOffSize;
   /// String table encoding. Allows for future encoding for string table.
   StringTableEncoding StrTableEncoding;
-  /// The 64 bit base address that all address offsets in the address offsets
-  /// table are relative to. Storing a full 64 bit address allows our address
-  /// offsets table to be smaller on disk.
+  /// The 64 bit base address that all address offsets are relative to.
+  ///
+  /// Storing a full 64 bit address allows our address offsets table to be
+  /// smaller on disk.
   uint64_t BaseAddress;
   /// The number of addresses stored in the address offsets table and the
   /// address info offsets table.
   uint32_t NumAddresses;
 
   /// Return the version of this header.
+  ///
+  /// \returns The GSYM format version number (2).
   static constexpr uint32_t getVersion() { return 2; }
 
   /// Return the on-disk encoded size of the header in bytes.
   /// This may differ from sizeof(HeaderV2) due to struct padding at the end.
+  ///
+  /// \returns The encoded header size in bytes.
   static constexpr uint64_t getEncodedSize() { return 20; }
 
   /// Return the size in bytes of address info offsets.
+  ///
+  /// \returns The size in bytes of each address info offset entry.
   static constexpr uint8_t getAddressInfoOffsetSize() { return 8; }
 
   /// Return the size in bytes of string table offsets.
+  ///
+  /// \returns The size in bytes of each string table offset entry.
   static constexpr uint8_t getStringOffsetSize() { return 8; }
 
   /// Check if a header is valid and return an error if anything is wrong.
@@ -127,7 +140,17 @@ struct HeaderV2 {
   LLVM_ABI llvm::Error encode(FileWriter &O) const;
 };
 
+/// Equality comparison operator for HeaderV2.
+///
+/// \param LHS The left-hand HeaderV2 to compare.
+/// \param RHS The right-hand HeaderV2 to compare.
+/// \returns True if both HeaderV2 objects compare equal.
 LLVM_ABI bool operator==(const HeaderV2 &LHS, const HeaderV2 &RHS);
+/// Stream a human-readable representation of \p H to \p OS.
+///
+/// \param OS Destination stream.
+/// \param H HeaderV2 to print.
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                  const llvm::gsym::HeaderV2 &H);
 

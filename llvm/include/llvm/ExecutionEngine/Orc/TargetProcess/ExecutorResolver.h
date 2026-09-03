@@ -21,21 +21,34 @@
 
 namespace llvm::orc {
 
+/// Asynchronous symbol resolver for the executor process.
 class ExecutorResolver {
 public:
+  /// Result of resolving a set of symbols to optional executor addresses.
   using ResolveResult = Expected<std::vector<std::optional<ExecutorAddr>>>;
+  /// Callback invoked with the result of an asynchronous resolve.
   using YieldResolveResultFn = unique_function<void(ResolveResult)>;
 
+  /// Destroy an ExecutorResolver.
   virtual ~ExecutorResolver() = default;
 
+  /// Asynchronously resolve the given symbols and invoke \p OnResolve.
+  /// \param L Set of remote symbols to look up.
+  /// \param OnResolve Callback invoked with the resolve result or an error.
   virtual void resolveAsync(const RemoteSymbolLookupSet &L,
                             YieldResolveResultFn &&OnResolve) = 0;
 };
 
+/// ExecutorResolver that looks up symbols in a loaded dynamic library.
 class LLVM_ABI DylibSymbolResolver : public ExecutorResolver {
 public:
+  /// Construct a resolver for the dynamic library identified by \p H.
+  /// \param H Handle of the dynamic library to search.
   DylibSymbolResolver(tpctypes::DylibHandle H) : Handle(H) {}
 
+  /// Asynchronously resolve the given symbols in this library.
+  /// \param L Set of remote symbols to look up.
+  /// \param OnResolve Callback invoked with the resolve result or an error.
   void
   resolveAsync(const RemoteSymbolLookupSet &L,
                ExecutorResolver::YieldResolveResultFn &&OnResolve) override;

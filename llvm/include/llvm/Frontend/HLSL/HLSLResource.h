@@ -21,14 +21,22 @@ class Type;
 namespace hlsl {
 
 // For now we use DXIL ABI enum values directly. This may change in the future.
+/// HLSL frontend alias for \c dxil::ResourceClass.
 using dxil::ResourceClass;
+/// HLSL frontend alias for \c dxil::ResourceDimension.
 using dxil::ResourceDimension;
 
+/// Size in bytes of one constant-buffer row in HLSL packing layout.
 const unsigned CBufferRowSizeInBytes = 16U;
 
-/// Converts a scalar or vector LLVM type to its DXIL element type. Integer
-/// signedness must be supplied separately because LLVM integer types are
-/// signless.
+/// Converts a scalar or vector LLVM type to its DXIL element type.
+///
+/// Integer signedness must be supplied separately because LLVM integer types
+/// are signless.
+///
+/// \param Ty LLVM type to convert (scalar or vector).
+/// \param IsSigned Whether integer element types should be treated as signed.
+/// \return The corresponding DXIL element type.
 LLVM_ABI dxil::ElementType getDXILElementType(Type *Ty, bool IsSigned);
 
 } // namespace hlsl

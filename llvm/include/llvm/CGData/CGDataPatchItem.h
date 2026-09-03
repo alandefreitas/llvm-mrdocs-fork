@@ -19,11 +19,16 @@ namespace llvm {
 
 /// A struct to define how the data stream should be patched.
 struct CGDataPatchItem {
-  // Where to patch.
+  /// Byte offset in the data stream to patch.
   uint64_t Pos;
-  // Source data.
+  /// Source words written at this patch position.
   llvm::SmallVector<uint64_t, 0> D;
 
+  /// Construct a patch item from a stream offset and a word array.
+  ///
+  /// \param Pos Byte offset in the data stream to patch.
+  /// \param D Pointer to the first source word.
+  /// \param N Number of words at \p D to copy into this item.
   CGDataPatchItem(uint64_t Pos, const uint64_t *D, int N)
       : Pos(Pos), D(D, D + N) {}
 };

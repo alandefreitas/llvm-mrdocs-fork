@@ -43,6 +43,12 @@ class MachineRegisterInfo;
 
 using MachineDomTreeNode = DomTreeNodeBase<MachineBasicBlock>;
 
+/// Calculator for live ranges over machine IR.
+///
+/// Computes live ranges from scratch, or fills in SSA values when live-in and
+/// live-out blocks are already known. Caches CFG value information so repeated
+/// operations on the same live range (or non-overlapping ranges that share the
+/// cache) are faster.
 class LiveRangeCalc {
   const MachineFunction *MF = nullptr;
   const MachineRegisterInfo *MRI = nullptr;
@@ -164,16 +170,31 @@ class LiveRangeCalc {
 protected:
   /// Some getters to expose in a read-only way some private fields to
   /// subclasses.
+  ///
+  /// \return The machine function being analyzed, or null if unset.
   const MachineFunction *getMachineFunction() { return MF; }
+  /// Return the machine register info used for calculations.
+  ///
+  /// \return The machine register info used for calculations.
   const MachineRegisterInfo *getRegInfo() const { return MRI; }
+  /// Return the slot indexes analysis used for calculations.
+  ///
+  /// \return The slot indexes analysis used for calculations.
   SlotIndexes *getIndexes() { return Indexes; }
+  /// Return the machine dominator tree used for calculations.
+  ///
+  /// \return The machine dominator tree used for calculations.
   MachineDominatorTree *getDomTree() { return DomTree; }
+  /// Return the allocator used for value numbers.
+  ///
+  /// \return The allocator used for value numbers.
   VNInfo::Allocator *getVNAlloc() { return Alloc; }
 
   /// Reset Map and Seen fields.
   LLVM_ABI void resetLiveOutMap();
 
 public:
+  /// Construct an uninitialized live-range calculator.
   LiveRangeCalc() = default;
 
   //===--------------------------------------------------------------------===//
@@ -183,11 +204,17 @@ public:
   // Calculate live ranges from scratch.
   //
 
-  /// reset - Prepare caches for a new set of non-overlapping live ranges.  The
-  /// caches must be reset before attempting calculations with a live range
+  /// Prepare caches for a new set of non-overlapping live ranges.
+  ///
+  /// The caches must be reset before attempting calculations with a live range
   /// that may overlap a previously computed live range, and before the first
   /// live range in a function.  If live ranges are not known to be
   /// non-overlapping, call reset before each.
+  ///
+  /// \param mf   Machine function to compute live ranges for.
+  /// \param SI   Slot indexes for the function.
+  /// \param MDT  Dominator tree for the function.
+  /// \param VNIA Allocator for value numbers.
   LLVM_ABI void reset(const MachineFunction *mf, SlotIndexes *SI,
                       MachineDominatorTree *MDT, VNInfo::Allocator *VNIA);
 
@@ -198,13 +225,17 @@ public:
   // Modify existing live ranges.
   //
 
-  /// Extend the live range of @p LR to reach @p Use.
+  /// Extend the live range of \p LR to reach \p Use.
   ///
-  /// The existing values in @p LR must be live so they jointly dominate @p Use.
-  /// If @p Use is not dominated by a single existing value, PHI-defs are
+  /// The existing values in \p LR must be live so they jointly dominate \p Use.
+  /// If \p Use is not dominated by a single existing value, PHI-defs are
   /// inserted as required to preserve SSA form.
   ///
-  /// PhysReg, when set, is used to verify live-in lists on basic blocks.
+  /// \param LR      Live range to extend.
+  /// \param Use     Slot index that must be reached by the live range.
+  /// \param PhysReg When set, used to verify live-in lists on basic blocks.
+  /// \param Undefs  Locations where \p LR becomes undefined by
+  ///                <def,read-undef> operands on other subranges.
   LLVM_ABI void extend(LiveRange &LR, SlotIndex Use, Register PhysReg,
                        ArrayRef<SlotIndex> Undefs);
 
@@ -221,24 +252,29 @@ public:
   // live-in to each block, and add liveness to the live ranges.
   //
 
-  /// setLiveOutValue - Indicate that VNI is live out from MBB.  The
-  /// calculateValues() function will not add liveness for MBB, the caller
+  /// Indicate that \p VNI is live out from \p MBB.
+  ///
+  /// The calculateValues() function will not add liveness for MBB, the caller
   /// should take care of that.
   ///
   /// VNI may be null only if MBB is a live-through block also passed to
   /// addLiveInBlock().
+  ///
+  /// \param MBB Basic block that the value leaves.
+  /// \param VNI Value number live out of MBB, or null for a live-through block.
   void setLiveOutValue(MachineBasicBlock *MBB, VNInfo *VNI) {
     Seen.set(MBB->getNumber());
     Map[MBB] = LiveOutPair(VNI, nullptr);
   }
 
-  /// addLiveInBlock - Add a block with an unknown live-in value.  This
-  /// function can only be called once per basic block.  Once the live-in value
-  /// has been determined, calculateValues() will add liveness to LI.
+  /// Add a block with an unknown live-in value.
   ///
-  /// @param LR      The live range that is live-in to the block.
-  /// @param DomNode The domtree node for the block.
-  /// @param Kill    Index in block where LI is killed.  If the value is
+  /// This function can only be called once per basic block.  Once the live-in
+  /// value has been determined, calculateValues() will add liveness to LI.
+  ///
+  /// \param LR      The live range that is live-in to the block.
+  /// \param DomNode The domtree node for the block.
+  /// \param Kill    Index in block where LI is killed.  If the value is
   ///                live-through, set Kill = SLotIndex() and also call
   ///                setLiveOutValue(MBB, 0).
   void addLiveInBlock(LiveRange &LR, MachineDomTreeNode *DomNode,
@@ -246,19 +282,25 @@ public:
     LiveIn.push_back(LiveInBlock(LR, DomNode, Kill));
   }
 
-  /// calculateValues - Calculate the value that will be live-in to each block
-  /// added with addLiveInBlock.  Add PHI-def values as needed to preserve SSA
-  /// form.  Add liveness to all live-in blocks up to the Kill point, or the
-  /// whole block for live-through blocks.
+  /// Calculate live-in values for blocks added with addLiveInBlock.
+  ///
+  /// Add PHI-def values as needed to preserve SSA form.  Add liveness to all
+  /// live-in blocks up to the Kill point, or the whole block for live-through
+  /// blocks.
   ///
   /// Every predecessor of a live-in block must have been given a value with
-  /// setLiveOutValue, the value may be null for live-trough blocks.
+  /// setLiveOutValue, the value may be null for live-through blocks.
   LLVM_ABI void calculateValues();
 
-  /// A diagnostic function to check if the end of the block @p MBB is
-  /// jointly dominated by the blocks corresponding to the slot indices
-  /// in @p Defs. This function is mainly for use in self-verification
-  /// checks.
+  /// Check whether the end of \p MBB is jointly dominated by \p Defs.
+  ///
+  /// The blocks corresponding to the slot indices in \p Defs are the candidate
+  /// dominators. This function is mainly for use in self-verification checks.
+  ///
+  /// \param MBB     Basic block whose end is checked for joint domination.
+  /// \param Defs    Slot indices of the dominating definitions.
+  /// \param Indexes Slot indexes analysis used to map defs to blocks.
+  /// \return True if the end of \p MBB is jointly dominated by \p Defs.
   [[maybe_unused]] LLVM_ABI static bool
   isJointlyDominated(const MachineBasicBlock *MBB, ArrayRef<SlotIndex> Defs,
                      const SlotIndexes &Indexes);

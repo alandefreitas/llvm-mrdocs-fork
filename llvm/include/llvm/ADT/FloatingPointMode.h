@@ -49,6 +49,8 @@ enum class RoundingMode : int8_t {
 };
 
 /// Returns text representation of the given rounding mode.
+/// @param RM Rounding mode to spell.
+/// @return Lowercase spelling of \p RM, or "invalid" if unrecognized.
 inline StringRef spell(RoundingMode RM) {
   switch (RM) {
   case RoundingMode::TowardZero: return "towardzero";
@@ -96,15 +98,18 @@ struct DenormalMode {
   /// default floating point environment.
   DenormalModeKind Output = DenormalModeKind::Invalid;
 
-  /// Denormal treatment kind for floating point instruction inputs in the
-  /// default floating-point environment. If this is not DenormalModeKind::IEEE,
-  /// floating-point instructions implicitly treat the input value as 0.
+  /// Denormal treatment kind for floating point instruction inputs.
+  ///
+  /// Applies in the default floating-point environment. If this is not
+  /// DenormalModeKind::IEEE, floating-point instructions implicitly treat the
+  /// input value as 0.
   DenormalModeKind Input = DenormalModeKind::Invalid;
 
   /// Construct with invalid input and output modes.
   constexpr DenormalMode() = default;
   /// Copy-construct a denormal mode.
-  constexpr DenormalMode(const DenormalMode &) = default;
+  /// @param Mode Mode to copy.
+  constexpr DenormalMode(const DenormalMode &Mode) = default;
   /// Construct from separate output and input denormal mode kinds.
   /// @param Out Flushing mode for instruction results.
   /// @param In Treatment mode for instruction inputs.
@@ -112,36 +117,44 @@ struct DenormalMode {
     Output(Out), Input(In) {}
 
   /// Copy-assign a denormal mode.
-  DenormalMode &operator=(const DenormalMode &) = default;
+  /// @param Mode Mode to assign from.
+  /// @return Reference to this mode.
+  DenormalMode &operator=(const DenormalMode &Mode) = default;
 
   /// Return a mode with both input and output set to Invalid.
+  /// @return Mode with both input and output set to Invalid.
   static constexpr DenormalMode getInvalid() {
     return DenormalMode(DenormalModeKind::Invalid, DenormalModeKind::Invalid);
   }
 
   /// Return the assumed default mode for a function without denormal-fp-math.
+  /// @return Default denormal mode for a function without denormal-fp-math.
   static constexpr DenormalMode getDefault() {
     return getIEEE();
   }
 
   /// Return IEEE input and output denormal handling.
+  /// @return Mode with IEEE input and output handling.
   static constexpr DenormalMode getIEEE() {
     return DenormalMode(DenormalModeKind::IEEE, DenormalModeKind::IEEE);
   }
 
   /// Return PreserveSign input and output denormal handling.
+  /// @return Mode with PreserveSign input and output handling.
   static constexpr DenormalMode getPreserveSign() {
     return DenormalMode(DenormalModeKind::PreserveSign,
                         DenormalModeKind::PreserveSign);
   }
 
   /// Return PositiveZero input and output denormal handling.
+  /// @return Mode with PositiveZero input and output handling.
   static constexpr DenormalMode getPositiveZero() {
     return DenormalMode(DenormalModeKind::PositiveZero,
                         DenormalModeKind::PositiveZero);
   }
 
   /// Return Dynamic input and output denormal handling.
+  /// @return Mode with Dynamic input and output handling.
   static constexpr DenormalMode getDynamic() {
     return DenormalMode(DenormalModeKind::Dynamic, DenormalModeKind::Dynamic);
   }
@@ -165,53 +178,65 @@ struct DenormalMode {
   }
 
   /// Return true when input and output modes match \p Other.
+  /// @param Other Mode to compare against.
+  /// @return True if the modes are equal.
   constexpr bool operator==(DenormalMode Other) const {
     return Output == Other.Output && Input == Other.Input;
   }
 
   /// Return true when this mode differs from \p Other.
+  /// @param Other Mode to compare against.
+  /// @return True if the modes differ.
   constexpr bool operator!=(DenormalMode Other) const {
     return !(*this == Other);
   }
 
   /// Return true when input and output use the same denormal mode kind.
+  /// @return True if input and output use the same denormal mode kind.
   constexpr bool isSimple() const { return Input == Output; }
 
   /// Return true when neither input nor output mode is Invalid.
+  /// @return True if neither input nor output mode is Invalid.
   constexpr bool isValid() const {
     return Output != DenormalModeKind::Invalid &&
            Input != DenormalModeKind::Invalid;
   }
 
   /// Return true if input denormals must be implicitly treated as 0.
+  /// @return True if input denormals must be implicitly treated as 0.
   constexpr bool inputsAreZero() const {
     return Input == DenormalModeKind::PreserveSign ||
            Input == DenormalModeKind::PositiveZero;
   }
 
   /// Return true if input denormals may be implicitly treated as 0.
+  /// @return True if input denormals may be implicitly treated as 0.
   constexpr bool inputsMayBeZero() const {
     return inputsAreZero() || Input == DenormalMode::Dynamic;
   }
 
   /// Return true if output denormals should be flushed to 0.
+  /// @return True if output denormals should be flushed to 0.
   constexpr bool outputsAreZero() const {
     return Output == DenormalModeKind::PreserveSign ||
            Output == DenormalModeKind::PositiveZero;
   }
 
   /// Return true if output denormals may be implicitly treated as 0.
+  /// @return True if output denormals may be implicitly treated as 0.
   constexpr bool outputsMayBeZero() const {
     return outputsAreZero() || Output == DenormalMode::Dynamic;
   }
 
   /// Return true if input denormals could be flushed to +0.
+  /// @return True if input denormals could be flushed to +0.
   constexpr bool inputsMayBePositiveZero() const {
     return Input == DenormalMode::PositiveZero ||
            Input == DenormalMode::Dynamic;
   }
 
   /// Return true if output denormals could be flushed to +0.
+  /// @return True if output denormals could be flushed to +0.
   constexpr bool outputsMayBePositiveZero() const {
     return Output == DenormalMode::PositiveZero ||
            Output == DenormalMode::Dynamic;
@@ -220,6 +245,8 @@ struct DenormalMode {
   /// Get the effective denormal mode if the mode if this caller calls into a
   /// function with \p Callee. This promotes dynamic modes to the mode of the
   /// caller.
+  /// @param Callee Callee denormal mode whose Dynamic fields are filled in.
+  /// @return Mode with Dynamic fields replaced by this caller's modes.
   constexpr DenormalMode mergeCalleeMode(DenormalMode Callee) const {
     DenormalMode MergedMode = Callee;
     if (Callee.Input == DenormalMode::Dynamic)
@@ -237,6 +264,7 @@ struct DenormalMode {
                     bool OmitIfSame = false) const;
 
   /// Return the printed form of this mode as a string.
+  /// @return Printed representation of this mode as a string.
   inline std::string str() const {
     std::string storage;
     raw_string_ostream OS(storage);
@@ -255,6 +283,8 @@ inline raw_ostream& operator<<(raw_ostream &OS, DenormalMode Mode) {
 }
 
 /// Parse the expected names from the denormal-fp-math attribute.
+/// @param Str Attribute component name to parse.
+/// @return Matching denormal mode kind, or Invalid if unrecognized.
 inline DenormalMode::DenormalModeKind
 parseDenormalFPAttributeComponent(StringRef Str) {
   // Assume ieee on unspecified attribute.
@@ -268,6 +298,9 @@ parseDenormalFPAttributeComponent(StringRef Str) {
 
 /// Return the name used for the denormal handling mode used by the
 /// expected names from the denormal-fp-math attribute.
+/// @param Mode Denormal mode kind to name.
+/// @param LegacyName Prefer hyphenated attribute names when true.
+/// @return Attribute-style name for \p Mode, or empty if Invalid.
 constexpr StringRef denormalModeKindName(DenormalMode::DenormalModeKind Mode,
                                          bool LegacyName = true) {
   switch (Mode) {
@@ -285,6 +318,8 @@ constexpr StringRef denormalModeKindName(DenormalMode::DenormalModeKind Mode,
 }
 
 /// Returns the denormal mode to use for inputs and outputs.
+/// @param Str Full denormal-fp-math attribute value to parse.
+/// @return Parsed output and input denormal modes.
 inline DenormalMode parseDenormalFPAttribute(StringRef Str) {
   StringRef OutputStr, InputStr;
   std::tie(OutputStr, InputStr) = Str.split(',');
@@ -335,6 +370,7 @@ public:
                                                          : FloatMode.Input) {}
 
   /// Return IEEE default and f32 denormal modes.
+  /// @return Environment with IEEE modes for default and f32.
   static constexpr DenormalFPEnv getDefault() {
     return DenormalFPEnv(DenormalMode::getIEEE(), DenormalMode::getIEEE());
   }
@@ -359,11 +395,15 @@ public:
   }
 
   /// Return true when default and f32 modes match \p Other.
+  /// @param Other Environment to compare against.
+  /// @return True if the environments are equal.
   constexpr bool operator==(DenormalFPEnv Other) const {
     return DefaultMode == Other.DefaultMode && F32Mode == Other.F32Mode;
   }
 
   /// Return true when this environment differs from \p Other.
+  /// @param Other Environment to compare against.
+  /// @return True if the environments differ.
   constexpr bool operator!=(DenormalFPEnv Other) const {
     return !(*this == Other);
   }
@@ -452,16 +492,25 @@ template <> struct largest_bitmask_enum_bit<FPClassTest> {
 };
 
 /// Return the test mask which returns true if the value's sign bit is flipped.
+/// @param Mask Floating-point class mask to negate.
+/// @return Mask of classes obtained by flipping the sign of values matching \p Mask.
 LLVM_ABI FPClassTest fneg(FPClassTest Mask);
 
 /// Return the test mask which returns true after fabs is applied to the value.
+/// @param Mask Floating-point class mask to transform.
+/// @return Mask of classes that remain after applying fabs to values matching \p Mask.
 LLVM_ABI FPClassTest inverse_fabs(FPClassTest Mask);
 
 /// Return the test mask which returns true if the value could have the same set
 /// of classes, but with a different sign.
+/// @param Mask Floating-point class mask to broaden by sign.
+/// @return Mask of classes that could match \p Mask with either sign.
 LLVM_ABI FPClassTest unknown_sign(FPClassTest Mask);
 
-/// Write a human readable form of \p Mask to \p OS
+/// Write a human readable form of \p Mask to \p OS.
+/// @param OS Output stream.
+/// @param Mask Floating-point class mask to print.
+/// @return Reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, FPClassTest Mask);
 
 /// Returns true if all values in \p LHS must be less than or equal to those in
@@ -470,14 +519,22 @@ LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, FPClassTest Mask);
 ///
 /// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
 /// unlike fcmp.
+/// @param LHS Classes on the left-hand side of the comparison.
+/// @param RHS Classes on the right-hand side of the comparison.
+/// @param OrderedZeroSign Treat -0 as ordered less than +0 when true.
+/// @return True if every value in \p LHS must be less than or equal to every value in \p RHS.
 LLVM_ABI bool cannotOrderStrictlyGreater(FPClassTest LHS, FPClassTest RHS,
                                          bool OrderedZeroSign = false);
 
 /// Returns true if all values in \p LHS must be less than those in \p RHS. That
 /// is, the comparison `fcmp oge LHS, RHS` will always return false.
-//
-// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
-// unlike fcmp.
+///
+/// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
+/// unlike fcmp.
+/// @param LHS Classes on the left-hand side of the comparison.
+/// @param RHS Classes on the right-hand side of the comparison.
+/// @param OrderedZeroSign Treat -0 as ordered less than +0 when true.
+/// @return True if every value in \p LHS must be less than every value in \p RHS.
 LLVM_ABI bool cannotOrderStrictlyGreaterEq(FPClassTest LHS, FPClassTest RHS,
                                            bool OrderedZeroSign = false);
 
@@ -487,6 +544,10 @@ LLVM_ABI bool cannotOrderStrictlyGreaterEq(FPClassTest LHS, FPClassTest RHS,
 ///
 /// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
 /// unlike fcmp.
+/// @param LHS Classes on the left-hand side of the comparison.
+/// @param RHS Classes on the right-hand side of the comparison.
+/// @param OrderedZeroSign Treat -0 as ordered less than +0 when true.
+/// @return True if every value in \p LHS must be greater than or equal to every value in \p RHS.
 LLVM_ABI bool cannotOrderStrictlyLess(FPClassTest LHS, FPClassTest RHS,
                                       bool OrderedZeroSign = false);
 
@@ -495,26 +556,38 @@ LLVM_ABI bool cannotOrderStrictlyLess(FPClassTest LHS, FPClassTest RHS,
 ///
 /// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
 /// unlike fcmp.
+/// @param LHS Classes on the left-hand side of the comparison.
+/// @param RHS Classes on the right-hand side of the comparison.
+/// @param OrderedZeroSign Treat -0 as ordered less than +0 when true.
+/// @return True if every value in \p LHS must be greater than every value in \p RHS.
 LLVM_ABI bool cannotOrderStrictlyLessEq(FPClassTest LHS, FPClassTest RHS,
                                         bool OrderedZeroSign = false);
 
-/// Returns all FPClasses which are less than all values in \p Mask
-/// That is, return all classes for which the comparison
-/// `fcmp ole LHS, RHS` will always return false.
-/// Ignores nan and treats the sign of the zeroes as ordered.
+/// Return all FP classes strictly less than every value in \p Mask.
+///
+/// That is, return all classes for which the comparison `fcmp ole LHS, RHS`
+/// will always return false. Ignores nan and treats the sign of the zeroes as
+/// ordered.
 ///
 /// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
 /// unlike fcmp.
+/// @param Mask Classes whose values bound the comparison from above.
+/// @param OrderedZeroSign Treat -0 as ordered less than +0 when true.
+/// @return All FP classes strictly less than every value in \p Mask.
 LLVM_ABI FPClassTest orderedStrictlyLess(FPClassTest Mask,
                                          bool OrderedZeroSign = false);
 
-/// Returns all FPClasses which are greater than all values in \p Mask
-/// That is, return all classes for which the comparison
-/// `fcmp ole LHS, RHS` will always return false.
-/// Ignores nan and treats the sign of the zeroes as ordered.
+/// Return all FP classes strictly greater than every value in \p Mask.
+///
+/// That is, return all classes for which the comparison `fcmp ole LHS, RHS`
+/// will always return false. Ignores nan and treats the sign of the zeroes as
+/// ordered.
 ///
 /// If \p OrderedZeroSign is true, -0 will be treated as ordered less than +0,
 /// unlike fcmp.
+/// @param Mask Classes whose values bound the comparison from below.
+/// @param OrderedZeroSign Treat -0 as ordered less than +0 when true.
+/// @return All FP classes strictly greater than every value in \p Mask.
 LLVM_ABI FPClassTest orderedStrictlyGreater(FPClassTest Mask,
                                             bool OrderedZeroSign = false);
 

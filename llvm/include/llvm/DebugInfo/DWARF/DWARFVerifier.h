@@ -35,11 +35,15 @@ class DWARFDebugAbbrev;
 class DataExtractor;
 struct DWARFSection;
 
+/// Aggregated counts for a single error or warning category.
 struct AggregationData {
+  /// Total number of reports for this category.
   unsigned OverallCount;
+  /// Per-subcategory report counts when detail is enabled.
   std::map<std::string, unsigned> DetailedCounts;
 };
 
+/// Aggregates verification errors and warnings by category for reporting.
 class OutputCategoryAggregator {
 private:
   std::mutex WriteMutex;
@@ -48,18 +52,45 @@ private:
   bool IncludeDetail;
 
 public:
+  /// Construct an aggregator, optionally enabling per-report detail output.
+  ///
+  /// \param includeDetail If true, invoke detail callbacks when reporting.
   OutputCategoryAggregator(bool includeDetail = false)
       : IncludeDetail(includeDetail) {}
+  /// Enable or disable invoking detail callbacks when reporting.
+  ///
+  /// \param showDetail If true, detail callbacks are invoked on Report.
   void ShowDetail(bool showDetail) { IncludeDetail = showDetail; }
+  /// Return the number of distinct categories that have been reported.
+  ///
+  /// \returns The number of distinct reported categories.
   size_t GetNumCategories() const { return Aggregation.size(); }
+  /// Record an error or warning under \p category.
+  ///
+  /// \param category The top-level category name to aggregate under.
+  /// \param detailCallback Invoked when detail output is enabled.
   LLVM_ABI void Report(StringRef category, function_ref<void()> detailCallback);
+  /// Record an error or warning under \p category and \p sub_category.
+  ///
+  /// \param category The top-level category name to aggregate under.
+  /// \param sub_category Optional subcategory name for detailed counts.
+  /// \param detailCallback Invoked when detail output is enabled.
   LLVM_ABI void Report(StringRef category, StringRef sub_category,
                        function_ref<void()> detailCallback);
+  /// Invoke \p handleCounts for each category with its overall count.
+  ///
+  /// \param handleCounts Callback receiving category name and overall count.
   LLVM_ABI void
   EnumerateResults(function_ref<void(StringRef, unsigned)> handleCounts);
+  /// Invoke \p handleCounts for each subcategory under \p category.
+  ///
+  /// \param category The top-level category whose subcategories to enumerate.
+  /// \param handleCounts Callback receiving subcategory name and count.
   LLVM_ABI void EnumerateDetailedResultsFor(
       StringRef category, function_ref<void(StringRef, unsigned)> handleCounts);
   /// Return the number of errors that have been reported.
+  ///
+  /// \returns The total number of reported errors.
   uint64_t GetNumErrors() const { return NumErrors; }
 };
 
@@ -68,6 +99,7 @@ class DWARFVerifier {
 public:
   /// A class that keeps the address range information for a single DIE.
   struct DieRangeInfo {
+    /// The DIE whose address ranges are tracked.
     DWARFDie Die;
 
     /// Sorted DWARFAddressRanges.
@@ -76,42 +108,72 @@ public:
     /// Sorted DWARFAddressRangeInfo.
     std::set<DieRangeInfo> Children;
 
+    /// Construct empty range info with no DIE.
     DieRangeInfo() = default;
+    /// Construct range info for the given DIE.
+    ///
+    /// \param Die The DIE whose ranges will be tracked.
     DieRangeInfo(DWARFDie Die) : Die(Die) {}
 
     /// Used for unit testing.
+    ///
+    /// \param Ranges The address ranges to store.
     DieRangeInfo(std::vector<DWARFAddressRange> Ranges)
         : Ranges(std::move(Ranges)) {}
 
+    /// Iterator over child DieRangeInfo entries.
     typedef std::set<DieRangeInfo>::const_iterator die_range_info_iterator;
 
-    /// Inserts the address range. If the range overlaps with an existing
-    /// range, the range that it overlaps with will be returned and the two
-    /// address ranges will be unioned together in "Ranges". If a duplicate
-    /// entry is attempted to be added, the duplicate range will not actually be
-    /// added and the returned iterator will point to end().
-    ///
-    /// This is used for finding overlapping ranges in the DW_AT_ranges
-    /// attribute of a DIE. It is also used as a set of address ranges that
-    /// children address ranges must all be contained in.
-    LLVM_ABI std::optional<DWARFAddressRange>
-    insert(const DWARFAddressRange &R);
+  /// Insert an address range, unioning it with any overlapping range.
+  ///
+  /// If the range overlaps with an existing range, the range that it
+  /// overlaps with will be returned and the two address ranges will be
+  /// unioned together in "Ranges". If a duplicate entry is attempted to be
+  /// added, the duplicate range will not actually be added and the returned
+  /// iterator will point to end().
+  ///
+  /// This is used for finding overlapping ranges in the DW_AT_ranges
+  /// attribute of a DIE. It is also used as a set of address ranges that
+  /// children address ranges must all be contained in.
+  ///
+  /// \param R The address range to insert.
+  ///
+  /// \returns The overlapping range if one existed, or std::nullopt if R was
+  /// inserted without overlap or was a duplicate.
+  LLVM_ABI std::optional<DWARFAddressRange>
+  insert(const DWARFAddressRange &R);
 
-    /// Inserts the address range info. If any of its ranges overlaps with a
-    /// range in an existing range info, the range info is *not* added and an
-    /// iterator to the overlapping range info. If a duplicate entry is
-    /// attempted to be added, the duplicate range will not actually be added
-    /// and the returned iterator will point to end().
-    ///
-    /// This is used for finding overlapping children of the same DIE.
-    LLVM_ABI die_range_info_iterator insert(const DieRangeInfo &RI);
+  /// Insert address range info if it does not overlap an existing entry.
+  ///
+  /// If any of its ranges overlaps with a range in an existing range info,
+  /// the range info is *not* added and an iterator to the overlapping range
+  /// info. If a duplicate entry is attempted to be added, the duplicate
+  /// range will not actually be added and the returned iterator will point
+  /// to end().
+  ///
+  /// This is used for finding overlapping children of the same DIE.
+  ///
+  /// \param RI The range info to insert.
+  ///
+  /// \returns An iterator to the overlapping entry, or end() if RI was
+  /// inserted or was a duplicate.
+  LLVM_ABI die_range_info_iterator insert(const DieRangeInfo &RI);
 
-    /// Return true if ranges in this object contains all ranges within RHS.
-    LLVM_ABI bool contains(const DieRangeInfo &RHS) const;
+  /// Return true if ranges in this object contains all ranges within RHS.
+  ///
+  /// \param RHS The range info whose ranges must be contained.
+  ///
+  /// \returns true if every range in RHS is contained, false otherwise.
+  LLVM_ABI bool contains(const DieRangeInfo &RHS) const;
 
-    /// Return true if any range in this object intersects with any range in
-    /// RHS. Identical ranges are not considered to be intersecting.
-    LLVM_ABI bool intersects(const DieRangeInfo &RHS) const;
+  /// Return true if any range in this object intersects with any range in
+  /// RHS. Identical ranges are not considered to be intersecting.
+  ///
+  /// \param RHS The range info to test for intersection.
+  ///
+  /// \returns true if any range intersects with a range in RHS, false
+  /// otherwise.
+  LLVM_ABI bool intersects(const DieRangeInfo &RHS) const;
   };
 
 private:
@@ -341,6 +403,11 @@ private:
   bool verifyExpressionOp(const DWARFExpression::Operation &Op, DWARFUnit *U);
 
 public:
+  /// Construct a verifier that reports to \p S using context \p D.
+  ///
+  /// \param S The output stream for verification diagnostics.
+  /// \param D The DWARF context whose debug information will be verified.
+  /// \param DumpOpts Options controlling dump verbosity and aggregation.
   LLVM_ABI
   DWARFVerifier(raw_ostream &S, DWARFContext &D,
                 DIDumpOptions DumpOpts = DIDumpOptions::getForSingleDIE());
@@ -405,6 +472,17 @@ public:
   ///
   /// \returns true if the .debug_line verifies successfully, false otherwise.
   LLVM_ABI bool handleDebugStrOffsets();
+
+  /// Verify the contents of a .debug_str_offsets[.dwo] section.
+  ///
+  /// \param LegacyFormat If set, treat the section as a single legacy
+  /// contribution with this DWARF format; otherwise parse DWARF v5 headers.
+  /// \param SectionName The name of the section being verified (for
+  /// diagnostics).
+  /// \param Section The string-offsets section data to verify.
+  /// \param StrData The corresponding string section contents.
+  ///
+  /// \returns true if the section verifies successfully, false otherwise.
   LLVM_ABI bool
   verifyDebugStrOffsets(std::optional<dwarf::DwarfFormat> LegacyFormat,
                         StringRef SectionName, const DWARFSection &Section,

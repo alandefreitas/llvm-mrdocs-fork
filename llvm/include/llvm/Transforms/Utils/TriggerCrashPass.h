@@ -20,18 +20,30 @@
 
 namespace llvm {
 
+/// Pass that aborts when run over a module, for testing crash handling.
 class TriggerCrashModulePass
     : public OptionalPassInfoMixin<TriggerCrashModulePass> {
 public:
+  /// Abort immediately to test crash handling in the module pipeline.
+  /// @param M Module on which the pass is invoked.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
+/// Pass that aborts when run over a function, for testing crash handling.
 class TriggerCrashFunctionPass
     : public OptionalPassInfoMixin<TriggerCrashFunctionPass> {
 public:
+  /// Abort immediately to test crash handling in the function pipeline.
+  /// @param F Function on which the pass is invoked.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+/// Create a legacy pass manager instance of the trigger-crash function pass.
+/// @return A new FunctionPass that aborts when run.
 LLVM_ABI FunctionPass *createTriggerCrashFunctionPass();
 
 } // namespace llvm

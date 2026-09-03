@@ -95,20 +95,49 @@ class LLVM_ABI CSEMIRBuilder : public MachineIRBuilder {
   bool checkCopyToDefsPossible(ArrayRef<DstOp> DstOps);
 
 public:
-  // Pull in base class constructors.
+  /// Pull in base class constructors.
   using MachineIRBuilder::MachineIRBuilder;
-  // Unhide buildInstr
+
+  /// Build and insert an instruction, CSEing when possible.
+  ///
+  /// May also perform trivial constant folding for supported opcodes.
+  /// Explicitly requesting a destination register may materialize a COPY from
+  /// a dominating CSEd instruction.
+  ///
+  /// \param Opc Opcode of the instruction to build.
+  /// \param DstOps Destination operands.
+  /// \param SrcOps Source operands.
+  /// \param Flag Optional instruction flags.
+  /// \return A MachineInstrBuilder for the built or reused instruction.
   MachineInstrBuilder
   buildInstr(unsigned Opc, ArrayRef<DstOp> DstOps, ArrayRef<SrcOp> SrcOps,
              std::optional<unsigned> Flag = std::nullopt) override;
-  // Bring in the other overload from the base class.
+
+  /// Bring in the other buildConstant overloads from the base class.
   using MachineIRBuilder::buildConstant;
 
+  /// Build and insert \p Res = G_CONSTANT \p Val, CSEing when possible.
+  ///
+  /// Explicitly requesting a destination register may materialize a COPY from
+  /// a dominating CSEd constant.
+  ///
+  /// \param Res Destination operand for the constant.
+  /// \param Val Integer constant value to materialize.
+  /// \return A MachineInstrBuilder for the built or reused instruction.
   MachineInstrBuilder buildConstant(const DstOp &Res,
                                     const ConstantInt &Val) override;
 
-  // Bring in the other overload from the base class.
+  /// Bring in the other buildFConstant overloads from the base class.
   using MachineIRBuilder::buildFConstant;
+
+  /// Build and insert \p Res = G_FCONSTANT \p Val, CSEing when possible.
+  ///
+  /// Explicitly requesting a destination register may materialize a COPY from
+  /// a dominating CSEd floating-point constant.
+  ///
+  /// \param Res Destination operand for the constant.
+  /// \param Val Floating-point constant value to materialize.
+  /// \return A MachineInstrBuilder for the built or reused instruction.
   MachineInstrBuilder buildFConstant(const DstOp &Res,
                                      const ConstantFP &Val) override;
 };

@@ -24,6 +24,9 @@ namespace jitlink {
 /// Note: The graph does not take ownership of the underlying buffer, nor copy
 /// its contents. The caller is responsible for ensuring that the object buffer
 /// outlives the graph.
+/// \param ObjectBuffer Buffer containing the MachO/x86-64 relocatable object.
+/// \param SSP Symbol string pool used to intern symbol names in the graph.
+/// \return A LinkGraph for the object, or an error if parsing fails.
 LLVM_ABI Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromMachOObject_x86_64(
     MemoryBufferRef ObjectBuffer, std::shared_ptr<orc::SymbolStringPool> SSP);
@@ -37,15 +40,19 @@ createLinkGraphFromMachOObject_x86_64(
 /// If PostPrunePasses is empty then a default GOT-and-stubs insertion pass will
 /// be inserted. If PostPrunePasses is not empty then the caller is responsible
 /// for including a pass to insert GOT and stub edges.
+/// \param G Link graph to link.
+/// \param Ctx JITLink context providing memory management and callbacks.
 LLVM_ABI void link_MachO_x86_64(std::unique_ptr<LinkGraph> G,
                                 std::unique_ptr<JITLinkContext> Ctx);
 
 /// Returns a pass suitable for splitting __eh_frame sections in MachO/x86-64
 /// objects.
+/// \return A pass that splits __eh_frame sections in MachO/x86-64 objects.
 LLVM_ABI LinkGraphPassFunction createEHFrameSplitterPass_MachO_x86_64();
 
 /// Returns a pass suitable for fixing missing edges in an __eh_frame section
 /// in a MachO/x86-64 object.
+/// \return A pass that fixes missing edges in an __eh_frame section.
 LLVM_ABI LinkGraphPassFunction createEHFrameEdgeFixerPass_MachO_x86_64();
 
 } // end namespace jitlink

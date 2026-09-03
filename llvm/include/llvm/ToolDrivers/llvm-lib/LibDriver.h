@@ -19,6 +19,12 @@
 namespace llvm {
 template <typename T> class ArrayRef;
 
+/// Entry point for the lib.exe-compatible driver used by llvm-lib and
+/// lld-link /lib.
+///
+/// \param ARgs Command-line arguments, including the program name as the
+///        first element.
+/// \return Zero on success; a non-zero exit status on failure.
 LLVM_ABI int libDriverMain(ArrayRef<const char *> ARgs);
 }
 

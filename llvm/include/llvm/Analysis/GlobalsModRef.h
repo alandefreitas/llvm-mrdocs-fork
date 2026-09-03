@@ -80,12 +80,25 @@ class GlobalsAAResult : public AAResultBase {
   friend struct RecomputeGlobalsAAPass;
 
 public:
+  /// Move-construct a GlobalsAAResult from \p Arg.
+  /// @param Arg GlobalsAAResult to move from.
   LLVM_ABI GlobalsAAResult(GlobalsAAResult &&Arg);
+  /// Destroy this GlobalsAAResult and its tracked callbacks.
   LLVM_ABI ~GlobalsAAResult();
 
+  /// Handle invalidation events in the new pass manager.
+  /// @param M Module whose analyses may have been invalidated.
+  /// @param PA Set of analyses preserved by the invalidating transform.
+  /// @param Inv Invalidator used to check dependent analyses.
+  /// @return True if this analysis result should be invalidated.
   LLVM_ABI bool invalidate(Module &M, const PreservedAnalyses &PA,
-                           ModuleAnalysisManager::Invalidator &);
+                           ModuleAnalysisManager::Invalidator &Inv);
 
+  /// Build a GlobalsAAResult by analyzing module \p M.
+  /// @param M Module to analyze.
+  /// @param GetTLI Callback returning TargetLibraryInfo for a function.
+  /// @param CG Call graph of the module.
+  /// @return GlobalsAAResult computed for \p M.
   LLVM_ABI static GlobalsAAResult
   analyzeModule(Module &M,
                 std::function<const TargetLibraryInfo &(Function &F)> GetTLI,
@@ -94,19 +107,35 @@ public:
   //------------------------------------------------
   // Implement the AliasAnalysis API
   //
+  /// Query whether two memory locations may alias using query state \p AAQI.
+  /// @param LocA First memory location.
+  /// @param LocB Second memory location.
+  /// @param AAQI Query state and caches for this alias query.
+  /// @param CtxI Optional context instruction for the query.
+  /// @return Alias result for \p LocA and \p LocB.
   LLVM_ABI AliasResult alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI,
                              const Instruction *CtxI);
 
+  /// Inherit getModRefInfo overloads from AAResultBase.
   using AAResultBase::getModRefInfo;
+  /// Return ModRef info for call \p Call against location \p Loc.
+  /// @param Call Call site whose ModRef behavior is queried.
+  /// @param Loc Memory location to check against the call.
+  /// @param AAQI Query state and caches for this query.
+  /// @return ModRef info for \p Call against \p Loc.
   LLVM_ABI ModRefInfo getModRefInfo(const CallBase *Call,
                                     const MemoryLocation &Loc,
                                     AAQueryInfo &AAQI);
 
+  /// Inherit getMemoryEffects overloads from AAResultBase.
   using AAResultBase::getMemoryEffects;
-  /// getMemoryEffects - Return the behavior of the specified function if
-  /// called from the specified call site.  The call site may be null in which
-  /// case the most generic behavior of this function should be returned.
+  /// Return the memory effects of calling function \p F.
+  ///
+  /// For use when the call site is not known; returns the most generic
+  /// behavior of this function.
+  /// @param F Function whose memory effects are queried.
+  /// @return The memory effects of calling \p F.
   LLVM_ABI MemoryEffects getMemoryEffects(const Function *F);
 
 private:
@@ -133,12 +162,22 @@ class GlobalsAA : public AnalysisInfoMixin<GlobalsAA> {
   LLVM_ABI static AnalysisKey Key;
 
 public:
+  /// Analysis result type produced by this pass.
   typedef GlobalsAAResult Result;
 
+  /// Run globals alias analysis on module \p M.
+  /// @param M Module to analyze.
+  /// @param AM Module analysis manager providing dependencies.
+  /// @return GlobalsAAResult for \p M.
   LLVM_ABI GlobalsAAResult run(Module &M, ModuleAnalysisManager &AM);
 };
 
+/// Pass that clears and recomputes a cached GlobalsAA result.
 struct RecomputeGlobalsAAPass : OptionalPassInfoMixin<RecomputeGlobalsAAPass> {
+  /// Recompute GlobalsAA for module \p M if a cached result exists.
+  /// @param M Module whose GlobalsAA should be refreshed.
+  /// @param AM Module analysis manager providing GlobalsAA and CallGraph.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
@@ -147,23 +186,37 @@ class LLVM_ABI GlobalsAAWrapperPass : public ModulePass {
   std::unique_ptr<GlobalsAAResult> Result;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct a GlobalsAAWrapperPass.
   GlobalsAAWrapperPass();
 
+  /// Return the GlobalsAAResult computed for the last module.
+  /// @return The cached GlobalsAAResult.
   GlobalsAAResult &getResult() { return *Result; }
+  /// Return the GlobalsAAResult computed for the last module.
+  /// @return The cached GlobalsAAResult.
   const GlobalsAAResult &getResult() const { return *Result; }
 
+  /// Compute GlobalsAAResult for module \p M.
+  /// @param M Module to analyze.
+  /// @return False; this analysis pass does not modify the module.
   bool runOnModule(Module &M) override;
+  /// Release the cached GlobalsAAResult after the module is processed.
+  /// @param M Module whose analysis state is being finalized.
+  /// @return False; this pass does not modify the module.
   bool doFinalization(Module &M) override;
+  /// Declare the analyses required and preserved by this pass.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 
-//===--------------------------------------------------------------------===//
-//
-// createGlobalsAAWrapperPass - This pass provides alias and mod/ref info for
-// global values that do not have their addresses taken.
-//
+/// Creates an instance of \c GlobalsAAWrapperPass.
+///
+/// This pass provides alias and mod/ref info for global values that do not
+/// have their addresses taken.
+/// @return A new GlobalsAAWrapperPass instance.
 LLVM_ABI ModulePass *createGlobalsAAWrapperPass();
 }
 

@@ -21,7 +21,9 @@ namespace llvm::cas::ondisk {
 
 class UnifiedOnDiskCache;
 
-/// An on-disk key-value data store with the following properties:
+/// An on-disk key-value store for fixed-length hash keys and fixed-size values.
+///
+/// Properties:
 /// * Keys are fixed length binary hashes with expected normal distribution.
 /// * Values are buffers of the same size, specified at creation time.
 /// * The value of a key cannot be changed once it is set.
@@ -40,10 +42,14 @@ public:
                                         ArrayRef<char> Value);
 
   /// Look up the value associated with \p Key.
+  ///
+  /// \param Key the hash bytes for the key
   /// \returns the value associated with the \p Key, or \p std::nullopt if the
   /// key does not exist.
   LLVM_ABI Expected<std::optional<ArrayRef<char>>> get(ArrayRef<uint8_t> Key);
 
+  /// Get the total size of stored data.
+  ///
   /// \returns Total size of stored data.
   size_t getStorageSize() const { return Cache.size(); }
 
@@ -66,6 +72,8 @@ public:
   /// \param UnifiedCache An optional UnifiedOnDiskCache that manages the size
   /// and lifetime of the CAS instance and it must owns current initializing
   /// KeyValueDB after initialized.
+  /// \param Logger Optional logger for on-disk CAS operations.
+  /// \returns An owned on-disk key-value database, or an error on failure.
   LLVM_ABI static Expected<std::unique_ptr<OnDiskKeyValueDB>>
   open(StringRef Path, StringRef HashName, unsigned KeySize,
        StringRef ValueName, size_t ValueSize,
@@ -73,6 +81,9 @@ public:
        std::shared_ptr<OnDiskCASLogger> Logger = nullptr);
 
   /// Validate the storage.
+  ///
+  /// \returns Success if the storage is valid, or an error describing the
+  /// problem.
   LLVM_ABI Error validate() const;
 
 private:

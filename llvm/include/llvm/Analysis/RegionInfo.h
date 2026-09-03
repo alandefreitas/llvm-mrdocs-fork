@@ -60,15 +60,27 @@ class Loop;
 class LoopInfo;
 class PostDominatorTree;
 class Region;
+/// A single-entry single-exit region in a control flow graph.
+///
+/// A Region is a connected subgraph of a control flow graph that has exactly
+/// two connections to the remaining graph. It can be used to analyze or
+/// optimize parts of the control flow graph.
 template <class RegionTr> class RegionBase;
 class RegionInfo;
+/// Analysis that detects all canonical Regions.
+///
+/// The RegionInfo pass detects all canonical regions in a function. The Regions
+/// are connected using the parent relation. This builds a Program Structure
+/// Tree.
 template <class RegionTr> class RegionInfoBase;
 class RegionNode;
 class raw_ostream;
 
-// Class to be specialized for different users of RegionInfo
-// (i.e. BasicBlocks or MachineBasicBlocks). This is only to avoid needing to
-// pass around an unreasonable number of template parameters.
+/// Traits used to specialize RegionInfo for different IR kinds.
+///
+/// Specialize this class for different users of RegionInfo (i.e. BasicBlocks
+/// or MachineBasicBlocks). This avoids needing to pass around an unreasonable
+/// number of template parameters.
 template <class FuncT_>
 struct RegionTraits {
   // FuncT
@@ -76,24 +88,41 @@ struct RegionTraits {
   // RegionT
   // RegionNodeT
   // RegionInfoT
+  /// Sentinel type that forces a hard error for unspecialized RegionTraits.
   using BrokenT = typename FuncT_::UnknownRegionTypeError;
 };
 
+/// RegionTraits specialization for LLVM IR Functions.
 template <>
 struct RegionTraits<Function> {
+  /// Function type analyzed by this RegionInfo specialization.
   using FuncT = Function;
+  /// Basic block type used by this RegionInfo specialization.
   using BlockT = BasicBlock;
+  /// Region type used by this RegionInfo specialization.
   using RegionT = Region;
+  /// RegionNode type used by this RegionInfo specialization.
   using RegionNodeT = RegionNode;
+  /// RegionInfo type used by this RegionInfo specialization.
   using RegionInfoT = RegionInfo;
+  /// Dominator tree type used by this RegionInfo specialization.
   using DomTreeT = DominatorTree;
+  /// Dominator tree node type used by this RegionInfo specialization.
   using DomTreeNodeT = DomTreeNode;
+  /// Dominance frontier type used by this RegionInfo specialization.
   using DomFrontierT = DominanceFrontier;
+  /// Post-dominator tree type used by this RegionInfo specialization.
   using PostDomTreeT = PostDominatorTree;
+  /// Instruction type used by this RegionInfo specialization.
   using InstT = Instruction;
+  /// Loop type used by this RegionInfo specialization.
   using LoopT = Loop;
+  /// LoopInfo type used by this RegionInfo specialization.
   using LoopInfoT = LoopInfo;
 
+  /// Return the number of CFG successors of \p BB.
+  /// @param BB Basic block whose terminator successors are counted.
+  /// @return The number of successors of \p BB's terminator.
   static unsigned getNumSuccessors(BasicBlock *BB) {
     return BB->getTerminator()->getNumSuccessors();
   }
@@ -109,14 +138,19 @@ struct RegionTraits<Function> {
 template <class GraphType>
 class FlatIt {};
 
-/// A RegionNode represents a subregion or a BasicBlock that is part of a
-/// Region.
+/// RegionNodeBase represents a BasicBlock or a nested subregion.
+///
+/// Each node is either a single BasicBlock or a nested Region that belongs to
+/// a parent Region. The same BasicBlock can appear as multiple RegionNodes when
+/// it is an element of more than one Region.
 template <class Tr>
 class RegionNodeBase {
   friend class RegionBase<Tr>;
 
 public:
+  /// Basic block type used by this RegionNode specialization.
   using BlockT = typename Tr::BlockT;
+  /// Region type used by this RegionNode specialization.
   using RegionT = typename Tr::RegionT;
 
 private:
@@ -150,8 +184,12 @@ protected:
       : entry(Entry, isSubRegion), parent(Parent) {}
 
 public:
-  RegionNodeBase(const RegionNodeBase &) = delete;
-  RegionNodeBase &operator=(const RegionNodeBase &) = delete;
+  /// Deleted copy constructor; RegionNodeBase is not copyable.
+  /// @param Unused Unused copy source; copying is not supported.
+  RegionNodeBase(const RegionNodeBase &Unused) = delete;
+  /// Deleted copy assignment; RegionNodeBase is not copyable.
+  /// @param Unused Unused right-hand side; copying is not supported.
+  RegionNodeBase &operator=(const RegionNodeBase &Unused) = delete;
 
   /// Get the parent Region of this RegionNode.
   ///
@@ -186,8 +224,7 @@ public:
   inline bool isSubRegion() const { return entry.getInt(); }
 };
 
-//===----------------------------------------------------------------------===//
-/// A single entry single exit Region.
+/// RegionBase represents a single-entry single-exit region in a control flow graph.
 ///
 /// A Region is a connected subgraph of a control flow graph that has exactly
 /// two connections to the remaining graph. It can be used to analyze or
@@ -240,9 +277,15 @@ public:
 ///
 /// You can obtain more examples by either calling
 ///
-/// <tt> "opt -passes='print<regions>' anyprogram.ll" </tt>
+/// \verbatim
+///   opt -passes='print<regions>' anyprogram.ll
+/// \endverbatim
+///
 /// or
-/// <tt> "opt -view-regions-only anyprogram.ll" </tt>
+///
+/// \verbatim
+///   opt -view-regions-only anyprogram.ll
+/// \endverbatim
 ///
 /// on any LLVM file you are interested in.
 ///
@@ -309,8 +352,12 @@ public:
   RegionBase(BlockT *Entry, BlockT *Exit, RegionInfoT *RI, DomTreeT *DT,
              RegionT *Parent = nullptr);
 
-  RegionBase(const RegionBase &) = delete;
-  RegionBase &operator=(const RegionBase &) = delete;
+  /// Deleted copy constructor; RegionBase is not copyable.
+  /// @param Unused Unused copy source; copying is not supported.
+  RegionBase(const RegionBase &Unused) = delete;
+  /// Deleted copy assignment; RegionBase is not copyable.
+  /// @param Unused Unused right-hand side; copying is not supported.
+  RegionBase &operator=(const RegionBase &Unused) = delete;
 
   /// Delete the Region and all its subregions.
   ~RegionBase();
@@ -380,6 +427,7 @@ public:
   /// Check if a Region is the TopLevel region.
   ///
   /// The toplevel region represents the whole function.
+  /// @return True if this is the top-level region.
   bool isTopLevelRegion() const { return exit == nullptr; }
 
   /// Return a new (non-canonical) region, that is obtained by joining
@@ -406,6 +454,8 @@ public:
 
   /// Collect all blocks of this region's single exit edge, if existing.
   ///
+  /// @param Exitings Filled with the predecessors of the exit that leave this
+  ///                 region.
   /// @return True if this region contains all the predecessors of the exit.
   bool getExitingBlocks(SmallVectorImpl<BlockT *> &Exitings) const;
 
@@ -421,16 +471,25 @@ public:
   std::string getNameStr() const;
 
   /// Return the RegionInfo object, that belongs to this Region.
+  /// @return The RegionInfo that manages this Region.
   RegionInfoT *getRegionInfo() const { return RI; }
 
-  /// PrintStyle - Print region in difference ways.
-  enum PrintStyle { PrintNone, PrintBB, PrintRN };
+  /// Print style used when dumping a Region.
+  enum PrintStyle {
+    /// Print only the region bounds.
+    PrintNone,
+    /// Print the BasicBlocks contained in the region.
+    PrintBB,
+    /// Print the RegionNodes contained in the region.
+    PrintRN
+  };
 
   /// Print the region.
   ///
   /// @param OS The output stream the Region is printed to.
   /// @param printTree Print also the tree of subregions.
   /// @param level The indentation level used for printing.
+  /// @param Style How much detail to print for region contents.
   void print(raw_ostream &OS, bool printTree = true, unsigned level = 0,
              PrintStyle Style = PrintNone) const;
 
@@ -528,6 +587,7 @@ public:
   /// The subregion is not deleted, as it will probably be inserted into another
   /// region.
   /// @param SubRegion The SubRegion that will be removed.
+  /// @return The removed SubRegion.
   RegionT *removeSubRegion(RegionT *SubRegion);
 
   /// Move all direct child nodes of this Region to another Region.
@@ -552,13 +612,23 @@ public:
   ///
   /// These iterators iterator over all subregions of this Region.
   //@{
+  /// Mutable iterator over the direct subregions of this Region.
   using iterator = typename RegionSet::iterator;
+  /// Const iterator over the direct subregions of this Region.
   using const_iterator = typename RegionSet::const_iterator;
 
+  /// Return an iterator to the first subregion.
+  /// @return Iterator to the first direct subregion.
   iterator begin() { return children.begin(); }
+  /// Return an iterator past the last subregion.
+  /// @return Iterator past the last direct subregion.
   iterator end() { return children.end(); }
 
+  /// Return a const iterator to the first subregion.
+  /// @return Const iterator to the first direct subregion.
   const_iterator begin() const { return children.begin(); }
+  /// Return a const iterator past the last subregion.
+  /// @return Const iterator past the last direct subregion.
   const_iterator end() const { return children.end(); }
   //@}
 
@@ -568,6 +638,7 @@ public:
   /// Region. The iterator also iterates over BasicBlocks that are elements of
   /// a subregion of this Region. It is therefore called a flat iterator.
   //@{
+  /// Depth-first flat iterator over BasicBlocks contained in a Region.
   template <bool IsConst>
   class block_iterator_wrapper
       : public df_iterator<
@@ -576,10 +647,14 @@ public:
         df_iterator<std::conditional_t<IsConst, const BlockT, BlockT> *>;
 
   public:
+    /// Self type of this iterator wrapper.
     using Self = block_iterator_wrapper<IsConst>;
+    /// Pointer type yielded by this iterator.
     using value_type = typename super::value_type;
 
-    // Construct the begin iterator.
+    /// Construct the begin iterator from region \p Entry to \p Exit.
+    /// @param Entry Entry block where iteration starts.
+    /// @param Exit Exit block that terminates the region walk.
     block_iterator_wrapper(value_type Entry, value_type Exit)
         : super(df_begin(Entry)) {
       // Mark the exit of the region as visited, so that the children of the
@@ -588,35 +663,52 @@ public:
       super::Visited.insert(Exit);
     }
 
-    // Construct the end iterator.
+    /// Construct the end iterator.
     block_iterator_wrapper() : super(df_end<value_type>((BlockT *)nullptr)) {}
 
+    /// Construct from an underlying depth-first iterator.
+    /// @param I Underlying df_iterator to wrap.
     /*implicit*/ block_iterator_wrapper(super I) : super(I) {}
 
     // FIXME: Even a const_iterator returns a non-const BasicBlock pointer.
     //        This was introduced for backwards compatibility, but should
     //        be removed as soon as all users are fixed.
+    /// Return the BasicBlock currently pointed to by this iterator.
+    /// @return The BasicBlock currently pointed to by this iterator.
     BlockT *operator*() const {
       return const_cast<BlockT *>(super::operator*());
     }
   };
 
+  /// Mutable flat iterator over BasicBlocks in this Region.
   using block_iterator = block_iterator_wrapper<false>;
+  /// Const flat iterator over BasicBlocks in this Region.
   using const_block_iterator = block_iterator_wrapper<true>;
 
+  /// Return an iterator to the first BasicBlock in this Region.
+  /// @return Iterator to the first BasicBlock in this Region.
   block_iterator block_begin() { return block_iterator(getEntry(), getExit()); }
 
+  /// Return an iterator past the last BasicBlock in this Region.
+  /// @return Iterator past the last BasicBlock in this Region.
   block_iterator block_end() { return block_iterator(); }
 
+  /// Return a const iterator to the first BasicBlock in this Region.
+  /// @return Const iterator to the first BasicBlock in this Region.
   const_block_iterator block_begin() const {
     return const_block_iterator(getEntry(), getExit());
   }
+  /// Return a const iterator past the last BasicBlock in this Region.
+  /// @return Const iterator past the last BasicBlock in this Region.
   const_block_iterator block_end() const { return const_block_iterator(); }
 
+  /// Range of mutable flat BasicBlock iterators.
   using block_range = iterator_range<block_iterator>;
+  /// Range of const flat BasicBlock iterators.
   using const_block_range = iterator_range<const_block_iterator>;
 
   /// Returns a range view of the basic blocks in the region.
+  /// @return Range of mutable flat BasicBlock iterators.
   inline block_range blocks() {
     return block_range(block_begin(), block_end());
   }
@@ -624,6 +716,7 @@ public:
   /// Returns a range view of the basic blocks in the region.
   ///
   /// This is the 'const' version of the range view.
+  /// @return Range of const flat BasicBlock iterators.
   inline const_block_range blocks() const {
     return const_block_range(block_begin(), block_end());
   }
@@ -635,23 +728,37 @@ public:
   /// are direct children of this Region. It does not iterate over any
   /// RegionNodes that are also element of a subregion of this Region.
   //@{
+  /// Depth-first iterator over direct child RegionNodes.
   using element_iterator =
       df_iterator<RegionNodeT *, df_iterator_default_set<RegionNodeT *>, false,
                   GraphTraits<RegionNodeT *>>;
 
+  /// Const depth-first iterator over direct child RegionNodes.
   using const_element_iterator =
       df_iterator<const RegionNodeT *,
                   df_iterator_default_set<const RegionNodeT *>, false,
                   GraphTraits<const RegionNodeT *>>;
 
+  /// Return an iterator to the first direct child RegionNode.
+  /// @return Iterator to the first direct child RegionNode.
   element_iterator element_begin();
+  /// Return an iterator past the last direct child RegionNode.
+  /// @return Iterator past the last direct child RegionNode.
   element_iterator element_end();
+  /// Return a range of the direct child RegionNodes.
+  /// @return Range covering the direct child RegionNodes.
   iterator_range<element_iterator> elements() {
     return make_range(element_begin(), element_end());
   }
 
+  /// Return a const iterator to the first direct child RegionNode.
+  /// @return Const iterator to the first direct child RegionNode.
   const_element_iterator element_begin() const;
+  /// Return a const iterator past the last direct child RegionNode.
+  /// @return Const iterator past the last direct child RegionNode.
   const_element_iterator element_end() const;
+  /// Return a const range of the direct child RegionNodes.
+  /// @return Const range covering the direct child RegionNodes.
   iterator_range<const_element_iterator> elements() const {
     return make_range(element_begin(), element_end());
   }
@@ -659,11 +766,14 @@ public:
 };
 
 /// Print a RegionNode.
+///
+/// @param OS Output stream to write to.
+/// @param Node RegionNode to print.
+/// @return The output stream \p OS after printing.
 template <class Tr>
 inline raw_ostream &operator<<(raw_ostream &OS, const RegionNodeBase<Tr> &Node);
 
-//===----------------------------------------------------------------------===//
-/// Analysis that detects all canonical Regions.
+/// RegionInfoBase builds the region tree for canonical Regions.
 ///
 /// The RegionInfo pass detects all canonical regions in a function. The Regions
 /// are connected using the parent relation. This builds a Program Structure
@@ -721,10 +831,13 @@ class RegionInfoBase {
   BBtoRegionMap BBtoRegion;
 
 protected:
-  /// Update refences to a RegionInfoT held by the RegionT managed here
+  /// Update references to a RegionInfoT held by the RegionT managed here.
   ///
   /// This is a post-move helper. Regions hold references to the owning
   /// RegionInfo object. After a move these need to be fixed.
+  ///
+  /// @param RI RegionInfo that now owns the region tree.
+  /// @param R Root region whose ownership references should be updated.
   template<typename TheRegionT>
   void updateRegionTree(RegionInfoT &RI, TheRegionT *R) {
     if (!R)
@@ -794,17 +907,27 @@ private:
   void calculate(FuncT &F);
 
 public:
-  RegionInfoBase(const RegionInfoBase &) = delete;
-  RegionInfoBase &operator=(const RegionInfoBase &) = delete;
+  /// Deleted copy constructor; RegionInfoBase is not copyable.
+  /// @param Unused Unused copy source; copying is not supported.
+  RegionInfoBase(const RegionInfoBase &Unused) = delete;
+  /// Deleted copy assignment; RegionInfoBase is not copyable.
+  /// @param Unused Unused right-hand side; copying is not supported.
+  RegionInfoBase &operator=(const RegionInfoBase &Unused) = delete;
 
+  /// Whether expensive region-info verification is enabled.
   static bool VerifyRegionInfo;
+  /// Default print style used when printing region trees.
   static typename RegionT::PrintStyle printStyle;
 
+  /// Print the region tree to \p OS.
+  /// @param OS Output stream to write to.
   void print(raw_ostream &OS) const;
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump the region tree to dbgs().
   void dump() const;
 #endif
 
+  /// Release memory used by the region tree.
   void releaseMemory();
 
   /// Get the smallest region that contains a BasicBlock.
@@ -831,6 +954,7 @@ public:
   /// BasicBlock.
   ///
   /// @param BB The BasicBlock the refined region starts.
+  /// @return The exit BasicBlock of the maximal refined region starting at \p BB.
   BlockT *getMaxRegionExit(BlockT *BB) const;
 
   /// Find the smallest region that contains two regions.
@@ -861,6 +985,8 @@ public:
   /// @return The smallest region that contains all basic blocks in BBS.
   RegionT *getCommonRegion(SmallVectorImpl<BlockT *> &BBs) const;
 
+  /// Return the top-level region that represents the whole function.
+  /// @return The top-level Region for the analyzed function.
   RegionT *getTopLevelRegion() const { return TopLevelRegion; }
 
   /// Clear the Node Cache for all Regions.
@@ -871,59 +997,103 @@ public:
       TopLevelRegion->clearNodeCache();
   }
 
+  /// Verify that the region tree is consistent.
   void verifyAnalysis() const;
 };
 
+/// A RegionNode that holds a BasicBlock or subregion in an LLVM IR Function.
 class RegionNode : public RegionNodeBase<RegionTraits<Function>> {
 public:
+  /// Create a RegionNode for \p Entry under \p Parent.
+  ///
+  /// @param Parent The parent Region of this node.
+  /// @param Entry The entry BasicBlock of this node.
+  /// @param isSubRegion True if this node represents a subregion.
   inline RegionNode(Region *Parent, BasicBlock *Entry, bool isSubRegion = false)
       : RegionNodeBase<RegionTraits<Function>>(Parent, Entry, isSubRegion) {}
 
+  /// Return true if this node is the RegionNode view of \p RN.
+  /// @param RN Region to compare against this node.
+  /// @return True if this node is the RegionNode view of \p RN.
   bool operator==(const Region &RN) const {
     return this == reinterpret_cast<const RegionNode *>(&RN);
   }
 };
 
+/// A single entry single exit Region in an LLVM IR Function.
 class Region : public RegionBase<RegionTraits<Function>> {
 public:
+  /// Create a Region spanning from \p Entry to \p Exit.
+  ///
+  /// @param Entry The entry basic block of the region.
+  /// @param Exit The exit basic block of the region.
+  /// @param RI The RegionInfo that manages this region.
+  /// @param DT The dominator tree of the current function.
+  /// @param Parent The surrounding region, or nullptr for a top-level region.
   LLVM_ABI Region(BasicBlock *Entry, BasicBlock *Exit, RegionInfo *RI,
                   DominatorTree *DT, Region *Parent = nullptr);
+  /// Delete the Region and all its subregions.
   LLVM_ABI ~Region();
 
+  /// Return true if \p RN is the RegionNode view of this Region.
+  /// @param RN RegionNode to compare against this region.
+  /// @return True if \p RN refers to this Region.
   bool operator==(const RegionNode &RN) const {
     return &RN == reinterpret_cast<const RegionNode *>(this);
   }
 };
 
+/// A single-entry single-exit region in a control flow graph.
 extern template class LLVM_TEMPLATE_ABI RegionBase<RegionTraits<Function>>;
+/// A RegionNode representing a BasicBlock or a nested subregion.
 extern template class LLVM_TEMPLATE_ABI RegionNodeBase<RegionTraits<Function>>;
+/// Analysis that detects all canonical Regions.
 extern template class LLVM_TEMPLATE_ABI RegionInfoBase<RegionTraits<Function>>;
 
+/// Analysis result that detects all canonical Regions in a Function.
 class LLVM_ABI RegionInfo : public RegionInfoBase<RegionTraits<Function>> {
 public:
+  /// Base class type for this RegionInfo specialization.
   using Base = RegionInfoBase<RegionTraits<Function>>;
 
+  /// Construct an empty RegionInfo.
   explicit RegionInfo();
 
+  /// Move-construct RegionInfo from \p Arg.
+  /// @param Arg RegionInfo to move from.
   RegionInfo(RegionInfo &&Arg) : Base(std::move(static_cast<Base &>(Arg))) {
     updateRegionTree(*this, TopLevelRegion);
   }
 
+  /// Move-assign RegionInfo from \p RHS.
+  /// @param RHS RegionInfo to move from.
+  /// @return Reference to this RegionInfo.
   RegionInfo &operator=(RegionInfo &&RHS) {
     Base::operator=(std::move(static_cast<Base &>(RHS)));
     updateRegionTree(*this, TopLevelRegion);
     return *this;
   }
 
+  /// Destroy this RegionInfo and its region tree.
   ~RegionInfo() override;
 
   /// Handle invalidation explicitly.
+  /// @param F Function whose analysis result may be invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if this result should be invalidated.
   bool invalidate(Function &F, const PreservedAnalyses &PA,
-                  FunctionAnalysisManager::Invalidator &);
+                  FunctionAnalysisManager::Invalidator &Inv);
 
-  // updateStatistics - Update statistic about created regions.
+  /// Update statistics about created regions.
+  /// @param R Region that was created.
   void updateStatistics(Region *R) final;
 
+  /// Recalculate the region tree for \p F.
+  /// @param F Function to analyze.
+  /// @param DT Dominator tree of \p F.
+  /// @param PDT Post-dominator tree of \p F.
+  /// @param DF Dominance frontier of \p F.
   void recalculate(Function &F, DominatorTree *DT, PostDominatorTree *PDT,
                    DominanceFrontier *DF);
 
@@ -941,26 +1111,45 @@ public:
 #endif
 };
 
+/// Legacy analysis pass which computes a \c RegionInfo.
 class LLVM_ABI RegionInfoPass : public FunctionPass {
   RegionInfo RI;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
 
+  /// Construct the legacy RegionInfo wrapper pass.
   explicit RegionInfoPass();
+  /// Destroy the legacy RegionInfo wrapper pass.
   ~RegionInfoPass() override;
 
+  /// Return the RegionInfo computed by this pass.
+  /// @return The RegionInfo owned by this pass.
   RegionInfo &getRegionInfo() { return RI; }
 
+  /// Return the RegionInfo computed by this pass.
+  /// @return The RegionInfo owned by this pass.
   const RegionInfo &getRegionInfo() const { return RI; }
 
   /// @name FunctionPass interface
   //@{
+  /// Compute the RegionInfo for \p F.
+  /// @param F Function to analyze.
+  /// @return False; this analysis does not modify the function.
   bool runOnFunction(Function &F) override;
+  /// Release the RegionInfo owned by this pass.
   void releaseMemory() override;
+  /// Verify the RegionInfo computed by this pass.
   void verifyAnalysis() const override;
+  /// Report analysis usage for this pass.
+  /// @param AU Analysis usage to populate with required and preserved analyses.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
-  void print(raw_ostream &OS, const Module *) const override;
+  /// Print the RegionInfo computed by this pass.
+  /// @param OS Output stream.
+  /// @param M Optional module (unused).
+  void print(raw_ostream &OS, const Module *M) const override;
+  /// Dump the RegionInfo to dbgs().
   void dump() const;
   //@}
 };
@@ -972,8 +1161,13 @@ class RegionInfoAnalysis : public AnalysisInfoMixin<RegionInfoAnalysis> {
   static AnalysisKey Key;
 
 public:
+  /// Provide the result type for this analysis pass.
   using Result = RegionInfo;
 
+  /// Run the analysis pass over a function and produce RegionInfo.
+  /// @param F Function to analyze.
+  /// @param AM Function analysis manager providing required analyses.
+  /// @return RegionInfo for \p F.
   LLVM_ABI RegionInfo run(Function &F, FunctionAnalysisManager &AM);
 };
 
@@ -983,16 +1177,29 @@ class RegionInfoPrinterPass
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes to \p OS.
+  /// @param OS Output stream for the printed RegionInfo.
   LLVM_ABI explicit RegionInfoPrinterPass(raw_ostream &OS);
 
+  /// Print the RegionInfo for \p F and return all analyses preserved.
+  /// @param F Function whose RegionInfo is printed.
+  /// @param AM Function analysis manager providing RegionInfoAnalysis.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 /// Verifier pass for the \c RegionInfo.
 struct RegionInfoVerifierPass : RequiredPassInfoMixin<RegionInfoVerifierPass> {
+  /// Verify the RegionInfo for \p F and return all analyses preserved.
+  /// @param F Function whose RegionInfo is verified.
+  /// @param AM Function analysis manager providing RegionInfoAnalysis.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+/// Get the BasicBlock content of this RegionNode.
+///
+/// @return The BasicBlock this RegionNode represents.
 template <>
 template <>
 inline BasicBlock *
@@ -1001,6 +1208,9 @@ RegionNodeBase<RegionTraits<Function>>::getNodeAs<BasicBlock>() const {
   return getEntry();
 }
 
+/// Get the Region content of this RegionNode.
+///
+/// @return The subregion this RegionNode represents.
 template <>
 template <>
 inline Region *
@@ -1010,6 +1220,11 @@ RegionNodeBase<RegionTraits<Function>>::getNodeAs<Region>() const {
   return reinterpret_cast<Region *>(Unconst);
 }
 
+/// Print a RegionNode to \p OS.
+///
+/// @param OS Output stream to write to.
+/// @param Node RegionNode to print.
+/// @return The output stream \p OS after printing.
 template <class Tr>
 inline raw_ostream &operator<<(raw_ostream &OS,
                                const RegionNodeBase<Tr> &Node) {

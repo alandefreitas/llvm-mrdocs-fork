@@ -53,6 +53,10 @@ class ScalarEvolution;
 /// This pass is responsible for loop canonicalization.
 class LoopSimplifyPass : public OptionalPassInfoMixin<LoopSimplifyPass> {
 public:
+  /// Run the loop-simplify pass over the function.
+  /// @param F Function whose loops should be canonicalized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
@@ -62,6 +66,15 @@ public:
 /// it into a simplified loop nest with preheaders and single backedges. It will
 /// update \c DominatorTree, \c LoopInfo, \c ScalarEvolution and \c MemorySSA
 /// analyses if they're non-null, and LCSSA if \c PreserveLCSSA is true.
+///
+/// @param L The loop (and its children) to simplify.
+/// @param DT Optional DominatorTree to update, or nullptr.
+/// @param LI Optional LoopInfo to update, or nullptr.
+/// @param SE Optional ScalarEvolution to update, or nullptr.
+/// @param AC Optional AssumptionCache used during simplification, or nullptr.
+/// @param MSSAU Optional MemorySSA updater, or nullptr.
+/// @param PreserveLCSSA When true, preserve LCSSA form.
+/// @return True if any modifications were made to the loop nest.
 LLVM_ABI bool simplifyLoop(Loop *L, DominatorTree *DT, LoopInfo *LI,
                            ScalarEvolution *SE, AssumptionCache *AC,
                            MemorySSAUpdater *MSSAU, bool PreserveLCSSA);

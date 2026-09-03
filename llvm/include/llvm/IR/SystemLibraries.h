@@ -18,15 +18,15 @@ namespace llvm {
 /// addVectorizableFunctionsFromVecLib for filling up the tables of
 /// vectorizable functions.
 enum class VectorLibrary {
-  NoLibrary,        // Don't use any vector library.
-  Accelerate,       // Use Accelerate framework.
-  DarwinLibSystemM, // Use Darwin's libsystem_m.
-  LIBMVEC,          // GLIBC Vector Math library.
-  MASSV,            // IBM MASS vector library.
-  SVML,             // Intel short vector math library.
-  SLEEFGNUABI,      // SLEEF - SIMD Library for Evaluating Elementary Functions.
-  ArmPL,            // Arm Performance Libraries.
-  AMDLIBM           // AMD Math Vector library.
+  NoLibrary,        ///< Don't use any vector library.
+  Accelerate,       ///< Use Apple's Accelerate framework for vector math.
+  DarwinLibSystemM, ///< Use Darwin's libsystem_m.
+  LIBMVEC,          ///< Use GLIBC Vector Math library.
+  MASSV,            ///< Use IBM MASS vector library.
+  SVML,             ///< Use Intel short vector math library.
+  SLEEFGNUABI,      ///< Use SLEEF with the GNU ABI for vector math.
+  ArmPL,            ///< Use Arm Performance Libraries.
+  AMDLIBM           ///< Use AMD Math Vector library.
 };
 
 } // namespace llvm

@@ -22,25 +22,59 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
+/// Helpers for encoding and legalizing CFG edge insert/delete updates.
 namespace cfg {
-enum class UpdateKind : unsigned char { Insert, Delete };
+/// Kind of CFG edge update: insert or delete an edge.
+enum class UpdateKind : unsigned char {
+  /// Insert an edge between two nodes.
+  Insert,
+  /// Delete an edge between two nodes.
+  Delete
+};
 
+/// Represents a CFG edge update (insert or delete) between two nodes.
+///
+/// This class stores the edge endpoints and update kind, and provides
+/// accessors, comparison, and printing helpers.
+///
+/// \tparam NodePtr Pointer type of the CFG nodes at each end of the edge.
 template <typename NodePtr> class Update {
   using NodeKindPair = PointerIntPair<NodePtr, 1, UpdateKind>;
   NodePtr From;
   NodeKindPair ToAndKind;
 
 public:
+  /// Construct an update of the given kind from \p From to \p To.
+  ///
+  /// \param Kind Whether to insert or delete the edge.
+  /// \param From Source node of the edge.
+  /// \param To Destination node of the edge.
   Update(UpdateKind Kind, NodePtr From, NodePtr To)
       : From(From), ToAndKind(To, Kind) {}
 
+  /// Return whether this update inserts or deletes an edge.
+  ///
+  /// \returns Whether this update inserts or deletes an edge.
   UpdateKind getKind() const { return ToAndKind.getInt(); }
+  /// Return the source node of the edge.
+  ///
+  /// \returns The source node of the edge.
   NodePtr getFrom() const { return From; }
+  /// Return the destination node of the edge.
+  ///
+  /// \returns The destination node of the edge.
   NodePtr getTo() const { return ToAndKind.getPointer(); }
+  /// Return true if this update equals \p RHS in kind and endpoints.
+  ///
+  /// \param RHS Update to compare against.
+  /// \returns True if kind and endpoints match \p RHS.
   bool operator==(const Update &RHS) const {
     return From == RHS.From && ToAndKind == RHS.ToAndKind;
   }
 
+  /// Print this update to \p OS.
+  ///
+  /// \param OS Stream to write to.
   void print(raw_ostream &OS) const {
     OS << (getKind() == UpdateKind::Insert ? "Insert " : "Delete ");
     getFrom()->printAsOperand(OS, false);
@@ -49,16 +83,23 @@ public:
   }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump this update to the debug stream.
   LLVM_DUMP_METHOD void dump() const { print(dbgs()); }
 #endif
 };
 
-// LegalizeUpdates function simplifies updates assuming a graph structure.
-// This function serves double purpose:
-// a) It removes redundant updates, which makes it easier to reverse-apply
-//    them when traversing CFG.
-// b) It optimizes away updates that cancel each other out, as the end result
-//    is the same.
+/// Simplify a sequence of CFG edge updates by removing redundancy and cancels.
+///
+/// This function serves a double purpose:
+/// a) It removes redundant updates, which makes it easier to reverse-apply
+///    them when traversing CFG.
+/// b) It optimizes away updates that cancel each other out, as the end result
+///    is the same.
+///
+/// \param AllUpdates Input sequence of edge updates to legalize.
+/// \param Result Receives the simplified list of updates.
+/// \param InverseGraph If true, reverse each edge (e.g. for postdominators).
+/// \param ReverseResultOrder If true, sort results in ascending original order.
 template <typename NodePtr>
 void LegalizeUpdates(ArrayRef<Update<NodePtr>> AllUpdates,
                      SmallVectorImpl<Update<NodePtr>> &Result,

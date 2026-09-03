@@ -214,12 +214,13 @@ public:
     /// 8-bit floating point number following IEEE-754 conventions with bit
     /// layout S1E5M2 as described in https://arxiv.org/abs/2209.05433.
     S_Float8E5M2,
-    /// 8-bit floating point number mostly following IEEE-754 conventions
-    /// and bit layout S1E5M2 described in https://arxiv.org/abs/2206.02915,
-    /// with expanded range and with no infinity or signed zero.
-    /// NaN is represented as negative zero. (FN -> Finite, UZ -> unsigned zero).
-    /// This format's exponent bias is 16, instead of the 15 (2 ** (5 - 1) - 1)
-    /// that IEEE precedent would imply.
+    /// 8-bit float with S1E5M2 layout, finite-only and unsigned-zero semantics.
+    ///
+    /// Mostly follows IEEE-754 conventions described in
+    /// https://arxiv.org/abs/2206.02915, with expanded range and with no
+    /// infinity or signed zero. NaN is represented as negative zero
+    /// (FN -> Finite, UZ -> unsigned zero). This format's exponent bias is 16,
+    /// instead of the 15 (2 ** (5 - 1) - 1) that IEEE precedent would imply.
     S_Float8E5M2FNUZ,
     /// 8-bit floating point number following IEEE-754 conventions with bit
     /// layout S1E4M3.
@@ -281,7 +282,15 @@ public:
     S_MaxSemantics = S_x87DoubleExtended,
   };
 
+  /// Map a \c Semantics enumerator to its corresponding \c fltSemantics.
+  ///
+  /// \param S semantics enumerator to look up
+  /// \returns fltSemantics corresponding to enumerator \p S
   LLVM_ABI static const llvm::fltSemantics &EnumToSemantics(Semantics S);
+  /// Map a \c fltSemantics object to its corresponding \c Semantics enumerator.
+  ///
+  /// \param Sem floating-point semantics to look up
+  /// \returns Semantics enumerator corresponding to \p Sem
   LLVM_ABI static Semantics SemanticsToEnum(const llvm::fltSemantics &Sem);
 
 private:
@@ -314,56 +323,100 @@ private:
 
 public:
   /// Return IEEE 754 binary16 (half) semantics.
+  ///
+  /// \returns IEEE 754 binary16 (half) semantics
   static const fltSemantics &IEEEhalf() { return semIEEEhalf; }
   /// Return bfloat16 semantics.
+  ///
+  /// \returns bfloat16 semantics
   static const fltSemantics &BFloat() { return semBFloat; }
   /// Return IEEE 754 binary32 (single) semantics.
+  ///
+  /// \returns IEEE 754 binary32 (single) semantics
   static const fltSemantics &IEEEsingle() { return semIEEEsingle; }
   /// Return IEEE 754 binary64 (double) semantics.
+  ///
+  /// \returns IEEE 754 binary64 (double) semantics
   static const fltSemantics &IEEEdouble() { return semIEEEdouble; }
   /// Return IEEE 754 binary128 (quad) semantics.
+  ///
+  /// \returns IEEE 754 binary128 (quad) semantics
   static const fltSemantics &IEEEquad() { return semIEEEquad; }
   /// Return IBM double-double semantics.
+  ///
+  /// \returns IBM double-double semantics
   static const fltSemantics &PPCDoubleDouble() { return semPPCDoubleDouble; }
   /// Return legacy IBM double-double (consecutive 106-bit mantissa) semantics.
+  ///
+  /// \returns legacy IBM double-double (consecutive 106-bit mantissa) semantics
   static const fltSemantics &PPCDoubleDoubleLegacy() {
     return semPPCDoubleDoubleLegacy;
   }
   /// Return 8-bit S1E5M2 floating-point semantics.
+  ///
+  /// \returns 8-bit S1E5M2 floating-point semantics
   static const fltSemantics &Float8E5M2() { return semFloat8E5M2; }
   /// Return 8-bit S1E5M2 finite / unsigned-zero floating-point semantics.
+  ///
+  /// \returns 8-bit S1E5M2 finite / unsigned-zero floating-point semantics
   static const fltSemantics &Float8E5M2FNUZ() { return semFloat8E5M2FNUZ; }
   /// Return 8-bit S1E4M3 floating-point semantics.
+  ///
+  /// \returns 8-bit S1E4M3 floating-point semantics
   static const fltSemantics &Float8E4M3() { return semFloat8E4M3; }
   /// Return 8-bit S1E4M3 finite-only floating-point semantics.
+  ///
+  /// \returns 8-bit S1E4M3 finite-only floating-point semantics
   static const fltSemantics &Float8E4M3FN() { return semFloat8E4M3FN; }
   /// Return 8-bit S1E4M3 finite / unsigned-zero floating-point semantics.
+  ///
+  /// \returns 8-bit S1E4M3 finite / unsigned-zero floating-point semantics
   static const fltSemantics &Float8E4M3FNUZ() { return semFloat8E4M3FNUZ; }
   /// Return 8-bit S1E4M3 bias-11 finite / unsigned-zero floating-point semantics.
+  ///
+  /// \returns 8-bit S1E4M3 bias-11 finite / unsigned-zero floating-point semantics
   static const fltSemantics &Float8E4M3B11FNUZ() {
     return semFloat8E4M3B11FNUZ;
   }
   /// Return 8-bit S1E3M4 floating-point semantics.
+  ///
+  /// \returns 8-bit S1E3M4 floating-point semantics
   static const fltSemantics &Float8E3M4() { return semFloat8E3M4; }
   /// Return TensorFloat-32 semantics.
+  ///
+  /// \returns TensorFloat-32 semantics
   static const fltSemantics &FloatTF32() { return semFloatTF32; }
   /// Return 8-bit unsigned E8M0 scale floating-point semantics.
+  ///
+  /// \returns 8-bit unsigned E8M0 scale floating-point semantics
   static const fltSemantics &Float8E8M0FNU() { return semFloat8E8M0FNU; }
   /// Return 8-bit S0E5M3 floating-point semantics.
+  ///
+  /// \returns 8-bit S0E5M3 floating-point semantics
   static const fltSemantics &Float8E5M3FNU() { return semFloat8E5M3FNU; }
   /// Return 6-bit S1E3M2 finite-only floating-point semantics.
+  ///
+  /// \returns 6-bit S1E3M2 finite-only floating-point semantics
   static const fltSemantics &Float6E3M2FN() { return semFloat6E3M2FN; }
   /// Return 6-bit S1E2M3 finite-only floating-point semantics.
+  ///
+  /// \returns 6-bit S1E2M3 finite-only floating-point semantics
   static const fltSemantics &Float6E2M3FN() { return semFloat6E2M3FN; }
   /// Return 4-bit S1E2M1 finite-only floating-point semantics.
+  ///
+  /// \returns 4-bit S1E2M1 finite-only floating-point semantics
   static const fltSemantics &Float4E2M1FN() { return semFloat4E2M1FN; }
   /// Return x87 80-bit double-extended semantics.
+  ///
+  /// \returns x87 80-bit double-extended semantics
   static const fltSemantics &x87DoubleExtended() {
     return semX87DoubleExtended;
   }
 
   /// A Pseudo fltsemantic used to construct APFloats that cannot conflict with
   /// anything real.
+  ///
+  /// \returns pseudo-semantics that cannot conflict with any real format
   static const fltSemantics &Bogus() { return semBogus; }
 
   /// Return true if every finite value of semantics \p A is exactly
@@ -371,6 +424,10 @@ public:
   ///
   /// Does not take into account \c fltNonfiniteBehavior, \c hasZero, or
   /// \c hasSignedRepr.
+  ///
+  /// \param A source floating-point semantics
+  /// \param B destination floating-point semantics
+  /// \returns true if every finite value of \p A is exactly representable in \p B
   LLVM_ABI static bool isRepresentableBy(const fltSemantics &A,
                                          const fltSemantics &B);
 
@@ -456,54 +513,104 @@ public:
   };
 
   /// Return the significand precision (including the integer bit) of \p Sem.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns significand precision of \p Sem, including the integer bit
   LLVM_ABI static unsigned int semanticsPrecision(const fltSemantics &Sem);
   /// Return the minimum normalized unbiased exponent of \p Sem.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns minimum normalized unbiased exponent of \p Sem
   LLVM_ABI static ExponentType semanticsMinExponent(const fltSemantics &Sem);
   /// Return the maximum unbiased exponent of \p Sem.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns maximum unbiased exponent of \p Sem
   LLVM_ABI static ExponentType semanticsMaxExponent(const fltSemantics &Sem);
   /// Return the storage size in bits of a value with semantics \p Sem.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns storage size in bits of a value with semantics \p Sem
   LLVM_ABI static unsigned int semanticsSizeInBits(const fltSemantics &Sem);
   /// Return how many integer bits are needed to hold values of \p Sem.
   ///
   /// \param Sem floating-point semantics to query
   /// \param IsSigned true to include a sign bit in the integer width
+  /// \returns number of integer bits needed to hold values of \p Sem
   LLVM_ABI static unsigned int semanticsIntSizeInBits(const fltSemantics &Sem,
                                                       bool IsSigned);
   /// Return true if \p Sem encodes a zero value.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns true if \p Sem encodes a zero value
   LLVM_ABI static bool semanticsHasZero(const fltSemantics &Sem);
   /// Return true if \p Sem can represent signed values.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns true if \p Sem can represent signed values
   LLVM_ABI static bool semanticsHasSignedRepr(const fltSemantics &Sem);
   /// Return true if \p Sem encodes infinities.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns true if \p Sem encodes infinities
   LLVM_ABI static bool semanticsHasInf(const fltSemantics &Sem);
   /// Return true if \p Sem encodes NaN values.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns true if \p Sem encodes NaN values
   LLVM_ABI static bool semanticsHasNaN(const fltSemantics &Sem);
   /// Return true if \p Sem follows IEEE-like encoding conventions.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns true if \p Sem follows IEEE-like encoding conventions
   LLVM_ABI static bool isIEEELikeFP(const fltSemantics &Sem);
   /// Return true if the sign bit of \p Sem is the most significant bit.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns true if the sign bit of \p Sem is the most significant bit
   LLVM_ABI static bool hasSignBitInMSB(const fltSemantics &Sem);
 
-  // Returns true if any number described by \p Src can be precisely represented
-  // by a normal (not subnormal) value in \p Dst.
+  /// Returns true if any number described by \p Src can be precisely represented
+  /// by a normal (not subnormal) value in \p Dst.
+  ///
+  /// \param Src source floating-point semantics
+  /// \param Dst destination floating-point semantics
+  /// \returns true if every value of \p Src is precisely representable as a normal in \p Dst
   LLVM_ABI static bool isRepresentableAsNormalIn(const fltSemantics &Src,
                                                  const fltSemantics &Dst);
 
   /// Returns the size of the floating point number (in bits) in the given
   /// semantics.
+  ///
+  /// \param Sem floating-point semantics to query
+  /// \returns storage size in bits for values with semantics \p Sem
   LLVM_ABI static unsigned getSizeInBits(const fltSemantics &Sem);
 
-  /// Returns true if the given string is a valid arbitrary floating-point
-  /// format interpretation for llvm.convert.to.arbitrary.fp and
-  /// llvm.convert.from.arbitrary.fp intrinsics.
+  /// Return true if \p Format is a valid arbitrary floating-point format string.
+  ///
+  /// Accepted interpretations are those used by
+  /// llvm.convert.to.arbitrary.fp and llvm.convert.from.arbitrary.fp
+  /// intrinsics.
+  ///
+  /// \param Format arbitrary floating-point format string to validate
+  /// \returns true if \p Format is a valid arbitrary floating-point format string
   LLVM_ABI static bool isValidArbitraryFPFormat(StringRef Format);
 
-  /// Returns the size in bits of a valid arbitrary floating-point format
-  /// string, or 0 if the string is not a valid format. Covers every format
+  /// Return the size in bits of a valid arbitrary floating-point format string.
+  ///
+  /// Returns 0 if the string is not a valid format. Covers every format
   /// accepted by isValidArbitraryFPFormat, not only those
   /// getArbitraryFPSemantics can currently lower.
+  ///
+  /// \param Format arbitrary floating-point format string to measure
+  /// \returns size in bits of \p Format, or 0 if invalid
   LLVM_ABI static unsigned getArbitraryFPFormatSizeInBits(StringRef Format);
 
   /// Returns the fltSemantics for a given arbitrary FP format string,
   /// or nullptr if invalid.
+  ///
+  /// \param Format arbitrary floating-point format string to look up
+  /// \returns fltSemantics for \p Format, or nullptr if invalid
   LLVM_ABI static const fltSemantics *getArbitraryFPSemantics(StringRef Format);
 };
 
@@ -1117,9 +1224,10 @@ struct fltSemantics {
   /// Whether the sign bit of this semantics is the most significant bit.
   bool hasSignBitInMSB = true;
 
-  /* Whether the format supports IEEE754 denormal representation.
-     If both hasDenormals and hasZero are false exponent 0 is assumed to be a
-     regular exponent instead of being reserved. This changes the bias by +1. */
+  /// Whether the format supports IEEE754 denormal representation.
+  ///
+  /// If both hasDenormals and hasZero are false, exponent 0 is assumed to be a
+  /// regular exponent instead of being reserved. This changes the bias by +1.
   bool hasDenormals = true;
 
   /// Whether the integer bit is explicitly represented between significand and
@@ -1227,38 +1335,68 @@ class APFloat : public APFloatBase {
 
 public:
   /// Construct a zero value with the given floating-point \p Semantics.
+  ///
+  /// \param Semantics floating-point format for the value
   APFloat(const fltSemantics &Semantics) : U(Semantics) {}
   /// Construct from decimal or hexadecimal text \p S under \p Semantics.
+  ///
+  /// \param Semantics floating-point format for the value
+  /// \param S decimal or hexadecimal floating-point text
   LLVM_ABI APFloat(const fltSemantics &Semantics, StringRef S);
   /// Construct from an unsigned integer part \p I under \p Semantics.
+  ///
+  /// \param Semantics floating-point format for the value
+  /// \param I integer value to convert
   APFloat(const fltSemantics &Semantics, integerPart I) : U(Semantics, I) {}
   /// Deleted: host floating types must use an explicit bitcast constructor.
+  ///
+  /// \param Semantics floating-point format for the value
+  /// \param V host floating-point value (constructor is deleted)
   template <typename T,
             typename = std::enable_if_t<std::is_floating_point<T>::value>>
   APFloat(const fltSemantics &Semantics, T V) = delete;
   /// Construct an uninitialized value with the given \p Semantics.
+  ///
+  /// \param Semantics floating-point format for the value
+  /// \param Tag tag selecting the uninitialized constructor
   // TODO: Remove this constructor. This isn't faster than the first one.
-  APFloat(const fltSemantics &Semantics, uninitializedTag)
-      : U(Semantics, uninitialized) {}
+  APFloat(const fltSemantics &Semantics, uninitializedTag Tag)
+      : U(Semantics, Tag) {}
   /// Construct by bitcast from integer bit pattern \p I under \p Semantics.
+  ///
+  /// \param Semantics floating-point format for the value
+  /// \param I bit pattern to reinterpret as a floating-point value
   APFloat(const fltSemantics &Semantics, const APInt &I) : U(Semantics, I) {}
   /// Construct from a host \c double (IEEE binary64).
+  ///
+  /// \param d host double value
   explicit APFloat(double d) : U(IEEEFloat(d), IEEEdouble()) {}
   /// Construct from a host \c float (IEEE binary32).
+  ///
+  /// \param f host float value
   explicit APFloat(float f) : U(IEEEFloat(f), IEEEsingle()) {}
   /// Copy-construct an APFloat.
+  ///
+  /// \param RHS value to copy
   APFloat(const APFloat &RHS) = default;
   /// Move-construct an APFloat.
+  ///
+  /// \param RHS value to move from
   APFloat(APFloat &&RHS) = default;
 
+  /// Destroy this APFloat, releasing any owned heap storage.
   ~APFloat() = default;
 
   /// Return true if this value owns heap storage that must be freed.
+  ///
+  /// \returns true if this value owns heap storage that must be freed
   bool needsCleanup() const { APFLOAT_DISPATCH_ON_SEMANTICS(needsCleanup()); }
 
   /// Factory for Positive and Negative Zero.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative True iff the number should be negative.
+  /// \returns zero with the given sign
   static APFloat getZero(const fltSemantics &Sem, bool Negative = false) {
     APFloat Val(Sem, uninitialized);
     Val.makeZero(Negative);
@@ -1267,7 +1405,9 @@ public:
 
   /// Factory for Positive and Negative One.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative True iff the number should be negative.
+  /// \returns one with the given sign
   static APFloat getOne(const fltSemantics &Sem, bool Negative = false) {
     APFloat Val(Sem, 1U);
     if (Negative)
@@ -1277,7 +1417,9 @@ public:
 
   /// Factory for Positive and Negative Infinity.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative True iff the number should be negative.
+  /// \returns infinity with the given sign
   static APFloat getInf(const fltSemantics &Sem, bool Negative = false) {
     APFloat Val(Sem, uninitialized);
     Val.makeInf(Negative);
@@ -1286,9 +1428,11 @@ public:
 
   /// Factory for NaN values.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative - True iff the NaN generated should be negative.
   /// \param payload - The unspecified fill bits for creating the NaN, 0 by
   /// default.  The value is truncated as necessary.
+  /// \returns NaN with the given sign and payload
   static APFloat getNaN(const fltSemantics &Sem, bool Negative = false,
                         uint64_t payload = 0) {
     if (payload) {
@@ -1300,6 +1444,11 @@ public:
   }
 
   /// Factory for QNaN values.
+  ///
+  /// \param Sem floating-point semantics for the result
+  /// \param Negative true iff the NaN generated should be negative
+  /// \param payload optional NaN payload bits, or nullptr for the default
+  /// \returns quiet NaN with the given sign and payload
   static APFloat getQNaN(const fltSemantics &Sem, bool Negative = false,
                          const APInt *payload = nullptr) {
     APFloat Val(Sem, uninitialized);
@@ -1308,6 +1457,11 @@ public:
   }
 
   /// Factory for SNaN values.
+  ///
+  /// \param Sem floating-point semantics for the result
+  /// \param Negative true iff the NaN generated should be negative
+  /// \param payload optional NaN payload bits, or nullptr for the default
+  /// \returns signaling NaN with the given sign and payload
   static APFloat getSNaN(const fltSemantics &Sem, bool Negative = false,
                          const APInt *payload = nullptr) {
     APFloat Val(Sem, uninitialized);
@@ -1317,7 +1471,9 @@ public:
 
   /// Returns the largest finite number in the given semantics.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative - True iff the number should be negative
+  /// \returns largest finite value in \p Sem
   static APFloat getLargest(const fltSemantics &Sem, bool Negative = false) {
     APFloat Val(Sem, uninitialized);
     Val.makeLargest(Negative);
@@ -1327,7 +1483,9 @@ public:
   /// Returns the smallest (by magnitude) finite number in the given semantics.
   /// Might be denormalized, which implies a relative loss of precision.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative - True iff the number should be negative
+  /// \returns smallest-magnitude finite value in \p Sem
   static APFloat getSmallest(const fltSemantics &Sem, bool Negative = false) {
     APFloat Val(Sem, uninitialized);
     Val.makeSmallest(Negative);
@@ -1337,7 +1495,9 @@ public:
   /// Returns the smallest (by magnitude) normalized finite number in the given
   /// semantics.
   ///
+  /// \param Sem floating-point semantics for the result
   /// \param Negative - True iff the number should be negative
+  /// \returns smallest-magnitude normalized finite value in \p Sem
   static APFloat getSmallestNormalized(const fltSemantics &Sem,
                                        bool Negative = false) {
     APFloat Val(Sem, uninitialized);
@@ -1348,19 +1508,28 @@ public:
   /// Returns a float which is bitcasted from an all one value int.
   ///
   /// \param Semantics - type float semantics
+  /// \returns APFloat whose bit pattern is all ones under \p Semantics
   LLVM_ABI static APFloat getAllOnesValue(const fltSemantics &Semantics);
 
   /// Returns true if the given semantics has actual significand.
   ///
   /// \param Sem - type float semantics
+  /// \returns true if \p Sem has an actual significand
   static bool hasSignificand(const fltSemantics &Sem) {
     return &Sem != &Float8E8M0FNU();
   }
 
   /// Used to insert APFloat objects, or objects that contain APFloat objects,
   /// into FoldingSets.
+  ///
+  /// \param NID folding-set node ID to profile into
   LLVM_ABI void Profile(FoldingSetNodeID &NID) const;
 
+  /// Add \p RHS to this value, rounding with \p RM; store the sum in-place.
+  ///
+  /// \param RHS addend with the same semantics as this value
+  /// \param RM rounding mode for the addition
+  /// \returns IEEE exception status flags for the addition
   opStatus add(const APFloat &RHS, roundingMode RM) {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only call on two APFloats with the same semantics");
@@ -1370,6 +1539,12 @@ public:
       return U.Double.add(RHS.U.Double, RM);
     llvm_unreachable("Unexpected semantics");
   }
+  /// Subtract \p RHS from this value, rounding with \p RM; store the difference
+  /// in-place.
+  ///
+  /// \param RHS subtrahend with the same semantics as this value
+  /// \param RM rounding mode for the subtraction
+  /// \returns IEEE exception status flags for the subtraction
   opStatus subtract(const APFloat &RHS, roundingMode RM) {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only call on two APFloats with the same semantics");
@@ -1380,6 +1555,10 @@ public:
     llvm_unreachable("Unexpected semantics");
   }
   /// Multiply this value by \p RHS, rounding with \p RM; store the product in-place.
+  ///
+  /// \param RHS multiplicand with the same semantics as this value
+  /// \param RM rounding mode for the multiplication
+  /// \returns IEEE exception status flags for the multiplication
   opStatus multiply(const APFloat &RHS, roundingMode RM) {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only call on two APFloats with the same semantics");
@@ -1390,6 +1569,10 @@ public:
     llvm_unreachable("Unexpected semantics");
   }
   /// Divide this value by \p RHS, rounding with \p RM; store the quotient in-place.
+  ///
+  /// \param RHS divisor with the same semantics as this value
+  /// \param RM rounding mode for the division
+  /// \returns IEEE exception status flags for the division
   opStatus divide(const APFloat &RHS, roundingMode RM) {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only call on two APFloats with the same semantics");
@@ -1399,6 +1582,10 @@ public:
       return U.Double.divide(RHS.U.Double, RM);
     llvm_unreachable("Unexpected semantics");
   }
+  /// Compute the IEEE remainder of this value by \p RHS; store the result in-place.
+  ///
+  /// \param RHS divisor with the same semantics as this value
+  /// \returns IEEE exception status flags for the remainder
   opStatus remainder(const APFloat &RHS) {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only call on two APFloats with the same semantics");
@@ -1409,6 +1596,9 @@ public:
     llvm_unreachable("Unexpected semantics");
   }
   /// Compute C99 fmod of this value by \p RHS; store the result in-place.
+  ///
+  /// \param RHS divisor with the same semantics as this value
+  /// \returns IEEE exception status flags for the remainder
   opStatus mod(const APFloat &RHS) {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only call on two APFloats with the same semantics");
@@ -1419,6 +1609,11 @@ public:
     llvm_unreachable("Unexpected semantics");
   }
   /// Compute this * \p Multiplicand + \p Addend with a single rounding under \p RM.
+  ///
+  /// \param Multiplicand second factor of the product
+  /// \param Addend value added to the product
+  /// \param RM rounding mode for the fused operation
+  /// \returns IEEE exception status flags for the fused operation
   opStatus fusedMultiplyAdd(const APFloat &Multiplicand, const APFloat &Addend,
                             roundingMode RM) {
     assert(&getSemantics() == &Multiplicand.getSemantics() &&
@@ -1433,17 +1628,26 @@ public:
     llvm_unreachable("Unexpected semantics");
   }
   /// Round this value to an integral floating-point value using \p RM.
+  ///
+  /// \param RM rounding mode for the conversion to an integral value
+  /// \returns IEEE exception status flags for the rounding
   opStatus roundToIntegral(roundingMode RM) {
     APFLOAT_DISPATCH_ON_SEMANTICS(roundToIntegral(RM));
   }
 
   // TODO: bool parameters are not readable and a source of bugs.
   // Do something.
+  /// Move to the next or previous representable value.
+  ///
+  /// \param nextDown if true, move toward -infinity; otherwise toward +infinity
+  /// \returns IEEE exception status flags for the step
   opStatus next(bool nextDown) {
     APFLOAT_DISPATCH_ON_SEMANTICS(next(nextDown));
   }
 
   /// Negate an APFloat.
+  ///
+  /// \returns negation of this value
   APFloat operator-() const {
     APFloat Result(*this);
     Result.changeSign();
@@ -1452,6 +1656,9 @@ public:
 
   /// Add two APFloats, rounding ties to the nearest even.
   /// No error checking.
+  ///
+  /// \param RHS addend with the same semantics as this value
+  /// \returns sum of this value and \p RHS
   APFloat operator+(const APFloat &RHS) const {
     APFloat Result(*this);
     (void)Result.add(RHS, rmNearestTiesToEven);
@@ -1460,6 +1667,9 @@ public:
 
   /// Subtract two APFloats, rounding ties to the nearest even.
   /// No error checking.
+  ///
+  /// \param RHS subtrahend with the same semantics as this value
+  /// \returns difference of this value and \p RHS
   APFloat operator-(const APFloat &RHS) const {
     APFloat Result(*this);
     (void)Result.subtract(RHS, rmNearestTiesToEven);
@@ -1468,6 +1678,9 @@ public:
 
   /// Multiply two APFloats, rounding ties to the nearest even.
   /// No error checking.
+  ///
+  /// \param RHS multiplicand with the same semantics as this value
+  /// \returns product of this value and \p RHS
   APFloat operator*(const APFloat &RHS) const {
     APFloat Result(*this);
     (void)Result.multiply(RHS, rmNearestTiesToEven);
@@ -1476,6 +1689,9 @@ public:
 
   /// Divide the first APFloat by the second, rounding ties to the nearest even.
   /// No error checking.
+  ///
+  /// \param RHS divisor with the same semantics as this value
+  /// \returns quotient of this value and \p RHS
   APFloat operator/(const APFloat &RHS) const {
     APFloat Result(*this);
     (void)Result.divide(RHS, rmNearestTiesToEven);
@@ -1489,6 +1705,9 @@ public:
     if (isNegative())
       changeSign();
   }
+  /// Copy the sign bit from \p RHS onto this value.
+  ///
+  /// \param RHS value whose sign bit is copied
   void copySign(const APFloat &RHS) {
     if (isNegative() != RHS.isNegative())
       changeSign();
@@ -1496,6 +1715,10 @@ public:
 
   /// A static helper to produce a copy of an APFloat value with its sign
   /// copied from some other APFloat.
+  ///
+  /// \param Value magnitude source for the result
+  /// \param Sign value whose sign bit is copied onto \p Value
+  /// \returns \p Value with the sign bit taken from \p Sign
   static APFloat copySign(APFloat Value, const APFloat &Sign) {
     Value.copySign(Sign);
     return Value;
@@ -1503,6 +1726,8 @@ public:
 
   /// Assuming this is an IEEE-754 NaN value, quiet its signaling bit.
   /// This preserves the sign and payload bits.
+  ///
+  /// \returns a copy of this NaN with the signaling bit cleared
   [[nodiscard]] APFloat makeQuiet() const {
     APFloat Result(*this);
     Result.getIEEE().makeQuiet();
@@ -1511,7 +1736,10 @@ public:
 
   /// Convert this value to \p ToSemantics, rounding with \p RM.
   ///
+  /// \param ToSemantics destination floating-point semantics
+  /// \param RM rounding mode for the conversion
   /// \param[out] losesInfo set to true if the conversion is lossy
+  /// \returns IEEE exception status flags for the conversion
   LLVM_ABI opStatus convert(const fltSemantics &ToSemantics, roundingMode RM,
                             bool *losesInfo);
   /// Convert this floating-point value to an integer bit pattern in \p Input.
@@ -1520,21 +1748,41 @@ public:
   /// zero for NaNs, and the min or max integer for underflow or overflow.
   /// \p IsExact is set when converting the integer back yields the original
   /// float (almost equivalent to \c opOK, except for negative zero).
+  ///
+  /// \param Input destination buffer for the integer limbs
+  /// \param Width bit width of the destination integer
+  /// \param IsSigned true if the destination integer is signed
+  /// \param RM rounding mode for the conversion
+  /// \param[out] IsExact set when the conversion is exact
+  /// \returns IEEE exception status flags for the conversion
   opStatus convertToInteger(MutableArrayRef<integerPart> Input,
                             unsigned int Width, bool IsSigned, roundingMode RM,
                             bool *IsExact) const {
     APFLOAT_DISPATCH_ON_SEMANTICS(
         convertToInteger(Input, Width, IsSigned, RM, IsExact));
   }
-  // Same as convertToInteger(integerPart*, ...), except the result is returned
-  // in an APSInt, whose initial bit-width and signed-ness are used to determine
-  // the precision of the conversion.
+  /// Convert this value to an integer stored in \p Result.
+  ///
+  /// Same as convertToInteger(integerPart*, ...), except the result is returned
+  /// in an APSInt, whose initial bit-width and signed-ness are used to determine
+  /// the precision of the conversion.
+  ///
+  /// \param Result destination APSInt (width and signedness select the format)
+  /// \param RM rounding mode for the conversion
+  /// \param[out] IsExact set when the conversion is exact
+  /// \returns IEEE exception status flags for the conversion
   LLVM_ABI opStatus convertToInteger(APSInt &Result, roundingMode RM,
                                      bool *IsExact) const;
 
-  // Convert a two's complement integer Input to a floating point number,
-  // rounding according to RM.  IsSigned is true if the integer is signed,
-  // in which case it must be sign-extended.
+  /// Convert a two's complement integer \p Input to this floating-point value.
+  ///
+  /// Rounding follows \p RM. \p IsSigned is true if the integer is signed, in
+  /// which case it must be sign-extended.
+  ///
+  /// \param Input two's complement integer to convert
+  /// \param IsSigned true if \p Input is a signed integer
+  /// \param RM rounding mode for the conversion
+  /// \returns IEEE exception status flags for the conversion
   opStatus convertFromAPInt(const APInt &Input, bool IsSigned,
                             roundingMode RM) {
     APFLOAT_DISPATCH_ON_SEMANTICS(convertFromAPInt(Input, IsSigned, RM));
@@ -1558,8 +1806,14 @@ public:
   ///
   /// If a floating-point exception occurs during conversion, then no error is
   /// returned, and the exception is indicated via opStatus.
-  LLVM_ABI Expected<opStatus> convertFromString(StringRef, roundingMode);
+  ///
+  /// \param Str decimal, hexadecimal, infinity, or NaN text to parse
+  /// \param RM rounding mode for inexact conversions
+  /// \returns operation status on success, or an error if \p Str is invalid
+  LLVM_ABI Expected<opStatus> convertFromString(StringRef Str, roundingMode RM);
   /// Return the IEEE bit pattern of this value as an \c APInt.
+  ///
+  /// \returns IEEE bit pattern of this value as an APInt
   APInt bitcastToAPInt() const {
     APFLOAT_DISPATCH_ON_SEMANTICS(bitcastToAPInt());
   }
@@ -1569,6 +1823,8 @@ public:
   /// \pre The APFloat must be built using semantics, that can be represented by
   /// the host double type without loss of precision. It can be IEEEdouble and
   /// shorter semantics, like IEEEsingle and others.
+  ///
+  /// \returns host double representation of this value
   LLVM_ABI double convertToDouble() const;
 
   /// Converts this APFloat to host float value.
@@ -1585,35 +1841,60 @@ public:
   /// \pre The APFloat must be built using semantics, that can be represented by
   /// the host float type without loss of precision. It can be IEEEsingle and
   /// shorter semantics, like IEEEhalf.
+  ///
+  /// \returns host float representation of this value
   LLVM_ABI float convertToFloat() const;
 
   /// Return true if this value compares equal to \p RHS (NaNs are never equal).
+  ///
+  /// \param RHS value to compare against
+  /// \returns true if this value compares equal to \p RHS
   bool operator==(const APFloat &RHS) const { return compare(RHS) == cmpEqual; }
 
+  /// Return true if this value does not compare equal to \p RHS.
+  ///
+  /// \param RHS value to compare against
+  /// \returns true if this value does not compare equal to \p RHS
   bool operator!=(const APFloat &RHS) const { return compare(RHS) != cmpEqual; }
 
   /// Return true if this value is ordered less than \p RHS.
+  ///
+  /// \param RHS value to compare against
+  /// \returns true if this value is ordered less than \p RHS
   bool operator<(const APFloat &RHS) const {
     return compare(RHS) == cmpLessThan;
   }
 
   /// Return true if this value is ordered greater than \p RHS.
+  ///
+  /// \param RHS value to compare against
+  /// \returns true if this value is ordered greater than \p RHS
   bool operator>(const APFloat &RHS) const {
     return compare(RHS) == cmpGreaterThan;
   }
 
+  /// Return true if this value is ordered less than or equal to \p RHS.
+  ///
+  /// \param RHS value to compare against
+  /// \returns true if this value is ordered less than or equal to \p RHS
   bool operator<=(const APFloat &RHS) const {
     cmpResult Res = compare(RHS);
     return Res == cmpLessThan || Res == cmpEqual;
   }
 
   /// Return true if this value is ordered greater than or equal to \p RHS.
+  ///
+  /// \param RHS value to compare against
+  /// \returns true if this value is ordered greater than or equal to \p RHS
   bool operator>=(const APFloat &RHS) const {
     cmpResult Res = compare(RHS);
     return Res == cmpGreaterThan || Res == cmpEqual;
   }
 
   /// IEEE comparison with \p RHS (NaNs compare unordered; +0 equals -0).
+  ///
+  /// \param RHS value to compare against
+  /// \returns IEEE comparison result against \p RHS
   cmpResult compare(const APFloat &RHS) const {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only compare APFloats with the same semantics");
@@ -1625,6 +1906,9 @@ public:
   }
 
   /// Compare absolute values; both operands must be finite and non-zero.
+  ///
+  /// \param RHS value whose magnitude is compared
+  /// \returns comparison of the absolute values of this and \p RHS
   cmpResult compareAbsoluteValue(const APFloat &RHS) const {
     assert(&getSemantics() == &RHS.getSemantics() &&
            "Should only compare APFloats with the same semantics");
@@ -1636,6 +1920,9 @@ public:
   }
 
   /// Return true if this value and \p RHS have identical semantics and bits.
+  ///
+  /// \param RHS value to compare bit-for-bit
+  /// \returns true if this value and \p RHS have identical semantics and bits
   bool bitwiseIsEqual(const APFloat &RHS) const {
     if (&getSemantics() != &RHS.getSemantics())
       return false;
@@ -1646,6 +1933,8 @@ public:
     llvm_unreachable("Unexpected semantics");
   }
 
+  /// Return true if this value is bit-for-bit identical to host double \p V.
+  ///
   /// We don't rely on operator== working on double values, as
   /// it returns true for things that are clearly not equal, like -0.0 and 0.0.
   /// As such, this method can be used to do an exact bit-for-bit comparison of
@@ -1654,6 +1943,9 @@ public:
   /// We leave the version with the double argument here because it's just so
   /// convenient to write "2.0" and the like.  Without this function we'd
   /// have to duplicate its logic everywhere it's called.
+  ///
+  /// \param V host double to compare against after converting to this semantics
+  /// \returns true if this value is bit-for-bit identical to \p V after conversion
   bool isExactlyValue(double V) const {
     bool ignored;
     APFloat Tmp(V);
@@ -1663,54 +1955,100 @@ public:
 
   /// Write a C99 %a/%A-style hex float into \p DST and return characters written.
   ///
+  /// \param DST destination buffer for the C string
   /// \param HexDigits precision of the fractional hex digits (0 = natural)
   /// \param UpperCase true to use uppercase hex digits and exponent marker
   /// \param RM rounding mode when truncating to \p HexDigits
+  /// \returns number of characters written to \p DST, not counting the null terminator
   unsigned int convertToHexString(char *DST, unsigned int HexDigits,
                                   bool UpperCase, roundingMode RM) const {
     APFLOAT_DISPATCH_ON_SEMANTICS(
         convertToHexString(DST, HexDigits, UpperCase, RM));
   }
 
+  /// Return true if this value is positive or negative zero.
+  ///
+  /// \returns true if this value is positive or negative zero
   bool isZero() const { return getCategory() == fcZero; }
   /// Return true if this value is positive or negative infinity.
+  ///
+  /// \returns true if this value is positive or negative infinity
   bool isInfinity() const { return getCategory() == fcInfinity; }
   /// Return true if this value is a NaN.
+  ///
+  /// \returns true if this value is a NaN
   bool isNaN() const { return getCategory() == fcNaN; }
 
   /// Return true if the sign bit is set.
+  ///
+  /// \returns true if the sign bit is set
   bool isNegative() const { return getIEEE().isNegative(); }
+  /// Return true if this value is a denormal (subnormal) number.
+  ///
+  /// \returns true if this value is a denormal (subnormal) number
   bool isDenormal() const { APFLOAT_DISPATCH_ON_SEMANTICS(isDenormal()); }
   /// Return true if this value is a signaling NaN.
+  ///
+  /// \returns true if this value is a signaling NaN
   bool isSignaling() const { return getIEEE().isSignaling(); }
 
+  /// Return true if this value is a normal (not denormal) finite non-zero number.
+  ///
+  /// \returns true if this value is a normal finite non-zero number
   bool isNormal() const { return !isDenormal() && isFiniteNonZero(); }
   /// Return true if this value is finite (not Inf or NaN).
+  ///
+  /// \returns true if this value is finite (not Inf or NaN)
   bool isFinite() const { return !isNaN() && !isInfinity(); }
 
   /// Return the IEEE category of this value.
+  ///
+  /// \returns IEEE category of this value
   fltCategory getCategory() const { return getIEEE().getCategory(); }
   /// Return the floating-point semantics of this value.
+  ///
+  /// \returns floating-point semantics of this value
   const fltSemantics &getSemantics() const { return *U.semantics; }
   /// Return true if this value is not zero.
+  ///
+  /// \returns true if this value is not zero
   bool isNonZero() const { return !isZero(); }
   /// Return true if this value is finite and non-zero.
+  ///
+  /// \returns true if this value is finite and non-zero
   bool isFiniteNonZero() const { return isFinite() && !isZero(); }
   /// Return true if this value is +0.
+  ///
+  /// \returns true if this value is +0
   bool isPosZero() const { return isZero() && !isNegative(); }
   /// Return true if this value is -0.
+  ///
+  /// \returns true if this value is -0
   bool isNegZero() const { return isZero() && isNegative(); }
   /// Return true if this value is +Inf.
+  ///
+  /// \returns true if this value is +Inf
   bool isPosInfinity() const { return isInfinity() && !isNegative(); }
   /// Return true if this value is -Inf.
+  ///
+  /// \returns true if this value is -Inf
   bool isNegInfinity() const { return isInfinity() && isNegative(); }
   /// Return true if this is the smallest-magnitude finite value of its format.
+  ///
+  /// \returns true if this is the smallest-magnitude finite value of its format
   bool isSmallest() const { APFLOAT_DISPATCH_ON_SEMANTICS(isSmallest()); }
+  /// Return true if this is the largest-magnitude finite value of its format.
+  ///
+  /// \returns true if this is the largest-magnitude finite value of its format
   bool isLargest() const { APFLOAT_DISPATCH_ON_SEMANTICS(isLargest()); }
   /// Return true if this value is an exact integer (no fractional part).
+  ///
+  /// \returns true if this value is an exact integer
   bool isInteger() const { APFLOAT_DISPATCH_ON_SEMANTICS(isInteger()); }
 
   /// Return true if this is the smallest-magnitude normalized finite value.
+  ///
+  /// \returns true if this is the smallest-magnitude normalized finite value
   bool isSmallestNormalized() const {
     APFLOAT_DISPATCH_ON_SEMANTICS(isSmallestNormalized());
   }
@@ -1718,21 +2056,32 @@ public:
   /// If the value is a NaN value, return an integer containing the payload of
   /// this value. This payload will include the quiet bit as part of the
   /// returned integer.
+  ///
+  /// \returns integer payload of this NaN, including the quiet bit
   APInt getNaNPayload() const {
     assert(isNaN() && "Can only call this on a NaN value");
     APFLOAT_DISPATCH_ON_SEMANTICS(getNaNPayload());
   }
 
   /// Return the FPClassTest which will return true for the value.
+  ///
+  /// \returns floating-point class test that matches this value
   LLVM_ABI FPClassTest classify() const;
 
   /// Copy-assign from \p RHS.
+  ///
+  /// \param RHS value to copy
+  /// \returns *this
   APFloat &operator=(const APFloat &RHS) = default;
   /// Move-assign from \p RHS.
+  ///
+  /// \param RHS value to move from
+  /// \returns *this
   APFloat &operator=(APFloat &&RHS) = default;
 
   /// Append a decimal text representation of this value to \p Str.
   ///
+  /// \param Str destination buffer for the decimal text
   /// \param FormatPrecision digits of precision (0 = enough for exact round-trip)
   /// \param FormatMaxPadding max padding before switching to scientific form
   /// \param TruncateZero omit trailing fractional zeros when true
@@ -1742,7 +2091,10 @@ public:
         toString(Str, FormatPrecision, FormatMaxPadding, TruncateZero));
   }
 
-  LLVM_ABI void print(raw_ostream &) const;
+  /// Print a textual representation of this value to \p OS.
+  ///
+  /// \param OS output stream to write to
+  LLVM_ABI void print(raw_ostream &OS) const;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print this value to stderr for debugging.
@@ -1751,35 +2103,52 @@ public:
 
   /// If this value is normal and has an exact, normal, multiplicative inverse,
   /// store it in inv and return true.
+  ///
+  /// \param Inv destination for the multiplicative inverse when one exists
+  /// \returns true if an exact normal multiplicative inverse was stored in \p Inv
   LLVM_ABI bool getExactInverse(APFloat *Inv) const;
 
-  // If this is an exact power of two, return the exponent while ignoring the
-  // sign bit. If it's not an exact power of 2, return INT_MIN
+  /// If this is an exact power of two, return the exponent while ignoring the
+  /// sign bit. If it's not an exact power of 2, return INT_MIN.
+  ///
+  /// \returns the exponent if this is an exact power of two (ignoring sign), otherwise INT_MIN
   LLVM_READONLY
   int getExactLog2Abs() const {
     APFLOAT_DISPATCH_ON_SEMANTICS(getExactLog2Abs());
   }
 
   /// If this is an exact positive power of two, return its exponent; else INT_MIN.
+  ///
+  /// \returns the exponent if this is an exact positive power of two, otherwise INT_MIN
   LLVM_READONLY
   int getExactLog2() const {
     return isNegative() ? INT_MIN : getExactLog2Abs();
   }
 
   /// Return true if this value is exactly \c 2^N.
+  ///
+  /// \param N power-of-two exponent to test for
+  /// \returns true if this value is exactly 2^\p N
   LLVM_READONLY
   bool isPowerOf2(int N) const { return N != INT_MIN && getExactLog2() == N; }
 
-  // Returns true if this value is exactly -(2^N).
+  /// Return true if this value is exactly \c -(2^N).
+  ///
+  /// \param N power-of-two exponent to test for
+  /// \returns true if this value is exactly -(2^\p N)
   LLVM_READONLY
   bool isNegPowerOf2(int N) const {
     return N != INT_MIN && isNegative() && getExactLog2Abs() == N;
   }
 
   /// Return true if this value is exactly +1.0.
+  ///
+  /// \returns true if this value is exactly +1.0
   LLVM_READONLY bool isOne() const { return isPowerOf2(0); }
 
   /// Return true if this value is exactly -1.0.
+  ///
+  /// \returns true if this value is exactly -1.0
   LLVM_READONLY bool isMinusOne() const { return isNegPowerOf2(0); }
 
   LLVM_ABI friend hash_code hash_value(const APFloat &Arg);
@@ -1797,6 +2166,9 @@ static_assert(sizeof(APFloat) == sizeof(detail::IEEEFloat),
 ///
 /// These additional declarations are required in order to compile LLVM with IBM
 /// xlC compiler.
+///
+/// \param Arg floating-point value to hash
+/// \returns hash code for \p Arg
 LLVM_ABI hash_code hash_value(const APFloat &Arg);
 
 /// Returns the exponent of the internal representation of the APFloat.
@@ -1808,6 +2180,8 @@ LLVM_ABI hash_code hash_value(const APFloat &Arg);
 ///   0   -> \c IEK_Zero
 ///   Inf -> \c IEK_Inf
 ///
+/// \param Arg floating-point value whose unbiased exponent is returned
+/// \returns the unbiased exponent of \p Arg, or a special error code for NaN/0/Inf
 inline int ilogb(const APFloat &Arg) {
   if (APFloat::usesLayout<detail::IEEEFloat>(Arg.getSemantics()))
     return ilogb(Arg.U.IEEE);
@@ -1817,6 +2191,11 @@ inline int ilogb(const APFloat &Arg) {
 }
 
 /// Returns: X * 2^Exp for integral exponents.
+///
+/// \param X value to scale
+/// \param Exp power-of-two exponent to apply
+/// \param RM rounding mode for the scaling
+/// \returns \p X scaled by 2^\p Exp
 inline APFloat scalbn(APFloat X, int Exp, APFloat::roundingMode RM) {
   if (APFloat::usesLayout<detail::IEEEFloat>(X.getSemantics()))
     return APFloat(scalbn(X.U.IEEE, Exp, RM), X.getSemantics());
@@ -1829,6 +2208,11 @@ inline APFloat scalbn(APFloat X, int Exp, APFloat::roundingMode RM) {
 ///
 /// While the C standard says Exp is an unspecified value for infinity and nan,
 /// this returns INT_MAX for infinities, and INT_MIN for NaNs.
+///
+/// \param X value to split into significand and exponent
+/// \param[out] Exp set to the unbiased exponent of \p X
+/// \param RM rounding mode for the significand
+/// \returns the significand of \p X in the range [0.5, 1)
 inline APFloat frexp(const APFloat &X, int &Exp, APFloat::roundingMode RM) {
   if (APFloat::usesLayout<detail::IEEEFloat>(X.getSemantics()))
     return APFloat(frexp(X.U.IEEE, Exp, RM), X.getSemantics());
@@ -1837,21 +2221,32 @@ inline APFloat frexp(const APFloat &X, int &Exp, APFloat::roundingMode RM) {
   llvm_unreachable("Unexpected semantics");
 }
 /// Returns the absolute value of the argument.
+///
+/// \param X value whose absolute value is returned
+/// \returns the absolute value of \p X
 inline APFloat abs(APFloat X) {
   X.clearSign();
   return X;
 }
 
 /// Returns the negated value of the argument.
+///
+/// \param X value to negate
+/// \returns the negation of \p X
 inline APFloat neg(APFloat X) {
   X.changeSign();
   return X;
 }
 
-/// Implements IEEE-754 2008 minNum semantics. Returns the smaller of the
-/// 2 arguments if both are not NaN. If either argument is a qNaN, returns the
-/// other argument. If either argument is sNaN, return a qNaN.
+/// IEEE-754-2008 minNum: return the smaller of two values.
+///
+/// If both are not NaN, returns the smaller. If either argument is a qNaN,
+/// returns the other argument. If either argument is sNaN, returns a qNaN.
 /// -0 is treated as ordered less than +0.
+///
+/// \param A first operand
+/// \param B second operand
+/// \returns the smaller of \p A and \p B under IEEE-754-2008 minNum rules
 LLVM_READONLY
 inline APFloat minnum(const APFloat &A, const APFloat &B) {
   if (A.isSignaling())
@@ -1867,10 +2262,15 @@ inline APFloat minnum(const APFloat &A, const APFloat &B) {
   return B < A ? B : A;
 }
 
-/// Implements IEEE-754 2008 maxNum semantics. Returns the larger of the
-/// 2 arguments if both are not NaN. If either argument is a qNaN, returns the
-/// other argument. If either argument is sNaN, return a qNaN.
-/// +0 is treated as ordered greater than -0.
+/// IEEE-754-2008 maxNum: return the larger of two values.
+///
+/// Returns the larger of the 2 arguments if both are not NaN. If either
+/// argument is a qNaN, returns the other argument. If either argument is sNaN,
+/// return a qNaN. +0 is treated as ordered greater than -0.
+///
+/// \param A first operand
+/// \param B second operand
+/// \returns the larger of \p A and \p B under IEEE-754-2008 maxNum rules
 LLVM_READONLY
 inline APFloat maxnum(const APFloat &A, const APFloat &B) {
   if (A.isSignaling())
@@ -1889,6 +2289,10 @@ inline APFloat maxnum(const APFloat &A, const APFloat &B) {
 /// Implements IEEE 754-2019 minimum semantics. Returns the smaller of 2
 /// arguments, returning a quiet NaN if an argument is a NaN and treating -0
 /// as less than +0.
+///
+/// \param A first operand
+/// \param B second operand
+/// \returns the smaller of \p A and \p B under IEEE 754-2019 minimum rules
 LLVM_READONLY
 inline APFloat minimum(const APFloat &A, const APFloat &B) {
   if (A.isNaN())
@@ -1902,6 +2306,10 @@ inline APFloat minimum(const APFloat &A, const APFloat &B) {
 
 /// Implements IEEE 754-2019 minimumNumber semantics. Returns the smaller
 /// of 2 arguments, not propagating NaNs and treating -0 as less than +0.
+///
+/// \param A first operand
+/// \param B second operand
+/// \returns the smaller of \p A and \p B under IEEE 754-2019 minimumNumber rules
 LLVM_READONLY
 inline APFloat minimumnum(const APFloat &A, const APFloat &B) {
   if (A.isNaN())
@@ -1916,6 +2324,10 @@ inline APFloat minimumnum(const APFloat &A, const APFloat &B) {
 /// Implements IEEE 754-2019 maximum semantics. Returns the larger of 2
 /// arguments, returning a quiet NaN if an argument is a NaN and treating -0
 /// as less than +0.
+///
+/// \param A first operand
+/// \param B second operand
+/// \returns the larger of \p A and \p B under IEEE 754-2019 maximum rules
 LLVM_READONLY
 inline APFloat maximum(const APFloat &A, const APFloat &B) {
   if (A.isNaN())
@@ -1929,6 +2341,10 @@ inline APFloat maximum(const APFloat &A, const APFloat &B) {
 
 /// Implements IEEE 754-2019 maximumNumber semantics. Returns the larger
 /// of 2 arguments, not propagating NaNs and treating -0 as less than +0.
+///
+/// \param A first operand
+/// \param B second operand
+/// \returns the larger of \p A and \p B under IEEE 754-2019 maximumNumber rules
 LLVM_READONLY
 inline APFloat maximumnum(const APFloat &A, const APFloat &B) {
   if (A.isNaN())
@@ -1941,12 +2357,21 @@ inline APFloat maximumnum(const APFloat &A, const APFloat &B) {
 }
 
 /// Implement IEEE 754-2019 exp functions
+///
+/// \param X value whose exponential is computed
+/// \param RM rounding mode for the result
+/// \param[out] Status optional destination for the IEEE operation status
+/// \returns the exponential of \p X, or std::nullopt on failure
 LLVM_READONLY
 LLVM_ABI std::optional<APFloat>
 exp(const APFloat &X, RoundingMode RM = APFloat::rmNearestTiesToEven,
     APFloat::opStatus *Status = nullptr);
 
 /// Write a textual representation of \p V to \p OS.
+///
+/// \param OS output stream to write to
+/// \param V floating-point value to print
+/// \returns the output stream \p OS
 inline raw_ostream &operator<<(raw_ostream &OS, const APFloat &V) {
   V.print(OS);
   return OS;

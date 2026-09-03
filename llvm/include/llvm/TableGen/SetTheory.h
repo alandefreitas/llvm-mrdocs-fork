@@ -62,9 +62,15 @@ class DagInit;
 class Init;
 class Record;
 
+/// Computes ordered sets of Records from DAG expressions.
+///
+/// Operators for standard set operations are predefined, and special-purpose
+/// operators and expanders can be registered to evaluate named sets.
 class SetTheory {
 public:
+  /// Ordered vector of Record pointers produced by set expansion.
   using RecVec = std::vector<const Record *>;
+  /// Insertion-ordered set of Record pointers used while evaluating expressions.
   using RecSet = SmallSetVector<const Record *, 16>;
 
   /// Operator - A callback representing a DAG operator.
@@ -72,24 +78,36 @@ public:
     virtual void anchor();
 
   public:
+    /// Destroy this DAG operator.
     virtual ~Operator() = default;
 
-    /// apply - Apply this operator to Expr's arguments and insert the result
-    /// in Elts.
-    virtual void apply(SetTheory &, const DagInit *Expr, RecSet &Elts,
+    /// Apply this operator to Expr's arguments and insert the result in Elts.
+    ///
+    /// \param ST Set theory instance used to evaluate nested expressions.
+    /// \param Expr DAG expression whose operator is this callback.
+    /// \param Elts Destination set that receives the operator result.
+    /// \param Loc Source locations used for diagnostics.
+    virtual void apply(SetTheory &ST, const DagInit *Expr, RecSet &Elts,
                        ArrayRef<SMLoc> Loc) = 0;
   };
 
-  /// Expander - A callback function that can transform a Record representing a
-  /// set into a fully expanded list of elements. Expanders provide a way for
-  /// users to define named sets that can be used in DAG expressions.
+  /// Callback that expands a Record representing a set into its elements.
+  ///
+  /// Expanders provide a way for users to define named sets that can be used
+  /// in DAG expressions.
   class LLVM_ABI Expander {
     virtual void anchor();
 
   public:
+    /// Destroy this set expander.
     virtual ~Expander() = default;
 
-    virtual void expand(SetTheory &, const Record *, RecSet &Elts) = 0;
+    /// Expand \p Set into elements and insert them into \p Elts.
+    ///
+    /// \param ST Set theory instance used to evaluate nested expressions.
+    /// \param Set Record representing the named set to expand.
+    /// \param Elts Destination set that receives the expanded elements.
+    virtual void expand(SetTheory &ST, const Record *Set, RecSet &Elts) = 0;
   };
 
 private:
@@ -108,35 +126,54 @@ public:
   /// Create a SetTheory instance with only the standard operators.
   LLVM_ABI SetTheory();
 
-  /// addExpander - Add an expander for Records with the named super class.
-  LLVM_ABI void addExpander(StringRef ClassName, std::unique_ptr<Expander>);
+  /// Add an expander for Records with the named super class.
+  ///
+  /// \param ClassName Superclass name that selects Records for this expander.
+  /// \param E Expander invoked for matching Records.
+  LLVM_ABI void addExpander(StringRef ClassName, std::unique_ptr<Expander> E);
 
-  /// addFieldExpander - Add an expander for ClassName that simply evaluates
-  /// FieldName in the Record to get the set elements. That is all that is
-  /// needed for a class like:
+  /// Add an expander for ClassName that evaluates FieldName for set elements.
+  ///
+  /// That is all that is needed for a class like:
   ///
   ///   class Set<dag d> {
   ///     dag Elts = d;
   ///   }
   ///
+  /// \param ClassName Superclass name that selects Records for this expander.
+  /// \param FieldName Record field whose value is evaluated as the set.
   LLVM_ABI void addFieldExpander(StringRef ClassName, StringRef FieldName);
 
-  /// addOperator - Add a DAG operator.
-  LLVM_ABI void addOperator(StringRef Name, std::unique_ptr<Operator>);
+  /// Add a DAG operator.
+  ///
+  /// \param Name Operator name as it appears in DAG expressions.
+  /// \param Op Operator callback invoked for matching DAG nodes.
+  LLVM_ABI void addOperator(StringRef Name, std::unique_ptr<Operator> Op);
 
-  /// evaluate - Evaluate Expr and append the resulting set to Elts.
+  /// Evaluate Expr and append the resulting set to Elts.
+  ///
+  /// \param Expr Initializer expression to evaluate as a set.
+  /// \param Elts Destination set that receives the evaluated elements.
+  /// \param Loc Source locations used for diagnostics.
   LLVM_ABI void evaluate(const Init *Expr, RecSet &Elts, ArrayRef<SMLoc> Loc);
 
-  /// evaluate - Evaluate a sequence of Inits and append to Elts.
+  /// Evaluate a sequence of Inits and append to Elts.
+  ///
+  /// \param begin Iterator to the first Init to evaluate.
+  /// \param end Iterator past the last Init to evaluate.
+  /// \param Elts Destination set that receives the evaluated elements.
+  /// \param Loc Source locations used for diagnostics.
   template<typename Iter>
   void evaluate(Iter begin, Iter end, RecSet &Elts, ArrayRef<SMLoc> Loc) {
     while (begin != end)
       evaluate(*begin++, Elts, Loc);
   }
 
-  /// expand - Expand a record into a set of elements if possible. Return a
-  /// pointer to the expanded elements, or NULL if Set cannot be expanded
-  /// further.
+  /// Expand a record into a set of elements if possible.
+  ///
+  /// \param Set Record to expand into ordered set elements.
+  /// \return Pointer to the expanded elements, or NULL if Set cannot be
+  /// expanded further.
   LLVM_ABI const RecVec *expand(const Record *Set);
 };
 

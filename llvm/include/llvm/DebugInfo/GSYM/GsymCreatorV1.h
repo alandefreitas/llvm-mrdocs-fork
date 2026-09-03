@@ -15,6 +15,7 @@
 namespace llvm {
 namespace gsym {
 
+/// GsymCreatorV1 emits GSYM V1 data with the classic header and table layout.
 class LLVM_ABI GsymCreatorV1 : public GsymCreator {
   uint64_t calculateHeaderAndTableSize() const override;
   std::unique_ptr<GsymCreator> createNew() const override {
@@ -22,9 +23,16 @@ class LLVM_ABI GsymCreatorV1 : public GsymCreator {
   }
 
 public:
+  /// Get the size in bytes needed for encoding string offsets.
+  ///
+  /// \returns The number of bytes used to encode a string table offset.
   uint8_t getStringOffsetSize() const override {
     return Header::getStringOffsetSize();
   }
+  /// Encode a GSYM into the file writer stream at the current position.
+  ///
+  /// \param O The stream to save the binary data to.
+  /// \returns An error object that indicates success or failure of the save.
   llvm::Error encode(FileWriter &O) const override;
 };
 

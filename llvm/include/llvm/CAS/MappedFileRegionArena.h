@@ -64,14 +64,18 @@ public:
   /// \param Capacity the maximum size for the mapped file region.
   /// \param HeaderOffset the offset at which to store the header. This is so
   /// that information can be stored before the header, like a file magic.
+  /// \param Logger logger for low-level on-disk CAS operations; may be null.
   /// \param NewFileConstructor is for constructing new files. It has exclusive
   /// access to the file. Must call \c initializeBumpPtr.
+  /// \return The created arena, or an error if mapping or initialization fails.
   LLVM_ABI static Expected<MappedFileRegionArena>
   create(const Twine &Path, uint64_t Capacity, uint64_t HeaderOffset,
          std::shared_ptr<ondisk::OnDiskCASLogger> Logger,
          function_ref<Error(MappedFileRegionArena &)> NewFileConstructor);
 
   /// Minimum alignment for allocations, currently hardcoded to 8B.
+  ///
+  /// \return Minimum alignment for allocations (8 bytes).
   static constexpr Align getAlign() {
     // Trick Align into giving us '8' as a constexpr.
     struct alignas(8) T {};
@@ -80,6 +84,9 @@ public:
   }
 
   /// Allocate at least \p AllocSize. Rounds up to \a getAlign().
+  ///
+  /// \param AllocSize Minimum number of bytes to allocate.
+  /// \return Pointer to the allocated memory, or an error.
   Expected<char *> allocate(uint64_t AllocSize) {
     auto Offset = allocateOffset(AllocSize);
     if (LLVM_UNLIKELY(!Offset))
@@ -87,16 +94,27 @@ public:
     return data() + *Offset;
   }
   /// Allocate, returning the offset from \a data() instead of a pointer.
+  ///
+  /// \param AllocSize Minimum number of bytes to allocate.
+  /// \return Offset from \a data() to the allocated memory, or an error.
   LLVM_ABI Expected<int64_t> allocateOffset(uint64_t AllocSize);
 
   /// Return a pointer to the start of the mapped region.
+  ///
+  /// \return Pointer to the start of the mapped region.
   char *data() const { return Region.data(); }
   /// Return the number of bytes currently allocated from the bump pointer.
+  ///
+  /// \return Number of bytes currently allocated from the bump pointer.
   uint64_t size() const { return H->BumpPtr; }
   /// Return the size of the mapped file region.
+  ///
+  /// \return Size of the mapped file region in bytes.
   uint64_t capacity() const { return Region.size(); }
 
   /// Return the underlying mapped file region.
+  ///
+  /// \return Reference to the underlying mapped file region.
   RegionT &getRegion() { return Region; }
 
   /// Unmap the region and shrink the backing file when this is the last mapping.
@@ -105,8 +123,13 @@ public:
   /// Default-construct an empty arena with no mapped region.
   MappedFileRegionArena() = default;
   /// Move-construct, taking ownership of \p RHS's mapped region and metadata.
+  ///
+  /// \param RHS Arena to move from.
   MappedFileRegionArena(MappedFileRegionArena &&RHS) { moveImpl(RHS); }
   /// Move-assign, releasing this arena's resources and taking \p RHS's.
+  ///
+  /// \param RHS Arena to take ownership from.
+  /// \return Reference to this arena after the move.
   MappedFileRegionArena &operator=(MappedFileRegionArena &&RHS) {
     destroyImpl();
     moveImpl(RHS);
@@ -114,9 +137,13 @@ public:
   }
 
   /// Copy construction is not allowed.
-  MappedFileRegionArena(const MappedFileRegionArena &) = delete;
+  ///
+  /// \param RHS Unused; copy construction is not supported.
+  MappedFileRegionArena(const MappedFileRegionArena &RHS) = delete;
   /// Copy assignment is not allowed.
-  MappedFileRegionArena &operator=(const MappedFileRegionArena &) = delete;
+  ///
+  /// \param RHS Unused; copy assignment is not supported.
+  MappedFileRegionArena &operator=(const MappedFileRegionArena &RHS) = delete;
 
 private:
   // initialize header from offset.

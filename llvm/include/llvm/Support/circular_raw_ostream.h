@@ -17,10 +17,10 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
-  /// circular_raw_ostream - A raw_ostream which *can* save its data
-  /// to a circular buffer, or can pass it through directly to an
-  /// underlying stream if specified with a buffer of zero.
+  /// A raw_ostream that can save output in a circular buffer.
   ///
+  /// When constructed with a buffer size of zero, output is passed through
+  /// directly to an underlying stream.
 class LLVM_ABI circular_raw_ostream : public raw_ostream {
 public:
   /// TAKE_OWNERSHIP - Tell this stream that it owns the underlying
@@ -91,19 +91,18 @@ private:
   }
 
 public:
-  /// circular_raw_ostream - Construct an optionally
-  /// circular-buffered stream, handing it an underlying stream to
-  /// do the "real" output.
+  /// Construct an optionally circular-buffered stream over an underlying
+  /// stream.
   ///
-  /// As a side effect, if BuffSize is nonzero, the given Stream is
-  /// set to be Unbuffered.  This is because circular_raw_ostream
-  /// does its own buffering, so it doesn't want another layer of
-  /// buffering to be happening underneath it.
+  /// As a side effect, if BuffSize is nonzero, the given Stream is set to be
+  /// Unbuffered. This is because circular_raw_ostream does its own buffering,
+  /// so it doesn't want another layer of buffering underneath it.
   ///
-  /// "Owns" tells the circular_raw_ostream whether it is
-  /// responsible for managing the held stream, doing memory
-  /// management of it, etc.
-  ///
+  /// \param Stream The underlying stream that performs the real output.
+  /// \param Header Banner text printed before dumping the circular buffer.
+  /// \param BuffSize Circular buffer size in bytes; zero passes through
+  ///        directly.
+  /// \param Owns If true, this stream owns and manages \p Stream.
   circular_raw_ostream(raw_ostream &Stream, const char *Header,
                        size_t BuffSize = 0, bool Owns = REFERENCE_ONLY)
       : raw_ostream(/*unbuffered*/ true), OwnsStream(Owns),
@@ -114,6 +113,7 @@ public:
     setStream(Stream, Owns);
   }
 
+  /// Destroy the stream, flushing buffered output and releasing resources.
   ~circular_raw_ostream() override {
     flush();
     flushBufferWithBanner();
@@ -121,13 +121,15 @@ public:
     delete[] BufferArray;
   }
 
+  /// Return true if the underlying stream is connected to a tty or console.
+  ///
+  /// \return True if the underlying stream is connected to a tty or console.
   bool is_displayed() const override { return TheStream->is_displayed(); }
 
-  /// setStream - Tell the circular_raw_ostream to output a
-  /// different stream.  "Owns" tells circular_raw_ostream whether
-  /// it should take responsibility for managing the underlying
-  /// stream.
+  /// Direct output to a different underlying stream.
   ///
+  /// \param Stream The new underlying stream to write to.
+  /// \param Owns If true, take ownership of and manage \p Stream.
   void setStream(raw_ostream &Stream, bool Owns = REFERENCE_ONLY) {
     releaseStream();
     TheStream = &Stream;

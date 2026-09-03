@@ -44,7 +44,6 @@ template <typename T, typename U, typename = enableif_int<T, U>>
 using common_sint =
     std::common_type_t<std::make_signed_t<T>, std::make_signed_t<U>>;
 
-/// Mathematical constants.
 namespace numbers {
 // clang-format off
 /// Euler's number as float.
@@ -96,6 +95,9 @@ constexpr const char *inv_pis = "0.318309886183790671537767526745028724";
 
 /// Create a bitmask with the N right-most bits set to 1, and all other
 /// bits set to 0.  Only unsigned types are allowed.
+///
+/// \param N Number of trailing one-bits in the mask.
+/// \return A bitmask with the N right-most bits set.
 template <typename T> constexpr T maskTrailingOnes(unsigned N) {
   static_assert(std::is_unsigned_v<T>, "Invalid type!");
   const unsigned Bits = CHAR_BIT * sizeof(T);
@@ -107,18 +109,27 @@ template <typename T> constexpr T maskTrailingOnes(unsigned N) {
 
 /// Create a bitmask with the N left-most bits set to 1, and all other
 /// bits set to 0.  Only unsigned types are allowed.
+///
+/// \param N Number of leading one-bits in the mask.
+/// \return A bitmask with the N left-most bits set.
 template <typename T> constexpr T maskLeadingOnes(unsigned N) {
   return ~maskTrailingOnes<T>(CHAR_BIT * sizeof(T) - N);
 }
 
 /// Create a bitmask with the N right-most bits set to 0, and all other
 /// bits set to 1.  Only unsigned types are allowed.
+///
+/// \param N Number of trailing zero-bits in the mask.
+/// \return A bitmask with the N right-most bits clear.
 template <typename T> constexpr T maskTrailingZeros(unsigned N) {
   return maskLeadingOnes<T>(CHAR_BIT * sizeof(T) - N);
 }
 
 /// Create a bitmask with the N left-most bits set to 0, and all other
 /// bits set to 1.  Only unsigned types are allowed.
+///
+/// \param N Number of leading zero-bits in the mask.
+/// \return A bitmask with the N left-most bits clear.
 template <typename T> constexpr T maskLeadingZeros(unsigned N) {
   return maskTrailingOnes<T>(CHAR_BIT * sizeof(T) - N);
 }
@@ -137,6 +148,9 @@ static const unsigned char BitReverseTable256[256] = {
 };
 
 /// Reverse the bits in \p Val.
+///
+/// \param Val Value whose bits are reversed.
+/// \return The value with its bits reversed.
 template <typename T> constexpr T reverseBits(T Val) {
 #if __has_builtin(__builtin_bitreverse8)
   if constexpr (std::is_same_v<T, uint8_t>)
@@ -169,21 +183,34 @@ template <typename T> constexpr T reverseBits(T Val) {
 // ambiguity.
 
 /// Return the high 32 bits of a 64 bit value.
+///
+/// \param Value 64-bit value whose high half is returned.
+/// \return The high 32 bits of Value.
 constexpr uint32_t Hi_32(uint64_t Value) {
   return static_cast<uint32_t>(Value >> 32);
 }
 
 /// Return the low 32 bits of a 64 bit value.
+///
+/// \param Value 64-bit value whose low half is returned.
+/// \return The low 32 bits of Value.
 constexpr uint32_t Lo_32(uint64_t Value) {
   return static_cast<uint32_t>(Value);
 }
 
 /// Make a 64-bit integer from a high / low pair of 32-bit integers.
+///
+/// \param High Upper 32 bits of the result.
+/// \param Low Lower 32 bits of the result.
+/// \return The 64-bit value formed from High and Low.
 constexpr uint64_t Make_64(uint32_t High, uint32_t Low) {
   return ((uint64_t)High << 32) | (uint64_t)Low;
 }
 
 /// Checks if an integer fits into the given bit width.
+///
+/// \param x Signed value to test.
+/// \return True if x fits in an N-bit signed integer.
 template <unsigned N> constexpr bool isInt(int64_t x) {
   if constexpr (N == 0)
     return 0 == x;
@@ -200,6 +227,9 @@ template <unsigned N> constexpr bool isInt(int64_t x) {
 }
 
 /// Checks if a signed integer is an N bit number shifted left by S.
+///
+/// \param x Signed value to test.
+/// \return True if x is an N-bit signed value shifted left by S.
 template <unsigned N, unsigned S>
 constexpr bool isShiftedInt(int64_t x) {
   static_assert(S < 64, "isShiftedInt<N, S> with S >= 64 is too much.");
@@ -208,6 +238,9 @@ constexpr bool isShiftedInt(int64_t x) {
 }
 
 /// Checks if an unsigned integer fits into the given bit width.
+///
+/// \param x Unsigned value to test.
+/// \return True if x fits in an N-bit unsigned integer.
 template <unsigned N> constexpr bool isUInt(uint64_t x) {
   if constexpr (N < 64)
     return (x >> N) == 0;
@@ -216,6 +249,9 @@ template <unsigned N> constexpr bool isUInt(uint64_t x) {
 }
 
 /// Checks if a unsigned integer is an N bit number shifted left by S.
+///
+/// \param x Unsigned value to test.
+/// \return True if x is an N-bit unsigned value shifted left by S.
 template <unsigned N, unsigned S>
 constexpr bool isShiftedUInt(uint64_t x) {
   static_assert(S < 64, "isShiftedUInt<N, S> with S >= 64 is too much.");
@@ -226,6 +262,9 @@ constexpr bool isShiftedUInt(uint64_t x) {
 }
 
 /// Gets the maximum value for a N-bit unsigned integer.
+///
+/// \param N Unsigned bit width; must be at most 64.
+/// \return The maximum value of an N-bit unsigned integer.
 inline constexpr uint64_t maxUIntN(uint64_t N) {
   assert(N <= 64 && "integer width out of range");
 
@@ -242,6 +281,9 @@ inline constexpr uint64_t maxUIntN(uint64_t N) {
 }
 
 /// Gets the minimum value for a N-bit signed integer.
+///
+/// \param N Signed bit width; must be at most 64.
+/// \return The minimum value of an N-bit signed integer.
 inline constexpr int64_t minIntN(int64_t N) {
   assert(N <= 64 && "integer width out of range");
 
@@ -251,6 +293,9 @@ inline constexpr int64_t minIntN(int64_t N) {
 }
 
 /// Gets the maximum value for a N-bit signed integer.
+///
+/// \param N Signed bit width; must be at most 64.
+/// \return The maximum value of an N-bit signed integer.
 inline constexpr int64_t maxIntN(int64_t N) {
   assert(N <= 64 && "integer width out of range");
 
@@ -262,56 +307,87 @@ inline constexpr int64_t maxIntN(int64_t N) {
 }
 
 /// Checks if an unsigned integer fits into the given (dynamic) bit width.
+///
+/// \param N Bit width to test against.
+/// \param x Unsigned value to test.
+/// \return True if x fits in an N-bit unsigned integer.
 inline constexpr bool isUIntN(unsigned N, uint64_t x) {
   return N >= 64 || (x >> N) == 0;
 }
 
 /// Checks if an signed integer fits into the given (dynamic) bit width.
+///
+/// \param N Bit width to test against.
+/// \param x Signed value to test.
+/// \return True if x fits in an N-bit signed integer.
 inline constexpr bool isIntN(unsigned N, int64_t x) {
   return N >= 64 || (minIntN(N) <= x && x <= maxIntN(N));
 }
 
-/// Return true if the argument is a non-empty sequence of ones starting at the
-/// least significant bit with the remainder zero (32 bit version).
-/// Ex. isMask_32(0x0000FFFFU) == true.
+/// Return true if the argument is a non-empty low-bit ones mask (32-bit).
+///
+/// The remainder bits must be zero. Ex. isMask_32(0x0000FFFFU) == true.
+///
+/// \param Value 32-bit value to test.
+/// \return True if Value is a non-empty low-bit ones mask.
 constexpr bool isMask_32(uint32_t Value) {
   return Value && ((Value + 1) & Value) == 0;
 }
 
 /// Return true if the argument is a non-empty sequence of ones starting at the
 /// least significant bit with the remainder zero (64 bit version).
+///
+/// \param Value 64-bit value to test.
+/// \return True if Value is a non-empty low-bit ones mask.
 constexpr bool isMask_64(uint64_t Value) {
   return Value && ((Value + 1) & Value) == 0;
 }
 
 /// Return true if the argument contains a non-empty sequence of ones with the
 /// remainder zero (32 bit version.) Ex. isShiftedMask_32(0x0000FF00U) == true.
+///
+/// \param Value 32-bit value to test.
+/// \return True if Value is a non-empty shifted ones mask.
 constexpr bool isShiftedMask_32(uint32_t Value) {
   return Value && isMask_32((Value - 1) | Value);
 }
 
 /// Return true if the argument contains a non-empty sequence of ones with the
 /// remainder zero (64 bit version.)
+///
+/// \param Value 64-bit value to test.
+/// \return True if Value is a non-empty shifted ones mask.
 constexpr bool isShiftedMask_64(uint64_t Value) {
   return Value && isMask_64((Value - 1) | Value);
 }
 
 /// Return true if the argument is a power of two > 0.
 /// Ex. isPowerOf2_32(0x00100000U) == true (32 bit edition.)
+///
+/// \param Value 32-bit value to test.
+/// \return True if Value is a power of two greater than zero.
 constexpr bool isPowerOf2_32(uint32_t Value) {
   return llvm::has_single_bit(Value);
 }
 
 /// Return true if the argument is a power of two > 0 (64 bit edition.)
+///
+/// \param Value 64-bit value to test.
+/// \return True if Value is a power of two greater than zero.
 constexpr bool isPowerOf2_64(uint64_t Value) {
   return llvm::has_single_bit(Value);
 }
 
-/// Return true if the argument contains a non-empty sequence of ones with the
-/// remainder zero (32 bit version.) Ex. isShiftedMask_32(0x0000FF00U) == true.
-/// If true, \p MaskIdx will specify the index of the lowest set bit and \p
-/// MaskLen is updated to specify the length of the mask, else neither are
-/// updated.
+/// Return true if \p Value is a non-empty shifted ones mask (32-bit).
+///
+/// Ex. isShiftedMask_32(0x0000FF00U) == true. If true, \p MaskIdx will specify
+/// the index of the lowest set bit and \p MaskLen is updated to specify the
+/// length of the mask, else neither are updated.
+///
+/// \param Value 32-bit value to test.
+/// \param MaskIdx Set to the index of the lowest set bit when true.
+/// \param MaskLen Set to the number of consecutive ones when true.
+/// \return True if Value is a non-empty shifted ones mask.
 inline bool isShiftedMask_32(uint32_t Value, unsigned &MaskIdx,
                              unsigned &MaskLen) {
   if (!isShiftedMask_32(Value))
@@ -321,10 +397,16 @@ inline bool isShiftedMask_32(uint32_t Value, unsigned &MaskIdx,
   return true;
 }
 
-/// Return true if the argument contains a non-empty sequence of ones with the
-/// remainder zero (64 bit version.) If true, \p MaskIdx will specify the index
-/// of the lowest set bit and \p MaskLen is updated to specify the length of the
-/// mask, else neither are updated.
+/// Return true if \p Value is a non-empty shifted ones mask (64-bit).
+///
+/// If true, \p MaskIdx will specify the index of the lowest set bit and
+/// \p MaskLen is updated to specify the length of the mask, else neither are
+/// updated.
+///
+/// \param Value 64-bit value to test.
+/// \param MaskIdx Set to the index of the lowest set bit when true.
+/// \param MaskLen Set to the number of consecutive ones when true.
+/// \return True if Value is a non-empty shifted ones mask.
 inline bool isShiftedMask_64(uint64_t Value, unsigned &MaskIdx,
                              unsigned &MaskLen) {
   if (!isShiftedMask_64(Value))
@@ -336,39 +418,59 @@ inline bool isShiftedMask_64(uint64_t Value, unsigned &MaskIdx,
 
 /// Compile time Log2.
 /// Valid only for positive powers of two.
+///
+/// \return The base-2 logarithm of kValue.
 template <size_t kValue> constexpr size_t ConstantLog2() {
   static_assert(llvm::isPowerOf2_64(kValue), "Value is not a valid power of 2");
   return llvm::countr_zero_constexpr(kValue);
 }
 
-/// Return the floor log base 2 of the specified value, -1 if the value is zero.
-/// (32 bit edition.)
+/// Return the floor log base 2 of the specified value (32-bit).
+///
+/// Returns -1 if the value is zero.
 /// Ex. Log2_32(32) == 5, Log2_32(1) == 0, Log2_32(0) == -1, Log2_32(6) == 2
+///
+/// \param Value 32-bit value whose floor log2 is returned.
+/// \return The floor log base 2 of Value, or -1 if Value is zero.
 inline unsigned Log2_32(uint32_t Value) {
   return 31 - llvm::countl_zero(Value);
 }
 
 /// Return the floor log base 2 of the specified value, -1 if the value is zero.
 /// (64 bit edition.)
+///
+/// \param Value 64-bit value whose floor log2 is returned.
+/// \return The floor log base 2 of Value, or -1 if Value is zero.
 inline unsigned Log2_64(uint64_t Value) {
   return 63 - llvm::countl_zero(Value);
 }
 
-/// Return the ceil log base 2 of the specified value, 32 if the value is zero.
-/// (32 bit edition).
+/// Return the ceil log base 2 of the specified value (32-bit).
+///
+/// Returns 32 if the value is zero.
 /// Ex. Log2_32_Ceil(32) == 5, Log2_32_Ceil(1) == 0, Log2_32_Ceil(6) == 3
+///
+/// \param Value 32-bit value whose ceil log2 is returned.
+/// \return The ceil log base 2 of Value, or 32 if Value is zero.
 inline unsigned Log2_32_Ceil(uint32_t Value) {
   return 32 - llvm::countl_zero(Value - 1);
 }
 
 /// Return the ceil log base 2 of the specified value, 64 if the value is zero.
 /// (64 bit edition.)
+///
+/// \param Value 64-bit value whose ceil log2 is returned.
+/// \return The ceil log base 2 of Value, or 64 if Value is zero.
 inline unsigned Log2_64_Ceil(uint64_t Value) {
   return 64 - llvm::countl_zero(Value - 1);
 }
 
 /// A and B are either alignments or offsets. Return the minimum alignment that
 /// may be assumed after adding the two together.
+///
+/// \param A First alignment or offset.
+/// \param B Second alignment or offset.
+/// \return The minimum alignment that may be assumed after adding A and B.
 template <typename U, typename V, typename T = common_uint<U, V>>
 constexpr T MinAlign(U A, V B) {
   // The largest power of 2 that divides both A and B.
@@ -380,12 +482,19 @@ constexpr T MinAlign(U A, V B) {
 }
 
 /// Fallback when arguments aren't integral.
+///
+/// \param A First alignment or offset.
+/// \param B Second alignment or offset.
+/// \return The minimum alignment that may be assumed after adding A and B.
 constexpr uint64_t MinAlign(uint64_t A, uint64_t B) {
   return (A | B) & (1 + ~(A | B));
 }
 
 /// Returns the next power of two (in 64-bits) that is strictly greater than A.
 /// Returns zero on overflow.
+///
+/// \param A Value whose next power of two is returned.
+/// \return The next power of two strictly greater than A, or zero on overflow.
 constexpr uint64_t NextPowerOf2(uint64_t A) {
   A |= (A >> 1);
   A |= (A >> 2);
@@ -398,6 +507,9 @@ constexpr uint64_t NextPowerOf2(uint64_t A) {
 
 /// Returns the power of two which is greater than or equal to the given value.
 /// Essentially, it is a ceil operation across the domain of powers of two.
+///
+/// \param A Value to round up to a power of two.
+/// \return The smallest power of two greater than or equal to A, or zero on overflow.
 inline uint64_t PowerOf2Ceil(uint64_t A) {
   if (!A || A > UINT64_MAX / 2)
     return 0;
@@ -406,6 +518,10 @@ inline uint64_t PowerOf2Ceil(uint64_t A) {
 
 /// Returns the integer ceil(Numerator / Denominator). Unsigned version.
 /// Guaranteed to never overflow.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor; must be non-zero.
+/// \return The ceiling of Numerator divided by Denominator.
 template <typename U, typename V, typename T = common_uint<U, V>>
 constexpr T divideCeil(U Numerator, V Denominator) {
   assert(Denominator && "Division by zero");
@@ -414,6 +530,10 @@ constexpr T divideCeil(U Numerator, V Denominator) {
 }
 
 /// Fallback when arguments aren't integral.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor; must be non-zero.
+/// \return The ceiling of Numerator divided by Denominator.
 constexpr uint64_t divideCeil(uint64_t Numerator, uint64_t Denominator) {
   assert(Denominator && "Division by zero");
   uint64_t Bias = (Numerator != 0);
@@ -423,6 +543,10 @@ constexpr uint64_t divideCeil(uint64_t Numerator, uint64_t Denominator) {
 /// Return true if signed ceil/floor division would overflow.
 ///
 /// This happens only when Numerator = INT_MIN and Denominator = -1.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor.
+/// \return True if signed division of Numerator by Denominator would overflow.
 template <typename U, typename V>
 constexpr bool divideSignedWouldOverflow(U Numerator, V Denominator) {
   return Numerator == std::numeric_limits<U>::min() && Denominator == -1;
@@ -430,6 +554,10 @@ constexpr bool divideSignedWouldOverflow(U Numerator, V Denominator) {
 
 /// Returns the integer ceil(Numerator / Denominator). Signed version.
 /// Overflow is explicitly forbidden with an assert.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor; must be non-zero.
+/// \return The ceiling of Numerator divided by Denominator.
 template <typename U, typename V, typename T = common_sint<U, V>>
 constexpr T divideCeilSigned(U Numerator, V Denominator) {
   assert(Denominator && "Division by zero");
@@ -446,6 +574,10 @@ constexpr T divideCeilSigned(U Numerator, V Denominator) {
 
 /// Returns the integer floor(Numerator / Denominator). Signed version.
 /// Overflow is explicitly forbidden with an assert.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor; must be non-zero.
+/// \return The floor of Numerator divided by Denominator.
 template <typename U, typename V, typename T = common_sint<U, V>>
 constexpr T divideFloorSigned(U Numerator, V Denominator) {
   assert(Denominator && "Division by zero");
@@ -462,6 +594,10 @@ constexpr T divideFloorSigned(U Numerator, V Denominator) {
 
 /// Returns the remainder of the Euclidean division of LHS by RHS. Result is
 /// always non-negative.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor; must be positive.
+/// \return The non-negative Euclidean remainder of Numerator divided by Denominator.
 template <typename U, typename V, typename T = common_sint<U, V>>
 constexpr T mod(U Numerator, V Denominator) {
   assert(Denominator >= 1 && "Mod by non-positive number");
@@ -471,6 +607,10 @@ constexpr T mod(U Numerator, V Denominator) {
 
 /// Returns (Numerator / Denominator) rounded by round-half-up. Guaranteed to
 /// never overflow.
+///
+/// \param Numerator Dividend.
+/// \param Denominator Divisor; must be non-zero.
+/// \return Numerator divided by Denominator, rounded half up.
 template <typename U, typename V, typename T = common_uint<U, V>>
 constexpr T divideNearest(U Numerator, V Denominator) {
   assert(Denominator && "Division by zero");
@@ -491,6 +631,10 @@ constexpr T divideNearest(U Numerator, V Denominator) {
 /// \endcode
 ///
 /// Will overflow only if result is not representable in T.
+///
+/// \param Value Value to align upward.
+/// \param Align Alignment multiple; must be non-zero.
+/// \return Value rounded up to the next multiple of Align.
 template <typename U, typename V, typename T = common_uint<U, V>>
 constexpr T alignTo(U Value, V Align) {
   assert(Align != 0u && "Align can't be 0.");
@@ -499,6 +643,10 @@ constexpr T alignTo(U Value, V Align) {
 }
 
 /// Fallback when arguments aren't integral.
+///
+/// \param Value Value to align upward.
+/// \param Align Alignment multiple; must be non-zero.
+/// \return Value rounded up to the next multiple of Align.
 constexpr uint64_t alignTo(uint64_t Value, uint64_t Align) {
   assert(Align != 0u && "Align can't be 0.");
   uint64_t CeilDiv = divideCeil(Value, Align);
@@ -506,6 +654,10 @@ constexpr uint64_t alignTo(uint64_t Value, uint64_t Align) {
 }
 
 /// Will overflow only if result is not representable in T.
+///
+/// \param Value Value to align upward.
+/// \param Align Power-of-two alignment; must be non-zero.
+/// \return Value rounded up to the next multiple of Align.
 template <typename U, typename V, typename T = common_uint<U, V>>
 constexpr T alignToPowerOf2(U Value, V Align) {
   assert(Align != 0 && (Align & (Align - 1)) == 0 &&
@@ -515,6 +667,10 @@ constexpr T alignToPowerOf2(U Value, V Align) {
 }
 
 /// Fallback when arguments aren't integral.
+///
+/// \param Value Value to align upward.
+/// \param Align Power-of-two alignment; must be non-zero.
+/// \return Value rounded up to the next multiple of Align.
 constexpr uint64_t alignToPowerOf2(uint64_t Value, uint64_t Align) {
   assert(Align != 0 && (Align & (Align - 1)) == 0 &&
          "Align must be a power of 2");
@@ -522,10 +678,12 @@ constexpr uint64_t alignToPowerOf2(uint64_t Value, uint64_t Align) {
   return (Value + (Align - 1)) & NegAlign;
 }
 
+/// Align \p Value up to \p Align with an optional \p Skew offset.
+///
 /// If non-zero \p Skew is specified, the return value will be a minimal integer
-/// that is greater than or equal to \p Size and equal to \p A * N + \p Skew for
-/// some integer N. If \p Skew is larger than \p A, its value is adjusted to '\p
-/// Skew mod \p A'. \p Align must be non-zero.
+/// that is greater than or equal to \p Value and equal to \p Align * N +
+/// \p Skew for some integer N. If \p Skew is larger than \p Align, its value is
+/// adjusted to '\p Skew mod \p Align'. \p Align must be non-zero.
 ///
 /// Examples:
 /// \code
@@ -536,6 +694,11 @@ constexpr uint64_t alignToPowerOf2(uint64_t Value, uint64_t Align) {
 /// \endcode
 ///
 /// May overflow.
+///
+/// \param Value Value to align.
+/// \param Align Alignment multiple; must be non-zero.
+/// \param Skew Optional offset within the alignment period.
+/// \return The smallest value at least Value equal to Align * N + Skew.
 template <typename U, typename V, typename W,
           typename T = common_uint<common_uint<U, V>, W>>
 constexpr T alignTo(U Value, V Align, W Skew) {
@@ -548,6 +711,9 @@ constexpr T alignTo(U Value, V Align, W Skew) {
 /// \p Value and is a multiple of \c Align. \c Align must be non-zero.
 ///
 /// Will overflow only if result is not representable in T.
+///
+/// \param Value Value to align upward.
+/// \return Value rounded up to the next multiple of Align.
 template <auto Align, typename V, typename T = common_uint<decltype(Align), V>>
 constexpr T alignTo(V Value) {
   static_assert(Align != 0u, "Align must be non-zero");
@@ -558,6 +724,11 @@ constexpr T alignTo(V Value) {
 /// Returns the largest unsigned integer less than or equal to \p Value and is
 /// \p Skew mod \p Align. \p Align must be non-zero. Guaranteed to never
 /// overflow.
+///
+/// \param Value Value to align downward.
+/// \param Align Alignment multiple; must be non-zero.
+/// \param Skew Optional offset within the alignment period.
+/// \return The largest value at most Value that is Skew modulo Align.
 template <typename U, typename V, typename W = uint8_t,
           typename T = common_uint<common_uint<U, V>, W>>
 constexpr T alignDown(U Value, V Align, W Skew = 0) {
@@ -568,6 +739,9 @@ constexpr T alignDown(U Value, V Align, W Skew = 0) {
 
 /// Sign-extend the number in the bottom B bits of X to a 32-bit integer.
 /// Requires B <= 32.
+///
+/// \param X Value whose low B bits are sign-extended.
+/// \return The sign-extended 32-bit value.
 template <unsigned B> constexpr int32_t SignExtend32(uint32_t X) {
   static_assert(B <= 32, "Bit width out of range.");
   if constexpr (B == 0)
@@ -577,6 +751,10 @@ template <unsigned B> constexpr int32_t SignExtend32(uint32_t X) {
 
 /// Sign-extend the number in the bottom B bits of X to a 32-bit integer.
 /// Requires B <= 32.
+///
+/// \param X Value whose low \p B bits are sign-extended.
+/// \param B Bit width of the signed value embedded in \p X.
+/// \return The sign-extended 32-bit value.
 inline int32_t SignExtend32(uint32_t X, unsigned B) {
   assert(B <= 32 && "Bit width out of range.");
   if (B == 0)
@@ -586,6 +764,9 @@ inline int32_t SignExtend32(uint32_t X, unsigned B) {
 
 /// Sign-extend the number in the bottom B bits of X to a 64-bit integer.
 /// Requires B <= 64.
+///
+/// \param x Value whose low B bits are sign-extended.
+/// \return The sign-extended 64-bit value.
 template <unsigned B> constexpr int64_t SignExtend64(uint64_t x) {
   static_assert(B <= 64, "Bit width out of range.");
   if constexpr (B == 0)
@@ -595,6 +776,10 @@ template <unsigned B> constexpr int64_t SignExtend64(uint64_t x) {
 
 /// Sign-extend the number in the bottom B bits of X to a 64-bit integer.
 /// Requires B <= 64.
+///
+/// \param X Value whose low \p B bits are sign-extended.
+/// \param B Bit width of the signed value embedded in \p X.
+/// \return The sign-extended 64-bit value.
 inline int64_t SignExtend64(uint64_t X, unsigned B) {
   assert(B <= 64 && "Bit width out of range.");
   if (B == 0)
@@ -602,9 +787,12 @@ inline int64_t SignExtend64(uint64_t X, unsigned B) {
   return int64_t(X << (64 - B)) >> (64 - B);
 }
 
-/// Return the absolute value of a signed integer, converted to the
-/// corresponding unsigned integer type. Avoids undefined behavior in std::abs
-/// when you pass it INT_MIN or similar.
+/// Return the absolute value of a signed integer as unsigned.
+///
+/// Avoids undefined behavior in std::abs when you pass it INT_MIN or similar.
+///
+/// \param X Signed value whose absolute value is returned.
+/// \return The absolute value of X as an unsigned integer.
 template <typename T, typename U = std::make_unsigned_t<T>>
 constexpr U AbsoluteValue(T X) {
   // If X is negative, cast it to the unsigned type _before_ negating it.
@@ -613,14 +801,25 @@ constexpr U AbsoluteValue(T X) {
 
 /// Subtract two unsigned integers, X and Y, of type T and return the absolute
 /// value of the result.
+///
+/// \param X First operand.
+/// \param Y Second operand.
+/// \return The absolute difference between X and Y.
 template <typename U, typename V, typename T = common_uint<U, V>>
 constexpr T AbsoluteDifference(U X, V Y) {
   return X > Y ? (X - Y) : (Y - X);
 }
 
-/// Add two unsigned integers, X and Y, of type T.  Clamp the result to the
-/// maximum representable value of T on overflow.  ResultOverflowed indicates if
-/// the result is larger than the maximum representable value of type T.
+/// Add two unsigned integers with saturation on overflow.
+///
+/// Clamp the result to the maximum representable value of T on overflow.
+/// ResultOverflowed indicates if the result is larger than the maximum
+/// representable value of type T.
+///
+/// \param X First addend.
+/// \param Y Second addend.
+/// \param ResultOverflowed Optional out-parameter set when saturation occurs.
+/// \return The saturated sum of X and Y.
 template <typename T>
 std::enable_if_t<std::is_unsigned_v<T>, T>
 SaturatingAdd(T X, T Y, bool *ResultOverflowed = nullptr) {
@@ -635,8 +834,15 @@ SaturatingAdd(T X, T Y, bool *ResultOverflowed = nullptr) {
     return Z;
 }
 
-/// Add multiple unsigned integers of type T.  Clamp the result to the
-/// maximum representable value of T on overflow.
+/// Add multiple unsigned integers of type T with saturation on overflow.
+///
+/// Clamp the result to the maximum representable value of T on overflow.
+///
+/// \param X First addend.
+/// \param Y Second addend.
+/// \param Z Third addend.
+/// \param Args Additional unsigned addends.
+/// \return The saturated sum of all addends.
 template <class T, class... Ts>
 std::enable_if_t<std::is_unsigned_v<T>, T> SaturatingAdd(T X, T Y, T Z,
                                                          Ts... Args) {
@@ -647,9 +853,16 @@ std::enable_if_t<std::is_unsigned_v<T>, T> SaturatingAdd(T X, T Y, T Z,
   return SaturatingAdd(XY, Z, Args...);
 }
 
-/// Multiply two unsigned integers, X and Y, of type T.  Clamp the result to the
-/// maximum representable value of T on overflow.  ResultOverflowed indicates if
-/// the result is larger than the maximum representable value of type T.
+/// Multiply two unsigned integers with saturation on overflow.
+///
+/// Clamp the result to the maximum representable value of T on overflow.
+/// ResultOverflowed indicates if the result is larger than the maximum
+/// representable value of type T.
+///
+/// \param X First factor.
+/// \param Y Second factor.
+/// \param ResultOverflowed Optional out-parameter set when saturation occurs.
+/// \return The saturated product of X and Y.
 template <typename T>
 std::enable_if_t<std::is_unsigned_v<T>, T>
 SaturatingMultiply(T X, T Y, bool *ResultOverflowed = nullptr) {
@@ -692,10 +905,17 @@ SaturatingMultiply(T X, T Y, bool *ResultOverflowed = nullptr) {
   return Z;
 }
 
-/// Multiply two unsigned integers, X and Y, and add the unsigned integer, A to
-/// the product. Clamp the result to the maximum representable value of T on
-/// overflow. ResultOverflowed indicates if the result is larger than the
-/// maximum representable value of type T.
+/// Multiply \p X by \p Y and add \p A with unsigned saturation.
+///
+/// Clamp the result to the maximum representable value of T on overflow.
+/// ResultOverflowed indicates if the result is larger than the maximum
+/// representable value of type T.
+///
+/// \param X First factor.
+/// \param Y Second factor.
+/// \param A Value added to the product.
+/// \param ResultOverflowed Optional out-parameter set when saturation occurs.
+/// \return The saturated value of X * Y + A.
 template <typename T>
 std::enable_if_t<std::is_unsigned_v<T>, T>
 SaturatingMultiplyAdd(T X, T Y, T A, bool *ResultOverflowed = nullptr) {
@@ -712,9 +932,15 @@ SaturatingMultiplyAdd(T X, T Y, T A, bool *ResultOverflowed = nullptr) {
 /// Use this rather than HUGE_VALF; the latter causes warnings on MSVC.
 LLVM_ABI extern const float huge_valf;
 
-/// Add two signed integers, computing the two's complement truncated result,
-/// returning a pair {result, overflow}, where "overflow" is a boolean value
-/// indicating whether an overflow occurred.
+/// Add two signed integers with overflow detection.
+///
+/// Computes the two's complement truncated result, returning a pair
+/// {result, overflow}, where "overflow" is a boolean value indicating whether
+/// an overflow occurred.
+///
+/// \param X First addend.
+/// \param Y Second addend.
+/// \return A pair of the truncated sum and whether overflow occurred.
 template <typename T>
 constexpr std::enable_if_t<std::is_signed_v<T>, std::pair<T, bool>>
 AddOverflow(T X, T Y) {
@@ -736,8 +962,14 @@ AddOverflow(T X, T Y) {
   return {Result, false};
 }
 
-/// Add two signed integers, computing the two's complement truncated result,
-/// returning true if overflow occurred.
+/// Add two signed integers, returning true if overflow occurred.
+///
+/// Computes the two's complement truncated result into \p Result.
+///
+/// \param X First addend.
+/// \param Y Second addend.
+/// \param Result Set to the truncated sum.
+/// \return True if overflow occurred.
 template <typename T>
 std::enable_if_t<std::is_signed_v<T>, T> AddOverflow(T X, T Y, T &Result) {
 #if __has_builtin(__builtin_add_overflow)
@@ -749,9 +981,15 @@ std::enable_if_t<std::is_signed_v<T>, T> AddOverflow(T X, T Y, T &Result) {
 #endif
 }
 
-/// Subtract two signed integers, computing the two's complement truncated
-/// result, returning a pair {result, overflow}, where "overflow" is a
-/// boolean value indicating whether an overflow occurred.
+/// Subtract two signed integers with overflow detection.
+///
+/// Computes the two's complement truncated result, returning a pair
+/// {result, overflow}, where "overflow" is a boolean value indicating whether
+/// an overflow occurred.
+///
+/// \param X Minuend.
+/// \param Y Subtrahend.
+/// \return A pair of the truncated difference and whether overflow occurred.
 template <typename T>
 constexpr std::enable_if_t<std::is_signed_v<T>, std::pair<T, bool>>
 SubOverflow(T X, T Y) {
@@ -773,8 +1011,14 @@ SubOverflow(T X, T Y) {
   return {Result, false};
 }
 
-/// Subtract two signed integers, computing the two's complement truncated
-/// result, returning true if an overflow occurred.
+/// Subtract two signed integers, returning true if an overflow occurred.
+///
+/// Computes the two's complement truncated result into \p Result.
+///
+/// \param X Minuend.
+/// \param Y Subtrahend.
+/// \param Result Set to the truncated difference.
+/// \return True if overflow occurred.
 template <typename T>
 std::enable_if_t<std::is_signed_v<T>, T> SubOverflow(T X, T Y, T &Result) {
 #if __has_builtin(__builtin_sub_overflow)
@@ -786,9 +1030,15 @@ std::enable_if_t<std::is_signed_v<T>, T> SubOverflow(T X, T Y, T &Result) {
 #endif
 }
 
-/// Multiply two signed integers, computing the two's complement truncated
-/// result, returning a pair {result, overflow}, where "overflow" is a
-/// boolean value indicating whether an overflow occurred.
+/// Multiply two signed integers with overflow detection.
+///
+/// Computes the two's complement truncated result, returning a pair
+/// {result, overflow}, where "overflow" is a boolean value indicating whether
+/// an overflow occurred.
+///
+/// \param X First factor.
+/// \param Y Second factor.
+/// \return A pair of the truncated product and whether overflow occurred.
 template <typename T>
 constexpr std::enable_if_t<std::is_signed_v<T>, std::pair<T, bool>>
 MulOverflow(T X, T Y) {
@@ -817,8 +1067,14 @@ MulOverflow(T X, T Y) {
   return {Result, Overflow};
 }
 
-/// Multiply two signed integers, computing the two's complement truncated
-/// result, returning true if an overflow occurred.
+/// Multiply two signed integers, returning true if an overflow occurred.
+///
+/// Computes the two's complement truncated result into \p Result.
+///
+/// \param X First factor.
+/// \param Y Second factor.
+/// \param Result Set to the truncated product.
+/// \return True if overflow occurred.
 template <typename T>
 std::enable_if_t<std::is_signed_v<T>, T> MulOverflow(T X, T Y, T &Result) {
 #if __has_builtin(__builtin_mul_overflow)
@@ -840,6 +1096,9 @@ using stack_float_t = float;
 #endif
 
 /// Returns the number of digits in the given integer.
+///
+/// \param X Integer whose base-10 digit count is returned.
+/// \return The number of base-10 digits in X.
 LLVM_ABI int NumDigitsBase10(uint64_t X);
 
 } // namespace llvm

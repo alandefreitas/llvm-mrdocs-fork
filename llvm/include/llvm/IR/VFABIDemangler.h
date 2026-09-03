@@ -24,35 +24,35 @@ namespace llvm {
 
 /// Describes the type of Parameters
 enum class VFParamKind {
-  Vector,            // No semantic information.
-  OMP_Linear,        // declare simd linear(i)
-  OMP_LinearRef,     // declare simd linear(ref(i))
-  OMP_LinearVal,     // declare simd linear(val(i))
-  OMP_LinearUVal,    // declare simd linear(uval(i))
-  OMP_LinearPos,     // declare simd linear(i:c) uniform(c)
-  OMP_LinearValPos,  // declare simd linear(val(i:c)) uniform(c)
-  OMP_LinearRefPos,  // declare simd linear(ref(i:c)) uniform(c)
-  OMP_LinearUValPos, // declare simd linear(uval(i:c)) uniform(c)
-  OMP_Uniform,       // declare simd uniform(i)
-  GlobalPredicate,   // Global logical predicate that acts on all lanes
-                     // of the input and output mask concurrently. For
-                     // example, it is implied by the `M` token in the
-                     // Vector Function ABI mangled name.
-  Unknown
+  Vector,            ///< No semantic information.
+  OMP_Linear,        ///< declare simd linear(i)
+  OMP_LinearRef,     ///< declare simd linear(ref(i))
+  OMP_LinearVal,     ///< declare simd linear(val(i))
+  OMP_LinearUVal,    ///< declare simd linear(uval(i))
+  OMP_LinearPos,     ///< declare simd linear(i:c) uniform(c)
+  OMP_LinearValPos,  ///< declare simd linear(val(i:c)) uniform(c)
+  OMP_LinearRefPos,  ///< declare simd linear(ref(i:c)) uniform(c)
+  OMP_LinearUValPos, ///< declare simd linear(uval(i:c)) uniform(c)
+  OMP_Uniform,       ///< declare simd uniform(i)
+  GlobalPredicate,   ///< Global logical predicate that acts on all lanes
+                     ///< of the input and output mask concurrently. For
+                     ///< example, it is implied by the `M` token in the
+                     ///< Vector Function ABI mangled name.
+  Unknown            ///< Unknown or unspecified parameter kind.
 };
 
 /// Describes the type of Instruction Set Architecture
 enum class VFISAKind {
-  AdvancedSIMD, // AArch64 Advanced SIMD (NEON)
-  SVE,          // AArch64 Scalable Vector Extension
-  RVV,          // RISC-V Vector Extension
-  SSE,          // x86 SSE
-  AVX,          // x86 AVX
-  AVX2,         // x86 AVX2
-  AVX512,       // x86 AVX512
-  LLVM,         // LLVM internal ISA for functions that are not
-  // attached to an existing ABI via name mangling.
-  Unknown // Unknown ISA
+  AdvancedSIMD, ///< AArch64 Advanced SIMD (NEON)
+  SVE,          ///< AArch64 Scalable Vector Extension
+  RVV,          ///< RISC-V Vector Extension
+  SSE,          ///< x86 SSE
+  AVX,          ///< x86 AVX
+  AVX2,         ///< x86 AVX2
+  AVX512,       ///< x86 AVX512
+  LLVM,         ///< LLVM internal ISA for functions that are not
+                ///< attached to an existing ABI via name mangling.
+  Unknown       ///< Unknown ISA
 };
 
 /// Encapsulates information needed to describe a parameter.
@@ -62,12 +62,14 @@ enum class VFISAKind {
 /// is extendible to handle other paradigms that describe vector
 /// functions and their parameters.
 struct VFParameter {
-  unsigned ParamPos;         // Parameter Position in Scalar Function.
-  VFParamKind ParamKind;     // Kind of Parameter.
-  int LinearStepOrPos = 0;   // Step or Position of the Parameter.
-  Align Alignment = Align(); // Optional alignment in bytes, defaulted to 1.
+  unsigned ParamPos;         ///< Parameter Position in Scalar Function.
+  VFParamKind ParamKind;     ///< Kind of Parameter.
+  int LinearStepOrPos = 0;   ///< Step or Position of the Parameter.
+  Align Alignment = Align(); ///< Optional alignment in bytes, defaulted to 1.
 
-  // Comparison operator.
+  /// Return true if this parameter description equals \p Other.
+  /// \param Other The parameter to compare against.
+  /// \return true if the parameter descriptions are equal.
   bool operator==(const VFParameter &Other) const {
     return std::tie(ParamPos, ParamKind, LinearStepOrPos, Alignment) ==
            std::tie(Other.ParamPos, Other.ParamKind, Other.LinearStepOrPos,
@@ -82,14 +84,17 @@ struct VFParameter {
 /// represent vector functions. in particular, it is not attached to
 /// any target-specific ABI.
 struct VFShape {
-  ElementCount VF;                        // Vectorization factor.
-  SmallVector<VFParameter, 8> Parameters; // List of parameter information.
-  // Comparison operator.
+  ElementCount VF;                        ///< Vectorization factor.
+  SmallVector<VFParameter, 8> Parameters; ///< List of parameter information.
+  /// Return true if this shape equals \p Other.
+  /// \param Other The shape to compare against.
+  /// \return true if the shapes are equal.
   bool operator==(const VFShape &Other) const {
     return std::tie(VF, Parameters) == std::tie(Other.VF, Other.Parameters);
   }
 
   /// Update the parameter in position P.ParamPos to P.
+  /// \param P The parameter description to write at \c P.ParamPos.
   void updateParam(VFParameter P) {
     assert(P.ParamPos < Parameters.size() && "Invalid parameter position.");
     Parameters[P.ParamPos] = P;
@@ -98,14 +103,22 @@ struct VFShape {
 
   /// Retrieve the VFShape that can be used to map a scalar function to itself,
   /// with VF = 1.
+  /// \param FTy The scalar function type whose shape is derived.
+  /// \return A scalar VFShape with VF = 1 for \p FTy.
   static VFShape getScalarShape(const FunctionType *FTy) {
     return VFShape::get(FTy, ElementCount::getFixed(1),
                         /*HasGlobalPredicate*/ false);
   }
 
-  /// Retrieve the basic vectorization shape of the function, where all
-  /// parameters are mapped to VFParamKind::Vector with \p EC lanes. Specifies
-  /// whether the function has a Global Predicate argument via \p HasGlobalPred.
+  /// Retrieve the basic vectorization shape of the function.
+  ///
+  /// All parameters are mapped to VFParamKind::Vector with \p EC lanes.
+  /// Specifies whether the function has a Global Predicate argument via \p
+  /// HasGlobalPred.
+  /// \param FTy The scalar function type whose shape is derived.
+  /// \param EC The vectorization factor (lanes) for vector parameters.
+  /// \param HasGlobalPred Whether to append a GlobalPredicate parameter.
+  /// \return A VFShape with vector parameters (and optional GlobalPredicate).
   static VFShape get(const FunctionType *FTy, ElementCount EC,
                      bool HasGlobalPred) {
     SmallVector<VFParameter, 8> Parameters;
@@ -118,18 +131,20 @@ struct VFShape {
     return {EC, Parameters};
   }
   /// Validation check on the Parameters in the VFShape.
+  /// \return true if the parameter list is valid.
   LLVM_ABI bool hasValidParameterList() const;
 };
 
 /// Holds the VFShape for a specific scalar to vector function mapping.
 struct VFInfo {
-  VFShape Shape;          /// Classification of the vector function.
-  std::string ScalarName; /// Scalar Function Name.
-  std::string VectorName; /// Vector Function Name associated to this VFInfo.
-  VFISAKind ISA;          /// Instruction Set Architecture.
+  VFShape Shape;          ///< Classification of the vector function.
+  std::string ScalarName; ///< Scalar Function Name.
+  std::string VectorName; ///< Vector Function Name associated to this VFInfo.
+  VFISAKind ISA;          ///< Instruction Set Architecture.
 
   /// Returns true if the last operand to the vectorized function has the
   /// kind 'GlobalPredicate'.
+  /// \return true if the function has a trailing GlobalPredicate parameter.
   bool isMasked() const {
 #ifndef NDEBUG
     unsigned NumMaskParams =
@@ -146,6 +161,7 @@ struct VFInfo {
   }
 };
 
+/// Utilities for Vector Function ABI mangling and variant mapping.
 namespace VFABI {
 /// LLVM Internal VFABI ISA token for vector functions.
 static constexpr char const *_LLVM_ = "_LLVM_";
@@ -183,20 +199,26 @@ static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 /// factor for scalable vectors, since the mangled name doesn't encode that;
 /// it needs to be derived from the widest element types of vector arguments
 /// or return values.
+/// \return The demangled VFInfo on success, or std::nullopt on failure.
 LLVM_ABI std::optional<VFInfo> tryDemangleForVFABI(StringRef MangledName,
                                                    const FunctionType *FTy);
 
 /// Retrieve the `VFParamKind` from a string token.
+/// \param Token String token encoding a VFParamKind.
+/// \return The VFParamKind corresponding to \p Token.
 LLVM_ABI VFParamKind getVFParamKindFromString(const StringRef Token);
 
 // Name of the attribute where the variant mappings are stored.
 static constexpr char const *MappingsAttrName = "vector-function-abi-variant";
 
-/// Populates a set of strings representing the Vector Function ABI variants
-/// associated to the CallInst CI. If the CI does not contain the
-/// vector-function-abi-variant attribute, we return without populating
-/// VariantMappings, i.e. callers of getVectorVariantNames need not check for
-/// the presence of the attribute (see InjectTLIMappings).
+/// Populate VariantMappings with Vector Function ABI variant names for CI.
+///
+/// If the CI does not contain the vector-function-abi-variant attribute, we
+/// return without populating VariantMappings, i.e. callers of
+/// getVectorVariantNames need not check for the presence of the attribute (see
+/// InjectTLIMappings).
+/// \param CI The call instruction whose variant mappings are collected.
+/// \param VariantMappings Output list filled with variant mapping names.
 LLVM_ABI void
 getVectorVariantNames(const CallInst &CI,
                       SmallVectorImpl<std::string> &VariantMappings);
@@ -213,6 +235,8 @@ LLVM_ABI FunctionType *createFunctionType(const VFInfo &Info,
 
 /// Overwrite the Vector Function ABI variants attribute with the names provide
 /// in \p VariantMappings.
+/// \param CI The call instruction whose variant attribute is overwritten.
+/// \param VariantMappings Variant mapping names to store on \p CI.
 LLVM_ABI void setVectorVariantNames(CallInst *CI,
                                     ArrayRef<std::string> VariantMappings);
 

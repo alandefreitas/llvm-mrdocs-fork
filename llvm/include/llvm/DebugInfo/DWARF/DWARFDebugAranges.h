@@ -20,9 +20,23 @@ class Error;
 
 class DWARFContext;
 
+/// A collection of address ranges mapped to compile unit offsets.
+///
+/// Built from the .debug_aranges section and from compile unit DIEs so that
+/// an address can be resolved to the owning compilation unit.
 class DWARFDebugAranges {
 public:
+  /// Build the address range map from \p CTX.
+  ///
+  /// Extracts ranges from .debug_aranges and supplements them with ranges
+  /// collected from compile units that are not covered by that section.
+  /// \param CTX DWARF context that owns the object and compile units.
   LLVM_ABI void generate(DWARFContext *CTX);
+
+  /// Find the compile unit offset for \p Address.
+  /// \param Address Address to look up in the sorted range collection.
+  /// \returns Offset of the compile unit DIE that owns \p Address, or
+  /// -1ULL if no range contains it.
   LLVM_ABI uint64_t findAddress(uint64_t Address) const;
 
 private:

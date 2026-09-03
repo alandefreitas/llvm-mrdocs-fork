@@ -33,10 +33,11 @@ template <class ParentTy> struct ilist_parent;
 template <unsigned InternalLen> class SmallString;
 template <typename ValueSubClass, typename ... Args> class SymbolTableListTraits;
 
+/// A symbol table of name/Value pairs.
+///
 /// This class provides a symbol table of name/value pairs. It is essentially
 /// a std::map<std::string,Value*> but has a controlled interface provided by
 /// LLVM as well as ensuring uniqueness of names.
-///
 class ValueSymbolTable {
   friend class SymbolTableListTraits<Argument>;
   friend class SymbolTableListTraits<BasicBlock>;
@@ -64,17 +65,22 @@ public:
 /// @name Constructors
 /// @{
 
+  /// Construct a value symbol table.
+  /// @param MaxNameSize Maximum allowed name length, or -1 for no limit.
   ValueSymbolTable(int MaxNameSize = -1) : vmap(0), MaxNameSize(MaxNameSize) {}
+  /// Destroy this value symbol table.
   LLVM_ABI ~ValueSymbolTable();
 
   /// @}
   /// @name Accessors
   /// @{
 
+  /// Lookup a named Value.
+  ///
   /// This method finds the value with the given \p Name in the
   /// the symbol table.
+  /// @param Name The name of the value to look up.
   /// @returns the value associated with the \p Name
-  /// Lookup a named Value.
   Value *lookup(StringRef Name) const {
     if (MaxNameSize > -1 && Name.size() > (unsigned)MaxNameSize)
       Name = Name.substr(0, std::max(1u, (unsigned)MaxNameSize));
@@ -82,11 +88,12 @@ public:
     return vmap.lookup(Name);
   }
 
+  /// Determine if the symbol table is empty.
   /// @returns true iff the symbol table is empty
-  /// Determine if the symbol table is empty
   inline bool empty() const { return vmap.empty(); }
 
   /// The number of name/type pairs is returned.
+  /// @returns the number of name/value pairs in the symbol table
   inline unsigned size() const { return unsigned(vmap.size()); }
 
   /// This function can be used from the debugger to display the
@@ -99,15 +106,19 @@ public:
   /// @{
 
   /// Get an iterator that from the beginning of the symbol table.
+  /// @returns an iterator to the first entry in the symbol table
   inline iterator begin() { return vmap.begin(); }
 
   /// Get a const_iterator that from the beginning of the symbol table.
+  /// @returns a const_iterator to the first entry in the symbol table
   inline const_iterator begin() const { return vmap.begin(); }
 
   /// Get an iterator to the end of the symbol table.
+  /// @returns an iterator to the end of the symbol table
   inline iterator end() { return vmap.end(); }
 
   /// Get a const_iterator to the end of the symbol table.
+  /// @returns a const_iterator to the end of the symbol table
   inline const_iterator end() const { return vmap.end(); }
 
   /// @}

@@ -20,9 +20,16 @@ namespace llvm {
 
 class Function;
 
+/// A Global Value Numbering pass that eliminates redundant values.
+///
+/// This is a reimplementation of GVN that uses a sparse dataflow lattice and
+/// congruence classes to find and remove fully redundant instructions.
 class NewGVNPass : public OptionalPassInfoMixin<NewGVNPass> {
 public:
   /// Run the pass over the function.
+  /// @param F Function to run global value numbering on.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, AnalysisManager<Function> &AM);
 };
 

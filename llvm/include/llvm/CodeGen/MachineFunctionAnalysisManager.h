@@ -20,7 +20,10 @@ namespace llvm {
 
 class MachineFunction;
 
+/// Explicit instantiation of the MachineFunction analysis manager.
 extern template class LLVM_TEMPLATE_ABI AnalysisManager<MachineFunction>;
+
+/// Convenience typedef for the MachineFunction analysis manager.
 using MachineFunctionAnalysisManager = AnalysisManager<MachineFunction>;
 
 } // namespace llvm

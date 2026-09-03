@@ -31,37 +31,43 @@
 
 namespace llvm {
 
-// This struct represents the cluster information for a machine basic block,
-// which is specifed by a unique basic block ID.
+/// Cluster information for a machine basic block identified by a unique BB ID.
 struct BBClusterInfo {
-  // Basic block ID.
+  /// Unique basic block ID for this cluster entry.
   UniqueBBID BBID;
-  // Cluster ID this basic block belongs to.
+  /// Cluster ID this basic block belongs to.
   unsigned ClusterID;
-  // Position of basic block within the cluster.
+  /// Position of this basic block within its cluster.
   unsigned PositionInCluster;
 };
 
-// This represents the CFG profile data for a function.
+/// CFG profile data for a function, including block and edge counts.
 struct CFGProfile {
-  // Node counts for each basic block.
+  /// Profile counts keyed by basic block unique ID.
   DenseMap<UniqueBBID, uint64_t> NodeCounts;
-  // Edge counts for each edge, stored as a nested map.
+  /// Edge profile counts keyed by source then destination unique BB ID.
   DenseMap<UniqueBBID, DenseMap<UniqueBBID, uint64_t>> EdgeCounts;
 
-  // Hash for each basic block. The Hashes are stored for every original block
-  // (not cloned blocks), hence the map key being unsigned instead of
-  // UniqueBBID.
+  /// Hash for each original basic block, keyed by base BB ID.
+  ///
+  /// Hashes are stored only for original blocks (not cloned blocks), so the
+  /// map key is \c unsigned instead of \c UniqueBBID.
   DenseMap<unsigned, uint64_t> BBHashes;
 
-  // Returns the profile count for the given basic block or zero if it does not
-  // exist.
+  /// Return the profile count for \p BBID, or zero if none exists.
+  ///
+  /// \param BBID Basic block whose profile count is requested.
+  /// \return Profile count for \p BBID, or zero if none exists.
   uint64_t getBlockCount(const UniqueBBID &BBID) const {
     return NodeCounts.lookup(BBID);
   }
 
-  // Returns the profile count for the edge from `SrcBBID` to `SinkBBID` or
-  // zero if it does not exist.
+  /// Return the profile count for the edge from \p SrcBBID to \p SinkBBID, or
+  /// zero if none exists.
+  ///
+  /// \param SrcBBID Source basic block of the edge.
+  /// \param SinkBBID Destination basic block of the edge.
+  /// \return Profile count for the edge, or zero if none exists.
   uint64_t getEdgeCount(const UniqueBBID &SrcBBID,
                         const UniqueBBID &SinkBBID) const {
     auto It = EdgeCounts.find(SrcBBID);
@@ -71,61 +77,93 @@ struct CFGProfile {
   }
 };
 
-// This struct represents the raw optimization profile for a function,
-// including CFG data (block and edge counts) and layout directives (clustering
-// and cloning paths).
+/// Raw optimization profile for a function, including CFG and layout data.
+///
+/// Holds CFG data (block and edge counts) and layout directives such as
+/// clustering and cloning paths.
 struct FunctionOptimizationProfile {
-  // This represents the raw input profile for one function.
-  // BB Cluster information specified by `UniqueBBID`s.
+  /// Basic block cluster information specified by unique BB IDs.
   SmallVector<BBClusterInfo> ClusterInfo;
-  // Paths to clone. A path a -> b -> c -> d implies cloning b, c, and d along
-  // the edge a -> b (a is not cloned). The index of the path in this vector
-  // determines the `UniqueBBID::CloneID` of the cloned blocks in that path.
+  /// Paths to clone within the function.
+  ///
+  /// A path a -> b -> c -> d implies cloning b, c, and d along the edge a -> b
+  /// (a is not cloned). The index of the path in this vector determines the
+  /// \c UniqueBBID::CloneID of the cloned blocks in that path.
   SmallVector<SmallVector<unsigned>> ClonePaths;
-  // Cfg profile data (block and edge frequencies).
+  /// CFG profile data (block and edge frequencies).
   CFGProfile CFG;
-  // Code prefetch targets, specified by the callsite ID. The target is the code
-  // immediately following this callsite.
+  /// Code prefetch targets identified by callsite ID.
+  ///
+  /// The target is the code immediately following this callsite.
   SmallVector<CallsiteID> PrefetchTargets;
-  // Code prefetch hints, specified by the injection site ID, the target
-  // function and the target site ID.
+  /// Code prefetch hints for injection sites.
+  ///
+  /// Each hint is specified by the injection site ID, the target function, and
+  /// the target site ID.
   SmallVector<PrefetchHint> PrefetchHints;
-  // Node counts for each basic block.
+  /// Node counts for each basic block.
   DenseMap<UniqueBBID, uint64_t> NodeCounts;
-  // Edge counts for each edge.
+  /// Edge counts for each edge.
   DenseMap<UniqueBBID, DenseMap<UniqueBBID, uint64_t>> EdgeCounts;
-  // Hash for each basic block. The Hashes are stored for every original block
-  // (not cloned blocks), hence the map key being unsigned instead of
-  // UniqueBBID.
+  /// Hash for each original basic block, keyed by base BB ID.
+  ///
+  /// Hashes are stored only for original blocks (not cloned blocks), so the
+  /// map key is \c unsigned instead of \c UniqueBBID.
   DenseMap<unsigned, uint64_t> BBHashes;
 };
 
+/// Reader for basic block sections profiles used to drive BB layout.
 class BasicBlockSectionsProfileReader {
 public:
   friend class BasicBlockSectionsProfileReaderWrapperPass;
+  /// Construct a reader that parses profile data from \p Buf.
+  ///
+  /// \param Buf Memory buffer containing the basic block sections profile.
   BasicBlockSectionsProfileReader(const MemoryBuffer *Buf)
       : MBuf(Buf), LineIt(*Buf, /*SkipBlanks=*/true, /*CommentMarker=*/'#'){};
 
+  /// Construct an empty reader with no profile buffer.
   BasicBlockSectionsProfileReader() = default;
 
-  // Returns true if function \p FuncName is hot based on the basic block
-  // section profile.
+  /// Return true if function \p FuncName is hot based on the profile.
+  ///
+  /// \param FuncName Function name to look up in the basic block section
+  /// profile.
+  /// \return True if \p FuncName is hot based on the profile.
   LLVM_ABI bool isFunctionHot(StringRef FuncName) const;
 
-  // Returns the cluster info for the function \p FuncName. Returns an empty
-  // vector if function has no cluster info.
+  /// Return the cluster info for function \p FuncName.
+  ///
+  /// Returns an empty vector if the function has no cluster info.
+  ///
+  /// \param FuncName Function whose basic block cluster info is requested.
+  /// \return Cluster info for \p FuncName, or an empty vector if none exists.
   LLVM_ABI SmallVector<BBClusterInfo>
   getClusterInfoForFunction(StringRef FuncName) const;
 
-  // Returns the path clonings for the given function.
+  /// Return the path clonings for function \p FuncName.
+  ///
+  /// \param FuncName Function whose clone paths are requested.
+  /// \return Clone paths for \p FuncName.
   LLVM_ABI SmallVector<SmallVector<unsigned>>
   getClonePathsForFunction(StringRef FuncName) const;
 
+  /// Return the profile count for the edge from \p SrcBBID to \p DestBBID in
+  /// function \p FuncName.
+  ///
+  /// \param FuncName Function containing the edge.
+  /// \param SrcBBID Source basic block of the edge.
+  /// \param DestBBID Destination basic block of the edge.
+  /// \return Profile count for the edge in \p FuncName.
   LLVM_ABI uint64_t getEdgeCount(StringRef FuncName, const UniqueBBID &SrcBBID,
                                  const UniqueBBID &DestBBID) const;
 
-  // Returns a pointer to the CFGProfile for the function \p FuncName.
-  // Returns nullptr if no profile data is available for the function.
+  /// Return a pointer to the CFG profile for function \p FuncName.
+  ///
+  /// Returns nullptr if no profile data is available for the function.
+  ///
+  /// \param FuncName Function whose CFG profile is requested.
+  /// \return Pointer to the CFG profile for \p FuncName, or nullptr if none.
   const CFGProfile *getFunctionCFGProfile(StringRef FuncName) const {
     auto It = ProgramOptimizationProfile.find(getAliasName(FuncName));
     if (It == ProgramOptimizationProfile.end())
@@ -133,12 +171,19 @@ public:
     return &It->second.CFG;
   }
 
-  // Returns the prefetch targets (identified by their containing callsite IDs)
-  // for function `FuncName`.
+  /// Return the prefetch targets for function \p FuncName.
+  ///
+  /// Targets are identified by their containing callsite IDs.
+  ///
+  /// \param FuncName Function whose prefetch targets are requested.
+  /// \return Prefetch targets for \p FuncName, identified by callsite IDs.
   LLVM_ABI SmallVector<CallsiteID>
   getPrefetchTargetsForFunction(StringRef FuncName) const;
 
-  // Returns the prefetch hints to be injected in function `FuncName`.
+  /// Return the prefetch hints to be injected in function \p FuncName.
+  ///
+  /// \param FuncName Function whose prefetch hints are requested.
+  /// \return Prefetch hints to inject in \p FuncName.
   LLVM_ABI SmallVector<PrefetchHint>
   getPrefetchHintsForFunction(StringRef FuncName) const;
 
@@ -193,9 +238,13 @@ private:
   StringMap<StringRef> FuncAliasMap;
 };
 
-// Creates a BasicBlockSectionsProfileReader pass to parse the basic block
-// sections profile. \p Buf is a memory buffer that contains the list of
-// functions and basic block ids to selectively enable basic block sections.
+/// Create a pass that parses a basic block sections profile from \p Buf.
+///
+/// \p Buf is a memory buffer that contains the list of functions and basic
+/// block ids to selectively enable basic block sections.
+///
+/// \param Buf Memory buffer containing the basic block sections profile.
+/// \return New immutable pass that owns a basic block sections profile reader.
 LLVM_ABI ImmutablePass *
 createBasicBlockSectionsProfileReaderWrapperPass(const MemoryBuffer *Buf);
 
@@ -207,55 +256,113 @@ class BasicBlockSectionsProfileReaderAnalysis
     : public AnalysisInfoMixin<BasicBlockSectionsProfileReaderAnalysis> {
 
 public:
+  /// Analysis key used to identify BasicBlockSectionsProfileReaderAnalysis.
   LLVM_ABI static AnalysisKey Key;
+  /// Result type produced by this analysis.
   typedef BasicBlockSectionsProfileReader Result;
+  /// Construct an analysis using target information from \p TM.
+  ///
+  /// \param TM Target machine associated with the module being analyzed.
   BasicBlockSectionsProfileReaderAnalysis(const TargetMachine &TM) : TM(&TM) {}
 
+  /// Run the analysis on function \p F and return the profile reader.
+  ///
+  /// \param F Function being analyzed.
+  /// \param AM Function analysis manager providing required analyses.
+  /// \return Profile reader result for the module containing \p F.
   LLVM_ABI Result run(Function &F, FunctionAnalysisManager &AM);
 
 private:
   const TargetMachine *TM;
 };
 
+/// Immutable wrapper pass that owns a BasicBlockSectionsProfileReader.
 class LLVM_ABI BasicBlockSectionsProfileReaderWrapperPass
     : public ImmutablePass {
 public:
+  /// Pass identification, replacement for type ID.
   static char ID;
+  /// Owned basic block sections profile reader.
   BasicBlockSectionsProfileReader BBSPR;
 
+  /// Construct a wrapper pass that reads profile data from \p Buf.
+  ///
+  /// \param Buf Memory buffer containing the basic block sections profile.
   BasicBlockSectionsProfileReaderWrapperPass(const MemoryBuffer *Buf)
       : ImmutablePass(ID), BBSPR(BasicBlockSectionsProfileReader(Buf)) {}
 
+  /// Construct a wrapper pass with an empty profile reader.
   BasicBlockSectionsProfileReaderWrapperPass()
       : ImmutablePass(ID), BBSPR(BasicBlockSectionsProfileReader()) {}
 
+  /// Return the name of this pass.
+  ///
+  /// \return Name of this pass.
   StringRef getPassName() const override {
     return "Basic Block Sections Profile Reader";
   }
 
+  /// Return true if function \p FuncName is hot based on the profile.
+  ///
+  /// \param FuncName Function name to look up in the basic block section
+  /// profile.
+  /// \return True if \p FuncName is hot based on the profile.
   bool isFunctionHot(StringRef FuncName) const;
 
+  /// Return the cluster info for function \p FuncName.
+  ///
+  /// \param FuncName Function whose basic block cluster info is requested.
+  /// \return Cluster info for \p FuncName.
   SmallVector<BBClusterInfo>
   getClusterInfoForFunction(StringRef FuncName) const;
 
+  /// Return the path clonings for function \p FuncName.
+  ///
+  /// \param FuncName Function whose clone paths are requested.
+  /// \return Clone paths for \p FuncName.
   SmallVector<SmallVector<unsigned>>
   getClonePathsForFunction(StringRef FuncName) const;
 
+  /// Return a pointer to the CFG profile for function \p FuncName.
+  ///
+  /// \param FuncName Function whose CFG profile is requested.
+  /// \return Pointer to the CFG profile for \p FuncName, or nullptr if none.
   const CFGProfile *getFunctionCFGProfile(StringRef FuncName) const;
 
+  /// Return the profile count for the edge from \p SrcBBID to \p DestBBID in
+  /// function \p FuncName.
+  ///
+  /// \param FuncName Function containing the edge.
+  /// \param SrcBBID Source basic block of the edge.
+  /// \param DestBBID Destination basic block of the edge.
+  /// \return Profile count for the edge in \p FuncName.
   uint64_t getEdgeCount(StringRef FuncName, const UniqueBBID &SrcBBID,
                         const UniqueBBID &DestBBID) const;
 
+  /// Return the prefetch targets for function \p FuncName.
+  ///
+  /// \param FuncName Function whose prefetch targets are requested.
+  /// \return Prefetch targets for \p FuncName.
   SmallVector<CallsiteID>
   getPrefetchTargetsForFunction(StringRef FuncName) const;
 
+  /// Return the prefetch hints to be injected in function \p FuncName.
+  ///
+  /// \param FuncName Function whose prefetch hints are requested.
+  /// \return Prefetch hints to inject in \p FuncName.
   SmallVector<PrefetchHint>
   getPrefetchHintsForFunction(StringRef FuncName) const;
 
-  // Initializes the FunctionNameToDIFilename map for the current module and
-  // then reads the profile for the matching functions.
+  /// Initialize FunctionNameToDIFilename for \p M and read matching profiles.
+  ///
+  /// \param M Module whose function debug-info filenames are recorded before
+  /// the profile is read.
+  /// \return False; this pass does not modify the module.
   bool doInitialization(Module &M) override;
 
+  /// Return a reference to the owned profile reader.
+  ///
+  /// \return Reference to the owned BasicBlockSectionsProfileReader.
   BasicBlockSectionsProfileReader &getBBSPR();
 };
 

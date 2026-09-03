@@ -22,16 +22,20 @@
 #include <initializer_list>
 
 namespace llvm {
+/// Shared data structures for the MachineOutliner and target outlining hooks.
 namespace outliner {
 
-/// Represents how an instruction should be mapped by the outliner.
-/// \p Legal instructions are those which are safe to outline.
-/// \p LegalTerminator instructions are safe to outline, but only as the
-/// last instruction in a sequence.
-/// \p Illegal instructions are those which cannot be outlined.
-/// \p Invisible instructions are instructions which can be outlined, but
-/// shouldn't actually impact the outlining result.
-enum InstrType { Legal, LegalTerminator, Illegal, Invisible };
+/// How an instruction should be mapped by the outliner.
+enum InstrType {
+  /// Safe to outline.
+  Legal,
+  /// Safe to outline, but only as the last instruction in a sequence.
+  LegalTerminator,
+  /// Cannot be outlined.
+  Illegal,
+  /// Can be outlined, but should not affect the outlining result.
+  Invisible
+};
 
 /// An individual sequence of instructions to be replaced with a call to
 /// an outlined function.
@@ -119,30 +123,59 @@ public:
   unsigned Flags = 0x0;
 
   /// Return the number of instructions in this Candidate.
+  ///
+  /// \returns Number of instructions in this Candidate.
   unsigned getLength() const { return Len; }
 
   /// Return the start index of this candidate.
+  ///
+  /// \returns Start index of this Candidate in the instruction list.
   unsigned getStartIdx() const { return StartIdx; }
 
   /// Return the end index of this candidate.
+  ///
+  /// \returns End index of this Candidate in the instruction list.
   unsigned getEndIdx() const { return StartIdx + Len - 1; }
 
   /// Set the CallConstructionID and CallOverhead of this candidate to CID and
   /// CO respectively.
+  ///
+  /// \param CID Target-defined identifier for emitting the outlined call.
+  /// \param CO Target-defined cost of calling the outlined function here.
   void setCallInfo(unsigned CID, unsigned CO) {
     CallConstructionID = CID;
     CallOverhead = CO;
   }
 
   /// Returns the call overhead of this candidate if it is in the list.
+  ///
+  /// \returns Target-defined cost of calling the outlined function from here.
   unsigned getCallOverhead() const { return CallOverhead; }
 
+  /// Return an iterator to the first instruction in this Candidate.
+  ///
+  /// \returns Iterator to the first instruction in this Candidate.
   MachineBasicBlock::iterator begin() { return FirstInst; }
+  /// Return an iterator past the last instruction in this Candidate.
+  ///
+  /// \returns Iterator past the last instruction in this Candidate.
   MachineBasicBlock::iterator end() { return std::next(LastInst); }
 
+  /// Return the first instruction in this Candidate.
+  ///
+  /// \returns Reference to the first instruction in this Candidate.
   MachineInstr &front() { return *FirstInst; }
+  /// Return the last instruction in this Candidate.
+  ///
+  /// \returns Reference to the last instruction in this Candidate.
   MachineInstr &back() { return *LastInst; }
+  /// Return the MachineFunction that contains this Candidate.
+  ///
+  /// \returns MachineFunction containing this Candidate.
   MachineFunction *getMF() const { return MBB->getParent(); }
+  /// Return the MachineBasicBlock that contains this Candidate.
+  ///
+  /// \returns MachineBasicBlock containing this Candidate.
   MachineBasicBlock *getMBB() const { return MBB; }
 
   /// \returns True if \p Reg is available from the end of the block to the
@@ -157,6 +190,9 @@ public:
   /// not_in_seq_1
   /// ...
   /// <end of block>
+  ///
+  /// \param Reg Register to query for availability.
+  /// \param TRI Target register info used to initialize liveness.
   bool isAvailableAcrossAndOutOfSeq(Register Reg,
                                     const TargetRegisterInfo &TRI) {
     if (!FromEndOfBlockToStartOfSeqWasSet)
@@ -164,6 +200,11 @@ public:
     return FromEndOfBlockToStartOfSeq.available(Reg);
   }
 
+  /// Return true if any register in \p Regs is unavailable across or out of
+  /// the sequence.
+  ///
+  /// \param Regs Registers to test for unavailability.
+  /// \param TRI Target register info used to initialize liveness.
   /// \returns True if `isAvailableAcrossAndOutOfSeq` fails for any register
   /// in \p Regs.
   bool isAnyUnavailableAcrossOrOutOfSeq(std::initializer_list<Register> Regs,
@@ -183,6 +224,9 @@ public:
   /// in_seq_2
   /// ...
   /// in_seq_n
+  ///
+  /// \param Reg Register to query for availability.
+  /// \param TRI Target register info used to initialize liveness.
   bool isAvailableInsideSeq(Register Reg, const TargetRegisterInfo &TRI) {
     if (!InSeqWasSet)
       initInSeq(TRI);
@@ -198,16 +242,29 @@ public:
   /// for some given candidate.
   unsigned Benefit = 0;
 
+  /// Construct a Candidate spanning \p FirstInst through \p LastInst.
+  ///
+  /// \param StartIdx Start index of this Candidate in the instruction list.
+  /// \param Len Number of instructions in this Candidate.
+  /// \param FirstInst Iterator to the first instruction in the sequence.
+  /// \param LastInst Iterator to the last instruction in the sequence.
+  /// \param MBB Basic block containing this Candidate.
+  /// \param FunctionIdx Index of this Candidate's OutlinedFunction.
+  /// \param Flags Target-specific flags for this Candidate's MBB.
   Candidate(unsigned StartIdx, unsigned Len,
             MachineBasicBlock::iterator &FirstInst,
             MachineBasicBlock::iterator &LastInst, MachineBasicBlock *MBB,
             unsigned FunctionIdx, unsigned Flags)
       : StartIdx(StartIdx), Len(Len), FirstInst(FirstInst), LastInst(LastInst),
         MBB(MBB), FunctionIdx(FunctionIdx), Flags(Flags) {}
+  /// Deleted; a Candidate requires a concrete instruction sequence.
   Candidate() = delete;
 
   /// Used to ensure that \p Candidates are outlined in an order that
   /// preserves the start and end indices of other \p Candidates.
+  ///
+  /// \param RHS Other Candidate to compare start indices against.
+  /// \returns True if this Candidate starts after \p RHS.
   bool operator<(const Candidate &RHS) const {
     return getStartIdx() > RHS.getStartIdx();
   }
@@ -219,6 +276,7 @@ public:
 struct OutlinedFunction {
 
 public:
+  /// Candidates that map to this outlined function.
   std::vector<Candidate> Candidates;
 
   /// The actual outlined function created.
@@ -236,10 +294,14 @@ public:
   unsigned FrameConstructionID = 0;
 
   /// Return the number of candidates for this \p OutlinedFunction.
+  ///
+  /// \returns Number of candidates that would call this outlined function.
   virtual unsigned getOccurrenceCount() const { return Candidates.size(); }
 
   /// Return the number of bytes it would take to outline this
   /// function.
+  ///
+  /// \returns Total cost in bytes to outline this function.
   virtual unsigned getOutliningCost() const {
     unsigned CallOverhead = 0;
     for (const Candidate &C : Candidates)
@@ -248,12 +310,16 @@ public:
   }
 
   /// Return the size in bytes of the unoutlined sequences.
+  ///
+  /// \returns Total size in bytes of all unoutlined sequence occurrences.
   unsigned getNotOutlinedCost() const {
     return getOccurrenceCount() * SequenceSize;
   }
 
   /// Return the number of instructions that would be saved by outlining
   /// this function.
+  ///
+  /// \returns Bytes saved by outlining, or 0 if outlining is not beneficial.
   unsigned getBenefit() const {
     unsigned NotOutlinedCost = getNotOutlinedCost();
     unsigned OutlinedCost = getOutliningCost();
@@ -262,8 +328,16 @@ public:
   }
 
   /// Return the number of instructions in this sequence.
+  ///
+  /// \returns Number of instructions in the shared candidate sequence.
   unsigned getNumInstrs() const { return Candidates[0].getLength(); }
 
+  /// Construct an OutlinedFunction for a class of Candidates.
+  ///
+  /// \param Candidates Sequences that would call this outlined function.
+  /// \param SequenceSize Size in bytes of the repeated instruction sequence.
+  /// \param FrameOverhead Target-defined cost of building the outlined frame.
+  /// \param FrameConstructionID Target-defined frame construction identifier.
   OutlinedFunction(std::vector<Candidate> &Candidates, unsigned SequenceSize,
                    unsigned FrameOverhead, unsigned FrameConstructionID)
       : Candidates(Candidates), SequenceSize(SequenceSize),
@@ -273,23 +347,32 @@ public:
       C.Benefit = B;
   }
 
+  /// Deleted; an OutlinedFunction requires Candidates and size/overhead data.
   OutlinedFunction() = delete;
+  /// Destroy this OutlinedFunction.
   virtual ~OutlinedFunction() = default;
 };
 
 /// The information necessary to create an outlined function that is matched
 /// globally.
 struct GlobalOutlinedFunction : public OutlinedFunction {
+  /// Construct a globally matched OutlinedFunction from \p OF.
+  ///
+  /// \param OF OutlinedFunction whose fields are copied into this instance.
+  /// \param GlobalOccurrenceCount Global match count for this candidate.
   explicit GlobalOutlinedFunction(std::unique_ptr<OutlinedFunction> OF,
                                   unsigned GlobalOccurrenceCount)
       : OutlinedFunction(*OF), GlobalOccurrenceCount(GlobalOccurrenceCount) {}
 
+  /// Number of times this sequence appears globally across the module.
   unsigned GlobalOccurrenceCount;
 
-  /// Return the number of times that appear globally.
-  /// Global outlining candidate is uniquely created per each match, but this
-  /// might be erased out when it's overlapped with the previous outlining
-  /// instance.
+  /// Return the global occurrence count for this outlining candidate.
+  ///
+  /// A global outlining candidate is uniquely created per match, but it might
+  /// be erased when overlapped with a previous outlining instance.
+  ///
+  /// \returns Global occurrence count, or 0 if this candidate was erased.
   unsigned getOccurrenceCount() const override {
     assert(Candidates.size() <= 1);
     return Candidates.empty() ? 0 : GlobalOccurrenceCount;
@@ -297,6 +380,8 @@ struct GlobalOutlinedFunction : public OutlinedFunction {
 
   /// Return the outlining cost using the global occurrence count
   /// with the same cost as the first (unique) candidate.
+  ///
+  /// \returns Total cost in bytes to outline this function globally.
   unsigned getOutliningCost() const override {
     assert(Candidates.size() <= 1);
     unsigned CallOverhead =
@@ -306,7 +391,9 @@ struct GlobalOutlinedFunction : public OutlinedFunction {
     return CallOverhead + SequenceSize + FrameOverhead;
   }
 
+  /// Deleted; a GlobalOutlinedFunction requires an OutlinedFunction and count.
   GlobalOutlinedFunction() = delete;
+  /// Destroy this GlobalOutlinedFunction.
   ~GlobalOutlinedFunction() override = default;
 };
 

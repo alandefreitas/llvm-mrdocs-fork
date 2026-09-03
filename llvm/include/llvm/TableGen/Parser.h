@@ -19,12 +19,17 @@ namespace llvm {
 class RecordKeeper;
 class SourceMgr;
 
-/// Parse the TableGen file defined within the main buffer of the given
-/// SourceMgr. On success, populates the provided RecordKeeper with the parsed
-/// records and returns false. On failure, returns true.
+/// Parse the TableGen file from the main buffer of a SourceMgr.
+///
+/// On success, populates the provided RecordKeeper with the parsed records and
+/// returns false. On failure, returns true.
 ///
 /// NOTE: TableGen currently relies on global state within a given parser
 ///       invocation, so this function is not thread-safe.
+///
+/// \param InputSrcMgr Source manager whose main buffer holds the TableGen file.
+/// \param Records Record keeper populated with the parsed records on success.
+/// \return false on success, true on failure.
 LLVM_ABI bool TableGenParseFile(SourceMgr &InputSrcMgr, RecordKeeper &Records);
 
 } // end namespace llvm

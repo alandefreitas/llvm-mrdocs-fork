@@ -13,11 +13,20 @@
 
 namespace llvm {
 
+/// New PM pass that performs global CSE on machine instructions.
 class MachineCSEPass : public OptionalPassInfoMixin<MachineCSEPass> {
 public:
+  /// Perform common subexpression elimination on \p MF.
+  /// \param MF Machine function whose redundant instructions are eliminated.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after common subexpression elimination.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Machine CSE expects the function to be in SSA form.
+  /// \return Properties requiring the function to be in SSA form.
   MachineFunctionProperties getRequiredProperties() const {
     return MachineFunctionProperties().setIsSSA();
   }

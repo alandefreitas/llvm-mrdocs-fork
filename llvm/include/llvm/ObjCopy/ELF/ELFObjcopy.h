@@ -24,10 +24,15 @@ namespace objcopy {
 struct CommonConfig;
 struct ELFConfig;
 
+/// ELF-format object copy and transform operations.
 namespace elf {
 /// Apply the transformations described by \p Config and \p ELFConfig to
 /// \p In, which must represent an IHex file, and writes the result
 /// into \p Out.
+/// \param Config Common objcopy configuration.
+/// \param ELFConfig ELF-specific configuration.
+/// \param In Memory buffer containing an IHex file.
+/// \param Out Output stream for the result.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnIHex(const CommonConfig &Config,
                                     const ELFConfig &ELFConfig,
@@ -36,6 +41,10 @@ LLVM_ABI Error executeObjcopyOnIHex(const CommonConfig &Config,
 /// Apply the transformations described by \p Config and \p ELFConfig to
 /// \p In, which is treated as a raw binary input, and writes the result
 /// into \p Out.
+/// \param Config Common objcopy configuration.
+/// \param ELFConfig ELF-specific configuration.
+/// \param In Memory buffer treated as raw binary input.
+/// \param Out Output stream for the result.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnRawBinary(const CommonConfig &Config,
                                          const ELFConfig &ELFConfig,
@@ -43,6 +52,10 @@ LLVM_ABI Error executeObjcopyOnRawBinary(const CommonConfig &Config,
 
 /// Apply the transformations described by \p Config and \p ELFConfig to
 /// \p In and writes the result into \p Out.
+/// \param Config Common objcopy configuration.
+/// \param ELFConfig ELF-specific configuration.
+/// \param In ELF object file to transform.
+/// \param Out Output stream for the result.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const CommonConfig &Config,
                                       const ELFConfig &ELFConfig,

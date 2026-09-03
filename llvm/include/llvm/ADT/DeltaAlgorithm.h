@@ -74,14 +74,23 @@ private:
 
 protected:
   /// Callback used when the search state changes.
+  ///
+  /// \param Changes The current candidate change set under consideration.
+  /// \param Sets The current partition of \p Changes into subsets.
   virtual void UpdatedSearchState(const changeset_ty &Changes,
                                   const changesetlist_ty &Sets) {}
 
   /// Execute a single test predicate on the change set \p S.
+  ///
+  /// \param S The change set to test against the predicate.
+  /// \return True if the predicate holds for \p S.
   virtual bool ExecuteOneTest(const changeset_ty &S) = 0;
 
   /// Default copy-assign for subclasses that store no additional state.
-  DeltaAlgorithm& operator=(const DeltaAlgorithm&) = default;
+  ///
+  /// \param Other The algorithm instance to assign from.
+  /// \return A reference to this algorithm instance.
+  DeltaAlgorithm &operator=(const DeltaAlgorithm &Other) = default;
 
 public:
   /// Virtual destructor for subclasses that implement the test predicate.
@@ -90,6 +99,9 @@ public:
   /// Minimize the set \p Changes by executing \see ExecuteOneTest() on
   /// subsets of changes and returning the smallest set which still satisfies
   /// the test predicate.
+  ///
+  /// \param Changes The change set to minimize.
+  /// \return The smallest change set that still satisfies the test predicate.
   changeset_ty Run(const changeset_ty &Changes);
 };
 

@@ -12,11 +12,14 @@
 #include "llvm/MC/MCAsmInfo.h"
 
 namespace llvm {
+/// Target asm properties for Wasm-based targets.
 class LLVM_ABI MCAsmInfoWasm : public MCAsmInfo {
   void printSwitchToSection(const MCSection &, uint32_t, const Triple &,
                             raw_ostream &) const final;
 
 protected:
+  /// Construct Wasm asm info using the given target options.
+  /// @param Options Target MC options to retain for later queries.
   MCAsmInfoWasm(const MCTargetOptions &Options);
 };
 } // namespace llvm

@@ -113,6 +113,9 @@ template <typename Bitfield, typename StorageType> struct Impl {
   static constexpr StorageType Mask = LowMask << Bitfield::Shift;
 
   /// Validates that `UserValue` fits within the bitfield's range.
+  ///
+  /// \param UserValue    The value to store in the field.
+  /// \param UserMaxValue The maximum value the field is allowed to hold.
   static void checkValue(IntegerType UserValue, IntegerType UserMaxValue) {
     assert(UserValue <= UserMaxValue && "value is too big");
     if constexpr (std::is_unsigned_v<IntegerType>) {
@@ -126,6 +129,9 @@ template <typename Bitfield, typename StorageType> struct Impl {
 
   /// Checks `UserValue` is within bounds and packs it between `FirstBit` and
   /// `LastBit` of `Packed` leaving the rest unchanged.
+  ///
+  /// \param Packed    The storage word to update.
+  /// \param UserValue The unpacked value to write into the field.
   static void update(StorageType &Packed, IntegerType UserValue) {
     checkValue(UserValue, Bitfield::UserMaxValue);
     const StorageType StorageValue = UserValue & LowMask;
@@ -135,6 +141,9 @@ template <typename Bitfield, typename StorageType> struct Impl {
 
   /// Interprets bits between `FirstBit` and `LastBit` of `Packed` as
   /// an`IntegerType`.
+  ///
+  /// \param Packed The storage word to unpack the field from.
+  /// \return The unpacked field value as \c IntegerType.
   static IntegerType extract(StorageType Packed) {
     const StorageType StorageValue = (Packed & Mask) >> Bitfield::Shift;
     if constexpr (std::is_signed_v<IntegerType>)
@@ -144,6 +153,9 @@ template <typename Bitfield, typename StorageType> struct Impl {
 
   /// Interprets bits between `FirstBit` and `LastBit` of `Packed` as
   /// an`IntegerType`.
+  ///
+  /// \param Packed The storage word to test.
+  /// \return The masked field bits from \p Packed, or zero if the field is clear.
   static StorageType test(StorageType Packed) { return Packed & Mask; }
 };
 
@@ -158,6 +170,7 @@ struct ResolveUnderlyingType {
   /// Underlying integer type of enum \c T.
   using type = std::underlying_type_t<T>;
 };
+/// Maps a non-enum type \c T to the integer type used when packing.
 template <typename T> struct ResolveUnderlyingType<T, false> {
   static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                 "T being bool requires sizeof(bool) == 1.");
@@ -216,6 +229,9 @@ struct Bitfield {
   };
 
   /// Unpacks the field from the `Packed` value.
+  ///
+  /// \param Packed The storage word to unpack the field from.
+  /// \return The field value as type \c Bitfield::Type.
   template <typename Bitfield, typename StorageType>
   static typename Bitfield::Type get(StorageType Packed) {
     using I = bitfields_details::Impl<Bitfield, StorageType>;
@@ -224,6 +240,9 @@ struct Bitfield {
 
   /// Return a non-zero value if the field is non-zero.
   /// It is more efficient than `getField`.
+  ///
+  /// \param Packed The storage word to test.
+  /// \return The masked field bits from \p Packed, or zero if the field is clear.
   template <typename Bitfield, typename StorageType>
   static StorageType test(StorageType Packed) {
     using I = bitfields_details::Impl<Bitfield, StorageType>;
@@ -232,6 +251,9 @@ struct Bitfield {
 
   /// Sets the typed value in the provided `Packed` value.
   /// The method will asserts if the provided value is too big to fit in.
+  ///
+  /// \param Packed The storage word to write the field into.
+  /// \param Value  The unpacked value to store.
   template <typename Bitfield, typename StorageType>
   static void set(StorageType &Packed, typename Bitfield::Type Value) {
     using I = bitfields_details::Impl<Bitfield, StorageType>;
@@ -239,14 +261,20 @@ struct Bitfield {
   }
 
   /// Returns whether the two bitfields share common bits.
+  ///
+  /// \return True if \c A and \c B occupy overlapping bit ranges.
   template <typename A, typename B> static constexpr bool isOverlapping() {
     return A::LastBit >= B::FirstBit && B::LastBit >= A::FirstBit;
   }
 
   /// Base case: a single bitfield element is trivially contiguous.
+  ///
+  /// \return Always true.
   template <typename A> static constexpr bool areContiguous() { return true; }
   /// Returns true if \c A, \c B, and \c Others occupy adjacent bit ranges
   /// with no gaps between consecutive elements.
+  ///
+  /// \return True if the bitfield elements form a contiguous range.
   template <typename A, typename B, typename... Others>
   static constexpr bool areContiguous() {
     return A::NextBit == B::FirstBit && areContiguous<B, Others...>();

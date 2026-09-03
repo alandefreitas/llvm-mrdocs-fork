@@ -42,13 +42,18 @@ namespace detail {
 /// This just defines common properties queried by the metaprogramming.
 template <bool Compound = false> class BCField {
 public:
+  /// Whether this field is a compound type (array or blob).
   static const bool IsCompound = Compound;
 
   /// Asserts that the given data is a valid value for this field.
+  ///
+  /// \param data The value to validate for this field type.
   template <typename T> static void assertValid(const T &data) {}
 
   /// Converts a raw numeric representation of this value to its preferred
   /// type.
+  ///
+  /// \param rawValue The raw numeric value from the bitstream.
   template <typename T> static T convert(T rawValue) { return rawValue; }
 };
 } // namespace detail
@@ -63,10 +68,16 @@ public:
 /// raw LLVM APIs.
 template <uint64_t Value> class BCLiteral : public detail::BCField<> {
 public:
+  /// Appends this literal operand to abbreviation \p abbrev.
+  ///
+  /// \param abbrev The abbreviation being built for this record layout.
   static void emitOp(llvm::BitCodeAbbrev &abbrev) {
     abbrev.Add(llvm::BitCodeAbbrevOp(Value));
   }
 
+  /// Asserts that \p data equals this literal's fixed value.
+  ///
+  /// \param data The value to validate against the declared literal.
   template <typename T> static void assertValid(const T &data) {
     assert(data == Value && "data value does not match declared literal value");
   }
@@ -79,15 +90,24 @@ template <unsigned Width> class BCFixed : public detail::BCField<> {
 public:
   static_assert(Width <= 64, "fixed-width field is too large");
 
+  /// Appends a fixed-width operand of \c Width bits to abbreviation \p abbrev.
+  ///
+  /// \param abbrev The abbreviation being built for this record layout.
   static void emitOp(llvm::BitCodeAbbrev &abbrev) {
     abbrev.Add(llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Fixed, Width));
   }
 
+  /// Asserts that boolean \p data fits in this field's bit width.
+  ///
+  /// \param data The boolean value to validate.
   static void assertValid(const bool &data) {
     assert(llvm::isUInt<Width>(data) &&
            "data value does not fit in the given bit width");
   }
 
+  /// Asserts that \p data is a non-negative value that fits in this width.
+  ///
+  /// \param data The value to validate for this fixed-width field.
   template <typename T> static void assertValid(const T &data) {
     assert(data >= 0 && "cannot encode signed integers");
     assert(llvm::isUInt<Width>(data) &&
@@ -104,10 +124,16 @@ template <unsigned Width> class BCVBR : public detail::BCField<> {
   static_assert(Width >= 2, "width does not have room for continuation bit");
 
 public:
+  /// Appends a VBR operand with chunk width \c Width to abbreviation \p abbrev.
+  ///
+  /// \param abbrev The abbreviation being built for this record layout.
   static void emitOp(llvm::BitCodeAbbrev &abbrev) {
     abbrev.Add(llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::VBR, Width));
   }
 
+  /// Asserts that \p data is a non-negative value suitable for VBR encoding.
+  ///
+  /// \param data The value to validate for this VBR field.
   template <typename T> static void assertValid(const T &data) {
     assert(data >= 0 && "cannot encode signed integers");
   }
@@ -121,14 +147,24 @@ public:
 /// \sa http://llvm.org/docs/BitCodeFormat.html#char6-encoded-value
 class BCChar6 : public detail::BCField<> {
 public:
+  /// Appends a Char6 operand to abbreviation \p abbrev.
+  ///
+  /// \param abbrev The abbreviation being built for this record layout.
   static void emitOp(llvm::BitCodeAbbrev &abbrev) {
     abbrev.Add(llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Char6));
   }
 
+  /// Asserts that \p data is a valid Char6-encoded character.
+  ///
+  /// \param data The value to validate as Char6.
   template <typename T> static void assertValid(const T &data) {
     assert(llvm::BitCodeAbbrevOp::isChar6(data) && "invalid Char6 data");
   }
 
+  /// Converts a raw numeric Char6 value to a \c char.
+  ///
+  /// \param rawValue The raw numeric value from the bitstream.
+  /// \returns The corresponding character value.
   template <typename T> char convert(T rawValue) {
     return static_cast<char>(rawValue);
   }
@@ -139,6 +175,9 @@ public:
 /// If present, this must be the last field in a record.
 class BCBlob : public detail::BCField<true> {
 public:
+  /// Appends a blob operand to abbreviation \p abbrev.
+  ///
+  /// \param abbrev The abbreviation being built for this record layout.
   static void emitOp(llvm::BitCodeAbbrev &abbrev) {
     abbrev.Add(llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Blob));
   }
@@ -151,6 +190,9 @@ template <typename ElementTy> class BCArray : public detail::BCField<true> {
   static_assert(!ElementTy::IsCompound, "arrays can only contain scalar types");
 
 public:
+  /// Appends an array operand and its element encoding to abbreviation \p abbrev.
+  ///
+  /// \param abbrev The abbreviation being built for this record layout.
   static void emitOp(llvm::BitCodeAbbrev &abbrev) {
     abbrev.Add(llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Array));
     ElementTy::emitOp(abbrev);
@@ -365,6 +407,8 @@ public:
   const unsigned AbbrevCode;
 
   /// Create a layout and register it with the given bitstream writer.
+  ///
+  /// \param Stream The bitstream writer that will emit records of this type.
   explicit BCGenericRecordLayout(llvm::BitstreamWriter &Stream)
       : Stream(Stream), AbbrevCode(emitAbbrev(Stream)) {}
 
@@ -372,14 +416,19 @@ public:
   /// space.
   ///
   /// Note that even fixed arguments must be specified here.
+  ///
+  /// \param buffer Scratch buffer used while assembling the record.
+  /// \param id The semantic record code written as the first field.
+  /// \param data Remaining field values for this record, matching the layout.
   template <typename BufferTy, typename... Data>
   void emit(BufferTy &buffer, unsigned id, Data &&...data) const {
     emitRecord(Stream, buffer, AbbrevCode, id, std::forward<Data>(data)...);
   }
 
-  /// Registers this record's layout with the bitstream reader.
+  /// Registers this record's layout with the bitstream writer.
   ///
-  /// eturns The abbreviation code for the newly-registered record type.
+  /// \param Stream The bitstream writer that receives the abbreviation.
+  /// \returns The abbreviation code for the newly-registered record type.
   static unsigned emitAbbrev(llvm::BitstreamWriter &Stream) {
     auto Abbrev = std::make_shared<llvm::BitCodeAbbrev>();
     detail::emitOps<IDField, Fields...>(*Abbrev);
@@ -393,6 +442,13 @@ public:
   /// as StringRefs, while arrays can be passed inline, as aggregates, or as
   /// pre-encoded StringRef data. Skipped values and empty arrays should use
   /// the special Nothing value.
+  ///
+  /// \param Stream The bitstream writer that receives the record.
+  /// \param buffer Scratch buffer used while assembling the record.
+  /// \param abbrCode The abbreviation code previously registered for this
+  /// layout.
+  /// \param recordID The semantic record code written as the first field.
+  /// \param data Remaining field values for this record, matching the layout.
   template <typename BufferTy, typename... Data>
   static void emitRecord(llvm::BitstreamWriter &Stream, BufferTy &buffer,
                          unsigned abbrCode, unsigned recordID, Data &&...data) {
@@ -411,6 +467,9 @@ public:
   /// Note that even fixed arguments must be specified here. Pass \c Nothing
   /// if you don't care about a particular parameter. Blob data is not included
   /// in the buffer and should be handled separately by the caller.
+  ///
+  /// \param buffer The decoded record operands to unpack into \p data.
+  /// \param data Output references that receive each non-blob field value.
   template <typename ElementTy, typename... Data>
   static void readRecord(ArrayRef<ElementTy> buffer, Data &&...data) {
     static_assert(sizeof...(data) <= sizeof...(Fields),
@@ -427,6 +486,9 @@ public:
   /// Note that even fixed arguments must be specified here. Pass \c Nothing
   /// if you don't care about a particular parameter. Blob data is not included
   /// in the buffer and should be handled separately by the caller.
+  ///
+  /// \param buffer Container of decoded record operands to unpack into \p data.
+  /// \param data Output references that receive each non-blob field value.
   template <typename BufferTy, typename... Data>
   static void readRecord(BufferTy &buffer, Data &&...data) {
     return readRecord(llvm::ArrayRef(buffer), std::forward<Data>(data)...);
@@ -440,18 +502,24 @@ class BCRecordLayout
   using Base = BCGenericRecordLayout<BCLiteral<RecordCode>, Fields...>;
 
 public:
+  /// Constants associated with this fixed record-code layout.
   enum : unsigned {
     /// The record code associated with this layout.
     Code = RecordCode
   };
 
   /// Create a layout and register it with the given bitstream writer.
+  ///
+  /// \param Stream The bitstream writer that will emit records of this type.
   explicit BCRecordLayout(llvm::BitstreamWriter &Stream) : Base(Stream) {}
 
   /// Emit a record to the bitstream writer, using the given buffer for scratch
   /// space.
   ///
   /// Note that even fixed arguments must be specified here.
+  ///
+  /// \param buffer Scratch buffer used while assembling the record.
+  /// \param data Field values for this record, matching the layout's fields.
   template <typename BufferTy, typename... Data>
   void emit(BufferTy &buffer, Data &&...data) const {
     Base::emit(buffer, RecordCode, std::forward<Data>(data)...);
@@ -462,6 +530,12 @@ public:
   ///
   /// Note that even fixed arguments must be specified here. Currently, arrays
   /// and blobs can only be passed as StringRefs.
+  ///
+  /// \param Stream The bitstream writer that receives the record.
+  /// \param buffer Scratch buffer used while assembling the record.
+  /// \param abbrCode The abbreviation code previously registered for this
+  /// layout.
+  /// \param data Field values for this record, matching the layout's fields.
   template <typename BufferTy, typename... Data>
   static void emitRecord(llvm::BitstreamWriter &Stream, BufferTy &buffer,
                          unsigned abbrCode, Data &&...data) {
@@ -475,11 +549,17 @@ class BCBlockRAII {
   llvm::BitstreamWriter &Stream;
 
 public:
+  /// Enters sub-block \p block with abbreviation width \p abbrev.
+  ///
+  /// \param Stream The bitstream writer that owns the current block stack.
+  /// \param block The numeric ID of the sub-block to enter.
+  /// \param abbrev The abbreviation ID width for the new sub-block.
   BCBlockRAII(llvm::BitstreamWriter &Stream, unsigned block, unsigned abbrev)
       : Stream(Stream) {
     Stream.EnterSubblock(block, abbrev);
   }
 
+  /// Exits the sub-block entered by this RAII object.
   ~BCBlockRAII() { Stream.ExitBlock(); }
 };
 } // namespace llvm

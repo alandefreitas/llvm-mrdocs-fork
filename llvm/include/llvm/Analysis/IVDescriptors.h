@@ -87,8 +87,23 @@ enum class RecurKind {
 /// This struct holds information about recurrence variables.
 class RecurrenceDescriptor {
 public:
+  /// Construct an empty recurrence descriptor.
   RecurrenceDescriptor() = default;
 
+  /// Construct a recurrence descriptor with full reduction metadata.
+  /// @param Start Starting value of the recurrence.
+  /// @param Exit Instruction whose value is used outside the loop.
+  /// @param Store Optional store of a reduction result to an invariant address.
+  /// @param K Kind of recurrence represented by this descriptor.
+  /// @param FMF Fast-math flags on the recurrent instructions.
+  /// @param ExactFP First non-reassociative FP instruction in the use-chain.
+  /// @param RT Type of the recurrence, possibly narrower than the PHI type.
+  /// @param Signed True if all source operands are SExtInsts.
+  /// @param Ordered True if this recurrence can be treated as in-order.
+  /// @param CI Instructions used for type-promoting the recurrence.
+  /// @param MinWidthCastToRecurTy Minimum bit width used by the recurrence.
+  /// @param PhiHasUsesOutsideReductionChain True if the PHI has uses outside
+  /// the reduction chain.
   RecurrenceDescriptor(Value *Start, Instruction *Exit, StoreInst *Store,
                        RecurKind K, FastMathFlags FMF, Instruction *ExactFP,
                        Type *RT, bool Signed, bool Ordered,
@@ -106,8 +121,16 @@ public:
         "Only min/max recurrences are allowed to have multiple uses currently");
   }
 
-  /// Simpler constructor for min/max recurrences that don't track cast
+  /// Construct a min/max recurrence descriptor without tracking cast
   /// instructions.
+  /// @param Start Starting value of the recurrence.
+  /// @param Exit Instruction whose value is used outside the loop.
+  /// @param Store Optional store of a reduction result to an invariant address.
+  /// @param K Kind of recurrence represented by this descriptor.
+  /// @param FMF Fast-math flags on the recurrent instructions.
+  /// @param ExactFP First non-reassociative FP instruction in the use-chain.
+  /// @param RT Type of the recurrence, possibly narrower than the PHI type.
+  /// @param IsMultiUse True if the PHI has uses outside the reduction chain.
   RecurrenceDescriptor(Value *Start, Instruction *Exit, StoreInst *Store,
                        RecurKind K, FastMathFlags FMF, Instruction *ExactFP,
                        Type *RT, bool IsMultiUse = false)
@@ -118,22 +141,40 @@ public:
   /// This POD struct holds information about a potential recurrence operation.
   class InstDesc {
   public:
+    /// Construct a recurrence instruction description with an explicit flag.
+    /// @param IsRecur Whether \p I is a recurrence candidate.
+    /// @param I Last instruction in the pattern, or the recurrence instruction.
+    /// @param ExactFP Optional non-reassociative floating-point instruction.
     InstDesc(bool IsRecur, Instruction *I, Instruction *ExactFP = nullptr)
         : IsRecurrence(IsRecur), PatternLastInst(I),
           RecKind(RecurKind::None), ExactFPMathInst(ExactFP) {}
 
+    /// Construct a matching recurrence instruction description of kind \p K.
+    /// @param I Last instruction in the pattern, or the recurrence instruction.
+    /// @param K Recurrence kind for this pattern.
+    /// @param ExactFP Optional non-reassociative floating-point instruction.
     InstDesc(Instruction *I, RecurKind K, Instruction *ExactFP = nullptr)
         : IsRecurrence(true), PatternLastInst(I), RecKind(K),
           ExactFPMathInst(ExactFP) {}
 
+    /// Return true if this instruction is a recurrence candidate.
+    /// @return True if this instruction is a recurrence candidate.
     bool isRecurrence() const { return IsRecurrence; }
 
+    /// Return true if the recurrence requires exact floating-point math.
+    /// @return True if the recurrence requires exact floating-point math.
     bool needsExactFPMath() const { return ExactFPMathInst != nullptr; }
 
+    /// Return the non-reassociative floating-point instruction, if any.
+    /// @return The non-reassociative floating-point instruction, or nullptr.
     Instruction *getExactFPMathInst() const { return ExactFPMathInst; }
 
+    /// Return the recurrence kind for this pattern.
+    /// @return The recurrence kind for this pattern.
     RecurKind getRecKind() const { return RecKind; }
 
+    /// Return the last instruction in the matched pattern.
+    /// @return The last instruction in the matched pattern.
     Instruction *getPatternInst() const { return PatternLastInst; }
 
   private:
@@ -148,71 +189,128 @@ public:
     Instruction *ExactFPMathInst;
   };
 
+  /// Return whether \p I can be a recurrence of kind \p Kind for \p Phi.
+  ///
   /// Returns a struct describing if the instruction 'I' can be a recurrence
   /// variable of type 'Kind' for a Loop \p L and reduction PHI \p Phi.
   /// If the recurrence is a min/max pattern of select(icmp()) this function
   /// advances the instruction pointer 'I' from the compare instruction to the
   /// select instruction and stores this pointer in 'PatternLastInst' member of
   /// the returned struct.
+  /// @param L Loop containing the candidate recurrence.
+  /// @param Phi Reduction PHI being analyzed.
+  /// @param I Instruction to test as a recurrence operation.
+  /// @param Kind Expected recurrence kind.
+  /// @param Prev Description of a previously matched pattern instruction.
+  /// @param SE ScalarEvolution analysis used for pattern matching.
+  /// @return A description of whether \p I can be a recurrence of \p Kind.
   LLVM_ABI static InstDesc isRecurrenceInstr(Loop *L, PHINode *Phi,
                                              Instruction *I, RecurKind Kind,
                                              InstDesc &Prev,
                                              ScalarEvolution *SE);
 
   /// Returns true if instruction I has multiple uses in Insts
+  /// @param I Instruction whose uses are inspected.
+  /// @param Insts Set of instructions that count as relevant uses.
+  /// @param MaxNumUses Maximum number of uses in \p Insts to accept.
+  /// @return True if \p I has more than \p MaxNumUses uses in \p Insts.
   LLVM_ABI static bool hasMultipleUsesOf(Instruction *I,
                                          SmallPtrSetImpl<Instruction *> &Insts,
                                          unsigned MaxNumUses);
 
   /// Returns true if all uses of the instruction I is within the Set.
+  /// @param I Instruction whose uses are inspected.
+  /// @param Set Set that must contain every use of \p I.
+  /// @return True if all uses of \p I are within \p Set.
   LLVM_ABI static bool areAllUsesIn(Instruction *I,
                                     SmallPtrSetImpl<Instruction *> &Set);
 
+  /// Return whether \p I matches an AnyOf select(cmp) reduction pattern.
+  ///
   /// Returns a struct describing whether the instruction is either a
   ///   Select(ICmp(A, B), X, Y), or
   ///   Select(FCmp(A, B), X, Y)
   /// where one of (X, Y) is a loop invariant integer and the other is a PHI
   /// value. \p Prev specifies the description of an already processed select
   /// instruction, so its corresponding cmp can be matched to it.
+  /// @param Loop Loop containing the candidate pattern.
+  /// @param OrigPhi Original reduction PHI for the pattern.
+  /// @param I Instruction to test as an AnyOf pattern.
+  /// @param Prev Description of a previously matched select instruction.
+  /// @return A description of whether \p I matches an AnyOf pattern.
   LLVM_ABI static InstDesc isAnyOfPattern(Loop *Loop, PHINode *OrigPhi,
                                           Instruction *I, InstDesc &Prev);
 
+  /// Return whether \p I matches a FindIV or FindLast select(cmp) pattern.
+  ///
   /// Returns a struct describing whether the instruction is either a
   ///   Select(ICmp(A, B), X, Y), or
   ///   Select(FCmp(A, B), X, Y)
   /// where one of (X, Y) is an increasing (FindLastIV) or decreasing
   /// (FindFirstIV) loop induction variable, or an arbitrary integer value
   /// (FindLast), and the other is a PHI value.
+  /// @param TheLoop Loop containing the candidate pattern.
+  /// @param OrigPhi Original reduction PHI for the pattern.
+  /// @param I Instruction to test as a Find pattern.
+  /// @param SE ScalarEvolution analysis used for induction matching.
+  /// @return A description of whether \p I matches a Find pattern.
   LLVM_ABI static InstDesc isFindPattern(Loop *TheLoop, PHINode *OrigPhi,
                                          Instruction *I, ScalarEvolution &SE);
 
   /// Returns a struct describing if the instruction is a
   /// Select(FCmp(X, Y), (Z = X op PHINode), PHINode) instruction pattern.
+  /// @param I Instruction to test as a conditional reduction pattern.
+  /// @return A description of whether \p I matches the conditional pattern.
   LLVM_ABI static InstDesc isConditionalRdxPattern(Instruction *I);
 
   /// Returns the opcode corresponding to the RecurrenceKind.
+  /// @param Kind Recurrence kind to map to an LLVM IR opcode.
+  /// @return The LLVM IR opcode corresponding to \p Kind.
   LLVM_ABI static unsigned getOpcode(RecurKind Kind);
 
+  /// Return true if \p Phi is a reduction of type \p Kind and record it.
+  ///
   /// Returns true if Phi is a reduction of type Kind and adds it to the
   /// RecurrenceDescriptor. If either \p DB is non-null or \p AC and \p DT are
   /// non-null, the minimal bit width needed to compute the reduction will be
   /// computed.
+  /// @param Phi PHI node to test as a reduction.
+  /// @param Kind Expected reduction kind.
+  /// @param TheLoop Loop containing \p Phi.
+  /// @param RedDes Descriptor filled when \p Phi is a matching reduction.
+  /// @param DB Optional DemandedBits analysis for bit-width computation.
+  /// @param AC Optional AssumptionCache for bit-width computation.
+  /// @param DT Optional DominatorTree for bit-width computation.
+  /// @param SE Optional ScalarEvolution analysis.
+  /// @return True if \p Phi is a reduction of type \p Kind.
   LLVM_ABI static bool
   AddReductionVar(PHINode *Phi, RecurKind Kind, Loop *TheLoop,
                   RecurrenceDescriptor &RedDes, DemandedBits *DB = nullptr,
                   AssumptionCache *AC = nullptr, DominatorTree *DT = nullptr,
                   ScalarEvolution *SE = nullptr);
 
+  /// Return true if \p Phi is a reduction PHI in \p TheLoop.
+  ///
   /// Returns true if Phi is a reduction in TheLoop. The RecurrenceDescriptor
   /// is returned in RedDes. If either \p DB is non-null or \p AC and \p DT are
   /// non-null, the minimal bit width needed to compute the reduction will be
   /// computed. If \p SE is non-null, store instructions to loop invariant
   /// addresses are processed.
+  /// @param Phi PHI node to test as a reduction.
+  /// @param TheLoop Loop containing \p Phi.
+  /// @param RedDes Descriptor filled when \p Phi is a reduction.
+  /// @param DB Optional DemandedBits analysis for bit-width computation.
+  /// @param AC Optional AssumptionCache for bit-width computation.
+  /// @param DT Optional DominatorTree for bit-width computation.
+  /// @param SE Optional ScalarEvolution used when processing invariant stores.
+  /// @return True if \p Phi is a reduction PHI in \p TheLoop.
   LLVM_ABI static bool
   isReductionPHI(PHINode *Phi, Loop *TheLoop, RecurrenceDescriptor &RedDes,
                  DemandedBits *DB = nullptr, AssumptionCache *AC = nullptr,
                  DominatorTree *DT = nullptr, ScalarEvolution *SE = nullptr);
 
+  /// Return true if \p Phi is a fixed-order recurrence in \p TheLoop.
+  ///
   /// Returns true if Phi is a fixed-order recurrence. A fixed-order recurrence
   /// is a non-reduction recurrence relation in which the value of the
   /// recurrence in the current loop iteration equals a value defined in a
@@ -222,36 +320,60 @@ public:
   /// recurrence and so on). Note that this function optimistically assumes that
   /// uses of the recurrence can be re-ordered if necessary and users need to
   /// check and perform the re-ordering.
+  /// @param Phi PHI node to test as a fixed-order recurrence.
+  /// @param TheLoop Loop containing \p Phi.
+  /// @param DT DominatorTree used to validate recurrence uses.
+  /// @return True if \p Phi is a fixed-order recurrence in \p TheLoop.
   LLVM_ABI static bool isFixedOrderRecurrence(PHINode *Phi, Loop *TheLoop,
                                               DominatorTree *DT);
 
+  /// Return the kind of this recurrence.
+  /// @return The kind of this recurrence.
   RecurKind getRecurrenceKind() const { return Kind; }
 
+  /// Return the opcode corresponding to this recurrence kind.
+  /// @return The LLVM IR opcode corresponding to this recurrence kind.
   unsigned getOpcode() const { return getOpcode(getRecurrenceKind()); }
 
+  /// Return the fast-math flags of the recurrent instructions.
+  /// @return The fast-math flags of the recurrent instructions.
   FastMathFlags getFastMathFlags() const { return FMF; }
 
+  /// Return the starting value of the recurrence.
+  /// @return The starting value of the recurrence.
   TrackingVH<Value> getRecurrenceStartValue() const { return StartValue; }
 
+  /// Return the instruction whose value is used outside the loop.
+  /// @return The instruction whose value is used outside the loop.
   Instruction *getLoopExitInstr() const { return LoopExitInstr; }
 
   /// Returns true if the recurrence has floating-point math that requires
   /// precise (ordered) operations.
+  /// @return True if the recurrence requires exact floating-point math.
   bool hasExactFPMath() const { return ExactFPMathInst != nullptr; }
 
   /// Returns 1st non-reassociative FP instruction in the PHI node's use-chain.
+  /// @return The first non-reassociative FP instruction, or nullptr.
   Instruction *getExactFPMathInst() const { return ExactFPMathInst; }
 
   /// Returns true if the recurrence kind is an integer kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is an integer recurrence kind.
   LLVM_ABI static bool isIntegerRecurrenceKind(RecurKind Kind);
 
   /// Returns true if the recurrence kind is a floating point kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a floating-point recurrence kind.
   LLVM_ABI static bool isFloatingPointRecurrenceKind(RecurKind Kind);
 
   /// Returns true if the recurrence kind is for a sub operation.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a sub recurrence kind.
   LLVM_ABI static bool isSubRecurrenceKind(RecurKind Kind);
 
   /// Returns true if the recurrence kind is an integer min/max kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is an integer min/max kind.
   static bool isIntMinMaxRecurrenceKind(RecurKind Kind) {
     return Kind == RecurKind::UMin || Kind == RecurKind::UMax ||
            Kind == RecurKind::SMin || Kind == RecurKind::SMax;
@@ -259,11 +381,15 @@ public:
 
   /// Returns true if the recurrence kind is a floating-point minnum/maxnum
   /// kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a floating-point minnum/maxnum kind.
   static bool isFPMinMaxNumRecurrenceKind(RecurKind Kind) {
     return Kind == RecurKind::FMinNum || Kind == RecurKind::FMaxNum;
   }
 
   /// Returns true if the recurrence kind is a floating-point min/max kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a floating-point min/max kind.
   static bool isFPMinMaxRecurrenceKind(RecurKind Kind) {
     return Kind == RecurKind::FMin || Kind == RecurKind::FMax ||
            Kind == RecurKind::FMinimum || Kind == RecurKind::FMaximum ||
@@ -272,18 +398,24 @@ public:
   }
 
   /// Returns true if the recurrence kind is any min/max kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is any integer or floating-point min/max kind.
   static bool isMinMaxRecurrenceKind(RecurKind Kind) {
     return isIntMinMaxRecurrenceKind(Kind) || isFPMinMaxRecurrenceKind(Kind);
   }
 
   /// Returns true if the recurrence kind is of the form
   ///   select(cmp(),x,y) where one of (x,y) is loop invariant.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is an AnyOf recurrence kind.
   static bool isAnyOfRecurrenceKind(RecurKind Kind) {
     return Kind == RecurKind::AnyOf;
   }
 
   /// Returns true if the recurrence kind is of the form
   ///   select(cmp(),x,y) where one of (x,y) is a loop induction variable.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a FindIV recurrence kind.
   static bool isFindIVRecurrenceKind(RecurKind Kind) {
     return Kind == RecurKind::FindIV;
   }
@@ -291,51 +423,69 @@ public:
   /// Returns true if the recurrence kind is of the form
   ///   select(cmp(),x,y) where one of (x,y) is an arbitrary value and the
   ///   other is a recurrence.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a FindLast recurrence kind.
   static bool isFindLastRecurrenceKind(RecurKind Kind) {
     return Kind == RecurKind::FindLast;
   }
 
+  /// Return true if \p Kind is a FindLast or FindIV recurrence kind.
+  /// @param Kind Recurrence kind to test.
+  /// @return True if \p Kind is a FindLast or FindIV recurrence kind.
   static bool isFindRecurrenceKind(RecurKind Kind) {
     return isFindLastRecurrenceKind(Kind) || isFindIVRecurrenceKind(Kind);
   }
 
   /// Returns the type of the recurrence. This type can be narrower than the
   /// actual type of the Phi if the recurrence has been type-promoted.
+  /// @return The type of the recurrence.
   Type *getRecurrenceType() const { return RecurrenceType; }
 
   /// Returns a reference to the instructions used for type-promoting the
   /// recurrence.
+  /// @return The cast instructions used for type-promoting the recurrence.
   const SmallPtrSet<Instruction *, 8> &getCastInsts() const { return CastInsts; }
 
   /// Returns the minimum width used by the recurrence in bits.
+  /// @return The minimum width used by the recurrence in bits.
   unsigned getMinWidthCastToRecurrenceTypeInBits() const {
     return MinWidthCastToRecurrenceType;
   }
 
   /// Returns true if all source operands of the recurrence are SExtInsts.
+  /// @return True if all source operands of the recurrence are SExtInsts.
   bool isSigned() const { return IsSigned; }
 
   /// Expose an ordered FP reduction to the instance users.
+  /// @return True if this recurrence can be treated as an ordered reduction.
   bool isOrdered() const { return IsOrdered; }
 
   /// Returns true if the reduction PHI has any uses outside the reduction
   /// chain. This is relevant for min/max reductions that are part of a FindIV
   /// pattern.
+  /// @return True if the reduction PHI has uses outside the reduction chain.
   bool hasUsesOutsideReductionChain() const {
     return PhiHasUsesOutsideReductionChain;
   }
 
   /// Attempts to find a chain of operations from Phi to LoopExitInst that can
   /// be treated as a set of reductions instructions for in-loop reductions.
+  /// @param Phi Reduction PHI that starts the chain.
+  /// @param L Loop containing the reduction chain.
+  /// @return The reduction operation chain from \p Phi to the loop exit.
   LLVM_ABI SmallVector<Instruction *, 4> getReductionOpChain(PHINode *Phi,
                                                              Loop *L) const;
 
   /// Returns true if the instruction is a call to the llvm.fmuladd intrinsic.
+  /// @param I Instruction to test.
+  /// @return True if \p I is a call to the llvm.fmuladd intrinsic.
   static bool isFMulAddIntrinsic(Instruction *I) {
     return isa<IntrinsicInst>(I) &&
            cast<IntrinsicInst>(I)->getIntrinsicID() == Intrinsic::fmuladd;
   }
 
+  /// Last store of a reduction result to an invariant address, if any.
+  ///
   /// Reductions may store temporary or final result to an invariant address.
   /// If there is such a store in the loop then, after successfull run of
   /// AddReductionVar method, this field will be assigned the last met store.
@@ -388,15 +538,31 @@ public:
 
   /// Returns the canonical integer induction for type \p Ty with start = 0
   /// and step = 1.
+  /// @param Ty Integer type of the canonical induction.
+  /// @param SE ScalarEvolution used to build the step expression.
+  /// @return A canonical integer induction descriptor for \p Ty.
   LLVM_ABI static InductionDescriptor
   getCanonicalIntInduction(Type *Ty, ScalarEvolution &SE);
 
+  /// Return the starting value of the induction.
+  /// @return The starting value of the induction.
   Value *getStartValue() const { return StartValue; }
+  /// Return the kind of this induction.
+  /// @return The kind of this induction.
   InductionKind getKind() const { return IK; }
+  /// Return the SCEV step of this induction.
+  /// @return The SCEV step of this induction.
   const SCEV *getStep() const { return Step; }
+  /// Return the binary operator that advances the induction, if any.
+  /// @return The binary operator that advances the induction, or nullptr.
   BinaryOperator *getInductionBinOp() const { return InductionBinOp; }
+  /// Return the constant integer step value, or nullptr if the step is not a
+  /// constant integer.
+  /// @return The constant integer step, or nullptr if the step is not one.
   LLVM_ABI ConstantInt *getConstIntStepValue() const;
 
+  /// Return true if \p Phi is an induction PHI in loop \p L.
+  ///
   /// Returns true if \p Phi is an induction in the loop \p L. If \p Phi is an
   /// induction, the induction descriptor \p D will contain the data describing
   /// this induction. Since Induction Phis can only be present inside loop
@@ -408,6 +574,15 @@ public:
   /// under proper runtime checks), they are passed through \p CastsToIgnore.
   /// SCEV predicates checking potential overflow for \p Phi to be an induction,
   /// if any, are passed via \p NoWrapPreds and recorded.
+  /// @param Phi PHI node to test as an induction.
+  /// @param L Loop whose header must contain \p Phi.
+  /// @param SE ScalarEvolution analysis used to classify the PHI.
+  /// @param D Descriptor filled when \p Phi is an induction.
+  /// @param NoWrapPreds Optional SCEV predicates proving no-wrap for \p Phi.
+  /// @param Expr Optional SCEV expression to use instead of SE's for \p Phi.
+  /// @param CastsToIgnore Optional casts on the induction update chain to
+  /// ignore under runtime checks.
+  /// @return True if \p Phi is an induction PHI in loop \p L.
   LLVM_ABI static bool
   isInductionPHI(PHINode *Phi, const Loop *L, ScalarEvolution *SE,
                  InductionDescriptor &D,
@@ -415,19 +590,34 @@ public:
                  const SCEV *Expr = nullptr,
                  SmallVectorImpl<Instruction *> *CastsToIgnore = nullptr);
 
+  /// Return true if \p Phi is a floating-point induction in loop \p L.
+  ///
   /// Returns true if \p Phi is a floating point induction in the loop \p L.
   /// If \p Phi is an induction, the induction descriptor \p D will contain
   /// the data describing this induction.
+  /// @param Phi PHI node to test as a floating-point induction.
+  /// @param L Loop whose header must contain \p Phi.
+  /// @param SE ScalarEvolution analysis used to classify the PHI.
+  /// @param D Descriptor filled when \p Phi is an induction.
+  /// @return True if \p Phi is a floating-point induction in \p L.
   LLVM_ABI static bool isFPInductionPHI(PHINode *Phi, const Loop *L,
                                         ScalarEvolution *SE,
                                         InductionDescriptor &D);
 
+  /// Return true if \p Phi is an induction under \p PSE's predicates.
+  ///
   /// Returns true if \p Phi is a loop \p L induction, in the context associated
   /// with the run-time predicate of PSE. If \p Assume is true, this can add
   /// further SCEV predicates to \p PSE in order to prove that \p Phi is an
   /// induction.
   /// If \p Phi is an induction, \p D will contain the data describing this
   /// induction.
+  /// @param Phi PHI node to test as an induction.
+  /// @param L Loop whose header must contain \p Phi.
+  /// @param PSE Predicated ScalarEvolution context for the classification.
+  /// @param D Descriptor filled when \p Phi is an induction.
+  /// @param Assume When true, allow adding SCEV predicates to \p PSE.
+  /// @return True if \p Phi is an induction under \p PSE's predicates.
   LLVM_ABI static bool isInductionPHI(PHINode *Phi, const Loop *L,
                                       PredicatedScalarEvolution &PSE,
                                       InductionDescriptor &D,
@@ -436,6 +626,7 @@ public:
   /// Returns floating-point induction operator that does not allow
   /// reassociation (transforming the induction requires an override of normal
   /// floating-point rules).
+  /// @return The non-reassociative FP induction operator, or nullptr.
   Instruction *getExactFPMathInst() {
     if (IK == IK_FpInduction && InductionBinOp &&
         !InductionBinOp->hasAllowReassoc())
@@ -444,6 +635,7 @@ public:
   }
 
   /// Returns binary opcode of the induction operator.
+  /// @return The binary opcode of the induction operator, or BinaryOpsEnd.
   Instruction::BinaryOps getInductionOpcode() const {
     return InductionBinOp ? InductionBinOp->getOpcode()
                           : Instruction::BinaryOpsEnd;
@@ -452,9 +644,11 @@ public:
   /// Returns an ArrayRef to the type cast instructions in the induction
   /// update chain, that are redundant when guarded with a runtime
   /// SCEV overflow check.
+  /// @return The redundant cast instructions in the induction update chain.
   ArrayRef<Instruction *> getCastInsts() const { return RedundantCasts; }
 
   /// Returns the SCEV predicates associated with this induction.
+  /// @return The SCEV no-wrap predicates for this induction.
   ArrayRef<const SCEVPredicate *> getNoWrapPredicates() const {
     return NoWrapPredicates;
   }

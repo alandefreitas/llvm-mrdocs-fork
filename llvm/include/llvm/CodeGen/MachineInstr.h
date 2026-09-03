@@ -41,6 +41,7 @@
 
 namespace llvm {
 
+/// Metadata class for DWARF/debug label instructions.
 class DILabel;
 class Instruction;
 class MDNode;
@@ -73,62 +74,76 @@ class MachineInstr
     : public ilist_node_with_parent<MachineInstr, MachineBasicBlock,
                                     ilist_sentinel_tracking<true>> {
 public:
+  /// Iterator over MachineMemOperand pointers attached to an instruction.
   using mmo_iterator = ArrayRef<MachineMemOperand *>::iterator;
 
+  /// Underlying integer type for AsmPrinter CommentFlag bit values.
   using AsmPrinterFlagTy = uint8_t;
 
   /// Flags to specify different kinds of comments to output in
   /// assembly code.  These flags carry semantic information not
   /// otherwise easily derivable from the IR text.
   enum CommentFlag : AsmPrinterFlagTy {
+    /// Operand was rematerialized / reused after a reload (AsmPrinter comment).
     ReloadReuse = 0x1, // higher bits are reserved for target dep comments.
+    /// Suppress scheduler-related AsmPrinter comments.
     NoSchedComment = 0x2,
+    /// Base value for target-specific AsmPrinter comment flags.
     TAsmComments = 0x4 // Target Asm comments should start from this value.
   };
 
+  /// Semantic flags carried on a MachineInstr beyond the MCInstrDesc.
   enum MIFlag {
+    /// No MI flags are set.
     NoFlags = 0,
-    FrameSetup = 1 << 0,     // Instruction is used as a part of
-                             // function frame setup code.
-    FrameDestroy = 1 << 1,   // Instruction is used as a part of
-                             // function frame destruction code.
-    BundledPred = 1 << 2,    // Instruction has bundled predecessors.
-    BundledSucc = 1 << 3,    // Instruction has bundled successors.
-    FmNoNans = 1 << 4,       // Instruction does not support Fast
-                             // math nan values.
-    FmNoInfs = 1 << 5,       // Instruction does not support Fast
-                             // math infinity values.
-    FmNsz = 1 << 6,          // Instruction is not required to retain
-                             // signed zero values.
-    FmArcp = 1 << 7,         // Instruction supports Fast math
-                             // reciprocal approximations.
-    FmContract = 1 << 8,     // Instruction supports Fast math
-                             // contraction operations like fma.
-    FmAfn = 1 << 9,          // Instruction may map to Fast math
-                             // intrinsic approximation.
-    FmReassoc = 1 << 10,     // Instruction supports Fast math
-                             // reassociation of operand order.
-    NoUWrap = 1 << 11,       // Instruction supports binary operator
-                             // no unsigned wrap.
-    NoSWrap = 1 << 12,       // Instruction supports binary operator
-                             // no signed wrap.
-    IsExact = 1 << 13,       // Instruction supports division is
-                             // known to be exact.
-    NoFPExcept = 1 << 14,    // Instruction does not raise
-                             // floatint-point exceptions.
-    NoMerge = 1 << 15,       // Passes that drop source location info
-                             // (e.g. branch folding) should skip
-                             // this instruction.
-    Unpredictable = 1 << 16, // Instruction with unpredictable condition.
-    NoConvergent = 1 << 17,  // Call does not require convergence guarantees.
-    NonNeg = 1 << 18,        // The operand is non-negative.
-    Disjoint = 1 << 19,      // Each bit is zero in at least one of the inputs.
-    NoUSWrap = 1 << 20,      // Instruction supports geps
-                             // no unsigned signed wrap.
-    SameSign = 1 << 21,      // Both operands have the same sign.
-    InBounds = 1 << 22,      // Pointer arithmetic remains inbounds.
-                             // Implies NoUSWrap.
-    LRSplit = 1 << 23        // Instruction for live range split.
+    /// Instruction is part of function frame setup code.
+    FrameSetup = 1 << 0,
+    /// Instruction is part of function frame destruction code.
+    FrameDestroy = 1 << 1,
+    /// Instruction has bundled predecessors.
+    BundledPred = 1 << 2,
+    /// Instruction has bundled successors.
+    BundledSucc = 1 << 3,
+    /// Instruction does not support Fast Math NaN values.
+    FmNoNans = 1 << 4,
+    /// Instruction does not support Fast Math infinity values.
+    FmNoInfs = 1 << 5,
+    /// Instruction is not required to retain signed zero values.
+    FmNsz = 1 << 6,
+    /// Instruction supports Fast Math reciprocal approximations.
+    FmArcp = 1 << 7,
+    /// Instruction supports Fast Math contraction (e.g. fma).
+    FmContract = 1 << 8,
+    /// Instruction may map to a Fast Math intrinsic approximation.
+    FmAfn = 1 << 9,
+    /// Instruction supports Fast Math reassociation of operand order.
+    FmReassoc = 1 << 10,
+    /// Binary operator has no unsigned wrap.
+    NoUWrap = 1 << 11,
+    /// Binary operator has no signed wrap.
+    NoSWrap = 1 << 12,
+    /// Division is known to be exact.
+    IsExact = 1 << 13,
+    /// Instruction does not raise floating-point exceptions.
+    NoFPExcept = 1 << 14,
+    /// Passes that drop source locations should skip this instruction.
+    NoMerge = 1 << 15,
+    /// Instruction has an unpredictable condition.
+    Unpredictable = 1 << 16,
+    /// Call does not require convergence guarantees.
+    NoConvergent = 1 << 17,
+    /// The operand is non-negative.
+    NonNeg = 1 << 18,
+    /// Each bit is zero in at least one of the inputs.
+    Disjoint = 1 << 19,
+    /// GEP has no unsigned/signed wrap.
+    NoUSWrap = 1 << 20,
+    /// Both operands have the same sign.
+    SameSign = 1 << 21,
+    /// Pointer arithmetic remains in-bounds (implies NoUSWrap).
+    InBounds = 1 << 22,
+    /// Instruction used for live-range splitting.
+    LRSplit = 1 << 23
   };
 
 private:
@@ -366,49 +381,64 @@ private:
   }
 
 public:
-  MachineInstr(const MachineInstr &) = delete;
-  MachineInstr &operator=(const MachineInstr &) = delete;
-  // Use MachineFunction::DeleteMachineInstr() instead.
+  /// MachineInstr is not copyable; create instructions via MachineFunction.
+  /// @param Other Unused; copy construction is deleted.
+  MachineInstr(const MachineInstr &Other) = delete;
+  /// Assignment is deleted; MachineInstr is not copyable.
+  /// @param Other Unused; copy assignment is deleted.
+  MachineInstr &operator=(const MachineInstr &Other) = delete;
+  /// Destructor is deleted; use MachineFunction::DeleteMachineInstr() instead.
   ~MachineInstr() = delete;
 
+  /// Return the basic block that contains this instruction.
+  /// @return Const pointer to the parent MachineBasicBlock, or null.
   const MachineBasicBlock* getParent() const { return Parent; }
+  /// Return the mutable basic block that contains this instruction.
+  /// @return Mutable pointer to the parent MachineBasicBlock, or null.
   MachineBasicBlock* getParent() { return Parent; }
 
-  /// Move the instruction before \p MovePos.
+  /// Move this instruction before \p MovePos.
+  /// @param MovePos Instruction before which this one is moved.
   LLVM_ABI void moveBefore(MachineInstr *MovePos);
 
-  /// Return the function that contains the basic block that this instruction
-  /// belongs to.
+  /// Return the MachineFunction that contains this instruction.
   ///
-  /// Note: this is undefined behaviour if the instruction does not have a
-  /// parent.
+  /// Note: undefined behavior if the instruction has no parent.
+  /// @return Const pointer to the owning MachineFunction.
   LLVM_ABI const MachineFunction *getMF() const;
+  /// Return the mutable MachineFunction that contains this instruction.
+  /// @return Mutable pointer to the owning MachineFunction.
   MachineFunction *getMF() {
     return const_cast<MachineFunction *>(
         static_cast<const MachineInstr *>(this)->getMF());
   }
 
   /// Return the asm printer flags bitvector.
+  /// @return Bitvector of AsmPrinter CommentFlag values.
   AsmPrinterFlagTy getAsmPrinterFlags() const { return AsmPrinterFlags; }
 
   /// Clear the AsmPrinter bitvector.
   void clearAsmPrinterFlags() { AsmPrinterFlags = 0; }
 
-  /// Return whether an AsmPrinter flag is set.
+  /// Return whether AsmPrinter flag \p Flag is set.
+  /// @param Flag AsmPrinter comment flag to test.
+  /// @return True if \p Flag is set.
   bool getAsmPrinterFlag(AsmPrinterFlagTy Flag) const {
     assert(isUInt<LLVM_MI_ASMPRINTERFLAGS_BITS>(Flag) &&
            "Flag is out of range for the AsmPrinterFlags field");
     return AsmPrinterFlags & Flag;
   }
 
-  /// Set a flag for the AsmPrinter.
+  /// Set AsmPrinter flag \p Flag.
+  /// @param Flag AsmPrinter comment flag to set.
   void setAsmPrinterFlag(AsmPrinterFlagTy Flag) {
     assert(isUInt<LLVM_MI_ASMPRINTERFLAGS_BITS>(Flag) &&
            "Flag is out of range for the AsmPrinterFlags field");
     AsmPrinterFlags |= Flag;
   }
 
-  /// Clear specific AsmPrinter flags.
+  /// Clear AsmPrinter flag \p Flag.
+  /// @param Flag AsmPrinter comment flag to clear.
   void clearAsmPrinterFlag(AsmPrinterFlagTy Flag) {
     assert(isUInt<LLVM_MI_ASMPRINTERFLAGS_BITS>(Flag) &&
            "Flag is out of range for the AsmPrinterFlags field");
@@ -416,24 +446,30 @@ public:
   }
 
   /// Return the MI flags bitvector.
+  /// @return Bitvector of MIFlag values.
   uint32_t getFlags() const {
     return Flags;
   }
 
-  /// Return whether an MI flag is set.
+  /// Return whether MI flag \p Flag is set.
+  /// @param Flag MI flag to test.
+  /// @return True if \p Flag is set.
   bool getFlag(MIFlag Flag) const {
     assert(isUInt<LLVM_MI_FLAGS_BITS>(unsigned(Flag)) &&
            "Flag is out of range for the Flags field");
     return Flags & Flag;
   }
 
-  /// Set a MI flag.
+  /// Set MI flag \p Flag.
+  /// @param Flag MI flag to set.
   void setFlag(MIFlag Flag) {
     assert(isUInt<LLVM_MI_FLAGS_BITS>(unsigned(Flag)) &&
            "Flag is out of range for the Flags field");
     Flags |= (uint32_t)Flag;
   }
 
+  /// Set MI flags from bitvector \p flags, preserving bundle flags.
+  /// @param flags Bitmask of MIFlag values to set.
   void setFlags(unsigned flags) {
     assert(isUInt<LLVM_MI_FLAGS_BITS>(flags) &&
            "flags to be set are out of range for the Flags field");
@@ -442,13 +478,16 @@ public:
     Flags = (Flags & Mask) | (flags & ~Mask);
   }
 
-  /// clearFlag - Clear a MI flag.
+  /// Clear MI flag \p Flag.
+  /// @param Flag MI flag to clear.
   void clearFlag(MIFlag Flag) {
     assert(isUInt<LLVM_MI_FLAGS_BITS>(unsigned(Flag)) &&
            "Flag to clear is out of range for the Flags field");
     Flags &= ~((uint32_t)Flag);
   }
 
+  /// Clear the MI flags bits specified by \p flags.
+  /// @param flags Bitmask of MIFlag values to clear.
   void clearFlags(unsigned flags) {
     assert(isUInt<LLVM_MI_FLAGS_BITS>(flags) &&
            "flags to be cleared are out of range for the Flags field");
@@ -490,22 +529,23 @@ public:
   ///   ----------------
   /// The first instruction has the special opcode "BUNDLE". It's not "inside"
   /// a bundle, but the next three MIs are.
+  /// @return True if BundledPred is set.
   bool isInsideBundle() const {
     return getFlag(BundledPred);
   }
 
-  /// Return true if this instruction part of a bundle. This is true
-  /// if either itself or its following instruction is marked "InsideBundle".
+  /// Return true if this instruction is part of a bundle.
+  /// @return True if bundled with a predecessor or successor.
   bool isBundled() const {
     return isBundledWithPred() || isBundledWithSucc();
   }
 
-  /// Return true if this instruction is part of a bundle, and it is not the
-  /// first instruction in the bundle.
+  /// Return true if this instruction is bundled with a predecessor.
+  /// @return True if BundledPred is set.
   bool isBundledWithPred() const { return getFlag(BundledPred); }
 
-  /// Return true if this instruction is part of a bundle, and it is not the
-  /// last instruction in the bundle.
+  /// Return true if this instruction is bundled with a successor.
+  /// @return True if BundledSucc is set.
   bool isBundledWithSucc() const { return getFlag(BundledSucc); }
 
   /// Bundle this instruction with its predecessor. This can be an unbundled
@@ -522,138 +562,179 @@ public:
   /// Break bundle below this instruction.
   LLVM_ABI void unbundleFromSucc();
 
-  /// Returns the debug location id of this MachineInstr.
+  /// Returns the debug location of this MachineInstr.
+  /// @return Debug location attached to this instruction.
   const DebugLoc &getDebugLoc() const { return DbgLoc; }
 
-  /// Return the operand containing the offset to be used if this DBG_VALUE
-  /// instruction is indirect; will be an invalid register if this value is
-  /// not indirect, and an immediate with value 0 otherwise.
+  /// Return the offset operand used when this DBG_VALUE is indirect.
+  ///
+  /// Invalid register if not indirect; otherwise an immediate (often 0).
+  /// @return Const reference to the debug offset operand.
   const MachineOperand &getDebugOffset() const {
     assert(isNonListDebugValue() && "not a DBG_VALUE");
     return getOperand(1);
   }
+  /// Return the mutable offset operand used when this DBG_VALUE is indirect.
+  /// @return Mutable reference to the debug offset operand.
   MachineOperand &getDebugOffset() {
     assert(isNonListDebugValue() && "not a DBG_VALUE");
     return getOperand(1);
   }
 
-  /// Return the operand for the debug variable referenced by
-  /// this DBG_VALUE instruction.
+  /// Return the const operand holding this DBG_VALUE's variable.
+  /// @return Const reference to the debug variable operand.
   LLVM_ABI const MachineOperand &getDebugVariableOp() const;
+  /// Return the mutable operand holding this DBG_VALUE's variable.
+  /// @return Mutable reference to the debug variable operand.
   LLVM_ABI MachineOperand &getDebugVariableOp();
 
-  /// Return the debug variable referenced by
-  /// this DBG_VALUE instruction.
+  /// Return the debug variable referenced by this DBG_VALUE instruction.
+  /// @return Debug variable metadata for this instruction.
   LLVM_ABI const DILocalVariable *getDebugVariable() const;
 
-  /// Return the operand for the complex address expression referenced by
-  /// this DBG_VALUE instruction.
+  /// Return the const operand holding this DBG_VALUE's expression.
+  /// @return Const reference to the debug expression operand.
   LLVM_ABI const MachineOperand &getDebugExpressionOp() const;
+  /// Return the mutable operand holding this DBG_VALUE's expression.
+  /// @return Mutable reference to the debug expression operand.
   LLVM_ABI MachineOperand &getDebugExpressionOp();
 
-  /// Return the complex address expression referenced by
-  /// this DBG_VALUE instruction.
+  /// Return the complex address expression referenced by this DBG_VALUE.
+  /// @return Debug expression metadata for this instruction.
   LLVM_ABI const DIExpression *getDebugExpression() const;
 
-  /// Return the debug label referenced by
-  /// this DBG_LABEL instruction.
+  /// Return the debug label referenced by this DBG_LABEL instruction.
+  /// @return Debug label metadata for this instruction.
   LLVM_ABI const DILabel *getDebugLabel() const;
 
-  /// Fetch the instruction number of this MachineInstr. If it does not have
-  /// one already, a new and unique number will be assigned.
+  /// Fetch this instruction's debug number, assigning one if needed.
+  /// @return Debug instruction number for this instruction.
   LLVM_ABI unsigned getDebugInstrNum();
 
-  /// Fetch instruction number of this MachineInstr -- but before it's inserted
-  /// into \p MF. Needed for transformations that create an instruction but
-  /// don't immediately insert them.
+  /// Fetch or assign a debug instruction number before insertion into \p MF.
+  ///
+  /// Needed when creating an instruction that is not immediately inserted.
+  /// @param MF Machine function that owns the instruction number space.
+  /// @return Debug instruction number for this instruction.
   LLVM_ABI unsigned getDebugInstrNum(MachineFunction &MF);
 
-  /// Examine the instruction number of this MachineInstr. May be zero if
-  /// it hasn't been assigned a number yet.
+  /// Examine this instruction's debug number without assigning one.
+  /// @return Current debug instruction number, or 0 if unassigned.
   unsigned peekDebugInstrNum() const { return DebugInstrNum; }
 
-  /// Set instruction number of this MachineInstr. Avoid using unless you're
-  /// deserializing this information.
+  /// Set this instruction's debug instruction number.
+  ///
+  /// Avoid using unless deserializing this information.
+  /// @param Num Debug instruction number to assign.
   void setDebugInstrNum(unsigned Num) { DebugInstrNum = Num; }
 
-  /// Drop any variable location debugging information associated with this
-  /// instruction. Use when an instruction is modified in such a way that it no
-  /// longer defines the value it used to. Variable locations using that value
-  /// will be dropped.
+  /// Drop variable-location debugging information associated with this instruction.
+  ///
+  /// Use when the instruction no longer defines the value it used to.
   void dropDebugNumber() { DebugInstrNum = 0; }
 
-  /// For inline asm, get the !srcloc metadata node if we have it, and decode
-  /// the loc cookie from it.
+  /// For inline asm, return the !srcloc metadata node if present.
+  /// @return Source-location cookie metadata, or null if none.
   LLVM_ABI const MDNode *getLocCookieMD() const;
 
-  /// Emit an error referring to the source location of this instruction. This
-  /// should only be used for inline assembly that is somehow impossible to
-  /// compile. Other errors should have been handled much earlier.
+  /// Emit an error at this instruction's source location for impossible inline asm.
+  ///
+  /// Other errors should have been handled much earlier.
+  /// @param ErrMsg Error message text.
   LLVM_ABI void emitInlineAsmError(const Twine &ErrMsg) const;
 
-  // Emit an error in the LLVMContext referring to the source location of this
-  // instruction, if available.
+  /// Emit an error referring to this instruction's source location if available.
+  /// @param ErrMsg Error message text.
   LLVM_ABI void emitGenericError(const Twine &ErrMsg) const;
 
   /// Returns the target instruction descriptor of this MachineInstr.
+  /// @return Reference to this instruction's MCInstrDesc.
   const MCInstrDesc &getDesc() const { return *MCID; }
 
   /// Returns the opcode of this MachineInstr.
+  /// @return Opcode number of this instruction.
   unsigned getOpcode() const { return Opcode; }
 
-  /// Retuns the total number of operands.
+  /// Return the total number of operands.
+  /// @return Operand count.
   unsigned getNumOperands() const { return NumOperands; }
 
   /// Returns the total number of operands which are debug locations.
+  /// @return Count of debug operands.
   unsigned getNumDebugOperands() const { return size(debug_operands()); }
 
+  /// Return const operand \p i.
+  /// @param i Operand index.
+  /// @return Const reference to the operand.
   const MachineOperand &getOperand(unsigned i) const {
     return operands_impl()[i];
   }
+  /// Return mutable operand \p i.
+  /// @param i Operand index.
+  /// @return Mutable reference to the operand.
   MachineOperand &getOperand(unsigned i) { return operands_impl()[i]; }
 
+  /// Return the debug operand at \p Index within debug_operands().
+  /// @param Index Index into the debug operand range.
+  /// @return Mutable reference to the debug operand.
   MachineOperand &getDebugOperand(unsigned Index) {
     assert(Index < getNumDebugOperands() && "getDebugOperand() out of range!");
     return *(debug_operands().begin() + Index);
   }
+  /// Return the const debug operand at \p Index within debug_operands().
+  /// @param Index Index into the debug operand range.
+  /// @return Const reference to the debug operand.
   const MachineOperand &getDebugOperand(unsigned Index) const {
     assert(Index < getNumDebugOperands() && "getDebugOperand() out of range!");
     return *(debug_operands().begin() + Index);
   }
 
-  /// Returns whether this debug value has at least one debug operand with the
-  /// register \p Reg.
+  /// Return true if this debug value has a debug operand using \p Reg.
+  /// @param Reg Register to look for among debug operands.
+  /// @return True if a debug operand uses \p Reg.
   bool hasDebugOperandForReg(Register Reg) const {
     return any_of(debug_operands(), [Reg](const MachineOperand &Op) {
       return Op.isReg() && Op.getReg() == Reg;
     });
   }
 
-  /// Returns a range of all of the operands that correspond to a debug use of
-  /// \p Reg.
+  /// Return debug operands that use register \p Reg.
+  /// @param Reg Register whose debug uses are sought.
+  /// @return Filtered const range of matching debug operands.
   LLVM_ABI iterator_range<filter_iterator<
       const MachineOperand *, std::function<bool(const MachineOperand &Op)>>>
   getDebugOperandsForReg(Register Reg) const;
+  /// Return mutable debug operands that use register \p Reg.
+  /// @param Reg Register whose debug uses are sought.
+  /// @return Filtered mutable range of matching debug operands.
   LLVM_ABI
   iterator_range<filter_iterator<MachineOperand *,
                                  std::function<bool(MachineOperand &Op)>>>
   getDebugOperandsForReg(Register Reg);
 
+  /// Return true if \p Op is one of this instruction's debug operands.
+  /// @param Op Operand pointer to test.
+  /// @return True if \p Op lies in debug_operands().
   bool isDebugOperand(const MachineOperand *Op) const {
     return Op >= adl_begin(debug_operands()) && Op <= adl_end(debug_operands());
   }
 
+  /// Return the index of debug operand \p Op within \c debug_operands().
+  /// @param Op Debug operand pointer within this instruction.
+  /// @return Index of \p Op in the debug operand range.
   unsigned getDebugOperandIndex(const MachineOperand *Op) const {
     assert(isDebugOperand(Op) && "Expected a debug operand.");
     return std::distance(adl_begin(debug_operands()), Op);
   }
 
-  /// Returns the total number of definitions.
+  /// Returns the total number of definitions (explicit and implicit).
+  /// @return Total definition count.
   unsigned getNumDefs() const {
     return getNumExplicitDefs() + MCID->implicit_defs().size();
   }
 
-  /// Returns true if the instruction has implicit definition.
+  /// Returns true if the instruction has an implicit definition.
+  /// @return True if any implicit operand is a def.
   bool hasImplicitDef() const {
     for (const MachineOperand &MO : implicit_operands())
       if (MO.isDef())
@@ -661,12 +742,15 @@ public:
     return false;
   }
 
-  /// Returns the implicit operands number.
+  /// Returns the number of implicit operands.
+  /// @return Count of implicit operands.
   unsigned getNumImplicitOperands() const {
     return getNumOperands() - getNumExplicitOperands();
   }
 
   /// Return true if operand \p OpIdx is a subregister index.
+  /// @param OpIdx Operand index to check.
+  /// @return True if the operand is a subregister index immediate.
   bool isOperandSubregIdx(unsigned OpIdx) const {
     assert(getOperand(OpIdx).isImm() && "Expected MO_Immediate operand type.");
     if (isExtractSubreg() && OpIdx == 2)
@@ -681,9 +765,11 @@ public:
   }
 
   /// Returns the number of non-implicit operands.
+  /// @return Count of explicit operands.
   LLVM_ABI unsigned getNumExplicitOperands() const;
 
   /// Returns the number of non-implicit definitions.
+  /// @return Count of explicit definition operands.
   LLVM_ABI unsigned getNumExplicitDefs() const;
 
   /// iterator/begin/end - Iterate over all operands of a machine instruction.
@@ -694,104 +780,142 @@ public:
   // - implicit reg defs
   // - implicit reg uses
   using mop_iterator = MachineOperand *;
+  /// Const iterator over this instruction's machine operands.
   using const_mop_iterator = const MachineOperand *;
 
+  /// Mutable iterator range over machine operands.
   using mop_range = iterator_range<mop_iterator>;
+  /// Const iterator range over machine operands.
   using const_mop_range = iterator_range<const_mop_iterator>;
 
+  /// Return a begin iterator over this instruction's operands.
+  /// @return Mutable begin operand iterator.
   mop_iterator operands_begin() { return Operands; }
+  /// Return a past-the-end iterator over this instruction's operands.
+  /// @return Mutable past-the-end operand iterator.
   mop_iterator operands_end() { return Operands + NumOperands; }
 
+  /// Return a const begin iterator over this instruction's operands.
+  /// @return Const begin operand iterator.
   const_mop_iterator operands_begin() const { return Operands; }
+  /// Return a past-the-end const iterator over this instruction's operands.
+  /// @return Const past-the-end operand iterator.
   const_mop_iterator operands_end() const { return Operands + NumOperands; }
 
+  /// Return a range over all operands of this instruction.
+  /// @return Mutable range of all operands.
   mop_range operands() { return operands_impl(); }
+  /// Return a const range over all operands of this instruction.
+  /// @return Const range of all operands.
   const_mop_range operands() const { return operands_impl(); }
 
+  /// Return a range over this instruction's explicit operands.
+  /// @return Mutable range of explicit operands.
   mop_range explicit_operands() {
     return operands_impl().take_front(getNumExplicitOperands());
   }
+  /// Return a const range over this instruction's explicit operands.
+  /// @return Const range of explicit operands.
   const_mop_range explicit_operands() const {
     return operands_impl().take_front(getNumExplicitOperands());
   }
+  /// Return a range over this instruction's implicit operands.
+  /// @return Mutable range of implicit operands.
   mop_range implicit_operands() {
     return operands_impl().drop_front(getNumExplicitOperands());
   }
+  /// Return a const range over this instruction's implicit operands.
+  /// @return Const range of implicit operands.
   const_mop_range implicit_operands() const {
     return operands_impl().drop_front(getNumExplicitOperands());
   }
 
-  /// Returns all operands that are used to determine the variable
-  /// location for this DBG_VALUE instruction.
+  /// Return operands that determine the variable location for this debug value.
+  /// @return Mutable range of debug location operands.
   mop_range debug_operands() {
     assert(isDebugValueLike() && "Must be a debug value instruction.");
     return isNonListDebugValue() ? operands_impl().take_front(1)
                                  : operands_impl().drop_front(2);
   }
   /// \copydoc debug_operands()
+  /// @return Const range of debug location operands.
   const_mop_range debug_operands() const {
     assert(isDebugValueLike() && "Must be a debug value instruction.");
     return isNonListDebugValue() ? operands_impl().take_front(1)
                                  : operands_impl().drop_front(2);
   }
-  /// Returns all explicit operands that are register definitions.
-  /// Implicit definition are not included!
+  /// Return all explicit register definition operands (implicits excluded).
+  /// @return Mutable range of explicit defs.
   mop_range defs() { return operands_impl().take_front(getNumExplicitDefs()); }
   /// \copydoc defs()
+  /// @return Const range of explicit defs.
   const_mop_range defs() const {
     return operands_impl().take_front(getNumExplicitDefs());
   }
-  /// Returns all operands which may be register uses.
-  /// This may include unrelated operands which are not register uses.
+  /// Return operands that may be register uses (may include non-reg operands).
+  /// @return Mutable range starting after explicit defs.
   mop_range uses() { return operands_impl().drop_front(getNumExplicitDefs()); }
   /// \copydoc uses()
+  /// @return Const range starting after explicit defs.
   const_mop_range uses() const {
     return operands_impl().drop_front(getNumExplicitDefs());
   }
+  /// Return a range over explicit operands that are not explicit defs.
+  /// @return Mutable range of explicit use-side operands.
   mop_range explicit_uses() {
     return operands_impl()
         .take_front(getNumExplicitOperands())
         .drop_front(getNumExplicitDefs());
   }
+  /// Return a const range over explicit operands that are not explicit defs.
+  /// @return Const range of explicit use-side operands.
   const_mop_range explicit_uses() const {
     return operands_impl()
         .take_front(getNumExplicitOperands())
         .drop_front(getNumExplicitDefs());
   }
 
+  /// Filtered mutable operand range (e.g. all_defs / all_uses).
   using filtered_mop_range = iterator_range<
       filter_iterator<mop_iterator, bool (*)(const MachineOperand &)>>;
+  /// Filtered const operand range (e.g. all_defs / all_uses).
   using filtered_const_mop_range = iterator_range<
       filter_iterator<const_mop_iterator, bool (*)(const MachineOperand &)>>;
 
-  /// Returns an iterator range over all operands that are (explicit or
-  /// implicit) register defs.
+  /// Return a range over all explicit or implicit register def operands.
+  /// @return Filtered range of register def operands.
   filtered_mop_range all_defs() {
     return make_filter_range(operands(), opIsRegDef);
   }
   /// \copydoc all_defs()
+  /// @return Filtered const range of register def operands.
   filtered_const_mop_range all_defs() const {
     return make_filter_range(operands(), opIsRegDef);
   }
 
-  /// Returns an iterator range over all operands that are (explicit or
-  /// implicit) register uses.
+  /// Return a range over all explicit or implicit register use operands.
+  /// @return Filtered range of register use operands.
   filtered_mop_range all_uses() {
     return make_filter_range(uses(), opIsRegUse);
   }
   /// \copydoc all_uses()
+  /// @return Filtered const range of register use operands.
   filtered_const_mop_range all_uses() const {
     return make_filter_range(uses(), opIsRegUse);
   }
 
-  /// Returns the number of the operand iterator \p I points to.
+  /// Return the operand index corresponding to iterator \p I.
+  /// @param I Operand iterator into this instruction.
+  /// @return Zero-based operand index of \p I.
   unsigned getOperandNo(const_mop_iterator I) const {
     return I - operands_begin();
   }
 
-  /// Access to memory operands of the instruction. If there are none, that does
-  /// not imply anything about whether the function accesses memory. Instead,
-  /// the caller must behave conservatively.
+  /// Return this instruction's memory operands.
+  ///
+  /// An empty list does not imply the instruction accesses no memory; callers
+  /// must behave conservatively.
+  /// @return Array of MachineMemOperand pointers (possibly empty).
   ArrayRef<MachineMemOperand *> memoperands() const {
     if (!Info)
       return {};
@@ -805,32 +929,34 @@ public:
     return {};
   }
 
-  /// Access to memory operands of the instruction.
+  /// Return a begin iterator over this instruction's memory operands.
   ///
-  /// If `memoperands_begin() == memoperands_end()`, that does not imply
-  /// anything about whether the function accesses memory. Instead, the caller
-  /// must behave conservatively.
+  /// An empty range does not imply the instruction accesses no memory.
+  /// @return Begin iterator for memrefs.
   mmo_iterator memoperands_begin() const { return memoperands().begin(); }
 
-  /// Access to memory operands of the instruction.
+  /// Return a past-the-end iterator over this instruction's memory operands.
   ///
-  /// If `memoperands_begin() == memoperands_end()`, that does not imply
-  /// anything about whether the function accesses memory. Instead, the caller
-  /// must behave conservatively.
+  /// An empty range does not imply the instruction accesses no memory.
+  /// @return Past-the-end memref iterator.
   mmo_iterator memoperands_end() const { return memoperands().end(); }
 
-  /// Return true if we don't have any memory operands which described the
-  /// memory access done by this instruction.  If this is true, calling code
-  /// must be conservative.
+  /// Return true if this instruction has no describing memory operands.
+  ///
+  /// Callers must be conservative when this is true.
+  /// @return True if the memref list is empty.
   bool memoperands_empty() const { return memoperands().empty(); }
 
   /// Return true if this instruction has exactly one MachineMemOperand.
+  /// @return True if there is exactly one memory operand.
   bool hasOneMemOperand() const { return memoperands().size() == 1; }
 
   /// Return the number of memory operands.
+  /// @return Number of MachineMemOperands attached to this instruction.
   unsigned getNumMemOperands() const { return memoperands().size(); }
 
   /// Helper to extract a pre-instruction symbol if one has been added.
+  /// @return Pre-instruction symbol, or null if none is set.
   MCSymbol *getPreInstrSymbol() const {
     if (!Info)
       return nullptr;
@@ -843,6 +969,7 @@ public:
   }
 
   /// Helper to extract a post-instruction symbol if one has been added.
+  /// @return Post-instruction symbol, or null if none is set.
   MCSymbol *getPostInstrSymbol() const {
     if (!Info)
       return nullptr;
@@ -855,6 +982,7 @@ public:
   }
 
   /// Helper to extract a heap alloc marker if one has been added.
+  /// @return Heap-alloc marker metadata, or null if none is set.
   MDNode *getHeapAllocMarker() const {
     if (!Info)
       return nullptr;
@@ -865,6 +993,7 @@ public:
   }
 
   /// Helper to extract PCSections metadata target sections.
+  /// @return PC-sections metadata node, or null if none is set.
   MDNode *getPCSections() const {
     if (!Info)
       return nullptr;
@@ -875,6 +1004,7 @@ public:
   }
 
   /// Helper to extract mmra.op metadata.
+  /// @return MMRA metadata node, or null if none is set.
   MDNode *getMMRAMetadata() const {
     if (!Info)
       return nullptr;
@@ -883,6 +1013,8 @@ public:
     return nullptr;
   }
 
+  /// Return the deactivation symbol attached to this instruction, if any.
+  /// @return Deactivation symbol value, or null if none is set.
   Value *getDeactivationSymbol() const {
     if (!Info)
       return nullptr;
@@ -892,6 +1024,7 @@ public:
   }
 
   /// Helper to extract a CFI type hash if one has been added.
+  /// @return CFI type hash, or 0 if none is set.
   uint32_t getCFIType() const {
     if (!Info)
       return 0;
@@ -904,17 +1037,22 @@ public:
   /// API for querying MachineInstr properties. They are the same as MCInstrDesc
   /// queries but they are bundle aware.
 
+  /// How property queries treat instruction bundles.
   enum QueryType {
-    IgnoreBundle,    // Ignore bundles
-    AnyInBundle,     // Return true if any instruction in bundle has property
-    AllInBundle      // Return true if all instructions in bundle have property
+    /// Ignore bundling; query only this instruction.
+    IgnoreBundle,
+    /// Return true if any instruction in the bundle has the property.
+    AnyInBundle,
+    /// Return true if all instructions in the bundle have the property.
+    AllInBundle
   };
 
-  /// Return true if the instruction (or in the case of a bundle,
-  /// the instructions inside the bundle) has the specified property.
-  /// The first argument is the property being queried.
-  /// The second argument indicates whether the query should look inside
-  /// instruction bundles.
+  /// Return true if this instruction (or its bundle) has property \p MCFlag.
+  ///
+  /// \p Type controls whether and how instruction bundles are searched.
+  /// @param MCFlag Property flag from MCID being queried.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the property is present under \p Type's rules.
   bool hasProperty(unsigned MCFlag, QueryType Type = AnyInBundle) const {
     assert(MCFlag < 64 &&
            "MCFlag out of range for bit mask in getFlags/hasPropertyInBundle.");
@@ -926,112 +1064,141 @@ public:
     return hasPropertyInBundle(1ULL << MCFlag, Type);
   }
 
-  /// Return true if this is an instruction that should go through the usual
-  /// legalization steps.
+  /// Return true if this opcode should go through usual legalization steps.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a pre-ISel opcode.
   bool isPreISelOpcode(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::PreISelOpcode, Type);
   }
 
   /// Return true if this instruction can have a variable number of operands.
-  /// In this case, the variable operands will be after the normal
-  /// operands but before the implicit definitions and uses (if any are
-  /// present).
+  ///
+  /// Variable operands follow the normal operands and precede implicits.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is variadic.
   bool isVariadic(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Variadic, Type);
   }
 
-  /// Set if this instruction has an optional definition, e.g.
-  /// ARM instructions which can set condition code if 's' bit is set.
+  /// Return true if this instruction has an optional definition.
+  ///
+  /// E.g. ARM instructions that set condition codes when the 's' bit is set.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if an optional definition is present.
   bool hasOptionalDef(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::HasOptionalDef, Type);
   }
 
-  /// Return true if this is a pseudo instruction that doesn't
-  /// correspond to a real machine instruction.
+  /// Return true if this is a pseudo instruction (not a real machine insn).
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a pseudo instruction.
   bool isPseudo(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Pseudo, Type);
   }
 
-  /// Return true if this instruction doesn't produce any output in the form of
-  /// executable instructions.
+  /// Return true if this instruction produces no executable output.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a meta instruction.
   bool isMetaInstruction(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Meta, Type);
   }
 
+  /// Return true if this is a return instruction.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a return.
   bool isReturn(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::Return, Type);
   }
 
-  /// Return true if this is an instruction that marks the end of an EH scope,
-  /// i.e., a catchpad or a cleanuppad instruction.
+  /// Return true if this marks the end of an EH scope (catchpad/cleanuppad).
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is an EH scope return.
   bool isEHScopeReturn(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::EHScopeReturn, Type);
   }
 
+  /// Return true if this is a call instruction.
+  ///
+  /// When \p Type is AnyInBundle, any instruction in the bundle may match.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a call.
   bool isCall(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::Call, Type);
   }
 
-  /// Return true if this is a call instruction that may have an additional
-  /// information associated with it.
+  /// Return true if this call may have additional call-site information.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if additional call info may be associated.
   LLVM_ABI bool
   isCandidateForAdditionalCallInfo(QueryType Type = IgnoreBundle) const;
 
-  /// Return true if copying, moving, or erasing this instruction requires
-  /// updating additional call info (see \ref copyCallInfo, \ref moveCallInfo,
-  /// \ref eraseCallInfo).
+  /// Return true if additional call-site info must be updated for this MI.
+  ///
+  /// See \ref MachineFunction::copyAdditionalCallInfo,
+  /// \ref MachineFunction::moveAdditionalCallInfo, and
+  /// \ref MachineFunction::eraseAdditionalCallInfo.
+  /// @return True if additional call info must be updated.
   LLVM_ABI bool shouldUpdateAdditionalCallInfo() const;
 
-  /// Returns true if the specified instruction stops control flow
-  /// from executing the instruction immediately following it.  Examples include
-  /// unconditional branches and return instructions.
+  /// Return true if this instruction stops fall-through to the next instruction.
+  ///
+  /// Examples include unconditional branches and returns.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a barrier.
   bool isBarrier(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::Barrier, Type);
   }
 
-  /// Returns true if this instruction part of the terminator for a basic block.
-  /// Typically this is things like return and branch instructions.
+  /// Return true if this instruction is part of a basic-block terminator.
   ///
-  /// Various passes use this to insert code into the bottom of a basic block,
-  /// but before control flow occurs.
+  /// Typically returns and branches. Passes use this to insert code before
+  /// control flow.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a terminator.
   bool isTerminator(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::Terminator, Type);
   }
 
-  /// Returns true if this is a conditional, unconditional, or indirect branch.
-  /// Predicates below can be used to discriminate between
-  /// these cases, and the TargetInstrInfo::analyzeBranch method can be used to
-  /// get more information.
+  /// Return true if this is a conditional, unconditional, or indirect branch.
+  ///
+  /// Use the more specific predicates or TargetInstrInfo::analyzeBranch.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is any kind of branch.
   bool isBranch(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::Branch, Type);
   }
 
-  /// Return true if this is an indirect branch, such as a
-  /// branch through a register.
+  /// Return true if this is an indirect branch (e.g. through a register).
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is an indirect branch.
   bool isIndirectBranch(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::IndirectBranch, Type);
   }
 
-  /// Return true if this is a branch which may fall
-  /// through to the next instruction or may transfer control flow to some other
-  /// block.  The TargetInstrInfo::analyzeBranch method can be used to get more
-  /// information about this branch.
+  /// Return true if this branch may fall through or transfer to another block.
+  ///
+  /// Use TargetInstrInfo::analyzeBranch for more detail.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is a conditional branch.
   bool isConditionalBranch(QueryType Type = AnyInBundle) const {
     return isBranch(Type) && !isBarrier(Type) && !isIndirectBranch(Type);
   }
 
-  /// Return true if this is a branch which always
-  /// transfers control flow to some other block.  The
-  /// TargetInstrInfo::analyzeBranch method can be used to get more information
-  /// about this branch.
+  /// Return true if this branch always transfers control to another block.
+  ///
+  /// Use TargetInstrInfo::analyzeBranch for more detail.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if this is an unconditional branch.
   bool isUnconditionalBranch(QueryType Type = AnyInBundle) const {
     return isBranch(Type) && isBarrier(Type) && !isIndirectBranch(Type);
   }
 
-  /// Return true if this instruction has a predicate operand that
-  /// controls execution.  It may be set to 'always', or may be set to other
-  /// values.   There are various methods in TargetInstrInfo that can be used to
-  /// control and modify the predicate in this instruction.
+  /// Return true if this instruction has a predicate operand.
+  ///
+  /// The predicate may be 'always' or other values; TargetInstrInfo can modify
+  /// it.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is predicable.
   bool isPredicable(QueryType Type = AllInBundle) const {
     // If it's a bundle than all bundled instructions must be predicable for this
     // to return true.
@@ -1039,35 +1206,47 @@ public:
   }
 
   /// Return true if this instruction is a comparison.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is a comparison.
   bool isCompare(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Compare, Type);
   }
 
-  /// Return true if this instruction is a move immediate
-  /// (including conditional moves) instruction.
+  /// Return true if this is a move-immediate (including conditional moves).
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is a move immediate.
   bool isMoveImmediate(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::MoveImm, Type);
   }
 
   /// Return true if this instruction is a register move.
-  /// (including moving values from subreg to reg)
+  ///
+  /// Includes moving values from subreg to reg.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is a register move.
   bool isMoveReg(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::MoveReg, Type);
   }
 
   /// Return true if this instruction is a bitcast instruction.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is a bitcast.
   bool isBitcast(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Bitcast, Type);
   }
 
   /// Return true if this instruction is a select instruction.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is a select.
   bool isSelect(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Select, Type);
   }
 
   /// Return true if this instruction cannot be safely duplicated.
-  /// For example, if the instruction has a unique labels attached
-  /// to it, duplicating it would cause multiple definition errors.
+  ///
+  /// For example, unique labels would cause multiple-definition errors.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if duplication is unsafe.
   bool isNotDuplicable(QueryType Type = AnyInBundle) const {
     if (getPreInstrSymbol() || getPostInstrSymbol())
       return true;
@@ -1075,8 +1254,10 @@ public:
   }
 
   /// Return true if this instruction is convergent.
-  /// Convergent instructions can not be made control-dependent on any
-  /// additional values.
+  ///
+  /// Convergent instructions cannot be made control-dependent on new values.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is convergent.
   bool isConvergent(QueryType Type = AnyInBundle) const {
     if (isInlineAsm()) {
       unsigned ExtraInfo = getOperand(InlineAsm::MIOp_ExtraInfo).getImm();
@@ -1088,63 +1269,46 @@ public:
     return hasProperty(MCID::Convergent, Type);
   }
 
-  /// Returns true if the specified instruction has a delay slot
-  /// which must be filled by the code generator.
+  /// Return true if this instruction has a delay slot that must be filled.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction has a delay slot.
   bool hasDelaySlot(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::DelaySlot, Type);
   }
 
-  /// Return true for instructions that can be folded as
-  /// memory operands in other instructions. The most common use for this
-  /// is instructions that are simple loads from memory that don't modify
-  /// the loaded value in any way, but it can also be used for instructions
-  /// that can be expressed as constant-pool loads, such as V_SETALLONES
-  /// on x86, to allow them to be folded when it is beneficial.
-  /// This should only be set on instructions that return a value in their
-  /// only virtual register definition.
+  /// Return true if this instruction can be folded as a memory operand.
+  ///
+  /// Typically simple loads or constant-pool-like materializations with a
+  /// single virtual register definition.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction can fold as a load.
   bool canFoldAsLoad(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::FoldableAsLoad, Type);
   }
 
-  /// Return true if this instruction behaves
-  /// the same way as the generic REG_SEQUENCE instructions.
-  /// E.g., on ARM,
-  /// dX VMOVDRR rY, rZ
-  /// is equivalent to
-  /// dX = REG_SEQUENCE rY, ssub_0, rZ, ssub_1.
+  /// Return true if this behaves like a generic REG_SEQUENCE.
   ///
-  /// Note that for the optimizers to be able to take advantage of
-  /// this property, TargetInstrInfo::getRegSequenceLikeInputs has to be
-  /// override accordingly.
+  /// Targets should override TargetInstrInfo::getRegSequenceLikeInputs.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is reg-sequence-like.
   bool isRegSequenceLike(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::RegSequence, Type);
   }
 
-  /// Return true if this instruction behaves
-  /// the same way as the generic EXTRACT_SUBREG instructions.
-  /// E.g., on ARM,
-  /// rX, rY VMOVRRD dZ
-  /// is equivalent to two EXTRACT_SUBREG:
-  /// rX = EXTRACT_SUBREG dZ, ssub_0
-  /// rY = EXTRACT_SUBREG dZ, ssub_1
+  /// Return true if this behaves like a generic EXTRACT_SUBREG.
   ///
-  /// Note that for the optimizers to be able to take advantage of
-  /// this property, TargetInstrInfo::getExtractSubregLikeInputs has to be
-  /// override accordingly.
+  /// Targets should override TargetInstrInfo::getExtractSubregLikeInputs.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is extract-subreg-like.
   bool isExtractSubregLike(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::ExtractSubreg, Type);
   }
 
-  /// Return true if this instruction behaves
-  /// the same way as the generic INSERT_SUBREG instructions.
-  /// E.g., on ARM,
-  /// dX = VSETLNi32 dY, rZ, Imm
-  /// is equivalent to a INSERT_SUBREG:
-  /// dX = INSERT_SUBREG dY, rZ, translateImmToSubIdx(Imm)
+  /// Return true if this behaves like a generic INSERT_SUBREG.
   ///
-  /// Note that for the optimizers to be able to take advantage of
-  /// this property, TargetInstrInfo::getInsertSubregLikeInputs has to be
-  /// override accordingly.
+  /// Targets should override TargetInstrInfo::getInsertSubregLikeInputs.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is insert-subreg-like.
   bool isInsertSubregLike(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::InsertSubreg, Type);
   }
@@ -1154,8 +1318,10 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Return true if this instruction could possibly read memory.
-  /// Instructions with this flag set are not necessarily simple load
-  /// instructions, they may load a value and modify it, for example.
+  ///
+  /// Not limited to simple loads; the value may also be modified.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction may load.
   bool mayLoad(QueryType Type = AnyInBundle) const {
     if (isInlineAsm()) {
       unsigned ExtraInfo = getOperand(InlineAsm::MIOp_ExtraInfo).getImm();
@@ -1166,9 +1332,10 @@ public:
   }
 
   /// Return true if this instruction could possibly modify memory.
-  /// Instructions with this flag set are not necessarily simple store
-  /// instructions, they may store a modified value based on their operands, or
-  /// may not actually modify anything, for example.
+  ///
+  /// Not limited to simple stores; the access may be conditional or derived.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction may store.
   bool mayStore(QueryType Type = AnyInBundle) const {
     if (isInlineAsm()) {
       unsigned ExtraInfo = getOperand(InlineAsm::MIOp_ExtraInfo).getImm();
@@ -1179,16 +1346,16 @@ public:
   }
 
   /// Return true if this instruction could possibly read or modify memory.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction may load or store.
   bool mayLoadOrStore(QueryType Type = AnyInBundle) const {
     return mayLoad(Type) || mayStore(Type);
   }
 
-  /// Return true if this instruction could possibly raise a floating-point
-  /// exception.  This is the case if the instruction is a floating-point
-  /// instruction that can in principle raise an exception, as indicated
-  /// by the MCID::MayRaiseFPException property, *and* at the same time,
-  /// the instruction is used in a context where we expect floating-point
-  /// exceptions are not disabled, as indicated by the NoFPExcept MI flag.
+  /// Return true if this instruction could raise a floating-point exception.
+  ///
+  /// Requires MCID::MayRaiseFPException and that NoFPExcept is not set.
+  /// @return True if a floating-point exception may be raised.
   bool mayRaiseFPException() const {
     return hasProperty(MCID::MayRaiseFPException) &&
            !getFlag(MachineInstr::MIFlag::NoFPExcept);
@@ -1198,126 +1365,122 @@ public:
   // Flags that indicate whether an instruction can be modified by a method.
   //===--------------------------------------------------------------------===//
 
-  /// Return true if this may be a 2- or 3-address
-  /// instruction (of the form "X = op Y, Z, ..."), which produces the same
-  /// result if Y and Z are exchanged.  If this flag is set, then the
-  /// TargetInstrInfo::commuteInstruction method may be used to hack on the
-  /// instruction.
+  /// Return true if this instruction may be commutable (swap source operands).
   ///
-  /// Note that this flag may be set on instructions that are only commutable
-  /// sometimes.  In these cases, the call to commuteInstruction will fail.
-  /// Also note that some instructions require non-trivial modification to
-  /// commute them.
+  /// When set, TargetInstrInfo::commuteInstruction may rewrite the instruction.
+  /// The flag can be set for instructions that are only sometimes commutable.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction may be commutable.
   bool isCommutable(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::Commutable, Type);
   }
 
-  /// Return true if this is a 2-address instruction
-  /// which can be changed into a 3-address instruction if needed.  Doing this
-  /// transformation can be profitable in the register allocator, because it
-  /// means that the instruction can use a 2-address form if possible, but
-  /// degrade into a less efficient form if the source and dest register cannot
-  /// be assigned to the same register.  For example, this allows the x86
-  /// backend to turn a "shl reg, 3" instruction into an LEA instruction, which
-  /// is the same speed as the shift but has bigger code size.
+  /// Return true if this 2-address instruction can become 3-address if needed.
   ///
-  /// If this returns true, then the target must implement the
-  /// TargetInstrInfo::convertToThreeAddress method for this instruction, which
-  /// is allowed to fail if the transformation isn't valid for this specific
-  /// instruction (e.g. shl reg, 4 on x86).
-  ///
+  /// Lets the register allocator keep a 2-address form when possible, or
+  /// convert via TargetInstrInfo::convertToThreeAddress when not.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if conversion to a 3-address form is supported.
   bool isConvertibleTo3Addr(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::ConvertibleTo3Addr, Type);
   }
 
-  /// Return true if this instruction requires
-  /// custom insertion support when the DAG scheduler is inserting it into a
-  /// machine basic block.  If this is true for the instruction, it basically
-  /// means that it is a pseudo instruction used at SelectionDAG time that is
-  /// expanded out into magic code by the target when MachineInstrs are formed.
+  /// Return true if DAG scheduling needs a custom insertion hook for this.
   ///
-  /// If this is true, the TargetLoweringInfo::InsertAtEndOfBasicBlock method
-  /// is used to insert this into the MachineBasicBlock.
+  /// Typically a SelectionDAG pseudo expanded by the target via
+  /// TargetLoweringInfo::InsertAtEndOfBasicBlock.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if a custom insertion hook is required.
   bool usesCustomInsertionHook(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::UsesCustomInserter, Type);
   }
 
-  /// Return true if this instruction requires *adjustment*
-  /// after instruction selection by calling a target hook. For example, this
-  /// can be used to fill in ARM 's' optional operand depending on whether
-  /// the conditional flag register is used.
+  /// Return true if this instruction needs a post-ISel target adjustment hook.
+  ///
+  /// E.g. filling ARM 's' optional operand from condition-flag use.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if a post-ISel hook is required.
   bool hasPostISelHook(QueryType Type = IgnoreBundle) const {
     return hasProperty(MCID::HasPostISelHook, Type);
   }
 
-  /// Returns true if this instruction is a candidate for remat.
-  /// This flag is deprecated, please don't use it anymore.  If this
-  /// flag is set, the isReMaterializableImpl() method is called to
-  /// verify the instruction is really rematerializable.
+  /// Return true if this instruction is a rematerialization candidate.
+  ///
+  /// Deprecated; when set, isReMaterializableImpl() still verifies remat.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the rematerializable property is set.
   bool isRematerializable(QueryType Type = AllInBundle) const {
     // It's only possible to re-mat a bundle if all bundled instructions are
     // re-materializable.
     return hasProperty(MCID::Rematerializable, Type);
   }
 
-  /// Returns true if this instruction has the same cost (or less) than a move
-  /// instruction. This is useful during certain types of optimizations
-  /// (e.g., remat during two-address conversion or machine licm)
-  /// where we would like to remat or hoist the instruction, but not if it costs
-  /// more than moving the instruction into the appropriate register. Note, we
-  /// are not marking copies from and to the same register class with this flag.
+  /// Return true if this instruction costs no more than a move.
+  ///
+  /// Useful when deciding whether to rematerialize or hoist. Same-class copies
+  /// are not marked with this flag.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if the instruction is as cheap as a move.
   bool isAsCheapAsAMove(QueryType Type = AllInBundle) const {
     // Only returns true for a bundle if all bundled instructions are cheap.
     return hasProperty(MCID::CheapAsAMove, Type);
   }
 
-  /// Returns true if this instruction source operands
-  /// have special register allocation requirements that are not captured by the
-  /// operand register classes. e.g. ARM::STRD's two source registers must be an
-  /// even / odd pair, ARM::STM registers have to be in ascending order.
-  /// Post-register allocation passes should not attempt to change allocations
-  /// for sources of instructions with this flag.
+  /// Return true if sources have special regalloc requirements beyond classes.
+  ///
+  /// E.g. ARM::STRD sources must be an even/odd pair. Post-RA passes should not
+  /// change allocations for such sources.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if extra source register allocation requirements apply.
   bool hasExtraSrcRegAllocReq(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::ExtraSrcRegAllocReq, Type);
   }
 
-  /// Returns true if this instruction def operands
-  /// have special register allocation requirements that are not captured by the
-  /// operand register classes. e.g. ARM::LDRD's two def registers must be an
-  /// even / odd pair, ARM::LDM registers have to be in ascending order.
-  /// Post-register allocation passes should not attempt to change allocations
-  /// for definitions of instructions with this flag.
+  /// Return true if defs have special regalloc requirements beyond classes.
+  ///
+  /// E.g. ARM::LDRD defs must be an even/odd pair. Post-RA passes should not
+  /// change allocations for such definitions.
+  /// @param Type How to query when this instruction is part of a bundle.
+  /// @return True if extra def register allocation requirements apply.
   bool hasExtraDefRegAllocReq(QueryType Type = AnyInBundle) const {
     return hasProperty(MCID::ExtraDefRegAllocReq, Type);
   }
 
+  /// Controls which operands are compared by isIdenticalTo.
   enum MICheckType {
-    CheckDefs,      // Check all operands for equality
-    CheckKillDead,  // Check all operands including kill / dead markers
-    IgnoreDefs,     // Ignore all definitions
-    IgnoreVRegDefs  // Ignore virtual register definitions
+    /// Compare all operands for equality.
+    CheckDefs,
+    /// Compare all operands including kill and dead markers.
+    CheckKillDead,
+    /// Ignore all definitions when comparing.
+    IgnoreDefs,
+    /// Ignore virtual register definitions when comparing operands.
+    IgnoreVRegDefs
   };
 
   /// Return true if this instruction is identical to \p Other.
-  /// Two instructions are identical if they have the same opcode and all their
-  /// operands are identical (with respect to MachineOperand::isIdenticalTo()).
-  /// Note that this means liveness related flags (dead, undef, kill) do not
-  /// affect the notion of identical.
+  ///
+  /// Same opcode and identical operands (per MachineOperand::isIdenticalTo).
+  /// Liveness flags (dead, undef, kill) do not affect identity unless
+  /// requested via \p Check.
+  /// @param Other Other instruction to compare against.
+  /// @param Check How strictly operands and defs are compared.
+  /// @return True if the instructions are identical under \p Check.
   LLVM_ABI bool isIdenticalTo(const MachineInstr &Other,
                               MICheckType Check = CheckDefs) const;
 
-  /// Returns true if this instruction is a debug instruction that represents an
-  /// identical debug value to \p Other.
-  /// This function considers these debug instructions equivalent if they have
-  /// identical variables, debug locations, and debug operands, and if the
-  /// DIExpressions combined with the directness flags are equivalent.
+  /// Return true if this debug instruction represents the same value as \p Other.
+  ///
+  /// Compares variables, debug locations, debug operands, and DIExpressions
+  /// (including directness flags).
+  /// @param Other Other debug instruction to compare against.
+  /// @return True if the debug values are equivalent.
   LLVM_ABI bool isEquivalentDbgInstr(const MachineInstr &Other) const;
 
-  /// Unlink 'this' from the containing basic block, and return it without
-  /// deleting it.
+  /// Unlink this instruction from its basic block and return it without deleting.
   ///
-  /// This function can not be used on bundled instructions, use
-  /// removeFromBundle() to remove individual instructions from a bundle.
+  /// Cannot be used on bundled instructions; use removeFromBundle() instead.
+  /// @return Pointer to this instruction after unlinking.
   LLVM_ABI MachineInstr *removeFromParent();
 
   /// Unlink this instruction from its basic block and return it without
@@ -1325,6 +1488,7 @@ public:
   ///
   /// If the instruction is part of a bundle, the other instructions in the
   /// bundle remain bundled.
+  /// @return Pointer to this instruction after unlinking.
   LLVM_ABI MachineInstr *removeFromBundle();
 
   /// Unlink 'this' from the containing basic block and delete it.
@@ -1343,70 +1507,105 @@ public:
   /// bundle remain bundled.
   LLVM_ABI void eraseFromBundle();
 
+  /// Return true if this is an EH_LABEL instruction.
+  /// @return True if the opcode is EH_LABEL.
   bool isEHLabel() const { return getOpcode() == TargetOpcode::EH_LABEL; }
+  /// Return true if this is a GC_LABEL instruction.
+  /// @return True if the opcode is GC_LABEL.
   bool isGCLabel() const { return getOpcode() == TargetOpcode::GC_LABEL; }
+  /// Return true if this is an ANNOTATION_LABEL instruction.
+  /// @return True if the opcode is ANNOTATION_LABEL.
   bool isAnnotationLabel() const {
     return getOpcode() == TargetOpcode::ANNOTATION_LABEL;
   }
 
+  /// Return true if this is a LIFETIME_START or LIFETIME_END marker.
+  /// @return True if the opcode is a lifetime marker.
   bool isLifetimeMarker() const {
     return getOpcode() == TargetOpcode::LIFETIME_START ||
            getOpcode() == TargetOpcode::LIFETIME_END;
   }
 
   /// Returns true if the MachineInstr represents a label.
+  /// @return True if this is an EH, GC, or annotation label.
   bool isLabel() const {
     return isEHLabel() || isGCLabel() || isAnnotationLabel();
   }
 
+  /// Return true if this is a CFI_INSTRUCTION.
+  /// @return True if the opcode is CFI_INSTRUCTION.
   bool isCFIInstruction() const {
     return getOpcode() == TargetOpcode::CFI_INSTRUCTION;
   }
 
+  /// Return true if this is a PSEUDO_PROBE instruction.
+  /// @return True if the opcode is PSEUDO_PROBE.
   bool isPseudoProbe() const {
     return getOpcode() == TargetOpcode::PSEUDO_PROBE;
   }
 
-  // True if the instruction represents a position in the function.
-  // FIXME: Why are LIFETIME markers not considered in MachineInstr::isPosition?
+  /// Return true if the instruction marks a position in the function.
+  ///
+  /// FIXME: Why are LIFETIME markers not considered in MachineInstr::isPosition?
+  /// @return True if this is a label or CFI instruction.
   bool isPosition() const { return isLabel() || isCFIInstruction(); }
 
+  /// Return true if this is a non-list DBG_VALUE instruction.
+  /// @return True if the opcode is DBG_VALUE.
   bool isNonListDebugValue() const {
     return getOpcode() == TargetOpcode::DBG_VALUE;
   }
+  /// Return true if this is a DBG_VALUE_LIST instruction.
+  /// @return True if the opcode is DBG_VALUE_LIST.
   bool isDebugValueList() const {
     return getOpcode() == TargetOpcode::DBG_VALUE_LIST;
   }
+  /// Return true if the instruction is a DBG_VALUE or DBG_VALUE_LIST.
+  /// @return True if the opcode is a debug value.
   bool isDebugValue() const {
     return isNonListDebugValue() || isDebugValueList();
   }
+  /// Return true if this instruction's opcode is DBG_LABEL.
+  /// @return True if the opcode is DBG_LABEL.
   bool isDebugLabel() const { return getOpcode() == TargetOpcode::DBG_LABEL; }
+  /// Return true if this instruction's opcode is DBG_INSTR_REF.
+  /// @return True if the opcode is DBG_INSTR_REF.
   bool isDebugRef() const { return getOpcode() == TargetOpcode::DBG_INSTR_REF; }
+  /// Return true if this is a debug value or debug instruction reference.
+  /// @return True if this is DBG_VALUE-like or DBG_INSTR_REF.
   bool isDebugValueLike() const { return isDebugValue() || isDebugRef(); }
+  /// Return true if this is a DBG_PHI instruction.
+  /// @return True if the opcode is DBG_PHI.
   bool isDebugPHI() const { return getOpcode() == TargetOpcode::DBG_PHI; }
+  /// Return true if this is any kind of debug instruction.
+  /// @return True for DBG_VALUE, DBG_LABEL, DBG_INSTR_REF, or DBG_PHI.
   bool isDebugInstr() const {
     return isDebugValue() || isDebugLabel() || isDebugRef() || isDebugPHI();
   }
+  /// Return true if this is a debug instruction or a pseudo probe.
+  /// @return True if this is a debug or PSEUDO_PROBE instruction.
   bool isDebugOrPseudoInstr() const {
     return isDebugInstr() || isPseudoProbe();
   }
 
+  /// Return true if this non-list DBG_VALUE has an immediate offset operand.
+  /// @return True if the debug offset operand is an immediate.
   bool isDebugOffsetImm() const {
     return isNonListDebugValue() && getDebugOffset().isImm();
   }
 
-  /// A DBG_VALUE is indirect iff the location operand is a register and
-  /// the offset operand is an immediate.
+  /// Return true if this DBG_VALUE is indirect (reg location + imm offset).
+  /// @return True if the location is a register and the offset is immediate.
   bool isIndirectDebugValue() const {
     return isDebugOffsetImm() && getDebugOperand(0).isReg();
   }
 
-  /// A DBG_VALUE is an entry value iff its debug expression contains the
-  /// DW_OP_LLVM_entry_value operation.
+  /// Return true if this DBG_VALUE is an entry value expression.
+  /// @return True if the expression contains DW_OP_LLVM_entry_value.
   LLVM_ABI bool isDebugEntryValue() const;
 
-  /// Return true if the instruction is a debug value which describes a part of
-  /// a variable as unavailable.
+  /// Return true if this debug value describes part of a variable as unavailable.
+  /// @return True if any debug location operand is an invalid register.
   bool isUndefDebugValue() const {
     if (!isDebugValue())
       return false;
@@ -1417,77 +1616,113 @@ public:
     return false;
   }
 
+  /// Return true if this is a JUMP_TABLE_DEBUG_INFO instruction.
+  /// @return True if the opcode is JUMP_TABLE_DEBUG_INFO.
   bool isJumpTableDebugInfo() const {
     return getOpcode() == TargetOpcode::JUMP_TABLE_DEBUG_INFO;
   }
 
+  /// Return true if this is a PHI or G_PHI instruction.
+  /// @return True if the opcode is a PHI.
   bool isPHI() const {
     return getOpcode() == TargetOpcode::PHI ||
            getOpcode() == TargetOpcode::G_PHI;
   }
+  /// Return true if this is a KILL instruction.
+  /// @return True if the opcode is KILL.
   bool isKill() const { return getOpcode() == TargetOpcode::KILL; }
+  /// Return true if this is an IMPLICIT_DEF instruction.
+  /// @return True if the opcode is IMPLICIT_DEF.
   bool isImplicitDef() const { return getOpcode()==TargetOpcode::IMPLICIT_DEF; }
+  /// Return true if this is an INLINEASM or INLINEASM_BR instruction.
+  /// @return True if the opcode is inline assembly.
   bool isInlineAsm() const {
     return getOpcode() == TargetOpcode::INLINEASM ||
            getOpcode() == TargetOpcode::INLINEASM_BR;
   }
-  /// Returns true if the register operand can be folded with a load or store
-  /// into a frame index. Does so by checking the InlineAsm::Flag immediate
-  /// operand at OpId - 1.
+  /// Return true if register operand \p OpId may fold into a frame index.
+  ///
+  /// Checks the InlineAsm::Flag immediate at OpId - 1.
+  /// @param OpId Index of the register operand to check.
+  /// @return True if the operand can be folded with a load or store.
   LLVM_ABI bool mayFoldInlineAsmRegOp(unsigned OpId) const;
 
+  /// Return true if this is inline asm that requests stack alignment.
+  /// @return True if the inline asm requests stack alignment.
   LLVM_ABI bool isStackAligningInlineAsm() const;
+  /// Return the inline assembly dialect used by this instruction.
+  /// @return InlineAsm dialect for this inline asm instruction.
   LLVM_ABI InlineAsm::AsmDialect getInlineAsmDialect() const;
 
+  /// Return true if this is an INSERT_SUBREG instruction.
+  /// @return True if the opcode is INSERT_SUBREG.
   bool isInsertSubreg() const {
     return getOpcode() == TargetOpcode::INSERT_SUBREG;
   }
 
+  /// Return true if this is a SUBREG_TO_REG instruction.
+  /// @return True if the opcode is SUBREG_TO_REG.
   bool isSubregToReg() const {
     return getOpcode() == TargetOpcode::SUBREG_TO_REG;
   }
 
+  /// Return true if this is a REG_SEQUENCE instruction.
+  /// @return True if the opcode is REG_SEQUENCE.
   bool isRegSequence() const {
     return getOpcode() == TargetOpcode::REG_SEQUENCE;
   }
 
+  /// Return true if this is a BUNDLE header instruction.
+  /// @return True if the opcode is BUNDLE.
   bool isBundle() const {
     return getOpcode() == TargetOpcode::BUNDLE;
   }
 
+  /// Return true if this is a COPY instruction.
+  /// @return True if the opcode is COPY.
   bool isCopy() const {
     return getOpcode() == TargetOpcode::COPY;
   }
 
+  /// Return true if this is a COPY_LANEMASK instruction.
+  /// @return True if the opcode is COPY_LANEMASK.
   bool isCopyLaneMask() const {
     return getOpcode() == TargetOpcode::COPY_LANEMASK;
   }
 
+  /// Return true if this is a COPY with no subregister on either operand.
+  /// @return True if this is a full-register COPY.
   bool isFullCopy() const {
     return isCopy() && !getOperand(0).getSubReg() && !getOperand(1).getSubReg();
   }
 
+  /// Return true if this is an EXTRACT_SUBREG instruction.
+  /// @return True if the opcode is EXTRACT_SUBREG.
   bool isExtractSubreg() const {
     return getOpcode() == TargetOpcode::EXTRACT_SUBREG;
   }
 
+  /// Return true if this is a FAKE_USE instruction.
+  /// @return True if the opcode is FAKE_USE.
   bool isFakeUse() const { return getOpcode() == TargetOpcode::FAKE_USE; }
 
-  /// Return true if the instruction behaves like a copy.
-  /// This does not include native copy instructions.
+  /// Return true if this instruction behaves like a copy (excluding COPY).
+  /// @return True for copy-like opcodes such as SUBREG_TO_REG.
   bool isCopyLike() const {
     return isCopy() || isSubregToReg();
   }
 
-  /// Return true is the instruction is an identity copy.
+  /// Return true if this is an identity copy (same reg and subreg).
+  /// @return True if source and destination registers match exactly.
   bool isIdentityCopy() const {
     return isCopy() && getOperand(0).getReg() == getOperand(1).getReg() &&
       getOperand(0).getSubReg() == getOperand(1).getSubReg();
   }
 
-  /// Return true if this is a transient instruction that is either very likely
-  /// to be eliminated during register allocation (such as copy-like
-  /// instructions), or if this instruction doesn't have an execution-time cost.
+  /// Return true if this instruction is transient (likely eliminated / free).
+  ///
+  /// Includes copy-like instructions and other ops without execution-time cost.
+  /// @return True if the instruction is transient.
   bool isTransient() const {
     switch (getOpcode()) {
     default:
@@ -1504,78 +1739,105 @@ public:
     }
   }
 
-  /// Return the number of instructions inside the MI bundle, excluding the
-  /// bundle header.
+  /// Return the number of instructions inside this bundle, excluding the header.
   ///
-  /// This is the number of instructions that MachineBasicBlock::iterator
-  /// skips, 0 for unbundled instructions.
+  /// This is the number MachineBasicBlock::iterator skips; 0 if unbundled.
+  /// @return Bundle size excluding the header, or 0 if not bundled.
   LLVM_ABI unsigned getBundleSize() const;
 
-  /// Return true if the MachineInstr reads the specified register.
-  /// If TargetRegisterInfo is non-null, then it also checks if there
-  /// is a read of a super-register.
-  /// This does not count partial redefines of virtual registers as reads:
-  ///   %reg1024:6 = OP.
+  /// Return true if this instruction reads \p Reg.
+  ///
+  /// With a non-null \p TRI, also matches a read of a super-register.
+  /// Partial redefines of virtual registers are not counted as reads.
+  /// @param Reg Register whose read is queried.
+  /// @param TRI Optional target register info for super-register checks.
+  /// @return True if \p Reg is read.
   bool readsRegister(Register Reg, const TargetRegisterInfo *TRI) const {
     return findRegisterUseOperandIdx(Reg, TRI, false) != -1;
   }
 
-  /// Return true if the MachineInstr reads the specified virtual register.
-  /// Take into account that a partial define is a
-  /// read-modify-write operation.
+  /// Return true if this instruction reads virtual register \p Reg.
+  ///
+  /// Partial defines count as reads (read-modify-write).
+  /// @param Reg Virtual register to inspect.
+  /// @return True if \p Reg is read.
   bool readsVirtualRegister(Register Reg) const {
     return readsWritesVirtualRegister(Reg).first;
   }
 
-  /// Return a pair of bools (reads, writes) indicating if this instruction
-  /// reads or writes Reg. This also considers partial defines.
-  /// If Ops is not null, all operand indices for Reg are added.
+  /// Return whether this instruction reads and/or writes virtual register \p Reg.
+  ///
+  /// Partial defines count as both. When \p Ops is non-null, operand indices
+  /// for \p Reg are appended.
+  /// @param Reg Virtual register to inspect.
+  /// @param Ops Optional output vector of matching operand indices.
+  /// @return Pair of (reads, writes) booleans.
   LLVM_ABI std::pair<bool, bool>
   readsWritesVirtualRegister(Register Reg,
                              SmallVectorImpl<unsigned> *Ops = nullptr) const;
 
-  /// Return true if the MachineInstr kills the specified register.
-  /// If TargetRegisterInfo is non-null, then it also checks if there is
-  /// a kill of a super-register.
+  /// Return true if this instruction kills \p Reg.
+  ///
+  /// With a non-null \p TRI, also matches a kill of a super-register.
+  /// @param Reg Register whose kill is queried.
+  /// @param TRI Optional target register info for super-register checks.
+  /// @return True if \p Reg is killed.
   bool killsRegister(Register Reg, const TargetRegisterInfo *TRI) const {
     return findRegisterUseOperandIdx(Reg, TRI, true) != -1;
   }
 
-  /// Return true if the MachineInstr fully defines the specified register.
-  /// If TargetRegisterInfo is non-null, then it also checks
-  /// if there is a def of a super-register.
-  /// NOTE: It's ignoring subreg indices on virtual registers.
+  /// Return true if this instruction fully defines \p Reg.
+  ///
+  /// With a non-null \p TRI, also matches a def of a super-register.
+  /// Ignores subreg indices on virtual registers.
+  /// @param Reg Register whose definition is queried.
+  /// @param TRI Optional target register info for super-register checks.
+  /// @return True if \p Reg is fully defined.
   bool definesRegister(Register Reg, const TargetRegisterInfo *TRI) const {
     return findRegisterDefOperandIdx(Reg, TRI, false, false) != -1;
   }
 
-  /// Return true if the MachineInstr modifies (fully define or partially
-  /// define) the specified register.
-  /// NOTE: It's ignoring subreg indices on virtual registers.
+  /// Return true if this instruction modifies (fully or partially) \p Reg.
+  ///
+  /// Ignores subreg indices on virtual registers.
+  /// @param Reg Register whose modification is queried.
+  /// @param TRI Optional target register info for super-register checks.
+  /// @return True if \p Reg is defined or partially defined.
   bool modifiesRegister(Register Reg, const TargetRegisterInfo *TRI) const {
     return findRegisterDefOperandIdx(Reg, TRI, false, true) != -1;
   }
 
-  /// Returns true if the register is dead in this machine instruction.
-  /// If TargetRegisterInfo is non-null, then it also checks
-  /// if there is a dead def of a super-register.
+  /// Return true if \p Reg is dead in this instruction.
+  ///
+  /// With a non-null \p TRI, also matches a dead def of a super-register.
+  /// @param Reg Register whose deadness is queried.
+  /// @param TRI Optional target register info for super-register checks.
+  /// @return True if a dead def of \p Reg (or a super-reg) exists.
   bool registerDefIsDead(Register Reg, const TargetRegisterInfo *TRI) const {
     return findRegisterDefOperandIdx(Reg, TRI, true, false) != -1;
   }
 
-  /// Returns true if the MachineInstr has an implicit-use operand of exactly
-  /// the given register (not considering sub/super-registers).
+  /// Return true if there is an implicit use of exactly register \p Reg.
+  /// @param Reg Register to look for as an exact implicit use.
+  /// @return True if an implicit-use operand of \p Reg exists.
   LLVM_ABI bool hasRegisterImplicitUseOperand(Register Reg) const;
 
-  /// Returns the operand index that is a use of the specific register or -1
-  /// if it is not found. It further tightens the search criteria to a use
-  /// that kills the register if isKill is true.
+  /// Return the operand index that uses \p Reg, or -1 if not found.
+  ///
+  /// When \p isKill is true, only killing uses are considered.
+  /// @param Reg Register whose use operand is sought.
+  /// @param TRI Target register info used for super-register checks.
+  /// @param isKill If true, require a killing use.
+  /// @return Operand index of the matching use, or -1.
   LLVM_ABI int findRegisterUseOperandIdx(Register Reg,
                                          const TargetRegisterInfo *TRI,
                                          bool isKill = false) const;
 
-  /// Wrapper for findRegisterUseOperandIdx, it returns
-  /// a pointer to the MachineOperand rather than an index.
+  /// Find a use operand for \p Reg, or null if none matches.
+  /// @param Reg Register whose use operand is sought.
+  /// @param TRI Target register info used for super-register checks.
+  /// @param isKill If true, require a killing use.
+  /// @return Pointer to the matching use operand, or null.
   MachineOperand *findRegisterUseOperand(Register Reg,
                                          const TargetRegisterInfo *TRI,
                                          bool isKill = false) {
@@ -1583,6 +1845,11 @@ public:
     return (Idx == -1) ? nullptr : &getOperand(Idx);
   }
 
+  /// Find a const use operand for \p Reg, or null if none matches.
+  /// @param Reg Register whose use operand is sought.
+  /// @param TRI Target register info used for super-register checks.
+  /// @param isKill If true, require a killing use.
+  /// @return Pointer to the matching use operand, or null.
   const MachineOperand *findRegisterUseOperand(Register Reg,
                                                const TargetRegisterInfo *TRI,
                                                bool isKill = false) const {
@@ -1590,19 +1857,27 @@ public:
                                                                     isKill);
   }
 
-  /// Returns the operand index that is a def of the specified register or
-  /// -1 if it is not found. If isDead is true, defs that are not dead are
-  /// skipped. If Overlap is true, then it also looks for defs that merely
-  /// overlap the specified register. If TargetRegisterInfo is non-null,
-  /// then it also checks if there is a def of a super-register.
-  /// This may also return a register mask operand when Overlap is true.
+  /// Return the operand index that defines \p Reg, or -1 if not found.
+  ///
+  /// When \p isDead is true, non-dead defs are skipped. When \p Overlap is
+  /// true, overlapping defs and register masks are considered. With a non-null
+  /// \p TRI, super-register defs are also matched.
+  /// @param Reg Register whose defining operand is sought.
+  /// @param TRI Target register info used for super-register checks.
+  /// @param isDead If true, skip defs that are not dead.
+  /// @param Overlap If true, also match overlapping defs / regmasks.
+  /// @return Operand index of the matching def, or -1.
   LLVM_ABI int findRegisterDefOperandIdx(Register Reg,
                                          const TargetRegisterInfo *TRI,
                                          bool isDead = false,
                                          bool Overlap = false) const;
 
-  /// Wrapper for findRegisterDefOperandIdx, it returns
-  /// a pointer to the MachineOperand rather than an index.
+  /// Find a def operand for \p Reg, or null if none matches.
+  /// @param Reg Register whose defining operand is sought.
+  /// @param TRI Target register info used for super-register checks.
+  /// @param isDead If true, skip defs that are not dead.
+  /// @param Overlap If true, also match overlapping defs / regmasks.
+  /// @return Pointer to the matching def operand, or null.
   MachineOperand *findRegisterDefOperand(Register Reg,
                                          const TargetRegisterInfo *TRI,
                                          bool isDead = false,
@@ -1611,6 +1886,12 @@ public:
     return (Idx == -1) ? nullptr : &getOperand(Idx);
   }
 
+  /// Find a const def operand for \p Reg, or null if none matches.
+  /// @param Reg Register whose defining operand is sought.
+  /// @param TRI Target register info used for super-register checks.
+  /// @param isDead If true, skip defs that are not dead.
+  /// @param Overlap If true, also match overlapping defs / regmasks.
+  /// @return Pointer to the matching def operand, or null.
   const MachineOperand *findRegisterDefOperand(Register Reg,
                                                const TargetRegisterInfo *TRI,
                                                bool isDead = false,
@@ -1619,78 +1900,87 @@ public:
         Reg, TRI, isDead, Overlap);
   }
 
-  /// Find the index of the first operand in the
-  /// operand list that is used to represent the predicate. It returns -1 if
-  /// none is found.
+  /// Find the index of the first predicate operand, or -1 if none.
+  /// @return Index of the first predicate operand, or -1.
   LLVM_ABI int findFirstPredOperandIdx() const;
 
-  /// Find the index of the flag word operand that
-  /// corresponds to operand OpIdx on an inline asm instruction.  Returns -1 if
-  /// getOperand(OpIdx) does not belong to an inline asm operand group.
+  /// Find the inline-asm flag-word operand index for operand \p OpIdx.
   ///
-  /// If GroupNo is not NULL, it will receive the number of the operand group
-  /// containing OpIdx.
+  /// Returns -1 if the operand is not in an inline-asm operand group.
+  /// When \p GroupNo is non-null, it receives the operand group number.
+  /// @param OpIdx Operand index within the inline asm instruction.
+  /// @param GroupNo Optional out-parameter for the operand group number.
+  /// @return Flag-word operand index, or -1 if not applicable.
   LLVM_ABI int findInlineAsmFlagIdx(unsigned OpIdx,
                                     unsigned *GroupNo = nullptr) const;
 
-  /// Compute the static register class constraint for operand OpIdx.
-  /// For normal instructions, this is derived from the MCInstrDesc.
-  /// For inline assembly it is derived from the flag words.
+  /// Compute the static register class constraint for operand \p OpIdx.
   ///
-  /// Returns NULL if the static register class constraint cannot be
-  /// determined.
+  /// Derived from MCInstrDesc for normal instructions, or flag words for
+  /// inline asm. Returns null when the constraint cannot be determined.
+  /// @param OpIdx Operand index to constrain.
+  /// @param TII Target instruction info.
+  /// @param TRI Target register info.
+  /// @return Static register class constraint, or null.
   LLVM_ABI const TargetRegisterClass *
   getRegClassConstraint(unsigned OpIdx, const TargetInstrInfo *TII,
                         const TargetRegisterInfo *TRI) const;
 
-  /// Applies the constraints (def/use) implied by this MI on \p Reg to
-  /// the given \p CurRC.
-  /// If \p ExploreBundle is set and MI is part of a bundle, all the
-  /// instructions inside the bundle will be taken into account. In other words,
-  /// this method accumulates all the constraints of the operand of this MI and
-  /// the related bundle if MI is a bundle or inside a bundle.
+  /// Apply this instruction's constraints on \p Reg to class \p CurRC.
   ///
-  /// Returns the register class that satisfies both \p CurRC and the
-  /// constraints set by MI. Returns NULL if such a register class does not
-  /// exist.
+  /// When \p ExploreBundle is set and this MI is in a bundle, all instructions
+  /// in the bundle contribute. Returns null if no class satisfies both.
   ///
   /// \pre CurRC must not be NULL.
+  /// @param Reg Virtual register whose constraints are applied.
+  /// @param CurRC Current candidate register class (non-null).
+  /// @param TII Target instruction info.
+  /// @param TRI Target register info.
+  /// @param ExploreBundle Whether to include other instructions in the bundle.
+  /// @return Constrained register class, or null if none exists.
   LLVM_ABI const TargetRegisterClass *getRegClassConstraintEffectForVReg(
       Register Reg, const TargetRegisterClass *CurRC,
       const TargetInstrInfo *TII, const TargetRegisterInfo *TRI,
       bool ExploreBundle = false) const;
 
-  /// Applies the constraints (def/use) implied by the \p OpIdx operand
-  /// to the given \p CurRC.
+  /// Apply operand \p OpIdx's constraints to register class \p CurRC.
   ///
-  /// Returns the register class that satisfies both \p CurRC and the
-  /// constraints set by \p OpIdx MI. Returns NULL if such a register class
-  /// does not exist.
+  /// Returns the class satisfying both \p CurRC and the operand, or null.
   ///
   /// \pre CurRC must not be NULL.
   /// \pre The operand at \p OpIdx must be a register.
+  /// @param OpIdx Index of the register operand applying constraints.
+  /// @param CurRC Current candidate register class (non-null).
+  /// @param TII Target instruction info.
+  /// @param TRI Target register info.
+  /// @return Constrained register class, or null if none exists.
   LLVM_ABI const TargetRegisterClass *
   getRegClassConstraintEffect(unsigned OpIdx, const TargetRegisterClass *CurRC,
                               const TargetInstrInfo *TII,
                               const TargetRegisterInfo *TRI) const;
 
-  /// Add a tie between the register operands at DefIdx and UseIdx.
-  /// The tie will cause the register allocator to ensure that the two
-  /// operands are assigned the same physical register.
+  /// Tie register operands at \p DefIdx and \p UseIdx to the same physreg.
   ///
-  /// Tied operands are managed automatically for explicit operands in the
-  /// MCInstrDesc. This method is for exceptional cases like inline asm.
+  /// Explicit MCInstrDesc ties are automatic; use this for cases like inline
+  /// asm.
+  /// @param DefIdx Index of the defining register operand.
+  /// @param UseIdx Index of the using register operand.
   LLVM_ABI void tieOperands(unsigned DefIdx, unsigned UseIdx);
 
-  /// Given the index of a tied register operand, find the
-  /// operand it is tied to. Defs are tied to uses and vice versa. Returns the
-  /// index of the tied operand which must exist.
+  /// Return the index of the operand tied to register operand \p OpIdx.
+  ///
+  /// Defs are tied to uses and vice versa. The tied operand must exist.
+  /// @param OpIdx Index of a tied register operand.
+  /// @return Index of the matching tied operand.
   LLVM_ABI unsigned findTiedOperandIdx(unsigned OpIdx) const;
 
-  /// Given the index of a register def operand,
-  /// check if the register def is tied to a source operand, due to either
-  /// two-address elimination or inline assembly constraints. Returns the
-  /// first tied use operand index by reference if UseOpIdx is not null.
+  /// Return true if def operand \p DefOpIdx is tied to a use operand.
+  ///
+  /// Ties arise from two-address elimination or inline-asm constraints.
+  /// When \p UseOpIdx is non-null, it receives the first tied use index.
+  /// @param DefOpIdx Index of the def operand to check.
+  /// @param UseOpIdx Optional out-parameter for the tied use index.
+  /// @return True if the def is tied to a use.
   bool isRegTiedToUseOperand(unsigned DefOpIdx,
                              unsigned *UseOpIdx = nullptr) const {
     const MachineOperand &MO = getOperand(DefOpIdx);
@@ -1701,9 +1991,12 @@ public:
     return true;
   }
 
-  /// Return true if the use operand of the specified index is tied to a def
-  /// operand. It also returns the def operand index by reference if DefOpIdx
-  /// is not null.
+  /// Return true if use operand \p UseOpIdx is tied to a def operand.
+  ///
+  /// When \p DefOpIdx is non-null, it receives the tied def operand index.
+  /// @param UseOpIdx Index of the use operand to check.
+  /// @param DefOpIdx Optional out-parameter for the tied def index.
+  /// @return True if the use is tied to a def.
   bool isRegTiedToDefOperand(unsigned UseOpIdx,
                              unsigned *DefOpIdx = nullptr) const {
     const MachineOperand &MO = getOperand(UseOpIdx);
@@ -1717,177 +2010,226 @@ public:
   /// Clears kill flags on all operands.
   LLVM_ABI void clearKillInfo();
 
-  /// Replace all occurrences of FromReg with ToReg:SubIdx,
-  /// properly composing subreg indices where necessary.
+  /// Replace all occurrences of \p FromReg with \p ToReg:\p SubIdx.
+  ///
+  /// Composes subreg indices where necessary.
+  /// @param FromReg Register being replaced.
+  /// @param ToReg Replacement register.
+  /// @param SubIdx Subregister index composed onto \p ToReg.
+  /// @param RegInfo Target register info used for composition.
   LLVM_ABI void substituteRegister(Register FromReg, Register ToReg,
                                    unsigned SubIdx,
                                    const TargetRegisterInfo &RegInfo);
 
-  /// We have determined MI kills a register. Look for the
-  /// operand that uses it and mark it as IsKill. If AddIfNotFound is true,
-  /// add a implicit operand if it's not found. Returns true if the operand
-  /// exists / is added.
+  /// Mark the operand that uses \p IncomingReg as a kill.
+  ///
+  /// If \p AddIfNotFound is true, add an implicit use operand when missing.
+  /// @param IncomingReg Register that is killed by this instruction.
+  /// @param RegInfo Target register info used for alias queries.
+  /// @param AddIfNotFound If true, add an implicit operand when not found.
+  /// @return True if the operand exists or was added.
   LLVM_ABI bool addRegisterKilled(Register IncomingReg,
                                   const TargetRegisterInfo *RegInfo,
                                   bool AddIfNotFound = false);
 
-  /// Clear all kill flags affecting Reg.  If RegInfo is provided, this includes
-  /// all aliasing registers.
+  /// Clear all kill flags affecting \p Reg (and aliases if \p RegInfo is set).
+  /// @param Reg Register whose kill flags are cleared.
+  /// @param RegInfo Optional target register info for alias queries.
   LLVM_ABI void clearRegisterKills(Register Reg,
                                    const TargetRegisterInfo *RegInfo);
 
-  /// We have determined MI defined a register without a use.
-  /// Look for the operand that defines it and mark it as IsDead. If
-  /// AddIfNotFound is true, add a implicit operand if it's not found. Returns
-  /// true if the operand exists / is added.
+  /// Mark the operand that defines \p Reg as dead.
+  ///
+  /// If \p AddIfNotFound is true, add an implicit def operand when missing.
+  /// @param Reg Register that was defined without a use.
+  /// @param RegInfo Target register info used for alias queries.
+  /// @param AddIfNotFound If true, add an implicit operand when not found.
+  /// @return True if the operand exists or was added.
   LLVM_ABI bool addRegisterDead(Register Reg, const TargetRegisterInfo *RegInfo,
                                 bool AddIfNotFound = false);
 
-  /// Clear all dead flags on operands defining register @p Reg.
+  /// Clear all dead flags on operands defining register \p Reg.
+  /// @param Reg Register whose defining operands lose the dead flag.
   LLVM_ABI void clearRegisterDeads(Register Reg);
 
-  /// Mark all subregister defs of register @p Reg with the undef flag.
-  /// This function is used when we determined to have a subregister def in an
-  /// otherwise undefined super register.
+  /// Mark subregister defs of \p Reg with the undef flag.
+  ///
+  /// Used when a subregister is defined in an otherwise undefined super-reg.
+  /// @param Reg Super-register whose subreg defs are updated.
+  /// @param IsUndef Whether to set or clear the undef flag.
   LLVM_ABI void setRegisterDefReadUndef(Register Reg, bool IsUndef = true);
 
-  /// We have determined MI defines a register. Make sure there is an operand
-  /// defining Reg.
+  /// Ensure this instruction has an operand that defines \p Reg.
+  /// @param Reg Register that must be defined.
+  /// @param RegInfo Optional target register info for aliases.
   LLVM_ABI void addRegisterDefined(Register Reg,
                                    const TargetRegisterInfo *RegInfo = nullptr);
 
-  /// Mark every physreg used by this instruction as
-  /// dead except those in the UsedRegs list.
+  /// Mark every physreg used by this instruction dead except \p UsedRegs.
   ///
   /// On instructions with register mask operands, also add implicit-def
-  /// operands for all registers in UsedRegs.
+  /// operands for all registers in \p UsedRegs.
+  /// @param UsedRegs Physical registers that must remain live.
+  /// @param TRI Target register info used for alias queries.
   LLVM_ABI void setPhysRegsDeadExcept(ArrayRef<Register> UsedRegs,
                                       const TargetRegisterInfo &TRI);
 
-  /// Return true if it is safe to move this instruction. If
-  /// SawStore is set to true, it means that there is a store (or call) between
-  /// the instruction's location and its intended destination.
+  /// Return true if it is safe to move this instruction.
+  ///
+  /// If \p SawStore is set to true, a store or call lies between the current
+  /// location and the intended destination.
+  /// @param SawStore Set to true when a store/call is seen while checking.
+  /// @return True if moving this instruction is safe.
   LLVM_ABI bool isSafeToMove(bool &SawStore) const;
 
-  /// Return true if this instruction would be trivially dead if all of its
-  /// defined registers were dead.
+  /// Return true if this would be trivially dead if all defined regs were dead.
+  /// @return True if the instruction has no hard-to-model side effects.
   LLVM_ABI bool wouldBeTriviallyDead() const;
 
-  /// Check whether an MI is dead. If \p LivePhysRegs is provided, it is assumed
-  /// to be at the position of MI and will be used to check the Liveness of
-  /// physical register defs. If \p LivePhysRegs is not provided, this will
-  /// pessimistically assume any PhysReg def is live.
-  /// For trivially dead instructions (i.e. those without hard to model effects
-  /// / wouldBeTriviallyDead), this checks deadness by analyzing defs of the
-  /// MachineInstr. If the instruction wouldBeTriviallyDead, and  all the defs
-  /// either have dead flags or have no uses, then the instruction is said to be
-  /// dead.
+  /// Return true if this instruction is dead.
+  ///
+  /// If \p LivePhysRegs is provided, it is assumed to be at this instruction
+  /// and used to check liveness of physical defs; otherwise physreg defs are
+  /// assumed live. For trivially dead instructions, deadness is decided from
+  /// defs that are flagged dead or unused.
+  /// @param MRI Register info used to inspect uses of defined registers.
+  /// @param LivePhysRegs Optional live physical registers at this position.
+  /// @return True if the instruction is dead.
   LLVM_ABI bool isDead(const MachineRegisterInfo &MRI,
                        LiveRegUnits *LivePhysRegs = nullptr) const;
 
-  /// Returns true if this instruction's memory access aliases the memory
-  /// access of Other.
-  //
-  /// Assumes any physical registers used to compute addresses
-  /// have the same value for both instructions.  Returns false if neither
-  /// instruction writes to memory.
+  /// Return true if this instruction's memory access may alias \p Other.
   ///
-  /// @param AA Optional alias analysis, used to compare memory operands.
-  /// @param Other MachineInstr to check aliasing against.
+  /// Assumes physical registers used for addresses have the same value in
+  /// both instructions. Returns false if neither writes memory.
+  /// @param AA Optional batch alias analysis for comparing memrefs.
+  /// @param Other Other instruction to check for aliasing.
   /// @param UseTBAA Whether to pass TBAA information to alias analysis.
+  /// @return True if the memory accesses may alias.
   LLVM_ABI bool mayAlias(BatchAAResults *AA, const MachineInstr &Other,
                          bool UseTBAA) const;
+  /// Return true if this instruction's memory access may alias \p Other.
+  /// @param AA Optional alias analysis for comparing memrefs.
+  /// @param Other Other instruction to check for aliasing.
+  /// @param UseTBAA Whether to pass TBAA information to alias analysis.
+  /// @return True if the memory accesses may alias.
   LLVM_ABI bool mayAlias(AAResults *AA, const MachineInstr &Other,
                          bool UseTBAA) const;
 
-  /// Return true if this instruction may have an ordered
-  /// or volatile memory reference, or if the information describing the memory
-  /// reference is not available. Return false if it is known to have no
-  /// ordered or volatile memory references.
+  /// Return true if this may have an ordered/volatile memory reference.
+  ///
+  /// Also returns true when memory-reference information is unavailable.
+  /// @return False only when known to have no ordered/volatile memrefs.
   LLVM_ABI bool hasOrderedMemoryRef() const;
 
-  /// Return true if this load instruction never traps and points to a memory
-  /// location whose value doesn't change during the execution of this function.
+  /// Return true if this load never traps and reads invariant memory.
   ///
-  /// Examples include loading a value from the constant pool or from the
-  /// argument area of a function (if it does not change).  If the instruction
-  /// does multiple loads, this returns true only if all of the loads are
-  /// dereferenceable and invariant.
+  /// Examples include constant-pool loads or unchanged argument-area loads.
+  /// For multiple loads, all must be dereferenceable and invariant.
+  /// @return True if every load is dereferenceable and invariant.
   LLVM_ABI bool isDereferenceableInvariantLoad() const;
 
-  /// If the specified instruction is a PHI that always merges together the
-  /// same virtual register, return the register, otherwise return Register().
+  /// If this PHI always merges the same virtual register, return that register.
+  /// @return The constant PHI register, or an invalid Register otherwise.
   LLVM_ABI Register isConstantValuePHI() const;
 
-  /// Return true if this instruction has side effects that are not modeled
-  /// by mayLoad / mayStore, etc.
-  /// For all instructions, the property is encoded in MCInstrDesc::Flags
-  /// (see MCInstrDesc::hasUnmodeledSideEffects(). The only exception is
-  /// INLINEASM instruction, in which case the side effect property is encoded
-  /// in one of its operands (see InlineAsm::Extra_HasSideEffect).
+  /// Return true if this instruction has side effects beyond mayLoad/mayStore.
   ///
+  /// For most instructions the property is in MCInstrDesc::Flags; for INLINEASM
+  /// it is encoded in an operand (see InlineAsm::Extra_HasSideEffect).
+  /// @return True if unmodeled side effects are present.
   LLVM_ABI bool hasUnmodeledSideEffects() const;
 
   /// Returns true if it is illegal to fold a load across this instruction.
+  /// @return True if load folding across this instruction is illegal.
   LLVM_ABI bool isLoadFoldBarrier() const;
 
   /// Return true if all the defs of this instruction are dead.
+  /// @return True if every def operand is marked dead.
   LLVM_ABI bool allDefsAreDead() const;
 
   /// Return true if all the implicit defs of this instruction are dead.
+  /// @return True if every implicit def operand is marked dead.
   LLVM_ABI bool allImplicitDefsAreDead() const;
 
   /// Return a valid size if the instruction is a spill instruction.
+  /// @param TII Target instruction info used to classify the instruction.
+  /// @return Spill/restore size when applicable; otherwise std::nullopt.
   LLVM_ABI std::optional<LocationSize>
   getSpillSize(const TargetInstrInfo *TII) const;
 
   /// Return a valid size if the instruction is a folded spill instruction.
+  /// @param TII Target instruction info used to classify the instruction.
+  /// @return Spill/restore size when applicable; otherwise std::nullopt.
   LLVM_ABI std::optional<LocationSize>
   getFoldedSpillSize(const TargetInstrInfo *TII) const;
 
   /// Return a valid size if the instruction is a restore instruction.
+  /// @param TII Target instruction info used to classify the instruction.
+  /// @return Spill/restore size when applicable; otherwise std::nullopt.
   LLVM_ABI std::optional<LocationSize>
   getRestoreSize(const TargetInstrInfo *TII) const;
 
   /// Return a valid size if the instruction is a folded restore instruction.
+  /// @param TII Target instruction info used to classify the instruction.
+  /// @return Spill/restore size when applicable; otherwise std::nullopt.
   LLVM_ABI std::optional<LocationSize>
   getFoldedRestoreSize(const TargetInstrInfo *TII) const;
 
-  /// Copy implicit register operands from specified
-  /// instruction to this instruction.
+  /// Copy implicit register operands from \p MI onto this instruction.
+  /// @param MF Machine function used to allocate operands.
+  /// @param MI Source instruction whose implicit operands are copied.
   LLVM_ABI void copyImplicitOps(MachineFunction &MF, const MachineInstr &MI);
 
   /// Debugging support
   /// @{
-  /// Determine the generic type to be printed (if needed) on uses and defs.
+  /// Determine the generic type to print for operand \p OpIdx, if needed.
+  /// @param OpIdx Operand index whose type may be printed.
+  /// @param PrintedTypes Tracks which types have already been printed.
+  /// @param MRI Register info used to look up types.
+  /// @return Generic LLT to print for the operand, if any.
   LLVM_ABI LLT getTypeToPrint(unsigned OpIdx, SmallBitVector &PrintedTypes,
                               const MachineRegisterInfo &MRI) const;
 
-  /// Return true when an instruction has tied register that can't be determined
-  /// by the instruction's descriptor. This is useful for MIR printing, to
-  /// determine whether we need to print the ties or not.
+  /// Return true if this instruction has ties not implied by its descriptor.
+  ///
+  /// Useful for MIR printing to decide whether ties must be printed explicitly.
+  /// @return True if complex (non-descriptor) register ties are present.
   LLVM_ABI bool hasComplexRegisterTies() const;
 
-  /// Print this MI to \p OS.
-  /// Don't print information that can be inferred from other instructions if
-  /// \p IsStandalone is false. It is usually true when only a fragment of the
-  /// function is printed.
-  /// Only print the defs and the opcode if \p SkipOpers is true.
-  /// Otherwise, also print operands if \p SkipDebugLoc is true.
-  /// Otherwise, also print the debug loc, with a terminating newline.
-  /// \p TII is used to print the opcode name.  If it's not present, but the
-  /// MI is in a function, the opcode will be printed using the function's TII.
+  /// Print this instruction to \p OS.
+  ///
+  /// When \p IsStandalone is false, omit information inferable from other
+  /// instructions (typical when printing a fragment). \p SkipOpers prints
+  /// only defs and opcode; otherwise operands are printed, and the debug
+  /// location unless \p SkipDebugLoc. \p TII supplies opcode names when set.
+  /// @param OS Output stream.
+  /// @param IsStandalone Whether to print standalone (non-fragment) details.
+  /// @param SkipOpers If true, print only defs and the opcode.
+  /// @param SkipDebugLoc If true, omit the debug location.
+  /// @param AddNewLine If true, terminate the printout with a newline.
+  /// @param TII Optional target instr info for opcode names.
   LLVM_ABI void print(raw_ostream &OS, bool IsStandalone = true,
                       bool SkipOpers = false, bool SkipDebugLoc = false,
                       bool AddNewLine = true,
                       const TargetInstrInfo *TII = nullptr) const;
+  /// Print this instruction to \p OS using module slot tracker \p MST.
+  /// @param OS Output stream.
+  /// @param MST Module slot tracker for IR name resolution.
+  /// @param IsStandalone Whether to print standalone (non-fragment) details.
+  /// @param SkipOpers If true, print only defs and the opcode.
+  /// @param SkipDebugLoc If true, omit the debug location.
+  /// @param AddNewLine If true, terminate the printout with a newline.
+  /// @param TII Optional target instr info for opcode names.
   LLVM_ABI void print(raw_ostream &OS, ModuleSlotTracker &MST,
                       bool IsStandalone = true, bool SkipOpers = false,
                       bool SkipDebugLoc = false, bool AddNewLine = true,
                       const TargetInstrInfo *TII = nullptr) const;
+  /// Dump this instruction to dbgs().
   LLVM_ABI void dump() const;
-  /// Print on dbgs() the current instruction and the instructions defining its
-  /// operands and so on until we reach \p MaxDepth.
+  /// Dump this instruction and defining instructions up to \p MaxDepth.
+  /// @param MRI Register info used to walk defining instructions.
+  /// @param MaxDepth Maximum recursion depth when dumping defs.
   LLVM_ABI void dumpr(const MachineRegisterInfo &MRI,
                       unsigned MaxDepth = UINT_MAX) const;
   /// @}
@@ -1895,123 +2237,157 @@ public:
   //===--------------------------------------------------------------------===//
   // Accessors used to build up machine instructions.
 
-  /// Add the specified operand to the instruction.  If it is an implicit
-  /// operand, it is added to the end of the operand list.  If it is an
-  /// explicit operand it is added at the end of the explicit operand list
-  /// (before the first implicit operand).
+  /// Add operand \p Op to this instruction.
   ///
-  /// MF must be the machine function that was used to allocate this
-  /// instruction.
-  ///
-  /// MachineInstrBuilder provides a more convenient interface for creating
-  /// instructions and adding operands.
+  /// Implicit operands are appended; explicit operands are inserted before
+  /// the first implicit operand. \p MF must be the function that allocated
+  /// this instruction. MachineInstrBuilder is usually more convenient.
+  /// @param MF Machine function that owns this instruction.
+  /// @param Op Operand to add.
   LLVM_ABI void addOperand(MachineFunction &MF, const MachineOperand &Op);
 
-  /// Add an operand without providing an MF reference. This only works for
-  /// instructions that are inserted in a basic block.
+  /// Add operand \p Op without an explicit MachineFunction reference.
   ///
-  /// MachineInstrBuilder and the two-argument addOperand(MF, MO) should be
-  /// preferred.
+  /// Only works for instructions already inserted in a basic block.
+  /// Prefer MachineInstrBuilder or addOperand(MF, Op).
+  /// @param Op Operand to append.
   LLVM_ABI void addOperand(const MachineOperand &Op);
 
-  /// Inserts Ops BEFORE It. Can untie/retie tied operands.
+  /// Insert operands \p Ops before iterator \p InsertBefore.
+  ///
+  /// May untie and retie tied operands as needed.
+  /// @param InsertBefore Insertion point in the operand list.
+  /// @param Ops Operands to insert.
   LLVM_ABI void insert(mop_iterator InsertBefore, ArrayRef<MachineOperand> Ops);
 
-  /// Replace the instruction descriptor (thus opcode) of
-  /// the current instruction with a new one.
+  /// Replace this instruction's descriptor (and thus opcode) with \p TID.
+  /// @param TID New target instruction descriptor.
   LLVM_ABI void setDesc(const MCInstrDesc &TID);
 
-  /// Replace current source information with new such.
-  /// Avoid using this, the constructor argument is preferable.
+  /// Replace this instruction's debug location with \p DL.
+  ///
+  /// Prefer setting the location via the constructor when possible.
+  /// @param DL New debug location.
   void setDebugLoc(DebugLoc DL) { DbgLoc = std::move(DL); }
 
-  /// Erase an operand from an instruction, leaving it with one
-  /// fewer operand than it started with.
+  /// Erase operand \p OpNo, leaving the instruction with one fewer operand.
+  /// @param OpNo Index of the operand to remove.
   LLVM_ABI void removeOperand(unsigned OpNo);
 
-  /// Clear this MachineInstr's memory reference descriptor list.  This resets
-  /// the memrefs to their most conservative state.  This should be used only
-  /// as a last resort since it greatly pessimizes our knowledge of the memory
-  /// access performed by the instruction.
+  /// Clear this instruction's memory reference descriptor list.
+  ///
+  /// Resets memrefs to their most conservative state. Use only as a last
+  /// resort since it greatly pessimizes knowledge of the memory access.
+  /// @param MF Machine function used for extra-info updates.
   LLVM_ABI void dropMemRefs(MachineFunction &MF);
 
-  /// Assign this MachineInstr's memory reference descriptor list.
+  /// Assign this instruction's memory reference descriptor list.
   ///
-  /// Unlike other methods, this *will* allocate them into a new array
-  /// associated with the provided `MachineFunction`.
+  /// Unlike other methods, this allocates them into a new array associated
+  /// with the provided MachineFunction.
+  /// @param MF Machine function used for memref allocation.
+  /// @param MemRefs New list of memory operands.
   LLVM_ABI void setMemRefs(MachineFunction &MF,
                            ArrayRef<MachineMemOperand *> MemRefs);
 
-  /// Add a MachineMemOperand to the machine instruction.
-  /// This function should be used only occasionally. The setMemRefs function
-  /// is the primary method for setting up a MachineInstr's MemRefs list.
+  /// Append MachineMemOperand \p MO to this instruction's memref list.
+  ///
+  /// Prefer setMemRefs for setting up the full list; use this only occasionally.
+  /// @param MF Machine function used for memref allocation.
+  /// @param MO Memory operand to append.
   LLVM_ABI void addMemOperand(MachineFunction &MF, MachineMemOperand *MO);
 
-  /// Clone another MachineInstr's memory reference descriptor list and replace
-  /// ours with it.
+  /// Replace our memrefs with a clone of \p MI's memref list.
   ///
   /// Note that `*this` may be the incoming MI!
   ///
   /// Prefer this API whenever possible as it can avoid allocations in common
   /// cases.
+  /// @param MF Machine function used for memref allocation.
+  /// @param MI Source instruction whose memrefs are cloned.
   LLVM_ABI void cloneMemRefs(MachineFunction &MF, const MachineInstr &MI);
 
-  /// Clone the merge of multiple MachineInstrs' memory reference descriptors
-  /// list and replace ours with it.
+  /// Replace our memrefs with the merged memrefs of instructions in \p MIs.
   ///
   /// Note that `*this` may be one of the incoming MIs!
   ///
   /// Prefer this API whenever possible as it can avoid allocations in common
   /// cases.
+  /// @param MF Machine function used for memref allocation.
+  /// @param MIs Instructions whose memrefs are merged.
   LLVM_ABI void cloneMergedMemRefs(MachineFunction &MF,
                                    ArrayRef<const MachineInstr *> MIs);
 
-  /// Set a symbol that will be emitted just prior to the instruction itself.
+  /// Set a symbol emitted immediately before this instruction.
   ///
-  /// Setting this to a null pointer will remove any such symbol.
+  /// Setting this to null removes any such symbol.
   ///
   /// FIXME: This is not fully implemented yet.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param Symbol Symbol to emit before the instruction, or null.
   LLVM_ABI void setPreInstrSymbol(MachineFunction &MF, MCSymbol *Symbol);
 
-  /// Set a symbol that will be emitted just after the instruction itself.
+  /// Set a symbol emitted immediately after this instruction.
   ///
-  /// Setting this to a null pointer will remove any such symbol.
+  /// Setting this to null removes any such symbol.
   ///
   /// FIXME: This is not fully implemented yet.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param Symbol Symbol to emit after the instruction, or null.
   LLVM_ABI void setPostInstrSymbol(MachineFunction &MF, MCSymbol *Symbol);
 
-  /// Clone another MachineInstr's pre- and post- instruction symbols and
-  /// replace ours with it.
+  /// Clone another instruction's pre- and post-instruction symbols onto this.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param MI Source instruction whose symbols are cloned.
   LLVM_ABI void cloneInstrSymbols(MachineFunction &MF, const MachineInstr &MI);
 
-  /// Set a marker on instructions that denotes where we should create and emit
-  /// heap alloc site labels. This waits until after instruction selection and
-  /// optimizations to create the label, so it should still work if the
-  /// instruction is removed or duplicated.
+  /// Set a heap-alloc site marker used to emit labels after ISel/opts.
+  ///
+  /// Label creation is deferred so it still works if the instruction is
+  /// removed or duplicated.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param MD Heap-alloc marker metadata, or null to clear.
   LLVM_ABI void setHeapAllocMarker(MachineFunction &MF, MDNode *MD);
 
-  // Set metadata on instructions that say which sections to emit instruction
-  // addresses into.
+  /// Set metadata naming sections that should receive this instruction address.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param MD PC-sections metadata node, or null to clear.
   LLVM_ABI void setPCSections(MachineFunction &MF, MDNode *MD);
 
+  /// Set mmra.op metadata on this instruction.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param MMRAs MMRA metadata node, or null to clear.
   LLVM_ABI void setMMRAMetadata(MachineFunction &MF, MDNode *MMRAs);
 
-  /// Set the CFI type for the instruction.
+  /// Set the CFI type hash for this instruction.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param Type CFI type hash value.
   LLVM_ABI void setCFIType(MachineFunction &MF, uint32_t Type);
 
+  /// Set the deactivation symbol value attached to this instruction.
+  /// @param MF Machine function used for extra-info allocation.
+  /// @param DS Deactivation symbol value, or null to clear.
   LLVM_ABI void setDeactivationSymbol(MachineFunction &MF, Value *DS);
 
-  /// Return the MIFlags which represent both MachineInstrs. This
-  /// should be used when merging two MachineInstrs into one. This routine does
-  /// not modify the MIFlags of this MachineInstr.
+  /// Return the MIFlags that represent both this instruction and \p Other.
+  ///
+  /// Use when merging two MachineInstrs into one. Does not modify this
+  /// instruction's flags.
+  /// @param Other Other instruction whose flags are merged with this one.
+  /// @return Combined MIFlags bitvector.
   LLVM_ABI uint32_t mergeFlagsWith(const MachineInstr &Other) const;
 
+  /// Build MIFlags bits corresponding to the IR flags on instruction \p I.
+  /// @param I LLVM IR instruction whose flags are translated.
+  /// @return MIFlags bitvector derived from \p I.
   LLVM_ABI static uint32_t copyFlagsFromInstruction(const Instruction &I);
 
-  /// Copy all flags to MachineInst MIFlags
+  /// Copy IR flags from instruction \p I into this MachineInstr's MIFlags.
+  /// @param I LLVM IR instruction whose flags are copied.
   LLVM_ABI void copyIRFlags(const Instruction &I);
 
-  /// Break any tie involving OpIdx.
+  /// Break any tie involving operand index \p OpIdx.
+  /// @param OpIdx Index of the tied register operand to untie.
   void untieRegOperand(unsigned OpIdx) {
     MachineOperand &MO = getOperand(OpIdx);
     if (MO.isReg() && MO.isTied()) {
@@ -2021,23 +2397,23 @@ public:
   }
 
   /// Add all implicit def and use operands to this instruction.
+  /// @param MF Machine function used to allocate new operands.
   LLVM_ABI void addImplicitDefUseOperands(MachineFunction &MF);
 
-  /// Scan instructions immediately following MI and collect any matching
-  /// DBG_VALUEs.
+  /// Collect matching DBG_VALUEs that immediately follow this instruction.
+  /// @param DbgValues Output vector that receives the collected debug values.
   LLVM_ABI void collectDebugValues(SmallVectorImpl<MachineInstr *> &DbgValues);
 
-  /// Find all DBG_VALUEs that point to the register def in this instruction
-  /// and point them to \p Reg instead.
+  /// Retarget DBG_VALUEs that refer to this instruction's def to \p Reg.
+  /// @param Reg Register that should replace this instruction's defined register.
   LLVM_ABI void changeDebugValuesDefReg(Register Reg);
 
-  /// Remove all incoming values of Phi instruction for the given block.
+  /// Remove all PHI incoming values from basic block \p MBB.
   ///
-  /// Return deleted operands count.
-  ///
-  /// Method does not erase PHI instruction even if it has single income or does
-  /// not have incoming values at all. It is a caller responsibility to make
-  /// decision how to process PHI instruction after incoming values removed.
+  /// Does not erase the PHI even if it has a single remaining incoming value
+  /// or none at all; the caller decides how to process the PHI afterwards.
+  /// @param MBB Predecessor block whose incoming PHI operands are removed.
+  /// @return Number of operands deleted.
   LLVM_ABI unsigned removePHIIncomingValueFor(const MachineBasicBlock &MBB);
 
   /// Sets all register debug operands in this debug value instruction to be
@@ -2052,20 +2428,28 @@ public:
     }
   }
 
+  /// Return the registers of the first two operands.
+  /// @return Tuple of registers from the first two operands.
   std::tuple<Register, Register> getFirst2Regs() const {
     return std::tuple(getOperand(0).getReg(), getOperand(1).getReg());
   }
 
+  /// Return the registers of the first three operands.
+  /// @return Tuple of registers from the first three operands.
   std::tuple<Register, Register, Register> getFirst3Regs() const {
     return std::tuple(getOperand(0).getReg(), getOperand(1).getReg(),
                       getOperand(2).getReg());
   }
 
+  /// Return the registers of the first four operands.
+  /// @return Tuple of registers from the first four operands.
   std::tuple<Register, Register, Register, Register> getFirst4Regs() const {
     return std::tuple(getOperand(0).getReg(), getOperand(1).getReg(),
                       getOperand(2).getReg(), getOperand(3).getReg());
   }
 
+  /// Return the registers of the first five operands.
+  /// @return Tuple of registers from the first five operands.
   std::tuple<Register, Register, Register, Register, Register>
   getFirst5Regs() const {
     return std::tuple(getOperand(0).getReg(), getOperand(1).getReg(),
@@ -2073,17 +2457,33 @@ public:
                       getOperand(4).getReg());
   }
 
+  /// Return the LLTs of the first two operands.
+  /// @return Tuple of LLTs for the first two operands.
   LLVM_ABI std::tuple<LLT, LLT> getFirst2LLTs() const;
+  /// Return the LLTs of the first three operands.
+  /// @return Tuple of LLTs for the first three operands.
   LLVM_ABI std::tuple<LLT, LLT, LLT> getFirst3LLTs() const;
+  /// Return the LLTs of the first four operands.
+  /// @return Tuple of LLTs for the first four operands.
   LLVM_ABI std::tuple<LLT, LLT, LLT, LLT> getFirst4LLTs() const;
+  /// Return the LLTs of the first five operands.
+  /// @return Tuple of LLTs for the first five operands.
   LLVM_ABI std::tuple<LLT, LLT, LLT, LLT, LLT> getFirst5LLTs() const;
 
+  /// Return the registers and LLTs of the first two operands.
+  /// @return Tuple of (reg0, llt0, reg1, llt1) for the first two operands.
   LLVM_ABI std::tuple<Register, LLT, Register, LLT> getFirst2RegLLTs() const;
+  /// Return the registers and LLTs of the first three operands.
+  /// @return Tuple of (reg, LLT) pairs for the first three operands.
   LLVM_ABI std::tuple<Register, LLT, Register, LLT, Register, LLT>
   getFirst3RegLLTs() const;
+  /// Return the registers and LLTs of the first four operands.
+  /// @return Tuple of (reg, LLT) pairs for the first four operands.
   LLVM_ABI
   std::tuple<Register, LLT, Register, LLT, Register, LLT, Register, LLT>
   getFirst4RegLLTs() const;
+  /// Return the registers and LLTs of the first five operands.
+  /// @return Tuple of (reg, LLT) pairs for the first five operands.
   LLVM_ABI std::tuple<Register, LLT, Register, LLT, Register, LLT, Register,
                       LLT, Register, LLT>
   getFirst5RegLLTs() const;
@@ -2123,13 +2523,20 @@ private:
                     uint32_t CFIType, MDNode *MMRAs, Value *DS);
 };
 
-/// Special DenseMapInfo traits to compare MachineInstr* by *value* of the
-/// instruction rather than by pointer value.
-/// The hashing and equality testing functions ignore definitions so this is
-/// useful for CSE, etc.
+/// DenseMapInfo traits that compare MachineInstr* by instruction value.
+///
+/// Hashing and equality ignore definitions, which is useful for CSE and
+/// similar value-based lookups.
 struct MachineInstrExpressionTrait : DenseMapInfo<MachineInstr *> {
+  /// Compute a hash of \p MI based on opcode and operands, ignoring defs.
+  /// @param MI Instruction to hash.
+  /// @return Hash value for value-based DenseMap lookup.
   LLVM_ABI static unsigned getHashValue(const MachineInstr *const &MI);
 
+  /// Return true if \p LHS and \p RHS are identical ignoring virtual defs.
+  /// @param LHS Left-hand instruction pointer.
+  /// @param RHS Right-hand instruction pointer.
+  /// @return True if the instructions compare equal under IgnoreVRegDefs.
   static bool isEqual(const MachineInstr *const &LHS,
                       const MachineInstr *const &RHS) {
     return LHS->isIdenticalTo(*RHS, MachineInstr::IgnoreVRegDefs);
@@ -2139,6 +2546,10 @@ struct MachineInstrExpressionTrait : DenseMapInfo<MachineInstr *> {
 //===----------------------------------------------------------------------===//
 // Debugging Support
 
+/// Print machine instruction \p MI to stream \p OS.
+/// @param OS Output stream.
+/// @param MI Instruction to print.
+/// @return \p OS after printing.
 inline raw_ostream& operator<<(raw_ostream &OS, const MachineInstr &MI) {
   MI.print(OS);
   return OS;

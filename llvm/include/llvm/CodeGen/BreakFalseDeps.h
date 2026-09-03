@@ -22,11 +22,21 @@
 
 namespace llvm {
 
+/// New PM pass that breaks false register dependencies which cause stalls.
 class BreakFalseDepsPass : public OptionalPassInfoMixin<BreakFalseDepsPass> {
 public:
+  /// Identify and break false dependencies in \p MF.
+  /// \param MF Machine function whose false dependencies are broken.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after breaking false dependencies.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Breaking false dependencies expects that the function contains no virtual
+  /// registers.
+  /// \return Required properties, with NoVRegs set.
   MachineFunctionProperties getRequiredProperties() const {
     return MachineFunctionProperties().setNoVRegs();
   }

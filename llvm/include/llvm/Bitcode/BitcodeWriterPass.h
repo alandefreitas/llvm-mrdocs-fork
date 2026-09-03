@@ -29,11 +29,19 @@ class raw_ostream;
 ///
 /// If \c ShouldPreserveUseListOrder, encode use-list order so it can be
 /// reproduced when deserialized.
+///
+/// \param Str The output stream to write the bitcode to.
+/// \param ShouldPreserveUseListOrder If true, encode use-list order so it can
+///        be reproduced when deserialized.
+/// \returns A ModulePass that writes the module to \p Str.
 LLVM_ABI ModulePass *
 createBitcodeWriterPass(raw_ostream &Str,
                         bool ShouldPreserveUseListOrder = false);
 
 /// Check whether a pass is a BitcodeWriterPass.
+///
+/// \param P The pass to test.
+/// \returns True if \p P is a BitcodeWriterPass.
 LLVM_ABI bool isBitcodeWriterPass(Pass *P);
 
 /// Pass for writing a module of IR out to a bitcode file.
@@ -54,6 +62,13 @@ public:
   ///
   /// If \c EmitSummaryIndex, emit the summary index (currently
   /// for use in ThinLTO optimization).
+  ///
+  /// \param OS The output stream to write bitcode to.
+  /// \param ShouldPreserveUseListOrder If true, encode use-list order so it can
+  ///        be reproduced when deserialized.
+  /// \param EmitSummaryIndex If true, emit the summary index (currently for use
+  ///        in ThinLTO optimization).
+  /// \param EmitModuleHash If true, include a module hash in the bitcode.
   explicit BitcodeWriterPass(raw_ostream &OS,
                              bool ShouldPreserveUseListOrder = false,
                              bool EmitSummaryIndex = false,
@@ -63,7 +78,11 @@ public:
 
   /// Run the bitcode writer pass, and output the module to the selected
   /// output stream.
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  ///
+  /// \param M The module to write as bitcode.
+  /// \param AM The module analysis manager.
+  /// \returns The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 }
 

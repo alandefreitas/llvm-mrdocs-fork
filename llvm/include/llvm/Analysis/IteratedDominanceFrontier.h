@@ -16,35 +16,54 @@ namespace llvm {
 
 class BasicBlock;
 
+/// Detail helpers for iterated dominance frontier calculation on BasicBlock.
 namespace IDFCalculatorDetail {
 
 /// Specialization for BasicBlock for the optional use of GraphDiff.
 template <bool IsPostDom> struct ChildrenGetterTy<BasicBlock, IsPostDom> {
+  /// Node reference type used when walking BasicBlock children.
   using NodeRef = BasicBlock *;
+  /// Container type returned by \c get for the children of a node.
   using ChildrenTy = SmallVector<BasicBlock *, 8>;
 
+  /// Construct a children getter that uses ordinary CFG successors.
   ChildrenGetterTy() = default;
+  /// Construct a children getter that consults \p GD for successors.
+  /// @param GD GraphDiff describing CFG edges to use instead of the IR CFG.
   ChildrenGetterTy(const GraphDiff<BasicBlock *, IsPostDom> *GD) : GD(GD) {
     assert(GD);
   }
 
+  /// Return the children of \p N, optionally via \c GD when set.
+  /// @param N BasicBlock whose successors (or predecessors, for post-dom) are
+  /// requested.
+  /// @return The successor (or predecessor, for post-dom) BasicBlocks of \p N.
   ChildrenTy get(const NodeRef &N);
 
+  /// Optional GraphDiff used to override IR CFG edges when non-null.
   const GraphDiff<BasicBlock *, IsPostDom> *GD = nullptr;
 };
 
 } // end of namespace IDFCalculatorDetail
 
+/// Iterated dominance frontier calculator specialized for BasicBlock.
 template <bool IsPostDom>
 class IDFCalculator final : public IDFCalculatorBase<BasicBlock, IsPostDom> {
 public:
+  /// Base IDF calculator type specialized for BasicBlock.
   using IDFCalculatorBase =
       typename llvm::IDFCalculatorBase<BasicBlock, IsPostDom>;
+  /// Children-getter type used by the base calculator.
   using ChildrenGetterTy = typename IDFCalculatorBase::ChildrenGetterTy;
 
+  /// Construct an IDF calculator for dominator tree \p DT.
+  /// @param DT Dominator tree (or post-dominator tree) over BasicBlocks.
   IDFCalculator(DominatorTreeBase<BasicBlock, IsPostDom> &DT)
       : IDFCalculatorBase(DT) {}
 
+  /// Construct an IDF calculator for \p DT using CFG edges from \p GD.
+  /// @param DT Dominator tree (or post-dominator tree) over BasicBlocks.
+  /// @param GD GraphDiff describing CFG edges to use instead of the IR CFG.
   IDFCalculator(DominatorTreeBase<BasicBlock, IsPostDom> &DT,
                 const GraphDiff<BasicBlock *, IsPostDom> *GD)
       : IDFCalculatorBase(DT, ChildrenGetterTy(GD)) {
@@ -52,7 +71,9 @@ public:
   }
 };
 
+/// Forward iterated dominance frontier calculator over BasicBlocks.
 using ForwardIDFCalculator = IDFCalculator<false>;
+/// Reverse (post-dominance) iterated dominance frontier calculator.
 using ReverseIDFCalculator = IDFCalculator<true>;
 
 //===----------------------------------------------------------------------===//

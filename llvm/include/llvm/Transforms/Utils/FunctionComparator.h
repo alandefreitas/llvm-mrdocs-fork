@@ -40,6 +40,8 @@ class MDNode;
 class Type;
 class Value;
 
+/// Assigns stable serial numbers to global values for ordering comparisons.
+///
 /// GlobalNumberState assigns an integer to each global value in the program,
 /// which is used by the comparison routine to order references to globals. This
 /// state must be preserved throughout the pass, because Functions and other
@@ -67,8 +69,12 @@ class GlobalNumberState {
   uint64_t NextNumber = 0;
 
 public:
+  /// Construct an empty global-number state.
   GlobalNumberState() = default;
 
+  /// Return the serial number for \p Global, assigning one on first visit.
+  /// \param Global Global value to number.
+  /// \return The serial number assigned to \p Global.
   uint64_t getNumber(GlobalValue* Global) {
     ValueNumberMap::iterator MapIter;
     bool Inserted;
@@ -78,10 +84,13 @@ public:
     return MapIter->second;
   }
 
+  /// Forget the serial number previously assigned to \p Global.
+  /// \param Global Global value whose mapping is removed.
   void erase(GlobalValue *Global) {
     GlobalNumbers.erase(Global);
   }
 
+  /// Remove all assigned serial numbers.
   void clear() {
     GlobalNumbers.clear();
   }
@@ -92,11 +101,16 @@ public:
 /// they will generate machine code with the same behaviour. DataLayout is used if available. The comparator always fails conservatively (erring on the side of claiming that two functions are different).
 class FunctionComparator {
 public:
+  /// Construct a comparator for two functions using shared global numbering.
+  /// \param F1 Left-hand function to compare.
+  /// \param F2 Right-hand function to compare.
+  /// \param GN Shared state that maps global values to serial numbers.
   FunctionComparator(const Function *F1, const Function *F2,
                      GlobalNumberState* GN)
       : FnL(F1), FnR(F2), GlobalNumbers(GN) {}
 
   /// Test whether the two functions have equivalent behaviour.
+  /// \return 0 if the functions are equivalent, non-zero otherwise.
   LLVM_ABI int compare();
 
 protected:
@@ -107,9 +121,13 @@ protected:
   }
 
   /// Compares the signature and other general attributes of the two functions.
+  /// \return 0 if the signatures match, non-zero otherwise.
   LLVM_ABI int compareSignature() const;
 
   /// Test whether two basic blocks have equivalent behaviour.
+  /// \param BBL Left-hand basic block.
+  /// \param BBR Right-hand basic block.
+  /// \return 0 if the blocks are equivalent, non-zero otherwise.
   LLVM_ABI int cmpBasicBlocks(const BasicBlock *BBL,
                               const BasicBlock *BBR) const;
 
@@ -215,12 +233,20 @@ protected:
   /// look at their particular properties (bit-width for vectors, and
   /// address space for pointers).
   /// If these properties are equal - compare their contents.
+  /// \param L Left-hand constant.
+  /// \param R Right-hand constant.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpConstants(const Constant *L, const Constant *R) const;
 
   /// Compares two global values by number. Uses the GlobalNumbersState to
   /// identify the same gobals across function calls.
+  /// \param L Left-hand global value.
+  /// \param R Right-hand global value.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpGlobalValues(GlobalValue *L, GlobalValue *R) const;
 
+  /// Compare two values by serial numbers or constant/InlineAsm rules.
+  ///
   /// Assign or look up previously assigned numbers for the two values, and
   /// return whether the numbers are equal. Numbers are assigned in the order
   /// visited.
@@ -236,11 +262,19 @@ protected:
   ///          then left value is greater.
   ///          In another words, we compare serial numbers, for more details
   ///          see comments for sn_mapL and sn_mapR.
+  /// \param L Left-hand value.
+  /// \param R Right-hand value.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpValues(const Value *L, const Value *R) const;
 
+  /// Compare values, treating self-refs to the compared functions as equal.
+  ///
   /// References to the functions being compared are equal. Used for
   /// corresponding call targets and blockaddress functions, which stay
   /// valid if MergeFunc replaces one body with a forwarding thunk.
+  /// \param L Left-hand value.
+  /// \param R Right-hand value.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   int cmpValuesAllowingSelfRef(const Value *L, const Value *R) const;
 
   /// Compare two Instructions for equivalence, similar to
@@ -272,6 +306,10 @@ protected:
   /// Sets \p needToCmpOperands to true if the operands of the instructions
   /// still must be compared afterwards. In this case it's already guaranteed
   /// that both instructions have the same number of operands.
+  /// \param L Left-hand instruction.
+  /// \param R Right-hand instruction.
+  /// \param needToCmpOperands Set to true if operands still need comparing.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpOperations(const Instruction *L, const Instruction *R,
                              bool &needToCmpOperands) const;
 
@@ -315,18 +353,47 @@ protected:
   /// be checked with the same way. If we get Res != 0 on some stage, return it.
   /// Otherwise return 0.
   /// 6. For all other cases put llvm_unreachable.
+  /// \param TyL Left-hand type.
+  /// \param TyR Right-hand type.
+  /// \return Negative if TyL is less than TyR, zero if equal, positive if greater.
   LLVM_ABI int cmpTypes(Type *TyL, Type *TyR) const;
 
+  /// Compare two unsigned integers for ordering.
+  /// \param L Left-hand number.
+  /// \param R Right-hand number.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpNumbers(uint64_t L, uint64_t R) const;
+  /// Compare two alignments for ordering.
+  /// \param L Left-hand alignment.
+  /// \param R Right-hand alignment.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpAligns(Align L, Align R) const;
+  /// Compare two arbitrary-precision integers for ordering.
+  /// \param L Left-hand integer.
+  /// \param R Right-hand integer.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpAPInts(const APInt &L, const APInt &R) const;
+  /// Compare two constant ranges for ordering.
+  /// \param L Left-hand constant range.
+  /// \param R Right-hand constant range.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpConstantRanges(const ConstantRange &L,
                                  const ConstantRange &R) const;
+  /// Compare two arbitrary-precision floating-point values for ordering.
+  /// \param L Left-hand floating-point value.
+  /// \param R Right-hand floating-point value.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpAPFloats(const APFloat &L, const APFloat &R) const;
+  /// Compare two memory regions as string contents for ordering.
+  /// \param L Left-hand string.
+  /// \param R Right-hand string.
+  /// \return Negative if L is less than R, zero if equal, positive if greater.
   LLVM_ABI int cmpMem(StringRef L, StringRef R) const;
 
-  // The two functions undergoing comparison.
-  const Function *FnL, *FnR;
+  /// Left-hand function undergoing comparison.
+  const Function *FnL;
+  /// Right-hand function undergoing comparison.
+  const Function *FnR;
 
 private:
   int cmpOrderings(AtomicOrdering L, AtomicOrdering R) const;

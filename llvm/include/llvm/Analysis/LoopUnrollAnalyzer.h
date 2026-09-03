@@ -21,25 +21,27 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/Compiler.h"
 
-// This class is used to get an estimate of the optimization effects that we
-// could get from complete loop unrolling. It comes from the fact that some
-// loads might be replaced with concrete constant values and that could trigger
-// a chain of instruction simplifications.
-//
-// E.g. we might have:
-//   int a[] = {0, 1, 0};
-//   v = 0;
-//   for (i = 0; i < 3; i ++)
-//     v += b[i]*a[i];
-// If we completely unroll the loop, we would get:
-//   v = b[0]*a[0] + b[1]*a[1] + b[2]*a[2]
-// Which then will be simplified to:
-//   v = b[0]* 0 + b[1]* 1 + b[2]* 0
-// And finally:
-//   v = b[1]
 namespace llvm {
 class Instruction;
 
+/// Estimates optimization effects from complete loop unrolling.
+///
+/// This class is used to get an estimate of the optimization effects that we
+/// could get from complete loop unrolling. It comes from the fact that some
+/// loads might be replaced with concrete constant values and that could trigger
+/// a chain of instruction simplifications.
+///
+/// E.g. we might have:
+///   int a[] = {0, 1, 0};
+///   v = 0;
+///   for (i = 0; i < 3; i ++)
+///     v += b[i]*a[i];
+/// If we completely unroll the loop, we would get:
+///   v = b[0]*a[0] + b[1]*a[1] + b[2]*a[2]
+/// Which then will be simplified to:
+///   v = b[0]* 0 + b[1]* 1 + b[2]* 0
+/// And finally:
+///   v = b[1]
 class UnrolledInstAnalyzer : private InstVisitor<UnrolledInstAnalyzer, bool> {
   typedef InstVisitor<UnrolledInstAnalyzer, bool> Base;
   friend class InstVisitor<UnrolledInstAnalyzer, bool>;
@@ -49,6 +51,12 @@ class UnrolledInstAnalyzer : private InstVisitor<UnrolledInstAnalyzer, bool> {
   };
 
 public:
+  /// Construct an analyzer for one simulated unrolled iteration.
+  ///
+  /// \param Iteration The iteration number being simulated.
+  /// \param SimplifiedValues Mapping of values simplified for this iteration.
+  /// \param SE Scalar evolution analysis used to evaluate expressions.
+  /// \param L The loop being analyzed.
   UnrolledInstAnalyzer(unsigned Iteration,
                        DenseMap<Value *, Value *> &SimplifiedValues,
                        ScalarEvolution &SE, const Loop *L)
@@ -56,7 +64,7 @@ public:
       IterationNumber = SE.getConstant(APInt(64, Iteration));
   }
 
-  // Allow access to the initial visit method.
+  /// Expose the InstVisitor visit entry points.
   using Base::visit;
 
 private:

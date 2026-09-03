@@ -23,10 +23,13 @@
 #include <memory>
 
 namespace llvm {
+/// Partitioned Boolean Quadratic Programming (PBQP) types and utilities.
 namespace PBQP {
 
+/// Pool that stores unique values and returns shared references to them.
 template <typename ValueT> class ValuePool {
 public:
+  /// Shared pointer to a pooled const value.
   using PoolRef = std::shared_ptr<const ValueT>;
 
 private:
@@ -82,6 +85,9 @@ private:
   void removeEntry(PoolEntry *P) { EntrySet.erase(P); }
 
 public:
+  /// Return a pooled reference to \p ValueKey, inserting it if absent.
+  /// @param ValueKey Value to look up or insert into the pool.
+  /// @return Shared reference to the unique pooled copy of \p ValueKey.
   template <typename ValueKeyT> PoolRef getValue(ValueKeyT ValueKey) {
     typename EntrySetT::iterator I = EntrySet.find_as(ValueKey);
 
@@ -94,21 +100,32 @@ public:
   }
 };
 
+/// Cost allocator that pools equal cost vectors and matrices.
 template <typename VectorT, typename MatrixT> class PoolCostAllocator {
 private:
   using VectorCostPool = ValuePool<VectorT>;
   using MatrixCostPool = ValuePool<MatrixT>;
 
 public:
+  /// Cost vector type managed by this allocator.
   using Vector = VectorT;
+  /// Cost matrix type managed by this allocator.
   using Matrix = MatrixT;
+  /// Shared pointer to a pooled cost vector.
   using VectorPtr = typename VectorCostPool::PoolRef;
+  /// Shared pointer to a pooled cost matrix.
   using MatrixPtr = typename MatrixCostPool::PoolRef;
 
+  /// Return a pooled reference to cost vector \p v, inserting it if absent.
+  /// @param v Cost vector to look up or insert into the vector pool.
+  /// @return Shared reference to the unique pooled copy of \p v.
   template <typename VectorKeyT> VectorPtr getVector(VectorKeyT v) {
     return VectorPool.getValue(std::move(v));
   }
 
+  /// Return a pooled reference to cost matrix \p m, inserting it if absent.
+  /// @param m Cost matrix to look up or insert into the matrix pool.
+  /// @return Shared reference to the unique pooled copy of \p m.
   template <typename MatrixKeyT> MatrixPtr getMatrix(MatrixKeyT m) {
     return MatrixPool.getValue(std::move(m));
   }

@@ -15,8 +15,18 @@ namespace llvm {
 
 class Function;
 
+/// Pass that propagates values correlated with control-flow conditions.
+///
+/// Uses LazyValueInfo to exploit edge conditions and range information,
+/// replacing values with constants, simplifying phis, selects, comparisons,
+/// and switches, converting signed operations to unsigned when operands are
+/// non-negative, and inferring no-wrap flags.
 struct CorrelatedValuePropagationPass
     : OptionalPassInfoMixin<CorrelatedValuePropagationPass> {
+  /// Run correlated value propagation over the function.
+  /// @param F Function whose values may be simplified using CFG-derived facts.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

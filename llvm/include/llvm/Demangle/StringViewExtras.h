@@ -21,10 +21,18 @@
 
 DEMANGLE_NAMESPACE_BEGIN
 
+/// Return true if \p self begins with character \p C.
+/// \param self String to inspect.
+/// \param C Leading character to match.
+/// \return True if \p self begins with \p C.
 inline bool starts_with(std::string_view self, char C) noexcept {
   return !self.empty() && *self.begin() == C;
 }
 
+/// Return true if \p haystack begins with \p needle.
+/// \param haystack String to inspect.
+/// \param needle Prefix to match.
+/// \return True if \p haystack begins with \p needle.
 inline bool starts_with(std::string_view haystack,
                         std::string_view needle) noexcept {
   if (needle.size() > haystack.size())

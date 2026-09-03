@@ -42,10 +42,12 @@ public:
       : value(value), index(index) {}
 
   /// Return a reference to the repeated value.
+  /// @return Const reference to the stored repeated element.
   const T &operator*() const { return *value; }
 
   /// Return true if both iterators are at the same logical index.
   /// @param rhs Iterator to compare with.
+  /// @return True if both iterators share the same logical index.
   bool operator==(const RepeatedIterator &rhs) const {
     assert((!value || !rhs.value || value == rhs.value) &&
            "comparing iterators from different Repeated ranges");
@@ -54,6 +56,7 @@ public:
 
   /// Return true if this iterator precedes \p rhs.
   /// @param rhs Iterator to compare with.
+  /// @return True if this iterator's index is less than \p rhs.
   bool operator<(const RepeatedIterator &rhs) const {
     assert((!value || !rhs.value || value == rhs.value) &&
            "comparing iterators from different Repeated ranges");
@@ -62,6 +65,7 @@ public:
 
   /// Return the distance from \p rhs to this iterator.
   /// @param rhs Iterator to subtract.
+  /// @return Signed distance from \p rhs to this iterator.
   ptrdiff_t operator-(const RepeatedIterator &rhs) const {
     assert((!value || !rhs.value || value == rhs.value) &&
            "subtracting iterators from different Repeated ranges");
@@ -70,6 +74,7 @@ public:
 
   /// Advance this iterator by \p n positions.
   /// @param n Number of positions to move forward.
+  /// @return Reference to this iterator after advancing.
   RepeatedIterator &operator+=(ptrdiff_t n) {
     index += n;
     return *this;
@@ -77,6 +82,7 @@ public:
 
   /// Move this iterator backward by \p n positions.
   /// @param n Number of positions to move backward.
+  /// @return Reference to this iterator after moving backward.
   RepeatedIterator &operator-=(ptrdiff_t n) {
     index -= n;
     return *this;
@@ -100,6 +106,8 @@ struct [[nodiscard]] alignas(std::max(size_t{16}, alignof(T))) Repeated {
 
   /// Create a `value` repeated `count` times.
   /// Uses the same argument order like std container constructors.
+  /// @param count Number of logical repetitions of \p value.
+  /// @param value Value to store and yield at every index.
   template <typename U>
   Repeated(size_t count, U &&value)
       : storage(std::forward<U>(value)), count(count) {}
@@ -118,23 +126,31 @@ struct [[nodiscard]] alignas(std::max(size_t{16}, alignof(T))) Repeated {
   using size_type = size_t;
 
   /// Return an iterator to the first logical element.
+  /// @return Iterator at logical index 0.
   iterator begin() const { return {&storage, 0}; }
   /// Return a past-the-end iterator.
+  /// @return Iterator one past the last logical element.
   iterator end() const { return {&storage, static_cast<ptrdiff_t>(count)}; }
   /// Return a reverse iterator to the last logical element.
+  /// @return Reverse iterator positioned at the last logical element.
   reverse_iterator rbegin() const { return reverse_iterator(end()); }
   /// Return a reverse past-the-end iterator.
+  /// @return Reverse iterator past the first logical element.
   reverse_iterator rend() const { return reverse_iterator(begin()); }
 
   /// Return the number of logical repetitions.
+  /// @return The logical length of the repeated range.
   size_t size() const { return count; }
   /// Return true if there are no logical elements.
+  /// @return True if \c count is zero.
   bool empty() const { return count == 0; }
 
   /// Return a const reference to the stored value.
+  /// @return Const reference to the single stored element.
   const T &value() const { return storage; }
   /// Return the stored value for any valid index \p idx.
   /// @param idx Logical index; must be less than \c size().
+  /// @return Const reference to the stored element.
   const T &operator[](size_t idx) const {
     assert(idx < size() && "Out of bounds");
     (void)idx;

@@ -20,11 +20,21 @@ namespace llvm {
 
 class TargetMachine;
 
+/// New PM pass that prepares DWARF exception handling for code generation.
+///
+/// Mulches exception handling code into a form adapted to code generation.
+/// Required if using dwarf exception handling.
 class DwarfEHPreparePass : public RequiredPassInfoMixin<DwarfEHPreparePass> {
   const TargetMachine *TM;
 
 public:
+  /// Construct a pass using target information from \p TM_.
+  /// \param TM_ Target machine used to guide DWARF EH preparation.
   explicit DwarfEHPreparePass(const TargetMachine &TM_) : TM(&TM_) {}
+  /// Prepare DWARF exception handling in \p F for code generation.
+  /// \param F Function whose exception handling is prepared.
+  /// \param FAM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

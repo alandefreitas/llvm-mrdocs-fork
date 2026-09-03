@@ -68,6 +68,7 @@ public:
   Any() = default;
 
   /// Copy-construct by cloning the held value, if any.
+  /// \param Other Source Any whose held value is cloned.
   Any(const Any &Other)
       : Storage(Other.Storage ? Other.Storage->clone() : nullptr) {}
 
@@ -76,6 +77,7 @@ public:
   /// Disabled when \p T is Any, when Any is convertible to \p T (to avoid
   /// recursive overload resolution), or when the decayed type is not
   /// copy-constructible.
+  /// \param Value Value to store; decayed and copy- or move-constructed.
   template <typename T,
             std::enable_if_t<
                 std::conjunction<
@@ -99,21 +101,27 @@ public:
   }
 
   /// Move-construct, leaving \p Other empty.
+  /// \param Other Source Any whose storage is taken.
   Any(Any &&Other) : Storage(std::move(Other.Storage)) {}
 
   /// Exchange the held values of this Any and \p Other.
+  /// \param Other Other Any to swap storage with.
+  /// \return Reference to this Any.
   Any &swap(Any &Other) {
     std::swap(Storage, Other.Storage);
     return *this;
   }
 
   /// Assign by taking ownership of \p Other's storage (copy-and-swap).
+  /// \param Other Source Any whose storage is taken (by value).
+  /// \return Reference to this Any.
   Any &operator=(Any Other) {
     Storage = std::move(Other.Storage);
     return *this;
   }
 
   /// Return true if this Any currently holds a value.
+  /// \return True if a value is held; false otherwise.
   bool has_value() const { return !!Storage; }
 
   /// Discard the held value, if any, leaving this Any empty.
@@ -128,8 +136,10 @@ private:
   }
 
   /// Extract a copy of the held value as type \p T.
+  /// \return A copy of the held value converted to \p T.
   template <class T> friend T any_cast(const Any &Value);
   /// Extract a copy of the held value as type \p T.
+  /// \return A copy of the held value converted to \p T.
   template <class T> friend T any_cast(Any &Value);
   template <class T> friend T any_cast(Any &&Value);
   template <class T> friend const T *any_cast(const Any *Value);
@@ -152,6 +162,8 @@ template <typename T> char Any::TypeId<T>::Id = 1;
 /// Return a copy of the value held in \p Value as type \p T.
 ///
 /// Asserts that \p Value holds a value of (possibly cv-qualified) type \p T.
+/// \param Value Any whose held value is copied.
+/// \return A copy of the held value converted to \p T.
 template <class T> T any_cast(const Any &Value) {
   assert(Value.isa<T>() && "Bad any cast!");
   return static_cast<T>(*any_cast<remove_cvref_t<T>>(&Value));
@@ -160,6 +172,8 @@ template <class T> T any_cast(const Any &Value) {
 /// Return a copy of the value held in \p Value as type \p T.
 ///
 /// Asserts that \p Value holds a value of (possibly cv-qualified) type \p T.
+/// \param Value Any whose held value is copied.
+/// \return A copy of the held value converted to \p T.
 template <class T> T any_cast(Any &Value) {
   assert(Value.isa<T>() && "Bad any cast!");
   return static_cast<T>(*any_cast<remove_cvref_t<T>>(&Value));
@@ -168,12 +182,16 @@ template <class T> T any_cast(Any &Value) {
 /// Move the value held in \p Value out as type \p T.
 ///
 /// Asserts that \p Value holds a value of (possibly cv-qualified) type \p T.
+/// \param Value Any whose held value is moved from.
+/// \return The held value moved and converted to \p T.
 template <class T> T any_cast(Any &&Value) {
   assert(Value.isa<T>() && "Bad any cast!");
   return static_cast<T>(std::move(*any_cast<remove_cvref_t<T>>(&Value)));
 }
 
 /// Return a pointer to the held value, or nullptr if the type does not match.
+/// \param Value Pointer to an Any to inspect; may be null.
+/// \return Const pointer to the held value as \p T, or nullptr.
 template <class T> const T *any_cast(const Any *Value) {
   using U = remove_cvref_t<T>;
   if (!Value || !Value->isa<U>())
@@ -182,6 +200,8 @@ template <class T> const T *any_cast(const Any *Value) {
 }
 
 /// Return a pointer to the held value, or nullptr if the type does not match.
+/// \param Value Pointer to an Any to inspect; may be null.
+/// \return Pointer to the held value as \p T, or nullptr.
 template <class T> T *any_cast(Any *Value) {
   using U = std::decay_t<T>;
   if (!Value || !Value->isa<U>())

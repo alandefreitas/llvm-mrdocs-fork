@@ -18,22 +18,41 @@
 
 namespace llvm::xray {
 
+/// RecordVisitor that verifies FDR block record sequences.
+///
+/// Checks that records in a block follow the FDR mode log format's
+/// specifications by enforcing valid state transitions between record kinds.
 class LLVM_ABI BlockVerifier : public RecordVisitor {
 public:
-  // We force State elements to be size_t, to be used as indices for containers.
+  /// States in the FDR block record transition automaton.
+  ///
+  /// We force State elements to be size_t, to be used as indices for containers.
   enum class State : std::size_t {
+    /// Initial state before any record has been visited.
     Unknown,
+    /// A BufferExtents metadata record has been seen.
     BufferExtents,
+    /// A NewBuffer metadata record has been seen.
     NewBuffer,
+    /// A WallClockTime metadata record has been seen.
     WallClockTime,
+    /// A PID entry metadata record has been seen.
     PIDEntry,
+    /// A NewCPUId metadata record has been seen.
     NewCPUId,
+    /// A TSCWrap metadata record has been seen.
     TSCWrap,
+    /// A CustomEvent metadata record has been seen.
     CustomEvent,
+    /// A TypedEvent metadata record has been seen.
     TypedEvent,
+    /// A Function record has been seen.
     Function,
+    /// A CallArg metadata record has been seen.
     CallArg,
+    /// An EndOfBuffer metadata record has been seen.
     EndOfBuffer,
+    /// One-past-last sentinel; not a real record state.
     StateMax,
   };
 
@@ -46,20 +65,60 @@ private:
   Error transition(State To);
 
 public:
-  Error visit(BufferExtents &) override;
-  Error visit(WallclockRecord &) override;
-  Error visit(NewCPUIDRecord &) override;
-  Error visit(TSCWrapRecord &) override;
-  Error visit(CustomEventRecord &) override;
-  Error visit(CallArgRecord &) override;
-  Error visit(PIDRecord &) override;
-  Error visit(NewBufferRecord &) override;
-  Error visit(EndBufferRecord &) override;
-  Error visit(FunctionRecord &) override;
-  Error visit(CustomEventRecordV5 &) override;
-  Error visit(TypedEventRecord &) override;
+  /// Visit a buffer-extents record and advance the verifier state.
+  /// \param R Buffer extents record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(BufferExtents &R) override;
+  /// Visit a wall-clock record and advance the verifier state.
+  /// \param R Wall-clock record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(WallclockRecord &R) override;
+  /// Visit a new-CPU-ID record and advance the verifier state.
+  /// \param R New CPU ID record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(NewCPUIDRecord &R) override;
+  /// Visit a TSC-wrap record and advance the verifier state.
+  /// \param R TSC wrap record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(TSCWrapRecord &R) override;
+  /// Visit a custom-event record and advance the verifier state.
+  /// \param R Custom event record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(CustomEventRecord &R) override;
+  /// Visit a call-argument record and advance the verifier state.
+  /// \param R Call argument record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(CallArgRecord &R) override;
+  /// Visit a PID record and advance the verifier state.
+  /// \param R PID record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(PIDRecord &R) override;
+  /// Visit a new-buffer record and advance the verifier state.
+  /// \param R New buffer record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(NewBufferRecord &R) override;
+  /// Visit an end-of-buffer record and advance the verifier state.
+  /// \param R End-of-buffer record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(EndBufferRecord &R) override;
+  /// Visit a function record and advance the verifier state.
+  /// \param R Function record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(FunctionRecord &R) override;
+  /// Visit a v5 custom-event record and advance the verifier state.
+  /// \param R V5 custom event record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(CustomEventRecordV5 &R) override;
+  /// Visit a typed-event record and advance the verifier state.
+  /// \param R Typed event record being visited.
+  /// \return Success, or an error if the state transition is invalid.
+  Error visit(TypedEventRecord &R) override;
 
+  /// Check that the visited sequence ended in a valid terminal state.
+  /// \return Success, or an error if the sequence did not end in a valid
+  /// terminal state.
   Error verify();
+  /// Reset the verifier to the initial Unknown state.
   void reset();
 };
 

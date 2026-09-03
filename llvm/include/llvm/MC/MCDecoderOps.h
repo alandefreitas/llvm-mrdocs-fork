@@ -12,15 +12,14 @@
 
 namespace llvm::MCD {
 
-// Disassembler state machine opcodes.
+/// Opcodes for the TableGen-generated disassembler decoder state machine.
 enum DecoderOps {
-  OPC_Scope = 1,      // OPC_Scope(uleb128 Size)
-  OPC_SwitchField,    // OPC_SwitchField(uleb128 Start, uint8_t Len,
-                      //                 [uleb128 Val, uleb128 Size]...)
-  OPC_CheckField,     // OPC_CheckField(uleb128 Start, uint8_t Len, uleb128 Val)
-  OPC_CheckPredicate, // OPC_CheckPredicate(uleb128 PIdx)
-  OPC_Decode,         // OPC_Decode(uleb128 Opcode, uleb128 DIdx)
-  OPC_SoftFail,       // OPC_SoftFail(uleb128 PMask, uleb128 NMask)
+  OPC_Scope = 1, ///< Enter a scope; operand: uleb128 Size.
+  OPC_SwitchField, ///< Switch on a bitfield (Start, Len, [Val, Size]...).
+  OPC_CheckField, ///< Check a bitfield equals a value (Start, Len, Val).
+  OPC_CheckPredicate, ///< Check a predicate; operand: uleb128 PIdx.
+  OPC_Decode, ///< Decode an instruction; operands: uleb128 Opcode, uleb128 DIdx.
+  OPC_SoftFail, ///< Soft-fail masks; operands: uleb128 PMask, uleb128 NMask.
 };
 
 } // namespace llvm::MCD

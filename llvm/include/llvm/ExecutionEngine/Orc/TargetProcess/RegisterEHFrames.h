@@ -24,10 +24,16 @@ namespace llvm {
 namespace orc {
 
 /// Register frames in the given eh-frame section with libunwind.
+/// \param EHFrameSectionAddr Address of the eh-frame section to register.
+/// \param EHFrameSectionSize Size in bytes of the eh-frame section.
+/// \return Success, or an error if registration fails.
 LLVM_ABI Error registerEHFrameSection(const void *EHFrameSectionAddr,
                                       size_t EHFrameSectionSize);
 
 /// Unregister frames in the given eh-frame section with libunwind.
+/// \param EHFrameSectionAddr Address of the eh-frame section to unregister.
+/// \param EHFrameSectionSize Size in bytes of the eh-frame section.
+/// \return Success, or an error if deregistration fails.
 LLVM_ABI Error deregisterEHFrameSection(const void *EHFrameSectionAddr,
                                         size_t EHFrameSectionSize);
 

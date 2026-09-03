@@ -24,38 +24,58 @@
 
 namespace llvm {
 
-/// ReleaseModeModelRunner - production mode implementation of the
-/// MLModelRunner. It uses an AOT-compiled SavedModel for efficient execution.
+/// Options for feed/fetch prefixes and model selection in ReleaseModeModelRunner.
 struct EmbeddedModelRunnerOptions {
-  /// Feed and Fetch feature prefixes - i.e. a feature named "foo" will be
-  /// looked up as {FeedPrefix}_foo; and the output named "bar" will be looked
-  /// up as {FetchPrefix}_bar
+  /// Prefix prepended to input feature names when looking them up in the model.
+  ///
+  /// A feature named "foo" is looked up as {FeedPrefix}_foo.
   StringRef FeedPrefix = "feed_";
+  /// Prefix prepended to output names when looking them up in the model.
+  ///
+  /// An output named "bar" is looked up as {FetchPrefix}_bar.
   StringRef FetchPrefix = "fetch_";
 
   /// ModelSelector is the name (recognized by the AOT-ed model) of a sub-model
   /// to use. "" is allowed if the model doesn't support sub-models.
   StringRef ModelSelector = "";
 
+  /// Set the feed feature name prefix.
+  /// @param Value New feed prefix.
+  /// @return Reference to this options object for chaining.
   EmbeddedModelRunnerOptions &setFeedPrefix(StringRef Value) {
     FeedPrefix = Value;
     return *this;
   }
+  /// Set the fetch/output name prefix.
+  /// @param Value New fetch prefix.
+  /// @return Reference to this options object for chaining.
   EmbeddedModelRunnerOptions &setFetchPrefix(StringRef Value) {
     FetchPrefix = Value;
     return *this;
   }
+  /// Set the sub-model selector name recognized by the AOT-ed model.
+  /// @param Value Model selector string, or empty if unsupported.
+  /// @return Reference to this options object for chaining.
   EmbeddedModelRunnerOptions &setModelSelector(StringRef Value) {
     ModelSelector = Value;
     return *this;
   }
 };
 
+/// Production MLModelRunner that evaluates an AOT-compiled SavedModel.
+///
+/// It uses an AOT-compiled SavedModel for efficient execution.
 template <class TGen>
 class ReleaseModeModelRunner final : public MLModelRunner {
 public:
-  /// FeatureNames' type should be an indexed collection of std::string, like
-  /// std::array or std::vector, that has a size() method.
+  /// Construct a release-mode runner over an AOT-compiled model.
+  ///
+  /// InputSpec's type should be an indexed collection of TensorSpec values,
+  /// like std::array or std::vector, that has a size() method.
+  /// @param Ctx LLVM context used for diagnostics.
+  /// @param InputSpec Indexed collection of TensorSpec describing model inputs.
+  /// @param DecisionName Name of the output tensor to fetch as the decision.
+  /// @param Options Feed/fetch prefixes and optional model selector.
   template <class FType>
   ReleaseModeModelRunner(LLVMContext &Ctx, const FType &InputSpec,
                          StringRef DecisionName,
@@ -106,8 +126,12 @@ public:
     assert(ResultIndex >= 0 && "Cannot find DecisionName in inlining model");
   }
 
+  /// Destroy this ReleaseModeModelRunner.
   ~ReleaseModeModelRunner() override = default;
 
+  /// Return true if \p R is a ReleaseModeModelRunner.
+  /// @param R Model runner to test.
+  /// @return True if \p R is a ReleaseModeModelRunner.
   static bool classof(const MLModelRunner *R) {
     return R->getKind() == MLModelRunner::Kind::Release;
   }
@@ -136,26 +160,52 @@ private:
   std::unique_ptr<TGen> CompiledModel;
 };
 
-/// A mock class satisfying the interface expected by ReleaseModeModelRunner for
-/// its `TGen` parameter. Useful to avoid conditional compilation complexity, as
-/// a compile-time replacement for a real AOT-ed model.
+/// Mock TGen stub for ReleaseModeModelRunner when no AOT model is available.
+///
+/// Satisfies the interface expected by ReleaseModeModelRunner for its TGen
+/// parameter. Useful to avoid conditional compilation complexity, as a
+/// compile-time replacement for a real AOT-ed model.
 class NoopSavedModelImpl final {
 #define NOOP_MODEL_ERRMSG                                                      \
   "The mock AOT-ed saved model is a compile-time stub and should not be "      \
   "called."
 
 public:
+  /// Construct a no-op saved-model stub.
   NoopSavedModelImpl() = default;
-  int LookupArgIndex(const std::string &) { llvm_unreachable(NOOP_MODEL_ERRMSG); }
-  int LookupResultIndex(const std::string &) { llvm_unreachable(NOOP_MODEL_ERRMSG); }
+  /// Look up the index of an input argument by name.
+  /// @param Name Prefixed argument name to look up.
+  /// @return Argument index; this stub always aborts instead.
+  int LookupArgIndex(const std::string &Name) {
+    llvm_unreachable(NOOP_MODEL_ERRMSG);
+  }
+  /// Look up the index of a result tensor by name.
+  /// @param Name Prefixed result name to look up.
+  /// @return Result index; this stub always aborts instead.
+  int LookupResultIndex(const std::string &Name) {
+    llvm_unreachable(NOOP_MODEL_ERRMSG);
+  }
+  /// Run inference on the stub model.
+  ///
+  /// This stub always aborts; it must not be called at runtime.
   void Run() { llvm_unreachable(NOOP_MODEL_ERRMSG); }
-  void *result_data(int) { llvm_unreachable(NOOP_MODEL_ERRMSG); }
-  void *arg_data(int) { llvm_unreachable(NOOP_MODEL_ERRMSG); }
+  /// Return a pointer to the buffer for result tensor \p Index.
+  /// @param Index Result tensor index.
+  /// @return Pointer to result data; this stub always aborts instead.
+  void *result_data(int Index) { llvm_unreachable(NOOP_MODEL_ERRMSG); }
+  /// Return a pointer to the buffer for argument tensor \p Index.
+  /// @param Index Argument tensor index.
+  /// @return Pointer to argument data; this stub always aborts instead.
+  void *arg_data(int Index) { llvm_unreachable(NOOP_MODEL_ERRMSG); }
 #undef NOOP_MODEL_ERRMSG
 };
 
+/// Return whether the embedded model evaluator type \p T is usable at runtime.
+/// @return True for real AOT evaluator types.
 template <class T> bool isEmbeddedModelEvaluatorValid() { return true; }
 
+/// Return false; NoopSavedModelImpl is never a valid embedded evaluator.
+/// @return Always false.
 template <> inline bool isEmbeddedModelEvaluatorValid<NoopSavedModelImpl>() {
   return false;
 }

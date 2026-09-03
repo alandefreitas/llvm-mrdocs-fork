@@ -22,7 +22,9 @@ class TargetLibraryInfoImpl;
 enum class VectorLibrary;
 } // namespace llvm
 
-namespace llvm::driver {
+namespace llvm {
+/// Shared frontend driver code-generation options used by Clang and Flang.
+namespace driver {
 // The current supported vector libraries in enum \VectorLibrary are 9(including
 // the NoLibrary). Changing the bitcount from 3 to 4 so that more than 8 values
 // can be supported. Now the maximum number of vector libraries supported
@@ -39,35 +41,63 @@ namespace llvm::driver {
 
 /// Vector library option used with -fveclib=
 enum class VectorLibrary {
-  NoLibrary,          // Don't use any vector library.
-  Accelerate,         // Use the Accelerate framework.
-  LIBMVEC,            // GLIBC vector math library.
-  MASSV,              // IBM MASS vector library.
-  SVML,               // Intel short vector math library.
-  SLEEF,              // SLEEF SIMD Library for Evaluating Elementary Functions.
-  Darwin_libsystem_m, // Use Darwin's libsystem_m vector functions.
-  ArmPL,              // Arm Performance Libraries.
-  AMDLIBM             // AMD vector math library.
+  /// Don't use any vector library.
+  NoLibrary,
+  /// Use the Accelerate framework.
+  Accelerate,
+  /// Use the GLIBC vector math library.
+  LIBMVEC,
+  /// Use the IBM MASS vector library.
+  MASSV,
+  /// Use the Intel short vector math library.
+  SVML,
+  /// Use SLEEF, the SIMD Library for Evaluating Elementary Functions.
+  SLEEF,
+  /// Use Darwin's libsystem_m vector functions.
+  Darwin_libsystem_m,
+  /// Use Arm Performance Libraries.
+  ArmPL,
+  /// Use the AMD vector math library.
+  AMDLIBM
 };
 
+/// Map a driver VectorLibrary value to the IR-level llvm::VectorLibrary.
+///
+/// \param VecLib Vector library selected by the frontend \c -fveclib= option.
+/// \return The corresponding enumerator used by TargetLibraryInfo.
 LLVM_ABI llvm::VectorLibrary
 convertDriverVectorLibraryToVectorLibrary(llvm::driver::VectorLibrary VecLib);
 
+/// Create a TargetLibraryInfoImpl for a target triple and vector library.
+///
+/// \param TargetTriple Triple that selects which library functions are
+///                     available.
+/// \param Veclib Driver vector-library option whose mappings are installed.
+/// \return A new TargetLibraryInfoImpl; the caller takes ownership.
 LLVM_ABI TargetLibraryInfoImpl *createTLII(const llvm::Triple &TargetTriple,
                                            VectorLibrary Veclib);
 
+/// Kind of profile-guided optimization instrumentation to emit.
 enum ProfileInstrKind {
-  ProfileNone,       // Profile instrumentation is turned off.
-  ProfileClangInstr, // Clang instrumentation to generate execution counts
-                     // to use with PGO.
-  ProfileIRInstr,    // IR level PGO instrumentation in LLVM.
-  ProfileCSIRInstr,  // IR level PGO context sensitive instrumentation in LLVM.
-  ProfileIRSampleColdCov, // IR level sample pgo based cold function coverage
-                          // instrumentation in LLVM.
+  /// Profile instrumentation is turned off.
+  ProfileNone,
+  /// Clang instrumentation that generates execution counts for PGO.
+  ProfileClangInstr,
+  /// IR-level PGO instrumentation in LLVM.
+  ProfileIRInstr,
+  /// IR-level context-sensitive PGO instrumentation in LLVM.
+  ProfileCSIRInstr,
+  /// IR-level sample-PGO cold-function coverage instrumentation in LLVM.
+  ProfileIRSampleColdCov,
 };
 
-// Default filename used for profile generation.
+/// Return the default filename used when generating a profile.
+///
+/// When profile correlation is enabled the name is \c default_%m.proflite;
+/// otherwise it is \c default_%m.profraw.
+/// \return The default profile filename string.
 LLVM_ABI std::string getDefaultProfileGenName();
-} // end namespace llvm::driver
+} // end namespace driver
+} // end namespace llvm
 
 #endif

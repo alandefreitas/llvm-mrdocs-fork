@@ -28,6 +28,7 @@ namespace llvm {
 template <typename T> class SmallVectorImpl;
 
 namespace details {
+/// Abstract interface for text encoding conversion implementations.
 class TextEncodingConverterImplBase {
 
 private:
@@ -57,9 +58,13 @@ private:
   virtual void reset() = 0;
 
 public:
+  /// Virtual destructor for polymorphic encoding converter implementations.
   virtual ~TextEncodingConverterImplBase() = default;
 
   /// Converts a string and resets the converter to the initial state.
+  /// \param[in] Source source string
+  /// \param[out] Result container for converted string
+  /// \return error code in case something went wrong
   std::error_code convert(StringRef Source, SmallVectorImpl<char> &Result) {
     auto EC = convertString(Source, Result);
     reset();
@@ -68,7 +73,9 @@ public:
 };
 } // namespace details
 
-// Names inspired by https://wg21.link/p1885.
+/// Character set encodings supported by TextEncodingConverter.
+///
+/// Names inspired by https://wg21.link/p1885.
 enum class TextEncoding {
   /// UTF-8 character set encoding.
   UTF8,
@@ -104,18 +111,32 @@ public:
   LLVM_ABI static ErrorOr<TextEncodingConverter> create(StringRef From,
                                                         StringRef To);
 
-  TextEncodingConverter(const TextEncodingConverter &) = delete;
-  TextEncodingConverter &operator=(const TextEncodingConverter &) = delete;
+  /// Deleted copy constructor; TextEncodingConverter is move-only.
+  ///
+  /// \param Other Unused; copy construction is not supported.
+  TextEncodingConverter(const TextEncodingConverter &Other) = delete;
+  /// Deleted copy assignment; TextEncodingConverter is move-only.
+  ///
+  /// \param Other Unused; copy assignment is not supported.
+  TextEncodingConverter &operator=(const TextEncodingConverter &Other) = delete;
 
+  /// Move-construct from \p Other, taking ownership of its converter.
+  ///
+  /// \param Other Converter to move from.
   TextEncodingConverter(TextEncodingConverter &&Other)
       : Converter(std::move(Other.Converter)) {}
 
+  /// Move-assign from \p Other, taking ownership of its converter.
+  ///
+  /// \param Other Converter to move from.
+  /// \return Reference to this converter.
   TextEncodingConverter &operator=(TextEncodingConverter &&Other) {
     if (this != &Other)
       Converter = std::move(Other.Converter);
     return *this;
   }
 
+  /// Destroys the converter and releases its implementation.
   ~TextEncodingConverter() = default;
 
   /// Converts a string.
@@ -127,6 +148,9 @@ public:
     return Converter->convert(Source, Result);
   }
 
+  /// Converts a string to a newly allocated std::string.
+  /// \param[in] Source source string
+  /// \return the converted string, or an error code if conversion failed
   ErrorOr<std::string> convert(StringRef Source) const {
     SmallString<100> Result;
     auto EC = Converter->convert(Source, Result);

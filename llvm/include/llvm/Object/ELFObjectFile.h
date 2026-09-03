@@ -45,16 +45,24 @@ template <typename T> class SmallVectorImpl;
 
 namespace object {
 
+/// Return the ELF symbol-type enumeration string table.
+///
+/// \return The ELF symbol-type enumeration string table.
 LLVM_ABI EnumStrings<uint8_t, 2> getElfSymbolTypes();
 
 class elf_symbol_iterator;
 
+/// One PLT entry: owning section, optional symbol, and address.
 struct ELFPltEntry {
+  /// Name of the section that contains this PLT entry.
   StringRef Section;
+  /// Optional opaque handle for the symbol this PLT entry resolves.
   std::optional<DataRefImpl> Symbol;
+  /// Virtual address of this PLT entry.
   uint64_t Address;
 };
 
+/// Common base class for ELF object files of any address size or endianness.
 class LLVM_ABI ELFObjectFileBase : public ObjectFile {
   friend class ELFRelocationRef;
   friend class ELFSectionRef;
@@ -70,135 +78,277 @@ class LLVM_ABI ELFObjectFileBase : public ObjectFile {
   StringRef getNVPTXCPUName() const;
 
 protected:
+  /// Construct an ELFObjectFileBase of \p Type backed by \p Source.
+  ///
+  /// \param Type Binary type identifier for this ELF object.
+  /// \param Source Memory buffer holding the object file contents.
   ELFObjectFileBase(unsigned int Type, MemoryBufferRef Source);
 
+  /// Size in bytes of symbol \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Size in bytes of the symbol.
   virtual uint64_t getSymbolSize(DataRefImpl Symb) const = 0;
+  /// ELF binding of symbol \p Symb (e.g. STB_GLOBAL).
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return ELF binding of the symbol (e.g. STB_GLOBAL).
   virtual uint8_t getSymbolBinding(DataRefImpl Symb) const = 0;
+  /// ELF st_other field of symbol \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return ELF st_other field of the symbol.
   virtual uint8_t getSymbolOther(DataRefImpl Symb) const = 0;
+  /// ELF symbol type of \p Symb (e.g. STT_FUNC).
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return ELF symbol type of the symbol (e.g. STT_FUNC).
   virtual uint8_t getSymbolELFType(DataRefImpl Symb) const = 0;
 
+  /// ELF section type (sh_type) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return ELF section type (sh_type) of the section.
   virtual uint32_t getSectionType(DataRefImpl Sec) const = 0;
+  /// ELF section flags (sh_flags) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return ELF section flags (sh_flags) of the section.
   virtual uint64_t getSectionFlags(DataRefImpl Sec) const = 0;
+  /// File offset (sh_offset) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return File offset (sh_offset) of the section.
   virtual uint64_t getSectionOffset(DataRefImpl Sec) const = 0;
 
+  /// Addend of relocation \p Rel, if the relocation has one.
+  ///
+  /// \param Rel Opaque relocation handle.
+  /// \return Addend of the relocation, or an error if unavailable.
   virtual Expected<int64_t> getRelocationAddend(DataRefImpl Rel) const = 0;
+  /// Parse build-attribute sections into \p Attributes.
+  ///
+  /// \param Attributes Parser that receives decoded build attributes.
+  /// \return Success, or an error if parsing failed.
   virtual Error getBuildAttributes(ELFAttributeParser &Attributes) const = 0;
 
 public:
+  /// Range of ELF dynamic symbol iterators.
   using elf_symbol_iterator_range = iterator_range<elf_symbol_iterator>;
 
+  /// Iterators over symbols in the dynamic symbol table.
+  ///
+  /// \return Range of ELF dynamic symbol iterators.
   virtual elf_symbol_iterator_range getDynamicSymbolIterators() const = 0;
 
   /// Returns platform-specific object flags, if any.
+  ///
+  /// \return Platform-specific object flags, or 0 if none.
   virtual unsigned getPlatformFlags() const = 0;
 
+  /// Range of symbols in this ELF object's symbol table.
+  ///
+  /// \return Range of symbols in this ELF object's symbol table.
   elf_symbol_iterator_range symbols() const;
 
+  /// True if \p v is an ELF object file.
+  ///
+  /// \param v Binary to test.
+  /// \return True if \p v is an ELF object file.
   static bool classof(const Binary *v) { return v->isELF(); }
 
+  /// Subtarget feature bits implied by this ELF object.
+  ///
+  /// \return Subtarget feature bits, or an error on failure.
   Expected<SubtargetFeatures> getFeatures() const override;
 
+  /// Optional CPU name derived from ELF machine-specific fields.
+  ///
+  /// \return Optional CPU name, or nullopt if unavailable.
   std::optional<StringRef> tryGetCPUName() const override;
 
+  /// Set ARM sub-architecture fields on \p TheTriple from this object.
+  ///
+  /// \param TheTriple Triple updated with ARM sub-arch information.
   void setARMSubArch(Triple &TheTriple) const override;
 
+  /// ELF e_type field from the ELF header.
+  ///
+  /// \return ELF e_type field from the ELF header.
   virtual uint16_t getEType() const = 0;
 
+  /// ELF e_machine field from the ELF header.
+  ///
+  /// \return ELF e_machine field from the ELF header.
   virtual uint16_t getEMachine() const = 0;
 
+  /// ELF EI_ABIVERSION byte from e_ident.
+  ///
+  /// \return ELF EI_ABIVERSION byte from e_ident.
   virtual uint8_t getEIdentABIVersion() const = 0;
 
+  /// ELF EI_OSABI byte from e_ident.
+  ///
+  /// \return ELF EI_OSABI byte from e_ident.
   virtual uint8_t getEIdentOSABI() const = 0;
 
+  /// PLT entries discovered in this object for subtarget \p STI.
+  ///
+  /// \param STI Subtarget info used to interpret PLT sequences.
+  /// \return PLT entries discovered in this object.
   std::vector<ELFPltEntry> getPltEntries(const MCSubtargetInfo &STI) const;
 
   /// Returns a vector containing a symbol version for each dynamic symbol.
   /// Returns an empty vector if version sections do not exist.
+  ///
+  /// \return Symbol versions for each dynamic symbol, or an error on failure.
   Expected<std::vector<VersionEntry>> readDynsymVersions() const;
 
-  /// Returns a vector of all BB address maps in the object file. When
-  /// `TextSectionIndex` is specified, only returns the BB address maps
-  /// corresponding to the section with that index. When `PGOAnalyses`is
+  /// Return BB address maps from this object, optionally filtered.
+  ///
+  /// When `TextSectionIndex` is specified, only returns the BB address maps
+  /// corresponding to the section with that index. When `PGOAnalyses` is
   /// specified (PGOAnalyses is not nullptr), the vector is cleared then filled
   /// with extra PGO data. `PGOAnalyses` will always be the same length as the
   /// return value when it is requested assuming no error occurs. Upon failure,
   /// `PGOAnalyses` will be emptied.
+  ///
+  /// \param TextSectionIndex If set, only maps for this text section index.
+  /// \param PGOAnalyses Optional output for per-map PGO analysis data.
+  /// \return BB address maps, or an error on failure.
   Expected<std::vector<BBAddrMap>>
   readBBAddrMap(std::optional<unsigned> TextSectionIndex = std::nullopt,
                 std::vector<PGOAnalysisMap> *PGOAnalyses = nullptr) const;
 
+  /// CREL decode error message for \p Sec, or empty if none.
+  ///
+  /// \param Sec Section whose CREL decode status is queried.
+  /// \return CREL decode error message for \p Sec, or empty if none.
   StringRef getCrelDecodeProblem(SectionRef Sec) const;
 };
 
+/// SectionRef specialized for ELF section metadata.
 class ELFSectionRef : public SectionRef {
 public:
+  /// Construct an ELFSectionRef from section reference \p B.
+  ///
+  /// \param B Section reference owned by an ELFObjectFileBase.
   ELFSectionRef(const SectionRef &B) : SectionRef(B) {
     assert(isa<ELFObjectFileBase>(SectionRef::getObject()));
   }
 
+  /// ELF object file that owns this section.
+  ///
+  /// \return ELF object file that owns this section.
   const ELFObjectFileBase *getObject() const {
     return cast<ELFObjectFileBase>(SectionRef::getObject());
   }
 
+  /// ELF section type (sh_type).
+  ///
+  /// \return ELF section type (sh_type).
   uint32_t getType() const {
     return getObject()->getSectionType(getRawDataRefImpl());
   }
 
+  /// ELF section flags (sh_flags).
+  ///
+  /// \return ELF section flags (sh_flags).
   uint64_t getFlags() const {
     return getObject()->getSectionFlags(getRawDataRefImpl());
   }
 
+  /// File offset of this section (sh_offset).
+  ///
+  /// \return File offset of this section (sh_offset).
   uint64_t getOffset() const {
     return getObject()->getSectionOffset(getRawDataRefImpl());
   }
 };
 
+/// section_iterator that yields ELFSectionRef values.
 class elf_section_iterator : public section_iterator {
 public:
+  /// Construct from section iterator \p B owned by an ELF object.
+  ///
+  /// \param B Section iterator to promote to an ELF section iterator.
   elf_section_iterator(const section_iterator &B) : section_iterator(B) {
     assert(isa<ELFObjectFileBase>(B->getObject()));
   }
 
+  /// Access the current ELFSectionRef.
+  ///
+  /// \return Pointer to the current ELFSectionRef.
   const ELFSectionRef *operator->() const {
     return static_cast<const ELFSectionRef *>(section_iterator::operator->());
   }
 
+  /// Dereference to the current ELFSectionRef.
+  ///
+  /// \return Reference to the current ELFSectionRef.
   const ELFSectionRef &operator*() const {
     return static_cast<const ELFSectionRef &>(section_iterator::operator*());
   }
 };
 
+/// SymbolRef specialized for ELF symbol metadata.
 class ELFSymbolRef : public SymbolRef {
 public:
+  /// Construct an ELFSymbolRef from symbol reference \p B.
+  ///
+  /// \param B Symbol reference owned by an ELFObjectFileBase.
   ELFSymbolRef(const SymbolRef &B) : SymbolRef(B) {
     assert(isa<ELFObjectFileBase>(SymbolRef::getObject()));
   }
 
+  /// ELF object file that owns this symbol.
+  ///
+  /// \return ELF object file that owns this symbol.
   const ELFObjectFileBase *getObject() const {
     return cast<ELFObjectFileBase>(BasicSymbolRef::getObject());
   }
 
+  /// Size in bytes of this symbol (st_size).
+  ///
+  /// \return Size in bytes of this symbol (st_size).
   uint64_t getSize() const {
     return getObject()->getSymbolSize(getRawDataRefImpl());
   }
 
+  /// ELF binding of this symbol (e.g. STB_GLOBAL).
+  ///
+  /// \return ELF binding of this symbol (e.g. STB_GLOBAL).
   uint8_t getBinding() const {
     return getObject()->getSymbolBinding(getRawDataRefImpl());
   }
 
+  /// ELF st_other field of this symbol.
+  ///
+  /// \return ELF st_other field of this symbol.
   uint8_t getOther() const {
     return getObject()->getSymbolOther(getRawDataRefImpl());
   }
 
+  /// ELF symbol type of this symbol (e.g. STT_FUNC).
+  ///
+  /// \return ELF symbol type of this symbol (e.g. STT_FUNC).
   uint8_t getELFType() const {
     return getObject()->getSymbolELFType(getRawDataRefImpl());
   }
 
+  /// Human-readable name of this symbol's ELF type.
+  ///
+  /// \return Human-readable name of this symbol's ELF type.
   StringRef getELFTypeName() const {
     return getElfSymbolTypes().toString(getELFType(), 1);
   }
 };
 
+/// Order ELF symbol references by their opaque DataRefImpl fields.
+///
+/// \param A Left-hand ELF symbol reference.
+/// \param B Right-hand ELF symbol reference.
+/// \return True if \p A orders before \p B by DataRefImpl fields.
 inline bool operator<(const ELFSymbolRef &A, const ELFSymbolRef &B) {
   const DataRefImpl &DRIA = A.getRawDataRefImpl();
   const DataRefImpl &DRIB = B.getRawDataRefImpl();
@@ -207,58 +357,92 @@ inline bool operator<(const ELFSymbolRef &A, const ELFSymbolRef &B) {
   return DRIA.d.a < DRIB.d.a;
 }
 
+/// symbol_iterator that yields ELFSymbolRef values.
 class elf_symbol_iterator : public symbol_iterator {
 public:
+  /// Construct from basic symbol iterator \p B owned by an ELF object.
+  ///
+  /// \param B Basic symbol iterator to promote to an ELF symbol iterator.
   elf_symbol_iterator(const basic_symbol_iterator &B)
       : symbol_iterator(SymbolRef(B->getRawDataRefImpl(),
                                   cast<ELFObjectFileBase>(B->getObject()))) {}
 
+  /// Access the current ELFSymbolRef.
+  ///
+  /// \return Pointer to the current ELFSymbolRef.
   const ELFSymbolRef *operator->() const {
     return static_cast<const ELFSymbolRef *>(symbol_iterator::operator->());
   }
 
+  /// Dereference to the current ELFSymbolRef.
+  ///
+  /// \return Reference to the current ELFSymbolRef.
   const ELFSymbolRef &operator*() const {
     return static_cast<const ELFSymbolRef &>(symbol_iterator::operator*());
   }
 };
 
+/// RelocationRef specialized for ELF relocation metadata.
 class ELFRelocationRef : public RelocationRef {
 public:
+  /// Construct an ELFRelocationRef from relocation reference \p B.
+  ///
+  /// \param B Relocation reference owned by an ELFObjectFileBase.
   ELFRelocationRef(const RelocationRef &B) : RelocationRef(B) {
     assert(isa<ELFObjectFileBase>(RelocationRef::getObject()));
   }
 
+  /// ELF object file that owns this relocation.
+  ///
+  /// \return ELF object file that owns this relocation.
   const ELFObjectFileBase *getObject() const {
     return cast<ELFObjectFileBase>(RelocationRef::getObject());
   }
 
+  /// Addend of this relocation, if present.
+  ///
+  /// \return Addend of this relocation, or an error if unavailable.
   Expected<int64_t> getAddend() const {
     return getObject()->getRelocationAddend(getRawDataRefImpl());
   }
 };
 
+/// relocation_iterator that yields ELFRelocationRef values.
 class elf_relocation_iterator : public relocation_iterator {
 public:
+  /// Construct from relocation iterator \p B owned by an ELF object.
+  ///
+  /// \param B Relocation iterator to promote to an ELF relocation iterator.
   elf_relocation_iterator(const relocation_iterator &B)
       : relocation_iterator(RelocationRef(
             B->getRawDataRefImpl(), cast<ELFObjectFileBase>(B->getObject()))) {}
 
+  /// Access the current ELFRelocationRef.
+  ///
+  /// \return Pointer to the current ELFRelocationRef.
   const ELFRelocationRef *operator->() const {
     return static_cast<const ELFRelocationRef *>(
         relocation_iterator::operator->());
   }
 
+  /// Dereference to the current ELFRelocationRef.
+  ///
+  /// \return Reference to the current ELFRelocationRef.
   const ELFRelocationRef &operator*() const {
     return static_cast<const ELFRelocationRef &>(
         relocation_iterator::operator*());
   }
 };
 
+/// Range of symbols in this ELF object's symbol table.
+///
+/// \return Range of symbols in this ELF object's symbol table.
 inline ELFObjectFileBase::elf_symbol_iterator_range
 ELFObjectFileBase::symbols() const {
   return elf_symbol_iterator_range(symbol_begin(), symbol_end());
 }
 
+/// ELF object file for a concrete ELF type \p ELFT.
 template <class ELFT> class ELFObjectFile : public ELFObjectFileBase {
   uint16_t getEMachine() const override;
   uint16_t getEType() const override;
@@ -269,14 +453,26 @@ template <class ELFT> class ELFObjectFile : public ELFObjectFileBase {
 public:
   LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
 
+  /// Build a SectionRef for ELF section header \p Sec.
+  ///
+  /// \param Sec ELF section header to wrap.
+  /// \return SectionRef wrapping \p Sec.
   SectionRef toSectionRef(const Elf_Shdr *Sec) const {
     return SectionRef(toDRI(Sec), this);
   }
 
+  /// Build an ELFSymbolRef for symbol \p SymbolNum in \p SymTable.
+  ///
+  /// \param SymTable Symbol table section that owns the symbol.
+  /// \param SymbolNum Index of the symbol within \p SymTable.
+  /// \return ELFSymbolRef for the given symbol.
   ELFSymbolRef toSymbolRef(const Elf_Shdr *SymTable, unsigned SymbolNum) const {
     return ELFSymbolRef({toDRI(SymTable, SymbolNum), this});
   }
 
+  /// True if initContent has successfully initialized section pointers.
+  ///
+  /// \return True if initContent has successfully initialized section pointers.
   bool IsContentValid() const { return ContentValid; }
 
 private:
@@ -287,67 +483,241 @@ private:
   bool ContentValid = false;
 
 protected:
+  /// Underlying ELFFile view of this object's contents.
   ELFFile<ELFT> EF;
 
-  const Elf_Shdr *DotDynSymSec = nullptr; // Dynamic symbol table section.
-  const Elf_Shdr *DotSymtabSec = nullptr; // Symbol table section.
-  const Elf_Shdr *DotSymtabShndxSec = nullptr; // SHT_SYMTAB_SHNDX section.
+  /// Dynamic symbol table section (.dynsym), if present.
+  const Elf_Shdr *DotDynSymSec = nullptr;
+  /// Symbol table section (.symtab), if present.
+  const Elf_Shdr *DotSymtabSec = nullptr;
+  /// SHT_SYMTAB_SHNDX section, if present.
+  const Elf_Shdr *DotSymtabShndxSec = nullptr;
 
-  // Hold CREL relocations for SectionRef::relocations().
+  /// Decoded CREL relocations cached for SectionRef::relocations().
   mutable SmallVector<SmallVector<Elf_Crel, 0>, 0> Crels;
+  /// Per-section CREL decode error messages, parallel to \c Crels.
   mutable SmallVector<std::string, 0> CrelDecodeProblems;
 
+  /// Locate .dynsym, .symtab, and SHT_SYMTAB_SHNDX section headers.
+  ///
+  /// \return Success, or an error if section headers could not be scanned.
   Error initContent() override;
 
+  /// Advance \p Symb to the next symbol in its symbol table.
+  ///
+  /// \param Symb Opaque symbol handle to advance.
   void moveSymbolNext(DataRefImpl &Symb) const override;
+  /// Name of symbol \p Symb, or the section name for STT_SECTION symbols.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Name of the symbol, or an error on failure.
   Expected<StringRef> getSymbolName(DataRefImpl Symb) const override;
+  /// Virtual address of symbol \p Symb, adjusted for relocatable objects.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Virtual address of the symbol, or an error on failure.
   Expected<uint64_t> getSymbolAddress(DataRefImpl Symb) const override;
+  /// Raw st_value of symbol \p Symb, with ARM/MIPS ISA bits cleared for functions.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Raw st_value of the symbol.
   uint64_t getSymbolValueImpl(DataRefImpl Symb) const override;
+  /// Alignment of common symbol \p Symb, or 0 if not common.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Alignment of the common symbol, or 0 if not common.
   uint32_t getSymbolAlignment(DataRefImpl Symb) const override;
+  /// Size of common symbol \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Size of the common symbol.
   uint64_t getCommonSymbolSizeImpl(DataRefImpl Symb) const override;
+  /// SymbolRef flags for symbol \p Symb derived from ELF symbol fields.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return SymbolRef flags for the symbol, or an error on failure.
   Expected<uint32_t> getSymbolFlags(DataRefImpl Symb) const override;
+  /// ELF binding of symbol \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return ELF binding of the symbol.
   uint8_t getSymbolBinding(DataRefImpl Symb) const override;
+  /// ELF st_other field of symbol \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return ELF st_other field of the symbol.
   uint8_t getSymbolOther(DataRefImpl Symb) const override;
+  /// ELF symbol type of \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return ELF symbol type of the symbol.
   uint8_t getSymbolELFType(DataRefImpl Symb) const override;
+  /// High-level SymbolRef::Type for ELF symbol \p Symb.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return High-level SymbolRef::Type for the symbol, or an error on failure.
   Expected<SymbolRef::Type> getSymbolType(DataRefImpl Symb) const override;
+  /// Section containing ELF symbol \p Symb from symbol table \p SymTab.
+  ///
+  /// \param Symb ELF symbol whose defining section is returned.
+  /// \param SymTab Symbol table section that owns \p Symb.
+  /// \return Section containing the symbol, or an error on failure.
   Expected<section_iterator> getSymbolSection(const Elf_Sym *Symb,
                                               const Elf_Shdr *SymTab) const;
+  /// Section containing symbol \p Symb, or section_end() if none.
+  ///
+  /// \param Symb Opaque symbol handle.
+  /// \return Section containing the symbol, or section_end() if none.
   Expected<section_iterator> getSymbolSection(DataRefImpl Symb) const override;
 
+  /// Advance \p Sec to the next section header.
+  ///
+  /// \param Sec Opaque section handle to advance.
   void moveSectionNext(DataRefImpl &Sec) const override;
+  /// Name of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Name of the section, or an error on failure.
   Expected<StringRef> getSectionName(DataRefImpl Sec) const override;
+  /// Load address (sh_addr) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Load address (sh_addr) of the section.
   uint64_t getSectionAddress(DataRefImpl Sec) const override;
+  /// Index of section \p Sec within the section header table.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Index of the section within the section header table.
   uint64_t getSectionIndex(DataRefImpl Sec) const override;
+  /// Size in bytes (sh_size) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Size in bytes (sh_size) of the section.
   uint64_t getSectionSize(DataRefImpl Sec) const override;
+  /// Contents of section \p Sec, or an empty array for SHT_NOBITS.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Contents of the section, or an empty array for SHT_NOBITS.
   Expected<ArrayRef<uint8_t>>
   getSectionContents(DataRefImpl Sec) const override;
+  /// Alignment (sh_addralign) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Alignment (sh_addralign) of the section.
   uint64_t getSectionAlignment(DataRefImpl Sec) const override;
+  /// True if section \p Sec has the SHF_COMPRESSED flag.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section has the SHF_COMPRESSED flag.
   bool isSectionCompressed(DataRefImpl Sec) const override;
+  /// True if section \p Sec has the SHF_EXECINSTR flag.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section has the SHF_EXECINSTR flag.
   bool isSectionText(DataRefImpl Sec) const override;
+  /// True if section \p Sec is allocatable non-executable initialized data.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section is allocatable non-executable initialized data.
   bool isSectionData(DataRefImpl Sec) const override;
+  /// True if section \p Sec is allocatable SHT_NOBITS (BSS).
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section is allocatable SHT_NOBITS (BSS).
   bool isSectionBSS(DataRefImpl Sec) const override;
+  /// True if section \p Sec is SHT_NOBITS (no file contents).
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section is SHT_NOBITS (no file contents).
   bool isSectionVirtual(DataRefImpl Sec) const override;
+  /// True if section \p Sec counts as Berkeley text.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section counts as Berkeley text.
   bool isBerkeleyText(DataRefImpl Sec) const override;
+  /// True if section \p Sec counts as Berkeley data.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section counts as Berkeley data.
   bool isBerkeleyData(DataRefImpl Sec) const override;
+  /// True if section \p Sec is a debug section by name.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if the section is a debug section by name.
   bool isDebugSection(DataRefImpl Sec) const override;
+  /// Iterator to the first relocation in section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Iterator to the first relocation in the section.
   relocation_iterator section_rel_begin(DataRefImpl Sec) const override;
+  /// Past-the-end iterator for relocations in section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Past-the-end iterator for relocations in the section.
   relocation_iterator section_rel_end(DataRefImpl Sec) const override;
+  /// Sections referenced by DT_REL, DT_RELA, or DT_JMPREL dynamic tags.
+  ///
+  /// \return Sections referenced by DT_REL, DT_RELA, or DT_JMPREL dynamic tags.
   std::vector<SectionRef> dynamic_relocation_sections() const override;
+  /// Section that relocations in \p Sec apply to, if \p Sec is a reloc section.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Section that the relocations apply to, or an error on failure.
   Expected<section_iterator>
   getRelocatedSection(DataRefImpl Sec) const override;
 
+  /// Advance \p Rel to the next relocation in its section.
+  ///
+  /// \param Rel Opaque relocation handle to advance.
   void moveRelocationNext(DataRefImpl &Rel) const override;
+  /// Byte offset of relocation \p Rel within its section.
+  ///
+  /// \param Rel Opaque relocation handle.
+  /// \return Byte offset of the relocation within its section.
   uint64_t getRelocationOffset(DataRefImpl Rel) const override;
+  /// Symbol referenced by relocation \p Rel, or symbol_end() if none.
+  ///
+  /// \param Rel Opaque relocation handle.
+  /// \return Symbol referenced by the relocation, or symbol_end() if none.
   symbol_iterator getRelocationSymbol(DataRefImpl Rel) const override;
+  /// Relocation type encoding of \p Rel.
+  ///
+  /// \param Rel Opaque relocation handle.
+  /// \return Relocation type encoding of the relocation.
   uint64_t getRelocationType(DataRefImpl Rel) const override;
+  /// Append a display name for relocation \p Rel's type to \p Result.
+  ///
+  /// \param Rel Opaque relocation handle.
+  /// \param Result Buffer that receives the type name.
   void getRelocationTypeName(DataRefImpl Rel,
                              SmallVectorImpl<char> &Result) const override;
 
+  /// ELF section type (sh_type) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return ELF section type (sh_type) of the section.
   uint32_t getSectionType(DataRefImpl Sec) const override;
+  /// ELF section flags (sh_flags) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return ELF section flags (sh_flags) of the section.
   uint64_t getSectionFlags(DataRefImpl Sec) const override;
+  /// File offset (sh_offset) of section \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return File offset (sh_offset) of the section.
   uint64_t getSectionOffset(DataRefImpl Sec) const override;
+  /// Display name for relocation type \p Type on this object's machine.
+  ///
+  /// \param Type Relocation type encoding.
+  /// \return Display name for the relocation type on this object's machine.
   StringRef getRelocationTypeName(uint32_t Type) const;
 
+  /// Opaque DataRefImpl for symbol \p SymbolNum in symbol table \p SymTable.
+  ///
+  /// \param SymTable Symbol table section header, or null for an empty ref.
+  /// \param SymbolNum Index of the symbol within \p SymTable.
+  /// \return Opaque DataRefImpl for the symbol.
   DataRefImpl toDRI(const Elf_Shdr *SymTable, unsigned SymbolNum) const {
     DataRefImpl DRI;
     if (!SymTable) {
@@ -373,22 +743,38 @@ protected:
     return DRI;
   }
 
+  /// ELF section header pointer stored in opaque section handle \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return ELF section header pointer stored in the opaque handle.
   const Elf_Shdr *toELFShdrIter(DataRefImpl Sec) const {
     return reinterpret_cast<const Elf_Shdr *>(Sec.p);
   }
 
+  /// Opaque DataRefImpl for section header \p Sec.
+  ///
+  /// \param Sec ELF section header to encode.
+  /// \return Opaque DataRefImpl for the section header.
   DataRefImpl toDRI(const Elf_Shdr *Sec) const {
     DataRefImpl DRI;
     DRI.p = reinterpret_cast<uintptr_t>(Sec);
     return DRI;
   }
 
+  /// Opaque DataRefImpl for dynamic entry \p Dyn.
+  ///
+  /// \param Dyn ELF dynamic table entry to encode.
+  /// \return Opaque DataRefImpl for the dynamic entry.
   DataRefImpl toDRI(const Elf_Dyn *Dyn) const {
     DataRefImpl DRI;
     DRI.p = reinterpret_cast<uintptr_t>(Dyn);
     return DRI;
   }
 
+  /// True if \p ESym is exported to other DSOs by binding and visibility.
+  ///
+  /// \param ESym ELF symbol to test for DSO export.
+  /// \return True if \p ESym is exported to other DSOs by binding and visibility.
   bool isExportedToOtherDSO(const Elf_Sym *ESym) const {
     unsigned char Binding = ESym->getBinding();
     unsigned char Visibility = ESym->getVisibility();
@@ -402,6 +788,10 @@ protected:
         (Visibility == ELF::STV_DEFAULT || Visibility == ELF::STV_PROTECTED));
   }
 
+  /// Parse machine-specific build-attribute sections into \p Attributes.
+  ///
+  /// \param Attributes Parser that receives decoded build attributes.
+  /// \return Success, or an error if parsing failed.
   Error getBuildAttributes(ELFAttributeParser &Attributes) const override {
     uint32_t Type;
     switch (getEMachine()) {
@@ -442,25 +832,52 @@ protected:
     return Error::success();
   }
 
-  // This flag is used for classof, to distinguish ELFObjectFile from
-  // its subclass. If more subclasses will be created, this flag will
-  // have to become an enum.
+  /// Distinguishes ELFObjectFile from DyldELFObjectFile subclasses.
+  ///
+  /// Used by classof. If more subclasses are created, this may become an enum.
   bool isDyldELFObject = false;
 
 public:
+  /// Move-construct an ELFObjectFile from \p Other.
+  ///
+  /// \param Other ELF object file to move from.
   ELFObjectFile(ELFObjectFile<ELFT> &&Other);
+  /// Create an ELFObjectFile from memory buffer \p Object.
+  ///
+  /// \param Object Memory buffer holding ELF contents.
+  /// \param InitContent If true, scan sections to initialize symbol tables.
+  /// \return An ELFObjectFile on success, or an error on failure.
   static Expected<ELFObjectFile<ELFT>> create(MemoryBufferRef Object,
                                               bool InitContent = true);
 
+  /// REL relocation entry for opaque handle \p Rel.
+  ///
+  /// \param Rel Opaque relocation handle in an SHT_REL section.
+  /// \return REL relocation entry for the opaque handle.
   const Elf_Rel *getRel(DataRefImpl Rel) const;
+  /// RELA relocation entry for opaque handle \p Rela.
+  ///
+  /// \param Rela Opaque relocation handle in an SHT_RELA section.
+  /// \return RELA relocation entry for the opaque handle.
   const Elf_Rela *getRela(DataRefImpl Rela) const;
+  /// Decoded CREL relocation for opaque handle \p Crel.
+  ///
+  /// \param Crel Opaque relocation handle in an SHT_CREL section.
+  /// \return Decoded CREL relocation for the opaque handle.
   Elf_Crel getCrel(DataRefImpl Crel) const;
 
+  /// ELF symbol for opaque handle \p Sym.
+  ///
+  /// \param Sym Opaque symbol handle (section index, symbol index).
+  /// \return ELF symbol for the opaque handle, or an error on failure.
   Expected<const Elf_Sym *> getSymbol(DataRefImpl Sym) const {
     return EF.template getEntry<Elf_Sym>(Sym.d.a, Sym.d.b);
   }
 
-  /// Get the relocation section that contains \a Rel.
+  /// Get the relocation section that contains \p Rel.
+  ///
+  /// \param Rel Opaque relocation handle whose owning section is returned.
+  /// \return Relocation section that contains \p Rel.
   const Elf_Shdr *getRelSection(DataRefImpl Rel) const {
     auto RelSecOrErr = EF.getSection(Rel.d.a);
     if (!RelSecOrErr)
@@ -469,52 +886,124 @@ public:
     return *RelSecOrErr;
   }
 
+  /// ELF section header for opaque section handle \p Sec.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return ELF section header for the opaque section handle.
   const Elf_Shdr *getSection(DataRefImpl Sec) const {
     return reinterpret_cast<const Elf_Shdr *>(Sec.p);
   }
 
+  /// Iterator to the first non-null symbol in .symtab.
+  ///
+  /// \return Iterator to the first non-null symbol in .symtab.
   basic_symbol_iterator symbol_begin() const override;
+  /// Past-the-end iterator for .symtab symbols.
+  ///
+  /// \return Past-the-end iterator for .symtab symbols.
   basic_symbol_iterator symbol_end() const override;
 
+  /// True if this ELF object uses 64-bit addresses.
+  ///
+  /// \return True if this ELF object uses 64-bit addresses.
   bool is64Bit() const override { return getBytesInAddress() == 8; }
 
+  /// Iterator to the first non-null dynamic symbol in .dynsym.
+  ///
+  /// \return Iterator to the first non-null dynamic symbol in .dynsym.
   elf_symbol_iterator dynamic_symbol_begin() const;
+  /// Past-the-end iterator for .dynsym symbols.
+  ///
+  /// \return Past-the-end iterator for .dynsym symbols.
   elf_symbol_iterator dynamic_symbol_end() const;
 
+  /// Iterator to the first section in this ELF object.
+  ///
+  /// \return Iterator to the first section in this ELF object.
   section_iterator section_begin() const override;
+  /// Past-the-end iterator for sections in this ELF object.
+  ///
+  /// \return Past-the-end iterator for sections in this ELF object.
   section_iterator section_end() const override;
 
+  /// Addend of relocation \p Rel, if the relocation has one.
+  ///
+  /// \param Rel Opaque relocation handle.
+  /// \return Addend of the relocation, or an error if unavailable.
   Expected<int64_t> getRelocationAddend(DataRefImpl Rel) const override;
 
+  /// Number of bytes in an address for this ELF class (4 or 8).
+  ///
+  /// \return Number of bytes in an address for this ELF class (4 or 8).
   uint8_t getBytesInAddress() const override;
+  /// Short BFD-style name for this ELF file format (e.g. elf64-x86-64).
+  ///
+  /// \return Short BFD-style name for this ELF file format.
   StringRef getFileFormatName() const override;
+  /// Triple architecture corresponding to this ELF e_machine.
+  ///
+  /// \return Triple architecture corresponding to this ELF e_machine.
   Triple::ArchType getArch() const override;
+  /// Triple OS type corresponding to this ELF EI_OSABI.
+  ///
+  /// \return Triple OS type corresponding to this ELF EI_OSABI.
   Triple::OSType getOS() const override;
+  /// ELF entry point address (e_entry).
+  ///
+  /// \return ELF entry point address (e_entry), or an error on failure.
   Expected<uint64_t> getStartAddress() const override;
 
+  /// ELF header e_flags value for this object.
+  ///
+  /// \return ELF header e_flags value for this object.
   unsigned getPlatformFlags() const override { return EF.getHeader().e_flags; }
 
+  /// Underlying ELFFile view of this object's contents.
+  ///
+  /// \return Underlying ELFFile view of this object's contents.
   const ELFFile<ELFT> &getELFFile() const { return EF; }
 
+  /// True if this object is a DyldELFObjectFile subclass instance.
+  ///
+  /// \return True if this object is a DyldELFObjectFile subclass instance.
   bool isDyldType() const { return isDyldELFObject; }
+  /// True if \p v has this concrete ELF type (class and endianness).
+  ///
+  /// \param v Binary to test.
+  /// \return True if \p v has this concrete ELF type (class and endianness).
   static bool classof(const Binary *v) {
     return v->getType() ==
            getELFType(ELFT::Endianness == llvm::endianness::little,
                       ELFT::Is64Bits);
   }
 
+  /// Range of symbols in the dynamic symbol table.
+  ///
+  /// \return Range of symbols in the dynamic symbol table.
   elf_symbol_iterator_range getDynamicSymbolIterators() const override;
 
+  /// True if this object is an ELF relocatable (ET_REL).
+  ///
+  /// \return True if this object is an ELF relocatable (ET_REL).
   bool isRelocatableObject() const override;
 
+  /// Create placeholder section headers when the ELF image lacks them.
   void createFakeSections() { EF.createFakeSections(); }
 
+  /// CREL decode error message for section \p Sec, or empty if none.
+  ///
+  /// \param Sec Opaque section handle whose CREL decode status is queried.
+  /// \return CREL decode error message for section \p Sec, or empty if none.
   StringRef getCrelDecodeProblem(DataRefImpl Sec) const;
 };
 
+/// 32-bit little-endian ELF object file.
 using ELF32LEObjectFile = ELFObjectFile<ELF32LE>;
+/// 64-bit little-endian ELF object file.
 using ELF64LEObjectFile = ELFObjectFile<ELF64LE>;
+/// 32-bit big-endian ELF object file.
 using ELF32BEObjectFile = ELFObjectFile<ELF32BE>;
+/// 64-bit big-endian ELF object file.
 using ELF64BEObjectFile = ELFObjectFile<ELF64BE>;
 
 template <class ELFT>

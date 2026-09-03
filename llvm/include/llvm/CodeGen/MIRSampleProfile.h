@@ -27,13 +27,16 @@ class MachineBlockFrequencyInfo;
 class MachineFunction;
 class Module;
 
+/// Namespace for the virtual file system interface.
 namespace vfs {
 class FileSystem;
 } // namespace vfs
 
 using namespace sampleprof;
 
+/// Opaque implementation of the MIR sample profile loader.
 class MIRProfileLoader;
+/// Machine function pass that loads SampleFDO profile data into MIR.
 class LLVM_ABI MIRProfileLoaderPass : public MachineFunctionPass {
   MachineFunction *MF;
   std::string ProfileFileName;
@@ -42,16 +45,31 @@ class LLVM_ABI MIRProfileLoaderPass : public MachineFunctionPass {
   unsigned HighBit;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+  /// Construct a MIR sample profile loader pass.
+  ///
   /// FS bits will only use the '1' bits in the Mask.
+  ///
+  /// \param FileName Path to the sample profile data file.
+  /// \param RemappingFileName Optional profile remapping file, or empty if
+  /// unused.
+  /// \param P Which flow-sensitive discriminator pass loaded samples apply to.
+  /// \param FS Virtual filesystem used to read \p FileName and
+  /// \p RemappingFileName.
   MIRProfileLoaderPass(std::string FileName = "",
                        std::string RemappingFileName = "",
                        FSDiscriminatorPass P = FSDiscriminatorPass::Pass1,
                        IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr);
 
   /// getMachineFunction - Return the last machine function computed.
+  ///
+  /// \return The last machine function computed, or null if none.
   const MachineFunction *getMachineFunction() const { return MF; }
 
+  /// Return the name of this pass.
+  ///
+  /// \return The name of this pass.
   StringRef getPassName() const override { return "SampleFDO loader in MIR"; }
 
 private:

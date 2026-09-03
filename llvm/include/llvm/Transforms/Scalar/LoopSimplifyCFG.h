@@ -27,6 +27,12 @@ class Loop;
 /// Performs basic CFG simplifications to assist other loop passes.
 class LoopSimplifyCFGPass : public OptionalPassInfoMixin<LoopSimplifyCFGPass> {
 public:
+  /// Run basic CFG simplification over the loop.
+  /// @param L Loop whose CFG may be simplified.
+  /// @param AM Loop analysis manager providing analyses for the pass.
+  /// @param AR Standard loop analyses available to the pass.
+  /// @param U Loop pass manager updater for reporting loop structure changes.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

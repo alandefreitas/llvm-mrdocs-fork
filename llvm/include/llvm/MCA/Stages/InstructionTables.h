@@ -29,19 +29,32 @@
 namespace llvm {
 namespace mca {
 
+/// A custom pipeline stage that emits theoretical resource pressure tables.
+///
+/// Uses the scheduling model to compute a uniform resource pressure distribution
+/// for each instruction without running the full pipeline. See the
+/// -instruction-tables option in docs/CommandGuide/llvm-mca.rst.
 class LLVM_ABI InstructionTables final : public Stage {
   const MCSchedModel &SM;
   SmallVector<ResourceUse, 4> UsedResources;
   SmallVector<uint64_t, 8> Masks;
 
 public:
+  /// Construct an instruction tables stage from scheduling model \p Model.
+  /// \param Model Scheduling model used to compute processor resource masks.
   InstructionTables(const MCSchedModel &Model)
       : SM(Model), Masks(Model.getNumProcResourceKinds()) {
     computeProcResourceMasks(Model, Masks);
     LLVM_DEBUG(dumpProcResourceMasks(Model, Masks));
   }
 
+  /// Returns false because this stage never buffers work across cycles.
+  /// \return Always false.
   bool hasWorkToComplete() const override { return false; }
+
+  /// Emits a theoretical issued event with resource uses for \p IR.
+  /// \param IR Instruction whose resource pressure should be reported.
+  /// \return Success (\c ErrorSuccess).
   Error execute(InstRef &IR) override;
 };
 } // namespace mca

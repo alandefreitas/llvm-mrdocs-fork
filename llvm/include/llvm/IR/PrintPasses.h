@@ -15,77 +15,119 @@
 
 namespace llvm {
 
+/// How `-print-changed` presents IR that a pass modified.
 enum class ChangePrinter {
-  None,
-  Verbose,
-  Quiet,
-  DiffVerbose,
-  DiffQuiet,
-  ColourDiffVerbose,
-  ColourDiffQuiet,
-  DotCfgVerbose,
-  DotCfgQuiet
+  None,              ///< Disabled; do not print changed IR.
+  Verbose,           ///< Full after-IR dump, with unchanged and filtered notes.
+  Quiet,             ///< Full after-IR dump, without unchanged or filtered notes.
+  DiffVerbose,       ///< Patch-like diff, with unchanged and filtered notes.
+  DiffQuiet,         ///< Patch-like diff, without unchanged or filtered notes.
+  ColourDiffVerbose, ///< Colored patch-like diff, with unchanged and filtered notes.
+  ColourDiffQuiet,   ///< Colored patch-like diff, without unchanged or filtered notes.
+  DotCfgVerbose,     ///< Graphical CFG website, with unchanged and filtered notes.
+  DotCfgQuiet        ///< Graphical CFG website, without unchanged or filtered notes.
 };
 
+/// Storage for the `-print-changed` command-line option.
 extern LLVM_ABI cl::opt<ChangePrinter> PrintChanged;
 
-// Returns true if printing before/after some pass is enabled, whether all
-// passes or a specific pass.
+/// Returns true if printing IR before at least one pass is enabled.
+/// @return True if printing IR before at least one pass is enabled.
 LLVM_ABI bool shouldPrintBeforeSomePass();
+/// Returns true if printing IR after at least one pass is enabled.
+/// @return True if printing IR after at least one pass is enabled.
 LLVM_ABI bool shouldPrintAfterSomePass();
 
-// Returns true if we should print before/after a specific pass. The argument
-// should be the pass ID, e.g. "instcombine".
+/// Returns true if IR should be printed before the pass named \p PassID.
+/// \param PassID Pass identifier, such as "instcombine".
+/// @return True if IR should be printed before the named pass.
 LLVM_ABI bool shouldPrintBeforePass(StringRef PassID);
+/// Returns true if IR should be printed after the pass named \p PassID.
+/// \param PassID Pass identifier, such as "instcombine".
+/// @return True if IR should be printed after the named pass.
 LLVM_ABI bool shouldPrintAfterPass(StringRef PassID);
 
-// Returns true if we should print before/after all passes.
+/// Returns true if IR should be printed before every pass.
+/// @return True if IR should be printed before every pass.
 LLVM_ABI bool shouldPrintBeforeAll();
+/// Returns true if IR should be printed after every pass.
+/// @return True if IR should be printed after every pass.
 LLVM_ABI bool shouldPrintAfterAll();
 
-// The list of passes to print before/after, if we only want to print
-// before/after specific passes.
+/// Returns the names of passes whose IR should be printed before they run.
+/// @return The names of passes whose IR should be printed before they run.
 LLVM_ABI std::vector<std::string> printBeforePasses();
+/// Returns the names of passes whose IR should be printed after they run.
+/// @return The names of passes whose IR should be printed after they run.
 LLVM_ABI std::vector<std::string> printAfterPasses();
 
-// Returns true if we should always print the entire module.
+/// Returns true if function-level IR dumps should print the entire module.
+/// @return True if function-level IR dumps should print the entire module.
 LLVM_ABI bool forcePrintModuleIR();
 
-// Returns true if we should print the entire function for loop passes.
+/// Returns true if loop-pass IR dumps should print the entire function.
+/// @return True if loop-pass IR dumps should print the entire function.
 LLVM_ABI bool forcePrintFuncIR();
 
-// Return true if -filter-passes is empty or contains the pass name.
+/// Returns true if `-filter-passes` is empty or contains \p PassName.
+/// \param PassName Pass name to test against `-filter-passes`.
+/// @return True if `-filter-passes` is empty or contains \p PassName.
 LLVM_ABI bool isPassInPrintList(StringRef PassName);
+/// Returns true if the `-filter-passes` list is empty.
+/// @return True if the `-filter-passes` list is empty.
 LLVM_ABI bool isFilterPassesEmpty();
 
-// Returns true if we should print the function.
+/// Returns true if IR for \p FunctionName should be printed.
+/// \param FunctionName Function name to test against `-filter-print-funcs`.
+/// @return True if IR for \p FunctionName should be printed.
 LLVM_ABI bool isFunctionInPrintList(StringRef FunctionName);
 
-// Ensure temporary files exist, creating or re-using them.  \p FD contains
-// file descriptors (-1 indicates that the file should be created) and
-// \p SR contains the corresponding initial content.  \p FileName will have
-// the filenames filled in when creating files.  Return first error code (if
-// any) and stop.
+/// Ensures temporary files exist, creating or re-using them.
+///
+/// \p FD contains file descriptors (-1 indicates that the file should be
+/// created) and \p SR contains the corresponding initial content.  \p FileName
+/// will have the filenames filled in when creating files.
+/// \param FD File descriptors to reuse, or -1 to create a new temp file.
+/// \param SR Initial content written to the first \c SR.size() files.
+/// \param FileName On return, paths of created or reused files.
+/// @return The first error code encountered, or success if all files were prepared.
 LLVM_ABI std::error_code prepareTempFiles(SmallVector<int> &FD,
                                           ArrayRef<StringRef> SR,
                                           SmallVector<std::string> &FileName);
 
-// Remove the temporary files in \p FileName.  Typically used in conjunction
-// with prepareTempFiles.  Return first error code (if any) and stop..
+/// Removes the temporary files named in \p FileName.
+///
+/// Typically used in conjunction with prepareTempFiles.
+/// \param FileName Paths of temporary files to delete.
+/// @return The first error code encountered, or success if all files were removed.
 LLVM_ABI std::error_code cleanUpTempFiles(ArrayRef<std::string> FileName);
 
-// Perform a system based diff between \p Before and \p After, using \p
-// OldLineFormat, \p NewLineFormat, and \p UnchangedLineFormat to control the
-// formatting of the output. Return an error message for any failures instead
-// of the diff.
+/// Performs a system-based diff between \p Before and \p After.
+///
+/// Uses \p OldLineFormat, \p NewLineFormat, and \p UnchangedLineFormat to
+/// control the formatting of the output.
+/// \param Before Text of the IR (or file body) before the change.
+/// \param After Text of the IR (or file body) after the change.
+/// \param OldLineFormat `diff --old-line-format` string.
+/// \param NewLineFormat `diff --new-line-format` string.
+/// \param UnchangedLineFormat `diff --unchanged-line-format` string.
+/// @return The formatted diff, or an error message on failure.
 LLVM_ABI std::string doSystemDiff(StringRef Before, StringRef After,
                                   StringRef OldLineFormat,
                                   StringRef NewLineFormat,
                                   StringRef UnchangedLineFormat);
 
-// Report a -print-changed diff for one pass over one IR unit (function or
-// module). IsInteresting is isPassInPrintList(PassID); ShouldReport is whether
-// the unit passed all filters (Before/After are only set then).
+/// Reports a `-print-changed` dump for one pass over one IR unit.
+///
+/// IsInteresting is isPassInPrintList(PassID); ShouldReport is whether
+/// the unit passed all filters (Before/After are only set then).
+/// \param Before IR text before the pass; meaningful when \p ShouldReport.
+/// \param After IR text after the pass; meaningful when \p ShouldReport.
+/// \param PassName Display name of the pass.
+/// \param PassID Pass identifier used in filter checks.
+/// \param IRName Name of the function or module being reported.
+/// \param IsInteresting True when the pass is selected by `-filter-passes`.
+/// \param ShouldReport True when the IR unit passed all print filters.
 LLVM_ABI void reportChangedIR(StringRef Before, StringRef After,
                               StringRef PassName, StringRef PassID,
                               StringRef IRName, bool IsInteresting,

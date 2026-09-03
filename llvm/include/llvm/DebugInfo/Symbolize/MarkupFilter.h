@@ -32,6 +32,12 @@ class LLVMSymbolizer;
 /// text.
 class MarkupFilter {
 public:
+  /// Constructs a markup filter that writes human-readable output to \p OS.
+  ///
+  /// \param OS Stream that receives filtered output.
+  /// \param Symbolizer Symbolizer used to resolve markup addresses and symbols.
+  /// \param ColorsEnabled Whether to emit color; when unset, auto-detected from
+  /// \p OS.
   LLVM_ABI MarkupFilter(raw_ostream &OS, LLVMSymbolizer &Symbolizer,
                         std::optional<bool> ColorsEnabled = std::nullopt);
 
@@ -40,6 +46,8 @@ public:
   ///
   /// Invalid or unimplemented markup elements are removed. Some output may be
   /// deferred until future filter() or finish() call.
+  ///
+  /// \param InputLine Line of input containing symbolizer markup to filter.
   LLVM_ABI void filter(std::string &&InputLine);
 
   /// Records that the input stream has ended and writes any deferred output.

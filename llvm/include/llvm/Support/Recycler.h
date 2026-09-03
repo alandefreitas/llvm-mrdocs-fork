@@ -26,6 +26,9 @@ namespace llvm {
 /// PrintRecyclingAllocatorStats - Helper for RecyclingAllocator for
 /// printing statistics.
 ///
+/// @param Size Object size tracked by the recycler.
+/// @param Align Object alignment tracked by the recycler.
+/// @param FreeListSize Number of entries currently on the free list.
 LLVM_ABI void PrintRecyclerStats(size_t Size, size_t Align,
                                  size_t FreeListSize);
 
@@ -65,16 +68,23 @@ public:
     assert(!FreeList && "Non-empty recycler deleted!");
   }
   /// Copy construction is disabled; ownership of the free list is unique.
-  Recycler(const Recycler &) = delete;
+  ///
+  /// @param Other Unused; copy construction is not supported.
+  Recycler(const Recycler &Other) = delete;
   /// Move-construct by transferring the free list from \p Other.
+  ///
+  /// @param Other The recycler whose free list is taken.
   Recycler(Recycler &&Other)
       : FreeList(std::exchange(Other.FreeList, nullptr)) {}
   /// Construct an empty recycler with no recycled blocks.
   Recycler() = default;
 
-  /// clear - Release all the tracked allocations to the allocator. The
-  /// recycler must be free of any tracked allocations before being
+  /// Release all tracked allocations to the allocator.
+  ///
+  /// The recycler must be free of any tracked allocations before being
   /// deleted; calling clear is one way to ensure this.
+  ///
+  /// @param Allocator The allocator that originally provided the blocks.
   template<class AllocatorType>
   void clear(AllocatorType &Allocator) {
     if constexpr (std::is_same_v<std::decay_t<AllocatorType>,
@@ -108,14 +118,22 @@ public:
   }
 
   /// Allocate storage for \c T from the free list or \p Allocator.
+  ///
+  /// @param Allocator The allocator to use when the free list is empty.
+  /// @return A pointer to storage for a \c T, either recycled or newly
+  ///         allocated.
   template<class AllocatorType>
   T *Allocate(AllocatorType &Allocator) {
     return Allocate<T>(Allocator);
   }
 
   /// Return \p Element to the free list for later reuse.
+  ///
+  /// @param Allocator Unused; present for API symmetry with Allocate.
+  /// @param Element The object whose storage should be recycled.
   template<class SubClass, class AllocatorType>
-  void Deallocate(AllocatorType & /*Allocator*/, SubClass* Element) {
+  void Deallocate([[maybe_unused]] AllocatorType &Allocator,
+                  SubClass *Element) {
     push(reinterpret_cast<FreeNode *>(Element));
   }
 

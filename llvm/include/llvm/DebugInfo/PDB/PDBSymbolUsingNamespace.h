@@ -17,13 +17,48 @@ namespace llvm {
 
 namespace pdb {
 
+/// PDB symbol for a using-namespace directive.
+///
+/// Exposes the namespace name and lexical-parent accessors for a
+/// SymTagUsingNamespace entry in the PDB lexical hierarchy.
 class LLVM_ABI PDBSymbolUsingNamespace : public PDBSymbol {
-  DECLARE_PDB_SYMBOL_CONCRETE_TYPE(PDB_SymType::UsingNamespace)
+private:
+  using PDBSymbol::PDBSymbol;
+  friend class PDBSymbol;
 
 public:
+  /// The PDB symbol tag for using-namespace symbols
+  /// (`PDB_SymType::UsingNamespace`).
+  static const PDB_SymType Tag = PDB_SymType::UsingNamespace;
+
+  /// True if \p S is a using-namespace PDB symbol.
+  ///
+  /// \param S Symbol to test.
+  ///
+  /// \returns True if \p S is a using-namespace PDB symbol.
+  static bool classof(const PDBSymbol *S) { return S->getSymTag() == Tag; }
+
+  /// Dump this using-namespace symbol using the given dumper.
+  ///
+  /// \param Dumper Visitor used to format and emit the symbol.
   void dump(PDBSymDumper &Dumper) const override;
 
-  FORWARD_SYMBOL_ID_METHOD(getLexicalParent)
+  /// Return the symbol id of this directive's lexical parent.
+  ///
+  /// \returns The symbol id of this directive's lexical parent.
+  decltype(auto) getLexicalParentId() const {
+    return RawSymbol->getLexicalParentId();
+  }
+  /// Return this directive's lexical parent symbol.
+  ///
+  /// \returns This directive's lexical parent symbol.
+  std::unique_ptr<PDBSymbol> getLexicalParent() const {
+    uint32_t Id = getLexicalParentId();
+    return getConcreteSymbolByIdHelper<PDBSymbol>(Id);
+  }
+  /// Return the name of the namespace introduced by this directive.
+  ///
+  /// \returns The name of the namespace introduced by this directive.
   FORWARD_SYMBOL_METHOD(getName)
 };
 

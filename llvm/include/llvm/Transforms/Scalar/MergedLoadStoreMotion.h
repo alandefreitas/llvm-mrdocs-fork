@@ -28,27 +28,51 @@
 
 namespace llvm {
 class Function;
+
+/// Options controlling merged load/store motion behavior.
 struct MergedLoadStoreMotionOptions {
+  /// Whether to split the diamond footer when it has more than two predecessors.
   bool SplitFooterBB;
+  /// Construct merged load/store motion options.
+  /// @param SplitFooterBB When true, allow splitting the footer BB to sink
+  /// stores when it has more than two predecessors.
   MergedLoadStoreMotionOptions(bool SplitFooterBB = false)
       : SplitFooterBB(SplitFooterBB) {}
 
+  /// Set whether the diamond footer may be split when sinking stores.
+  /// @param SFBB True to allow splitting the footer BB, false to disable it.
+  /// @return Reference to this options object for chaining.
   MergedLoadStoreMotionOptions &splitFooterBB(bool SFBB) {
     SplitFooterBB = SFBB;
     return *this;
   }
 };
 
+/// Pass that merges loads and stores across diamond (hammock) control flow.
+///
+/// Hoists matching loads into the diamond header and sinks matching stores
+/// into the footer, which can hide load latency, enable if-conversion, and
+/// reduce static code size.
 class MergedLoadStoreMotionPass
     : public OptionalPassInfoMixin<MergedLoadStoreMotionPass> {
   MergedLoadStoreMotionOptions Options;
 
 public:
+  /// Construct a merged load/store motion pass with default options.
   MergedLoadStoreMotionPass()
       : MergedLoadStoreMotionPass(MergedLoadStoreMotionOptions()) {}
+  /// Construct a merged load/store motion pass with the given options.
+  /// @param PassOptions Configuration controlling footer splitting.
   MergedLoadStoreMotionPass(const MergedLoadStoreMotionOptions &PassOptions)
       : Options(PassOptions) {}
+  /// Run merged load/store motion over the function.
+  /// @param F Function to transform.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);

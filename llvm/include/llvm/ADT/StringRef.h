@@ -33,23 +33,43 @@ class hash_code;
 template <typename T> class SmallVectorImpl;
 class StringRef;
 
-/// Helper functions for StringRef::getAsInteger.
+/// Parse an unsigned integer from \p Str using \p Radix into \p Result.
+///
+/// Helper for StringRef::getAsInteger.
+/// @param Str Input string to parse in full.
+/// @param Radix Numeric base, or 0 for autosensing.
+/// @param Result Destination for the parsed value.
+/// @returns true on error (no conversion or overflow).
 LLVM_ABI bool getAsUnsignedInteger(StringRef Str, unsigned Radix,
                                    unsigned long long &Result);
 
 /// Parse a signed integer from \p Str using \p Radix into \p Result.
 ///
 /// \returns true on error (no conversion or overflow).
+/// @param Str Input string to parse in full.
+/// @param Radix Numeric base, or 0 for autosensing.
+/// @param Result Destination for the parsed value.
 LLVM_ABI bool getAsSignedInteger(StringRef Str, unsigned Radix,
                                  long long &Result);
 
 /// Detect and strip a radix prefix from \p Str, returning the inferred radix.
+/// @param Str String that may begin with 0, 0x, or 0b; updated in place.
+/// @return The inferred radix after any prefix is stripped.
 LLVM_ABI unsigned getAutoSenseRadix(StringRef &Str);
 
 /// Parse an unsigned integer from the front of \p Str using \p Radix into \p Result.
+/// @param Str Input string; the consumed prefix is removed on success.
+/// @param Radix Numeric base, or 0 for autosensing.
+/// @param Result Destination for the parsed value.
+/// @return True on error (no conversion or overflow).
 LLVM_ABI bool consumeUnsignedInteger(StringRef &Str, unsigned Radix,
                                      unsigned long long &Result);
+
 /// Parse a signed integer from the front of \p Str using \p Radix into \p Result.
+/// @param Str Input string; the consumed prefix is removed on success.
+/// @param Radix Numeric base, or 0 for autosensing.
+/// @param Result Destination for the parsed value.
+/// @return True on error (no conversion or overflow).
 LLVM_ABI bool consumeSignedInteger(StringRef &Str, unsigned Radix,
                                    long long &Result);
 
@@ -102,22 +122,28 @@ public:
 
   /// Disable conversion from nullptr.  This prevents things like
   /// if (S == nullptr)
-  StringRef(std::nullptr_t) = delete;
+  /// @param Null Unused; this overload is deleted.
+  StringRef(std::nullptr_t Null) = delete;
 
   /// Construct a string ref from a cstring.
+  /// @param Str NUL-terminated C string, or null for empty.
   /*implicit*/ constexpr StringRef(const char *Str LLVM_LIFETIME_BOUND)
       : StringRef(Str ? std::string_view(Str) : std::string_view()) {}
 
   /// Construct a string ref from a pointer and length.
+  /// @param data Pointer to the first character.
+  /// @param length Number of characters.
   /*implicit*/ constexpr StringRef(const char *data LLVM_LIFETIME_BOUND,
                                    size_t length)
       : Data(data), Length(length) {}
 
   /// Construct a string ref from an std::string.
+  /// @param Str String whose data and length are referenced.
   /*implicit*/ StringRef(const std::string &Str)
       : Data(Str.data()), Length(Str.length()) {}
 
   /// Construct a string ref from an std::string_view.
+  /// @param Str View whose data and size are referenced.
   /*implicit*/ constexpr StringRef(std::string_view Str)
       : Data(Str.data()), Length(Str.size()) {}
 
@@ -126,26 +152,33 @@ public:
   /// @{
 
   /// Return an iterator to the first character.
+  /// @return Iterator to the first character.
   iterator begin() const { return data(); }
 
   /// Return an iterator past the last character.
+  /// @return Iterator past the last character.
   iterator end() const { return data() + size(); }
 
   /// Return a reverse iterator to the last character.
+  /// @return Reverse iterator to the last character.
   reverse_iterator rbegin() const { return std::make_reverse_iterator(end()); }
 
   /// Return a reverse iterator to the character before the first character.
+  /// @return Reverse iterator to the character before the first character.
   reverse_iterator rend() const { return std::make_reverse_iterator(begin()); }
 
   /// Return an iterator to the first byte of the string.
+  /// @return Iterator to the first byte.
   const unsigned char *bytes_begin() const {
     return reinterpret_cast<const unsigned char *>(begin());
   }
   /// Return an iterator one past the last byte of the string.
+  /// @return Iterator one past the last byte.
   const unsigned char *bytes_end() const {
     return reinterpret_cast<const unsigned char *>(end());
   }
   /// Return a range over the string's bytes as unsigned chars.
+  /// @return Range covering the string's bytes as unsigned chars.
   iterator_range<const unsigned char *> bytes() const {
     return make_range(bytes_begin(), bytes_end());
   }
@@ -156,27 +189,34 @@ public:
 
   /// Get a pointer to the start of the string (which may not be null
   /// terminated).
+  /// @return Pointer to the start of the string.
   [[nodiscard]] constexpr const char *data() const { return Data; }
 
   /// Check if the string is empty.
+  /// @return True if the string has length zero.
   [[nodiscard]] constexpr bool empty() const { return size() == 0; }
 
   /// Get the string size.
+  /// @return Number of characters in the string.
   [[nodiscard]] constexpr size_t size() const { return Length; }
 
   /// Get the first character in the string.
+  /// @return The first character.
   [[nodiscard]] char front() const {
     assert(!empty());
     return data()[0];
   }
 
   /// Get the last character in the string.
+  /// @return The last character.
   [[nodiscard]] char back() const {
     assert(!empty());
     return data()[size() - 1];
   }
 
   /// Allocate a copy in \p A and return a StringRef to it.
+  /// @param A Allocator used to allocate the copy.
+  /// @return StringRef referring to the newly allocated copy.
   template <typename Allocator>
   [[nodiscard]] StringRef copy(Allocator &A) const {
     // Don't request a length 0 copy from the allocator.
@@ -188,6 +228,8 @@ public:
   }
 
   /// Check for string equality, ignoring case.
+  /// @param RHS String to compare against.
+  /// @return True if the strings are equal ignoring case.
   [[nodiscard]] bool equals_insensitive(StringRef RHS) const {
     return size() == RHS.size() && compare_insensitive(RHS) == 0;
   }
@@ -195,6 +237,8 @@ public:
   /// Compare two strings; the result is negative, zero, or positive if this
   /// string is lexicographically less than, equal to, or greater than the
   /// \p RHS.
+  /// @param RHS String to compare against.
+  /// @return Negative, zero, or positive for less-than, equal, or greater-than.
   [[nodiscard]] int compare(StringRef RHS) const {
     // Check the prefix for a mismatch.
     if (int Res =
@@ -208,9 +252,13 @@ public:
   }
 
   /// Compare two strings, ignoring case.
+  /// @param RHS String to compare against.
+  /// @return Negative, zero, or positive for less-than, equal, or greater-than.
   [[nodiscard]] LLVM_ABI int compare_insensitive(StringRef RHS) const;
 
   /// Compare two strings, treating sequences of digits as numbers.
+  /// @param RHS String to compare against.
+  /// @return Negative, zero, or positive for less-than, equal, or greater-than.
   [[nodiscard]] LLVM_ABI int compare_numeric(StringRef RHS) const;
 
   /// Determine the edit distance between this string and another
@@ -236,11 +284,19 @@ public:
                 unsigned MaxEditDistance = 0) const;
 
   /// Compute a case-insensitive edit distance to \p Other.
+  ///
+  /// \param Other the string to compare this string against.
+  /// \param AllowReplacements whether to allow character replacements as a
+  /// single operation.
+  /// \param MaxEditDistance If non-zero, the maximum edit distance that this
+  /// routine is allowed to compute.
+  /// @return The minimum case-insensitive edit distance, or MaxEditDistance+1.
   [[nodiscard]] LLVM_ABI unsigned
   edit_distance_insensitive(StringRef Other, bool AllowReplacements = true,
                             unsigned MaxEditDistance = 0) const;
 
   /// Get the contents as an std::string.
+  /// @return A std::string copy of the referenced characters.
   [[nodiscard]] std::string str() const {
     if (!data())
       return std::string();
@@ -251,6 +307,9 @@ public:
   /// @name Operator Overloads
   /// @{
 
+  /// Return the character at \p Index.
+  /// @param Index Zero-based index of the character.
+  /// @return The character at \p Index.
   [[nodiscard]] char operator[](size_t Index) const {
     assert(Index < size() && "Invalid index!");
     return data()[Index];
@@ -260,6 +319,7 @@ public:
   ///
   /// The declaration here is extra complicated so that `stringRef = {}`
   /// and `stringRef = "abc"` continue to select the move assignment operator.
+  /// @param Str Temporary std::string (assignment is deleted).
   template <typename T>
   std::enable_if_t<std::is_same<T, std::string>::value, StringRef> &
   operator=(T &&Str) = delete;
@@ -268,6 +328,8 @@ public:
   /// @name Type Conversions
   /// @{
 
+  /// Convert this StringRef to an std::string_view.
+  /// @return An std::string_view over the same characters.
   constexpr operator std::string_view() const {
     return std::string_view(data(), size());
   }
@@ -277,30 +339,42 @@ public:
   /// @{
 
   /// Check if this string starts with the given \p Prefix.
+  /// @param Prefix Prefix to match.
+  /// @return True if the string begins with \p Prefix.
   [[nodiscard]] bool starts_with(StringRef Prefix) const {
     return size() >= Prefix.size() &&
            compareMemory(data(), Prefix.data(), Prefix.size()) == 0;
   }
   /// Return true if this string starts with character \p Prefix.
+  /// @param Prefix Character prefix to match.
+  /// @return True if the string begins with \p Prefix.
   [[nodiscard]] bool starts_with(char Prefix) const {
     return !empty() && front() == Prefix;
   }
 
   /// Check if this string starts with the given \p Prefix, ignoring case.
+  /// @param Prefix Prefix to match, ignoring case.
+  /// @return True if the string begins with \p Prefix ignoring case.
   [[nodiscard]] LLVM_ABI bool starts_with_insensitive(StringRef Prefix) const;
 
   /// Check if this string ends with the given \p Suffix.
+  /// @param Suffix Suffix to match.
+  /// @return True if the string ends with \p Suffix.
   [[nodiscard]] bool ends_with(StringRef Suffix) const {
     return size() >= Suffix.size() &&
            compareMemory(end() - Suffix.size(), Suffix.data(), Suffix.size()) ==
                0;
   }
   /// Check if this string ends with the given character \p Suffix.
+  /// @param Suffix Character suffix to match.
+  /// @return True if the string ends with \p Suffix.
   [[nodiscard]] bool ends_with(char Suffix) const {
     return !empty() && back() == Suffix;
   }
 
   /// Check if this string ends with the given \p Suffix, ignoring case.
+  /// @param Suffix Suffix to match, ignoring case.
+  /// @return True if the string ends with \p Suffix ignoring case.
   [[nodiscard]] LLVM_ABI bool ends_with_insensitive(StringRef Suffix) const;
 
   /// @}
@@ -311,6 +385,8 @@ public:
   ///
   /// \returns The index of the first occurrence of \p C, or npos if not
   /// found.
+  /// @param C Character to search for.
+  /// @param From Index to start searching from.
   [[nodiscard]] size_t find(char C, size_t From = 0) const {
     return std::string_view(*this).find(C, From);
   }
@@ -319,12 +395,16 @@ public:
   ///
   /// \returns The index of the first occurrence of \p C, or npos if not
   /// found.
+  /// @param C Character to search for, ignoring case.
+  /// @param From Index to start searching from.
   [[nodiscard]] LLVM_ABI size_t find_insensitive(char C, size_t From = 0) const;
 
   /// Search for the first character satisfying the predicate \p F
   ///
   /// \returns The index of the first character satisfying \p F starting from
   /// \p From, or npos if not found.
+  /// @param F Predicate that characters must satisfy.
+  /// @param From Index to start searching from.
   [[nodiscard]] size_t find_if(function_ref<bool(char)> F,
                                size_t From = 0) const {
     StringRef S = drop_front(From);
@@ -340,6 +420,8 @@ public:
   ///
   /// \returns The index of the first character not satisfying \p F starting
   /// from \p From, or npos if not found.
+  /// @param F Predicate that characters must not satisfy.
+  /// @param From Index to start searching from.
   [[nodiscard]] size_t find_if_not(function_ref<bool(char)> F,
                                    size_t From = 0) const {
     return find_if([F](char c) { return !F(c); }, From);
@@ -349,6 +431,8 @@ public:
   ///
   /// \returns The index of the last character satisfying \p F before \p End,
   /// or npos if not found.
+  /// @param F Predicate that characters must satisfy.
+  /// @param End Index one past the end of the reverse search range.
   [[nodiscard]] size_t rfind_if(function_ref<bool(char)> F,
                                 size_t End = npos) const {
     size_t I = std::min(End, size());
@@ -364,6 +448,8 @@ public:
   ///
   /// \returns The index of the last character not satisfying \p F before \p
   /// End, or npos if not found.
+  /// @param F Predicate that characters must not satisfy.
+  /// @param End Index one past the end of the reverse search range.
   [[nodiscard]] size_t rfind_if_not(function_ref<bool(char)> F,
                                     size_t End = npos) const {
     return rfind_if(std::not_fn(F), End);
@@ -373,12 +459,16 @@ public:
   ///
   /// \returns The index of the first occurrence of \p Str, or npos if not
   /// found.
+  /// @param Str Substring to search for.
+  /// @param From Index to start searching from.
   [[nodiscard]] LLVM_ABI size_t find(StringRef Str, size_t From = 0) const;
 
   /// Search for the first string \p Str in the string, ignoring case.
   ///
   /// \returns The index of the first occurrence of \p Str, or npos if not
   /// found.
+  /// @param Str Substring to search for, ignoring case.
+  /// @param From Index to start searching from.
   [[nodiscard]] LLVM_ABI size_t find_insensitive(StringRef Str,
                                                  size_t From = 0) const;
 
@@ -386,6 +476,8 @@ public:
   ///
   /// \returns The index of the last occurrence of \p C, or npos if not
   /// found.
+  /// @param C Character to search for.
+  /// @param From Index to start the reverse search from.
   [[nodiscard]] size_t rfind(char C, size_t From = npos) const {
     size_t I = std::min(From, size());
     while (I) {
@@ -400,6 +492,8 @@ public:
   ///
   /// \returns The index of the last occurrence of \p C, or npos if not
   /// found.
+  /// @param C Character to search for, ignoring case.
+  /// @param From Index to start the reverse search from.
   [[nodiscard]] LLVM_ABI size_t rfind_insensitive(char C,
                                                   size_t From = npos) const;
 
@@ -407,16 +501,21 @@ public:
   ///
   /// \returns The index of the last occurrence of \p Str, or npos if not
   /// found.
+  /// @param Str Substring to search for.
   [[nodiscard]] LLVM_ABI size_t rfind(StringRef Str) const;
 
   /// Search for the last string \p Str in the string, ignoring case.
   ///
   /// \returns The index of the last occurrence of \p Str, or npos if not
   /// found.
+  /// @param Str Substring to search for, ignoring case.
   [[nodiscard]] LLVM_ABI size_t rfind_insensitive(StringRef Str) const;
 
   /// Find the first character in the string that is \p C, or npos if not
   /// found. Same as find.
+  /// @param C Character to search for.
+  /// @param From Index to start searching from.
+  /// @return Index of the first match, or npos if not found.
   [[nodiscard]] size_t find_first_of(char C, size_t From = 0) const {
     return find(C, From);
   }
@@ -425,11 +524,17 @@ public:
   /// not found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters to search for.
+  /// @param From Index to start searching from.
+  /// @return Index of the first match, or npos if not found.
   [[nodiscard]] LLVM_ABI size_t find_first_of(StringRef Chars,
                                               size_t From = 0) const;
 
   /// Find the first character in the string that is not \p C or npos if not
   /// found.
+  /// @param C Character that is excluded from the match.
+  /// @param From Index to start searching from.
+  /// @return Index of the first non-matching character, or npos if not found.
   [[nodiscard]] LLVM_ABI size_t find_first_not_of(char C,
                                                   size_t From = 0) const;
 
@@ -437,24 +542,36 @@ public:
   /// \p Chars, or npos if not found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters that are excluded from the match.
+  /// @param From Index to start searching from.
+  /// @return Index of the first non-matching character, or npos if not found.
   [[nodiscard]] LLVM_ABI size_t find_first_not_of(StringRef Chars,
                                                   size_t From = 0) const;
 
   /// Find the last character in the string that is \p C, or npos if not
   /// found.
+  /// @param C Character to search for.
+  /// @param From Index to start the reverse search from.
+  /// @return Index of the last match, or npos if not found.
   [[nodiscard]] size_t find_last_of(char C, size_t From = npos) const {
     return rfind(C, From);
   }
 
-  /// Find the last character in the string that is in \p C, or npos if not
-  /// found.
+  /// Find the last character in the string that is in \p Chars, or npos if
+  /// not found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters to search for.
+  /// @param From Index to start the reverse search from.
+  /// @return Index of the last match, or npos if not found.
   [[nodiscard]] LLVM_ABI size_t find_last_of(StringRef Chars,
                                              size_t From = npos) const;
 
   /// Find the last character in the string that is not \p C, or npos if not
   /// found.
+  /// @param C Character that is excluded from the match.
+  /// @param From Index to start the reverse search from.
+  /// @return Index of the last non-matching character, or npos if not found.
   [[nodiscard]] LLVM_ABI size_t find_last_not_of(char C,
                                                  size_t From = npos) const;
 
@@ -462,27 +579,38 @@ public:
   /// npos if not found.
   ///
   /// Complexity: O(size() + Chars.size())
+  /// @param Chars Characters that are excluded from the match.
+  /// @param From Index to start the reverse search from.
+  /// @return Index of the last non-matching character, or npos if not found.
   [[nodiscard]] LLVM_ABI size_t find_last_not_of(StringRef Chars,
                                                  size_t From = npos) const;
 
   /// Return true if the given string is a substring of *this, and false
   /// otherwise.
+  /// @param Other Substring to search for.
+  /// @return True if \p Other is a substring of this string.
   [[nodiscard]] bool contains(StringRef Other) const {
     return find(Other) != npos;
   }
 
   /// Return true if the given character is contained in *this, and false
   /// otherwise.
+  /// @param C Character to search for.
+  /// @return True if \p C occurs in this string.
   [[nodiscard]] bool contains(char C) const { return find_first_of(C) != npos; }
 
   /// Return true if the given string is a substring of *this, and false
   /// otherwise.
+  /// @param Other Substring to search for, ignoring case.
+  /// @return True if \p Other is a substring ignoring case.
   [[nodiscard]] bool contains_insensitive(StringRef Other) const {
     return find_insensitive(Other) != npos;
   }
 
   /// Return true if the given character is contained in *this, and false
   /// otherwise.
+  /// @param C Character to search for, ignoring case.
+  /// @return True if \p C occurs in this string ignoring case.
   [[nodiscard]] bool contains_insensitive(char C) const {
     return find_insensitive(C) != npos;
   }
@@ -492,6 +620,8 @@ public:
   /// @{
 
   /// Return the number of occurrences of \p C in the string.
+  /// @param C Character to count.
+  /// @return Number of times \p C occurs in the string.
   [[nodiscard]] size_t count(char C) const {
     size_t Count = 0;
     for (size_t I = 0; I != size(); ++I)
@@ -502,15 +632,21 @@ public:
 
   /// Return the number of non-overlapped occurrences of \p Str in
   /// the string.
+  /// @param Str Substring to count.
+  /// @return Number of non-overlapping occurrences of \p Str.
   LLVM_ABI size_t count(StringRef Str) const;
 
-  /// Parse the current string as an integer of the specified radix.  If
-  /// \p Radix is specified as zero, this does radix autosensing using
+  /// Parse the current string as an integer of the specified radix.
+  ///
+  /// If \p Radix is specified as zero, this does radix autosensing using
   /// extended C rules: 0 is octal, 0x is hex, 0b is binary.
   ///
   /// If the string is invalid or if only a subset of the string is valid,
   /// this returns true to signify the error.  The string is considered
   /// erroneous if empty or if it overflows T.
+  /// @param Radix Numeric base, or 0 for autosensing.
+  /// @param Result Destination for the parsed integer.
+  /// @return True on error (invalid string, partial parse, or overflow).
   template <typename T> bool getAsInteger(unsigned Radix, T &Result) const {
     if constexpr (std::numeric_limits<T>::is_signed) {
       long long LLVal;
@@ -531,8 +667,9 @@ public:
     return false;
   }
 
-  /// Parse the current string as an integer of the specified radix.  If
-  /// \p Radix is specified as zero, this does radix autosensing using
+  /// Parse an integer prefix from this string into \p Result.
+  ///
+  /// If \p Radix is specified as zero, this does radix autosensing using
   /// extended C rules: 0 is octal, 0x is hex, 0b is binary.
   ///
   /// If the string does not begin with a number of the specified radix,
@@ -540,6 +677,9 @@ public:
   /// erroneous if empty or if it overflows T.
   /// The portion of the string representing the discovered numeric value
   /// is removed from the beginning of the string.
+  /// @param Radix Numeric base, or 0 for autosensing.
+  /// @param Result Destination for the parsed integer.
+  /// @return True on error (no integer prefix or overflow).
   template <typename T> bool consumeInteger(unsigned Radix, T &Result) {
     if constexpr (std::numeric_limits<T>::is_signed) {
       long long LLVal;
@@ -557,20 +697,24 @@ public:
     return false;
   }
 
-  /// Parse the current string as an integer of the specified \p Radix, or of
-  /// an autosensed radix if the \p Radix given is 0.  The current value in
-  /// \p Result is discarded, and the storage is changed to be wide enough to
-  /// store the parsed integer.
+  /// Parse the current string as an integer into an APInt.
+  ///
+  /// Uses the specified \p Radix, or an autosensed radix if the \p Radix
+  /// given is 0. The current value in \p Result is discarded, and the storage
+  /// is changed to be wide enough to store the parsed integer.
   ///
   /// \returns true if the string does not solely consist of a valid
   /// non-empty number in the appropriate base.
   ///
   /// APInt::fromString is superficially similar but assumes the
   /// string is well-formed in the given radix.
+  /// @param Radix Numeric base, or 0 for autosensing.
+  /// @param Result Destination for the parsed integer.
   LLVM_ABI bool getAsInteger(unsigned Radix, APInt &Result) const;
 
-  /// Parse the current string as an integer of the specified \p Radix.  If
-  /// \p Radix is specified as zero, this does radix autosensing using
+  /// Parse an integer prefix from this string into an APInt.
+  ///
+  /// If \p Radix is specified as zero, this does radix autosensing using
   /// extended C rules: 0 is octal, 0x is hex, 0b is binary.
   ///
   /// If the string does not begin with a number of the specified radix,
@@ -578,28 +722,38 @@ public:
   /// erroneous if empty.
   /// The portion of the string representing the discovered numeric value
   /// is removed from the beginning of the string.
+  /// @param Radix Numeric base, or 0 for autosensing.
+  /// @param Result Destination for the parsed integer.
+  /// @return True on error (no integer prefix).
   LLVM_ABI bool consumeInteger(unsigned Radix, APInt &Result);
 
   /// Parse the current string as an IEEE double-precision floating
-  /// point value.  The string must be a well-formed double.
+  /// point value.
   ///
-  /// If \p AllowInexact is false, the function will fail if the string
-  /// cannot be represented exactly.  Otherwise, the function only fails
-  /// in case of an overflow or underflow, or an invalid floating point
-  /// representation.
+  /// The string must be a well-formed double. If \p AllowInexact is false,
+  /// the function will fail if the string cannot be represented exactly.
+  /// Otherwise, the function only fails in case of an overflow or underflow,
+  /// or an invalid floating point representation.
+  /// @param Result Destination for the parsed value.
+  /// @param AllowInexact If false, require an exact representation.
+  /// @return True on error (invalid, overflow/underflow, or inexact).
   LLVM_ABI bool getAsDouble(double &Result, bool AllowInexact = true) const;
 
   /// @}
   /// @name String Operations
   /// @{
 
-  // Convert the given ASCII string to lowercase.
+  /// Convert the given ASCII string to lowercase.
+  /// @return A lowercase copy of the string as std::string.
   [[nodiscard]] LLVM_ABI std::string lower() const;
 
   /// Convert the given ASCII string to uppercase.
+  /// @return An uppercase copy of the string as std::string.
   [[nodiscard]] LLVM_ABI std::string upper() const;
 
   /// Returns this StringRef or a default value if this StringRef is empty.
+  /// @param Str Non-empty fallback used when this StringRef is empty.
+  /// @return This StringRef if non-empty, otherwise \p Str.
   [[nodiscard]] constexpr StringRef nonEmptyOr(llvm::StringRef Str) const {
     assert(!Str.empty() && "nonEmptyOr should not have an empty default!");
     return empty() ? Str : *this;
@@ -618,6 +772,7 @@ public:
   /// \param N The number of characters to included in the substring. If N
   /// exceeds the number of characters remaining in the string, the string
   /// suffix (starting with \p Start) will be returned.
+  /// @return Substring covering at most \p N characters from \p Start.
   [[nodiscard]] constexpr StringRef substr(size_t Start,
                                            size_t N = npos) const {
     Start = std::min(Start, size());
@@ -627,6 +782,8 @@ public:
   /// Return a StringRef equal to 'this' but with only the first \p N
   /// elements remaining.  If \p N is greater than the length of the
   /// string, the entire string is returned.
+  /// @param N Number of characters to keep from the front.
+  /// @return Prefix of at most \p N characters.
   [[nodiscard]] StringRef take_front(size_t N = 1) const {
     if (N >= size())
       return *this;
@@ -636,6 +793,8 @@ public:
   /// Return a StringRef equal to 'this' but with only the last \p N
   /// elements remaining.  If \p N is greater than the length of the
   /// string, the entire string is returned.
+  /// @param N Number of characters to keep from the back.
+  /// @return Suffix of at most \p N characters.
   [[nodiscard]] StringRef take_back(size_t N = 1) const {
     if (N >= size())
       return *this;
@@ -644,18 +803,24 @@ public:
 
   /// Return the longest prefix of 'this' such that every character
   /// in the prefix satisfies the given predicate.
+  /// @param F Predicate that identifies characters to keep from the front.
+  /// @return Longest prefix whose characters all satisfy \p F.
   [[nodiscard]] StringRef take_while(function_ref<bool(char)> F) const {
     return substr(0, find_if_not(F));
   }
 
   /// Return the longest prefix of 'this' such that no character in
   /// the prefix satisfies the given predicate.
+  /// @param F Predicate that stops taking when it returns true.
+  /// @return Longest prefix with no character satisfying \p F.
   [[nodiscard]] StringRef take_until(function_ref<bool(char)> F) const {
     return substr(0, find_if(F));
   }
 
   /// Return a StringRef equal to 'this' but with the first \p N elements
   /// dropped.
+  /// @param N Number of characters to drop from the front.
+  /// @return StringRef with the first \p N characters removed.
   [[nodiscard]] StringRef drop_front(size_t N = 1) const {
     assert(size() >= N && "Dropping more elements than exist");
     return substr(N);
@@ -663,6 +828,8 @@ public:
 
   /// Return a StringRef equal to 'this' but with the last \p N elements
   /// dropped.
+  /// @param N Number of characters to drop from the back.
+  /// @return StringRef with the last \p N characters removed.
   [[nodiscard]] StringRef drop_back(size_t N = 1) const {
     assert(size() >= N && "Dropping more elements than exist");
     return substr(0, size() - N);
@@ -670,18 +837,24 @@ public:
 
   /// Return a StringRef equal to 'this', but with all characters satisfying
   /// the given predicate dropped from the beginning of the string.
+  /// @param F Predicate that identifies characters to drop from the front.
+  /// @return StringRef with leading characters satisfying \p F removed.
   [[nodiscard]] StringRef drop_while(function_ref<bool(char)> F) const {
     return substr(find_if_not(F));
   }
 
   /// Return a StringRef equal to 'this', but with all characters not
   /// satisfying the given predicate dropped from the beginning of the string.
+  /// @param F Predicate that stops dropping when it returns true.
+  /// @return StringRef starting at the first character that satisfies \p F.
   [[nodiscard]] StringRef drop_until(function_ref<bool(char)> F) const {
     return substr(find_if(F));
   }
 
   /// Returns true if this StringRef has the given prefix and removes that
   /// prefix.
+  /// @param Prefix Character prefix to match and remove.
+  /// @return True if \p Prefix was present and removed.
   bool consume_front(char Prefix) {
     if (!starts_with(Prefix))
       return false;
@@ -692,6 +865,8 @@ public:
 
   /// Returns true if this StringRef has the given prefix and removes that
   /// prefix.
+  /// @param Prefix Prefix to match and remove.
+  /// @return True if \p Prefix was present and removed.
   bool consume_front(StringRef Prefix) {
     if (!starts_with(Prefix))
       return false;
@@ -702,6 +877,8 @@ public:
 
   /// Returns true if this StringRef has the given prefix, ignoring case,
   /// and removes that prefix.
+  /// @param Prefix Prefix to match and remove, ignoring case.
+  /// @return True if \p Prefix was present ignoring case and removed.
   bool consume_front_insensitive(StringRef Prefix) {
     if (!starts_with_insensitive(Prefix))
       return false;
@@ -712,6 +889,8 @@ public:
 
   /// Returns true if this StringRef has the given suffix and removes that
   /// suffix.
+  /// @param Suffix Suffix to match and remove.
+  /// @return True if \p Suffix was present and removed.
   bool consume_back(StringRef Suffix) {
     if (!ends_with(Suffix))
       return false;
@@ -722,6 +901,8 @@ public:
 
   /// Returns true if this StringRef has the given suffix, ignoring case,
   /// and removes that suffix.
+  /// @param Suffix Suffix to match and remove, ignoring case.
+  /// @return True if \p Suffix was present ignoring case and removed.
   bool consume_back_insensitive(StringRef Suffix) {
     if (!ends_with_insensitive(Suffix))
       return false;
@@ -741,6 +922,7 @@ public:
   /// remaining in the string, the string suffix (starting with \p Start)
   /// will be returned. If this is less than \p Start, an empty string will
   /// be returned.
+  /// @return Substring covering characters in [Start, End).
   [[nodiscard]] StringRef slice(size_t Start, size_t End) const {
     Start = std::min(Start, size());
     End = std::clamp(End, Start, size());
@@ -847,36 +1029,48 @@ public:
 
   /// Return string with consecutive \p Char characters starting from the
   /// the left removed.
+  /// @param Char Character to strip from the left.
+  /// @return StringRef with leading \p Char characters removed.
   [[nodiscard]] StringRef ltrim(char Char) const {
     return drop_front(std::min(size(), find_first_not_of(Char)));
   }
 
   /// Return string with consecutive characters in \p Chars starting from
   /// the left removed.
+  /// @param Chars Set of characters to strip from the left.
+  /// @return StringRef with leading characters from \p Chars removed.
   [[nodiscard]] StringRef ltrim(StringRef Chars = " \t\n\v\f\r") const {
     return drop_front(std::min(size(), find_first_not_of(Chars)));
   }
 
   /// Return string with consecutive \p Char characters starting from the
   /// right removed.
+  /// @param Char Character to strip from the right.
+  /// @return StringRef with trailing \p Char characters removed.
   [[nodiscard]] StringRef rtrim(char Char) const {
     return drop_back(size() - std::min(size(), find_last_not_of(Char) + 1));
   }
 
   /// Return string with consecutive characters in \p Chars starting from
   /// the right removed.
+  /// @param Chars Set of characters to strip from the right.
+  /// @return StringRef with trailing characters from \p Chars removed.
   [[nodiscard]] StringRef rtrim(StringRef Chars = " \t\n\v\f\r") const {
     return drop_back(size() - std::min(size(), find_last_not_of(Chars) + 1));
   }
 
   /// Return string with consecutive \p Char characters starting from the
   /// left and right removed.
+  /// @param Char Character to strip from both ends.
+  /// @return StringRef with leading and trailing \p Char characters removed.
   [[nodiscard]] StringRef trim(char Char) const {
     return ltrim(Char).rtrim(Char);
   }
 
   /// Return string with consecutive characters in \p Chars starting from
   /// the left and right removed.
+  /// @param Chars Set of characters to strip from both ends.
+  /// @return StringRef with ends stripped of characters from \p Chars.
   [[nodiscard]] StringRef trim(StringRef Chars = " \t\n\v\f\r") const {
     return ltrim(Chars).rtrim(Chars);
   }
@@ -902,10 +1096,12 @@ public:
   /// @}
 };
 
-/// A wrapper around a string literal that serves as a proxy for constructing
-/// global tables of StringRefs with the length computed at compile time.
-/// In order to avoid the invocation of a global constructor, StringLiteral
-/// should *only* be used in a constexpr context, as such:
+/// A compile-time StringRef wrapper over a string literal.
+///
+/// Serves as a proxy for constructing global tables of StringRefs with the
+/// length computed at compile time. In order to avoid the invocation of a
+/// global constructor, StringLiteral should *only* be used in a constexpr
+/// context, as such:
 ///
 /// constexpr StringLiteral S("test");
 ///
@@ -915,6 +1111,7 @@ private:
 
 public:
   /// Construct a StringLiteral from the character array \p Str.
+  /// @param Str NUL-terminated character array literal.
   template <size_t N>
   constexpr StringLiteral(const char (&Str)[N])
 #if defined(__clang__) && __has_attribute(enable_if)
@@ -943,6 +1140,10 @@ public:
 /// @name StringRef Comparison Operators
 /// @{
 
+/// Return true if \p LHS and \p RHS have equal length and contents.
+/// @param LHS Left-hand StringRef.
+/// @param RHS Right-hand StringRef.
+/// @return True if \p LHS and \p RHS compare equal.
 inline bool operator==(StringRef LHS, StringRef RHS) {
   if (LHS.size() != RHS.size())
     return false;
@@ -952,29 +1153,47 @@ inline bool operator==(StringRef LHS, StringRef RHS) {
 }
 
 /// Return true if \p LHS and \p RHS differ in length or contents.
+/// @param LHS Left-hand StringRef.
+/// @param RHS Right-hand StringRef.
+/// @return True if \p LHS and \p RHS differ.
 inline bool operator!=(StringRef LHS, StringRef RHS) { return !(LHS == RHS); }
 
 /// Return true if \p LHS is lexicographically less than \p RHS.
+/// @param LHS Left-hand StringRef.
+/// @param RHS Right-hand StringRef.
+/// @return True if \p LHS is lexicographically less than \p RHS.
 inline bool operator<(StringRef LHS, StringRef RHS) {
   return LHS.compare(RHS) < 0;
 }
 
 /// Return true if \p LHS is lexicographically less than or equal to \p RHS.
+/// @param LHS Left-hand StringRef.
+/// @param RHS Right-hand StringRef.
+/// @return True if \p LHS is lexicographically less than or equal to \p RHS.
 inline bool operator<=(StringRef LHS, StringRef RHS) {
   return LHS.compare(RHS) <= 0;
 }
 
-/// Lexicographically compare two `StringRef`s.
+/// Return true if \p LHS is lexicographically greater than \p RHS.
+/// @param LHS Left-hand StringRef.
+/// @param RHS Right-hand StringRef.
+/// @return True if \p LHS is lexicographically greater than \p RHS.
 inline bool operator>(StringRef LHS, StringRef RHS) {
   return LHS.compare(RHS) > 0;
 }
 
 /// Return true if \p LHS is lexicographically greater than or equal to \p RHS.
+/// @param LHS Left-hand StringRef.
+/// @param RHS Right-hand StringRef.
+/// @return True if \p LHS is lexicographically greater than or equal to \p RHS.
 inline bool operator>=(StringRef LHS, StringRef RHS) {
   return LHS.compare(RHS) >= 0;
 }
 
 /// Append the contents of \p string onto \p buffer.
+/// @param buffer Destination string.
+/// @param string StringRef whose contents are appended.
+/// @return Reference to \p buffer after appending.
 inline std::string &operator+=(std::string &buffer, StringRef string) {
   return buffer.append(string.data(), string.size());
 }
@@ -982,20 +1201,33 @@ inline std::string &operator+=(std::string &buffer, StringRef string) {
 /// @}
 
 /// Compute a hash_code for a StringRef.
+/// @param S The string to hash.
+/// @return Hash code for the contents of \p S.
 [[nodiscard]] LLVM_ABI hash_code hash_value(StringRef S);
 
+/// Compute the XXH3 64-bit hash of the bytes in \p data.
+///
 /// Inline StringRef overloads of the xxhash entry points declared out-of-line
 /// in llvm/Support/xxhash.h. They live here so xxhash.h can stay free of ADT
 /// dependencies.
+/// @param data Bytes to hash.
+/// @return The 64-bit XXH3 hash of \p data.
 inline uint64_t xxh3_64bits(StringRef data) {
   return xxh3_64bits(reinterpret_cast<const uint8_t *>(data.data()),
                      data.size());
 }
 
-// Provide DenseMapInfo for StringRefs.
+/// DenseMapInfo specialization so StringRef can be used as a DenseMap key.
 template <> struct DenseMapInfo<StringRef, void> {
+  /// Compute a hash value for \p Val.
+  /// @param Val The StringRef to hash.
+  /// @return Hash value suitable for use as a DenseMap key.
   LLVM_ABI static unsigned getHashValue(StringRef Val);
 
+  /// Return true if \p LHS and \p RHS compare equal.
+  /// @param LHS Left-hand StringRef.
+  /// @param RHS Right-hand StringRef.
+  /// @return True if \p LHS and \p RHS compare equal.
   static bool isEqual(StringRef LHS, StringRef RHS) { return LHS == RHS; }
 };
 

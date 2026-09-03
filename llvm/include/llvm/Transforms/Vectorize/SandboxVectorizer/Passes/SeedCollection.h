@@ -17,6 +17,8 @@
 
 namespace llvm::sandboxir {
 
+/// Collects vectorization seed instructions and runs a region-pass pipeline.
+///
 /// This pass collects the instructions that can become vectorization "seeds",
 /// like stores to consecutive memory addresses. It then goes over the collected
 /// seeds, slicing them into appropriately sized chunks, creating a Region with
@@ -32,8 +34,18 @@ class LLVM_ABI SeedCollection final : public FunctionPass {
   bool AllowDiffTypes = false;
 
 public:
+  /// Construct a SeedCollection pass with a region-pass pipeline.
+  /// \param Pipeline Pipeline of region passes to run on each seed slice.
+  /// \param AuxArg Optional; if set to "enable-diff-types", collect seeds of
+  /// different types.
   SeedCollection(StringRef Pipeline, StringRef AuxArg);
+  /// Collect seeds in \p F and run the region-pass pipeline on each slice.
+  /// \param F Function to transform.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the IR was modified.
   bool runOnFunction(Function &F, const Analyses &A) final;
+  /// Print this pass and its nested region-pass pipeline.
+  /// \param OS Output stream.
   void printPipeline(raw_ostream &OS) const final {
     OS << getName() << "\n";
     RPM.printPipeline(OS);

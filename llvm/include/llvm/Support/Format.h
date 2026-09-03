@@ -36,11 +36,6 @@
 
 namespace llvm {
 
-/// These are templated helper classes used by the format function that
-/// capture the object to be formatted and the format string. When actually
-/// printed, this synthesizes the string into a temporary buffer provided and
-/// returns whether or not it is big enough.
-
 namespace detail {
 template <typename T> struct decay_if_c_char_array {
   using type = T;
@@ -52,6 +47,10 @@ template <typename T>
 using decay_if_c_char_array_t = typename decay_if_c_char_array<T>::type;
 } // namespace detail
 
+/// Captures a printf-style format string and values for deferred formatting.
+///
+/// When printed, this synthesizes the string into a temporary buffer and
+/// reports whether the buffer was large enough.
 template <typename... Ts> class format_object {
   const char *Fmt;
   std::tuple<detail::decay_if_c_char_array_t<Ts>...> Vals;
@@ -63,7 +62,10 @@ template <typename... Ts> class format_object {
   }
 
 public:
-  /// Store format string \p fmt and argument values for later formatting.
+  /// Construct from format string \p fmt and argument values \p vals.
+  ///
+  /// \param fmt Printf-style format string.
+  /// \param vals Values substituted into \p fmt.
   format_object(const char *fmt, const Ts &...vals) : Fmt(fmt), Vals(vals...) {
     static_assert(
         (std::is_scalar_v<detail::decay_if_c_char_array_t<Ts>> && ...),
@@ -71,12 +73,21 @@ public:
   }
 
   /// Format into \p Buffer using the stored format string and values.
+  ///
+  /// \param Buffer Destination character buffer.
+  /// \param BufferSize Capacity of \p Buffer in bytes.
+  /// \return The number of characters that would have been written, not
+  /// counting the terminating null, as with snprintf.
   int snprint(char *Buffer, unsigned BufferSize) const {
     return snprint_tuple(Buffer, BufferSize, std::index_sequence_for<Ts...>());
   }
 };
 
 /// Write a formatted object to \p OS.
+///
+/// \param OS Destination stream.
+/// \param Fmt Format object to print.
+/// \return The stream \p OS after writing.
 template <typename... Ts>
 raw_ostream &operator<<(raw_ostream &OS, format_object<Ts...> Fmt) {
   // Stream through an explicitly-typed function_ref. Passing the lambda
@@ -92,6 +103,8 @@ raw_ostream &operator<<(raw_ostream &OS, format_object<Ts...> Fmt) {
   return OS;
 }
 
+/// Create a printf-style format object from \p Fmt and \p Vals.
+///
 /// These are helper functions used to produce formatted output.  They use
 /// template type deduction to construct the appropriate instance of the
 /// format_object class to simplify their construction.
@@ -100,7 +113,10 @@ raw_ostream &operator<<(raw_ostream &OS, format_object<Ts...> Fmt) {
 /// \code
 ///   OS << format("%0.4f", myfloat) << '\n';
 /// \endcode
-
+///
+/// \param Fmt Printf-style format string.
+/// \param Vals Values substituted into \p Fmt.
+/// \return A format object that prints \p Fmt with \p Vals when streamed.
 template <typename... Ts>
 inline format_object<Ts...> format(const char *Fmt, const Ts &... Vals) {
   return format_object<Ts...>(Fmt, Vals...);
@@ -121,6 +137,10 @@ public:
     JustifyCenter
   };
   /// Construct a formatted string \p S with width \p W and justification \p J.
+  ///
+  /// \param S String to format.
+  /// \param W Target field width in characters.
+  /// \param J How to justify \p S within the field.
   FormattedString(StringRef S, unsigned W, Justification J)
       : Str(S), Width(W), Justify(J) {}
 
@@ -134,6 +154,10 @@ private:
 /// left_justify - append spaces after string so total output is
 /// \p Width characters.  If \p Str is larger that \p Width, full string
 /// is written with no padding.
+///
+/// \param Str String to left-justify.
+/// \param Width Target field width in characters.
+/// \return A formatted string that left-justifies \p Str to \p Width.
 inline FormattedString left_justify(StringRef Str, unsigned Width) {
   return FormattedString(Str, Width, FormattedString::JustifyLeft);
 }
@@ -141,6 +165,10 @@ inline FormattedString left_justify(StringRef Str, unsigned Width) {
 /// right_justify - add spaces before string so total output is
 /// \p Width characters.  If \p Str is larger that \p Width, full string
 /// is written with no padding.
+///
+/// \param Str String to right-justify.
+/// \param Width Target field width in characters.
+/// \return A formatted string that right-justifies \p Str to \p Width.
 inline FormattedString right_justify(StringRef Str, unsigned Width) {
   return FormattedString(Str, Width, FormattedString::JustifyRight);
 }
@@ -148,6 +176,10 @@ inline FormattedString right_justify(StringRef Str, unsigned Width) {
 /// center_justify - add spaces before and after string so total output is
 /// \p Width characters.  If \p Str is larger that \p Width, full string
 /// is written with no padding.
+///
+/// \param Str String to center-justify.
+/// \param Width Target field width in characters.
+/// \return A formatted string that center-justifies \p Str to \p Width.
 inline FormattedString center_justify(StringRef Str, unsigned Width) {
   return FormattedString(Str, Width, FormattedString::JustifyCenter);
 }
@@ -164,47 +196,74 @@ class FormattedNumber {
 
 public:
   /// Construct a number formatter with value, width, and hex/decimal style.
+  ///
+  /// \param HV Hexadecimal value when formatting as hex.
+  /// \param DV Decimal value when formatting as decimal.
+  /// \param W Field width in characters.
+  /// \param H True to format as hexadecimal.
+  /// \param U True to use uppercase hex digits.
+  /// \param Prefix True to prepend "0x" for hexadecimal output.
   FormattedNumber(uint64_t HV, int64_t DV, unsigned W, bool H, bool U,
                   bool Prefix)
       : HexValue(HV), DecValue(DV), Width(W), Hex(H), Upper(U),
         HexPrefix(Prefix) {}
 };
 
-/// format_hex - Output \p N as a fixed width hexadecimal. If number will not
-/// fit in width, full number is still printed.  Examples:
+/// Output \p N as a fixed-width hexadecimal value with a "0x" prefix.
+///
+/// If the number will not fit in \p Width, the full number is still printed.
+/// Examples:
 ///   OS << format_hex(255, 4)              => 0xff
 ///   OS << format_hex(255, 4, true)        => 0xFF
 ///   OS << format_hex(255, 6)              => 0x00ff
 ///   OS << format_hex(255, 2)              => 0xff
+///
+/// \param N Value to format.
+/// \param Width Minimum field width in characters.
+/// \param Upper If true, use uppercase hex digits.
+/// \return A formatted number that prints \p N as prefixed hexadecimal.
 inline FormattedNumber format_hex(uint64_t N, unsigned Width,
                                   bool Upper = false) {
   assert(Width <= 18 && "hex width must be <= 18");
   return FormattedNumber(N, 0, Width, true, Upper, true);
 }
 
-/// format_hex_no_prefix - Output \p N as a fixed width hexadecimal. Does not
-/// prepend '0x' to the outputted string.  If number will not fit in width,
-/// full number is still printed.  Examples:
+/// Output \p N as a fixed-width hexadecimal value without a "0x" prefix.
+///
+/// If the number will not fit in \p Width, the full number is still printed.
+/// Examples:
 ///   OS << format_hex_no_prefix(255, 2)              => ff
 ///   OS << format_hex_no_prefix(255, 2, true)        => FF
 ///   OS << format_hex_no_prefix(255, 4)              => 00ff
 ///   OS << format_hex_no_prefix(255, 1)              => ff
+///
+/// \param N Value to format.
+/// \param Width Minimum field width in characters.
+/// \param Upper If true, use uppercase hex digits.
+/// \return A formatted number that prints \p N as unprefixed hexadecimal.
 inline FormattedNumber format_hex_no_prefix(uint64_t N, unsigned Width,
                                             bool Upper = false) {
   assert(Width <= 16 && "hex width must be <= 16");
   return FormattedNumber(N, 0, Width, true, Upper, false);
 }
 
-/// format_decimal - Output \p N as a right justified, fixed-width decimal. If
-/// number will not fit in width, full number is still printed.  Examples:
+/// Output \p N as a right-justified, fixed-width decimal.
+///
+/// If the number will not fit in \p Width, the full number is still printed.
+/// Examples:
 ///   OS << format_decimal(0, 5)     => "    0"
 ///   OS << format_decimal(255, 5)   => "  255"
 ///   OS << format_decimal(-1, 3)    => " -1"
 ///   OS << format_decimal(12345, 3) => "12345"
+///
+/// \param N Value to format.
+/// \param Width Minimum field width in characters.
+/// \return A formatted number that prints \p N as a fixed-width decimal.
 inline FormattedNumber format_decimal(int64_t N, unsigned Width) {
   return FormattedNumber(0, N, Width, false, false, false);
 }
 
+/// Helper that formats a byte sequence as a hex dump for streaming.
 class FormattedBytes {
   ArrayRef<uint8_t> Bytes;
 
@@ -220,6 +279,14 @@ class FormattedBytes {
 
 public:
   /// Construct a hex-dump formatter for \p B with layout options.
+  ///
+  /// \param B Bytes to format.
+  /// \param IL Number of characters to indent each line.
+  /// \param O Optional base offset shown for each line.
+  /// \param NPL Number of bytes shown per line.
+  /// \param BGS Number of hex bytes grouped without spaces.
+  /// \param U If true, show offset and hex bytes in uppercase.
+  /// \param A If true, show an ASCII column beside the hex bytes.
   FormattedBytes(ArrayRef<uint8_t> B, uint32_t IL, std::optional<uint64_t> O,
                  uint32_t NPL, uint8_t BGS, bool U, bool A)
       : Bytes(B), FirstByteOffset(O), IndentLevel(IL), NumPerLine(NPL),
@@ -231,6 +298,14 @@ public:
 };
 
 /// Format \p Bytes as a hex dump without an ASCII column.
+///
+/// \param Bytes Bytes to format.
+/// \param FirstByteOffset Optional base offset shown for each line.
+/// \param NumPerLine Number of bytes shown per line.
+/// \param ByteGroupSize Number of hex bytes grouped without spaces.
+/// \param IndentLevel Number of characters to indent each line.
+/// \param Upper If true, show offset and hex bytes in uppercase.
+/// \return A formatted bytes object that dumps \p Bytes as hex without ASCII.
 inline FormattedBytes
 format_bytes(ArrayRef<uint8_t> Bytes,
              std::optional<uint64_t> FirstByteOffset = std::nullopt,
@@ -241,6 +316,14 @@ format_bytes(ArrayRef<uint8_t> Bytes,
 }
 
 /// Format \p Bytes as hex with an ASCII column.
+///
+/// \param Bytes Bytes to format.
+/// \param FirstByteOffset Optional base offset shown for each line.
+/// \param NumPerLine Number of bytes shown per line.
+/// \param ByteGroupSize Number of hex bytes grouped without spaces.
+/// \param IndentLevel Number of characters to indent each line.
+/// \param Upper If true, show offset and hex bytes in uppercase.
+/// \return A formatted bytes object that dumps \p Bytes as hex with ASCII.
 inline FormattedBytes
 format_bytes_with_ascii(ArrayRef<uint8_t> Bytes,
                         std::optional<uint64_t> FirstByteOffset = std::nullopt,

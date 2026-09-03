@@ -71,25 +71,28 @@ enum OffloadEntryKindFlag : uint32_t {
 
 /// Returns the type of the offloading entry we use to store kernels and
 /// globals that will be registered with the offloading runtime.
+/// \param M The module that owns the context used to create the type.
+/// \return The struct type used for offloading entries in \p M.
 LLVM_ABI StructType *getEntryTy(Module &M);
 
-/// Create an offloading section struct used to register this global at
-/// runtime.
+/// Returns the section name for offloading entries based on the target triple.
 ///
-/// \param M The module to be used
-/// \param Addr The pointer to the global being registered.
+/// ELF: "llvm_offload_entries", COFF: "llvm_offload_entries",
+/// Mach-O: "__LLVM,offload_entries".
+/// \param M The module whose target triple selects the section name.
+/// \return The offloading entry section name for the module's object format.
+LLVM_ABI StringRef getOffloadEntrySection(Module &M);
+
+/// Create an offloading entry used to register this global at runtime.
+///
+/// \param M The module to be used.
 /// \param Kind The offloading language expected to consume this.
+/// \param Addr The pointer to the global being registered.
 /// \param Name The symbol name associated with the global.
 /// \param Size The size in bytes of the global (0 for functions).
 /// \param Flags Flags associated with the entry.
 /// \param Data Extra data storage associated with the entry.
-/// \param SectionName The section this entry will be placed at.
 /// \param AuxAddr An extra pointer if needed.
-/// Returns the section name for offloading entries based on the target triple.
-/// ELF: "llvm_offload_entries", COFF: "llvm_offload_entries",
-/// Mach-O: "__LLVM,offload_entries".
-LLVM_ABI StringRef getOffloadEntrySection(Module &M);
-
 /// \return The emitted global variable containing the offloading entry.
 LLVM_ABI GlobalVariable *
 emitOffloadingEntry(Module &M, object::OffloadKind Kind, Constant *Addr,
@@ -98,7 +101,15 @@ emitOffloadingEntry(Module &M, object::OffloadKind Kind, Constant *Addr,
 
 /// Create a constant struct initializer used to register this global at
 /// runtime.
-/// \return the constant struct and the global variable holding the symbol name.
+/// \param M The module to be used.
+/// \param Kind The offloading language expected to consume this.
+/// \param Addr The pointer to the global being registered.
+/// \param Name The symbol name associated with the global.
+/// \param Size The size in bytes of the global (0 for functions).
+/// \param Flags Flags associated with the entry.
+/// \param Data Extra data storage associated with the entry.
+/// \param AuxAddr An extra pointer if needed.
+/// \return The constant struct and the global variable holding the symbol name.
 LLVM_ABI std::pair<Constant *, GlobalVariable *>
 getOffloadingEntryInitializer(Module &M, object::OffloadKind Kind,
                               Constant *Addr, StringRef Name, uint64_t Size,
@@ -106,8 +117,11 @@ getOffloadingEntryInitializer(Module &M, object::OffloadKind Kind,
 
 /// Creates a pair of constants used to iterate the array of offloading entries
 /// by accessing the section variables provided by the linker.
+/// \param M The module providing the offload entry section.
+/// \return A pair of constants pointing to the start and end of the entry array.
 LLVM_ABI std::pair<Constant *, Constant *> getOffloadEntryArray(Module &M);
 
+/// AMDGPU-specific offloading helpers for image compatibility and metadata.
 namespace amdgpu {
 /// Check if an image is compatible with current system's environment. The
 /// system environment is given as a 'target-id' which has the form:
@@ -118,11 +132,16 @@ namespace amdgpu {
 /// and is compatible with either '+' or '-'. The HSA runtime returns this
 /// information using the target-id, while we use the ELF header to determine
 /// these features.
+/// \param ImageArch Processor architecture of the image.
+/// \param ImageFlags ELF feature flags of the image.
+/// \param EnvTargetID Target-id describing the system's environment.
+/// \return True if the image is compatible with the given environment.
 LLVM_ABI bool isImageCompatibleWithEnv(StringRef ImageArch, uint32_t ImageFlags,
                                        StringRef EnvTargetID);
 
-/// Struct for holding metadata related to AMDGPU kernels, for more information
-/// about the metadata and its meaning see:
+/// Metadata describing an AMDGPU kernel from code object metadata.
+///
+/// For more information about the metadata and its meaning see:
 /// https://llvm.org/docs/AMDGPUUsage.html#code-object-v3
 struct AMDGPUKernelMetaData {
   /// Constant indicating that a value is invalid.
@@ -162,12 +181,18 @@ struct AMDGPUKernelMetaData {
 
 /// Reads AMDGPU specific metadata from the ELF file and propagates the
 /// KernelInfoMap.
+/// \param MemBuffer Memory buffer containing the AMDGPU ELF image.
+/// \param KernelInfoMap Map filled with per-kernel metadata extracted from
+/// the image.
+/// \param ELFABIVersion Set to the ELF ABI version found in the image.
+/// \return Success, or an error if the metadata cannot be read.
 LLVM_ABI Error getAMDGPUMetaDataFromImage(
     MemoryBufferRef MemBuffer, StringMap<AMDGPUKernelMetaData> &KernelInfoMap,
     uint16_t &ELFABIVersion);
 } // namespace amdgpu
 
 /// Containerizes an image within an OffloadBinary image.
+///
 /// Creates a nested OffloadBinary structure where the inner binary contains
 /// the raw image and associated metadata (version, format, triple, etc.).
 /// \param Binary The image to containerize.
@@ -179,6 +204,7 @@ LLVM_ABI Error getAMDGPUMetaDataFromImage(
 /// features.
 /// \param MetaData The key-value map of metadata to be associated with the
 /// image.
+/// \return Success, or an error if containerization fails.
 LLVM_ABI Error containerizeImage(std::unique_ptr<MemoryBuffer> &Binary,
                                  llvm::Triple Triple,
                                  object::ImageKind ImageKind,
@@ -186,8 +212,11 @@ LLVM_ABI Error containerizeImage(std::unique_ptr<MemoryBuffer> &Binary,
                                  int32_t ImageFlags,
                                  MapVector<StringRef, StringRef> &MetaData);
 
+/// SYCL OffloadBinary symbol-table serialization helpers.
 namespace sycl {
 
+/// Header of a serialized SYCL OffloadBinary symbol table.
+///
 /// Serialized symbol table stored in the "symbols" entry of a SYCL
 /// OffloadBinary. The in-memory layout of the blob is:
 ///   [ SymbolTableHeader               ]
@@ -195,10 +224,10 @@ namespace sycl {
 ///   [ char              StringData[]  ]  -- packed null-terminated names
 /// Use writeSymbolTable() to produce the blob and forEachSymbol() to consume
 /// it; both encapsulate all pointer arithmetic.
-
 struct SymbolTableHeader {
   uint32_t Count; ///< Number of symbol entries.
 };
+/// One entry in a serialized SYCL OffloadBinary symbol table.
 struct SymbolTableEntry {
   uint32_t OffsetToSymbol; ///< Byte offset from blob start to the symbol name.
   uint32_t SymbolSize;     ///< Length of the symbol name in bytes, excluding
@@ -206,10 +235,15 @@ struct SymbolTableEntry {
 };
 
 /// Serialize \p Names into \p Out.
+/// \param Names Symbol names to serialize into the table.
+/// \param Out Buffer that receives the serialized symbol-table blob.
 LLVM_ABI void writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out);
 
 /// Invoke \p Callback with a \c StringRef for each symbol in \p Symbols,
 /// the raw serialized symbol-table blob.
+/// \param Symbols Raw serialized symbol-table blob to iterate.
+/// \param Callback Invoked once per symbol with the symbol name as a
+/// StringRef.
 template <typename Fn> void forEachSymbol(StringRef Symbols, Fn &&Callback) {
   assert(Symbols.size() >= sizeof(SymbolTableHeader) &&
          "symbols blob smaller than header");
@@ -223,12 +257,14 @@ template <typename Fn> void forEachSymbol(StringRef Symbols, Fn &&Callback) {
 
 } // namespace sycl
 
+/// Intel-specific helpers for containerizing OpenMP SPIR-V images.
 namespace intel {
 /// Containerizes an OpenMP SPIR-V image into an OffloadBinary image.
 /// \param Binary The SPIR-V binary to containerize.
 /// \param Triple The target triple to be associated with the image.
 /// \param CompileOpts Optional compilation options.
 /// \param LinkOpts Optional linking options.
+/// \return Success, or an error if containerization fails.
 LLVM_ABI Error containerizeOpenMPSPIRVImage(
     std::unique_ptr<MemoryBuffer> &Binary, llvm::Triple Triple,
     StringRef CompileOpts = "", StringRef LinkOpts = "");

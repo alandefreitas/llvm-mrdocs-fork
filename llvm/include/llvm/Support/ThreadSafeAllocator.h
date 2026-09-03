@@ -35,16 +35,31 @@ template <class AllocatorType> class ThreadSafeAllocator {
   };
 
 public:
+  /// Allocate \p N bytes of memory under the allocator lock.
+  ///
+  /// \param N Number of bytes to allocate.
+  /// \return A pointer to the allocated memory.
   auto Allocate(size_t N) {
     return applyLocked([N](AllocatorType &Alloc) { return Alloc.Allocate(N); });
   }
 
+  /// Allocate \p Size bytes of \p Align aligned memory under the allocator
+  /// lock.
+  ///
+  /// \param Size Number of bytes to allocate.
+  /// \param Align Required alignment of the allocated memory in bytes.
+  /// \return A pointer to the allocated memory.
   auto Allocate(size_t Size, size_t Align) {
     return applyLocked([Size, Align](AllocatorType &Alloc) {
       return Alloc.Allocate(Size, Align);
     });
   }
 
+  /// Invoke \p Fn with the underlying allocator while holding the lock.
+  ///
+  /// \param Fn Callable that accepts a reference to the underlying allocator
+  ///           and returns a result.
+  /// \return The value returned by \p Fn.
   template <typename FnT,
             typename T = typename llvm::function_traits<FnT>::result_t>
   T applyLocked(FnT Fn) {

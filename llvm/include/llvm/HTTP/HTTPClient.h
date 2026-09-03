@@ -25,31 +25,48 @@
 
 namespace llvm {
 
-enum class HTTPMethod { GET };
+/// HTTP methods supported by HTTPRequest.
+enum class HTTPMethod {
+  /// HTTP GET method.
+  GET
+};
 
 /// A stateless description of an outbound HTTP request.
 struct HTTPRequest {
+  /// Target URL of the request.
   SmallString<128> Url;
+  /// Additional HTTP headers to include with the request.
   SmallVector<std::string, 0> Headers;
+  /// HTTP method used for the request.
   HTTPMethod Method = HTTPMethod::GET;
-  // Follow redirects without security downgrades.
+  /// Follow redirects without security downgrades.
   bool FollowRedirects = true;
-  // Allow self-signed TLS certificates with this SHA-256 (WinHTTP only).
+  /// Allow self-signed TLS certificates with this SHA-256 (WinHTTP only).
   std::optional<std::string> PinnedCertFingerprint;
+  /// Construct a request for the given URL with default options.
+  /// \param Url Target URL for the request.
   HTTPRequest(StringRef Url);
 };
 
+/// Return true if two HTTP requests describe the same outbound request.
+/// \param A First request to compare.
+/// \param B Second request to compare.
+/// \return True if the requests describe the same outbound request.
 bool operator==(const HTTPRequest &A, const HTTPRequest &B);
 
-/// A handler for state updates occurring while an HTTPRequest is performed.
+/// Handler for state updates while an HTTPRequest is performed.
+///
 /// Can trigger the client to abort the request by returning an Error from any
 /// of its methods.
 class HTTPResponseHandler {
 public:
   /// Processes an additional chunk of bytes of the HTTP response body.
+  /// \param BodyChunk Next contiguous slice of the response body.
+  /// \return Success, or an error that aborts the request.
   virtual Error handleBodyChunk(StringRef BodyChunk) = 0;
 
 protected:
+  /// Destroy the response handler.
   ~HTTPResponseHandler();
 };
 
@@ -60,12 +77,16 @@ class HTTPClient {
 #endif
 
 public:
+  /// Construct an HTTP client. Requires prior \c initialize().
   HTTPClient();
+  /// Destroy the HTTP client and release its resources.
   ~HTTPClient();
 
+  /// True after \c initialize() until \c cleanup().
   static bool IsInitialized;
 
   /// Returns true only if LLVM has been compiled with a working HTTPClient.
+  /// \return True if a working HTTPClient is available in this build.
   static bool isAvailable();
 
   /// Must be called at the beginning of a program, while it is a single thread.
@@ -76,14 +97,19 @@ public:
 
   /// Sets the timeout for the entire request, in milliseconds. A zero or
   /// negative value means the request never times out.
+  /// \param Timeout Maximum duration for the request; zero or negative disables.
   void setTimeout(std::chrono::milliseconds Timeout);
 
-  /// Performs the Request, passing response data to the Handler. Returns all
-  /// errors which occur during the request. Aborts if an error is returned by a
-  /// Handler method.
+  /// Perform an HTTP request, passing response data to a handler.
+  ///
+  /// Aborts if an error is returned by a Handler method.
+  /// \param Request The HTTP request to perform.
+  /// \param Handler Receives response body chunks during the transfer.
+  /// \return Success, or any error that occurred during the request.
   Error perform(const HTTPRequest &Request, HTTPResponseHandler &Handler);
 
   /// Returns the last received response code or zero if none.
+  /// \return The last HTTP response code, or zero if none was received.
   unsigned responseCode();
 };
 

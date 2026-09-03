@@ -24,8 +24,9 @@
 
 namespace llvm {
 
-/// Represents known origin of an individual byte in combine pattern. The
-/// value of the byte is either constant zero, or comes from memory /
+/// Represents the known origin of an individual byte in a combine pattern.
+///
+/// The value of the byte is either constant zero, or comes from memory /
 /// some other productive instruction (e.g. arithmetic instructions).
 /// Bit manipulation instructions like shifts are not ByteProviders, rather
 /// are used to extract Bytes.
@@ -46,17 +47,25 @@ private:
       is_detected<check_has_getOpcode, U>::value;
 
 public:
-  // For constant zero providers Src is set to nullopt. For actual providers
-  // Src represents the node which originally produced the relevant bits.
+  /// Optional source operation that originally produced the relevant bits.
+  ///
+  /// For constant zero providers \c Src is \c std::nullopt. For actual
+  /// providers it is the node which originally produced the relevant bits.
   std::optional<ISelOp> Src = std::nullopt;
-  // DestOffset is the offset of the byte in the dest we are trying to map for.
+  /// Offset of the byte in the destination being mapped.
   int64_t DestOffset = 0;
-  // SrcOffset is the offset in the ultimate source node that maps to the
-  // DestOffset
+  /// Offset in the ultimate source node that maps to \c DestOffset.
   int64_t SrcOffset = 0;
 
+  /// Construct an empty ByteProvider with no source.
   ByteProvider() = default;
 
+  /// Create a ByteProvider that maps a destination byte to a source operation.
+  ///
+  /// \param Val Source operation that produced the byte, or nullopt.
+  /// \param ByteOffset Offset of the byte in the destination being mapped.
+  /// \param VectorOffset Offset in the source operation that supplies the byte.
+  /// \return A ByteProvider that maps the destination byte to \p Val.
   static ByteProvider getSrc(std::optional<ISelOp> Val, int64_t ByteOffset,
                              int64_t VectorOffset) {
     static_assert(has_getOpcode<ISelOp>,
@@ -64,15 +73,32 @@ public:
     return ByteProvider(Val, ByteOffset, VectorOffset);
   }
 
+  /// Create a ByteProvider that represents a constant zero byte.
+  ///
+  /// \return A ByteProvider with no source, representing constant zero.
   static ByteProvider getConstantZero() {
     return ByteProvider<ISelOp>(std::nullopt, 0, 0);
   }
+  /// Return true if this provider represents a constant zero byte.
+  ///
+  /// \return True if this provider has no source operation.
   bool isConstantZero() const { return !Src; }
 
+  /// Return true if this provider has a non-empty source operation.
+  ///
+  /// \return True if \c Src holds a source operation.
   bool hasSrc() const { return Src.has_value(); }
 
+  /// Return true if this provider and \p Other share the same source.
+  ///
+  /// \param Other Other ByteProvider to compare sources with.
+  /// \return True if both providers have the same source operation.
   bool hasSameSrc(const ByteProvider &Other) const { return Other.Src == Src; }
 
+  /// Return true if this provider equals \p Other in source and offsets.
+  ///
+  /// \param Other Other ByteProvider to compare against.
+  /// \return True if source and both offsets match \p Other.
   bool operator==(const ByteProvider &Other) const {
     return Other.Src == Src && Other.DestOffset == DestOffset &&
            Other.SrcOffset == SrcOffset;

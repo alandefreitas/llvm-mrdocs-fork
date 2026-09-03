@@ -17,19 +17,29 @@ namespace llvm {
 namespace codeview {
 class FieldListRecord;
 
+/// Serializes non-continuation CodeView leaf type records into a byte buffer.
 class SimpleTypeSerializer {
   std::vector<uint8_t> ScratchBuffer;
 
 public:
+  /// Construct an empty simple type serializer.
   LLVM_ABI SimpleTypeSerializer();
+  /// Destroy the simple type serializer.
   LLVM_ABI ~SimpleTypeSerializer();
 
-  // This template is explicitly instantiated in the implementation file for all
-  // supported types.  The method itself is ugly, so inlining it into the header
-  // file clutters an otherwise straightforward interface.
+  /// Serialize leaf type \p Record into a scratch buffer and return its bytes.
+  ///
+  /// This template is explicitly instantiated in the implementation file for
+  /// all supported types. The method itself is ugly, so inlining it into the
+  /// header file clutters an otherwise straightforward interface.
+  ///
+  /// \param Record Leaf type record to serialize.
+  /// \returns Bytes of the serialized record; valid until the next serialize.
   template <typename T> ArrayRef<uint8_t> serialize(T &Record);
 
-  // Don't allow serialization of field list records using this interface.
+  /// Deleted overload; field lists must not be serialized through this class.
+  ///
+  /// \param Record Field list record (unsupported by this serializer).
   ArrayRef<uint8_t> serialize(const FieldListRecord &Record) = delete;
 };
 

@@ -45,19 +45,27 @@ public:
                        int> = 0>
 #endif
   /// Construct a range from the iterators of \p c.
+  ///
+  /// \param c Container whose begin and end iterators define the range.
   iterator_range(Container &&c)
       : begin_iterator(adl_begin(c)), end_iterator(adl_end(c)) {
   }
   /// Construct a range from explicit begin and end iterators.
+  ///
+  /// \param begin_iterator Iterator to the first element.
+  /// \param end_iterator Iterator past the last element.
   iterator_range(IteratorT begin_iterator, IteratorT end_iterator)
       : begin_iterator(std::move(begin_iterator)),
         end_iterator(std::move(end_iterator)) {}
 
   /// Return an iterator to the first element.
+  /// @return Iterator to the first element.
   IteratorT begin() const { return begin_iterator; }
   /// Return an iterator past the last element.
+  /// @return Iterator past the last element.
   IteratorT end() const { return end_iterator; }
   /// Return true if the range contains no elements.
+  /// @return True if the range contains no elements.
   bool empty() const { return begin_iterator == end_iterator; }
 };
 
@@ -70,11 +78,19 @@ iterator_range(Container &&)
 ///
 /// This provides a bit of syntactic sugar to make using sub-ranges
 /// in for loops a bit easier. Analogous to std::make_pair().
+///
+/// \param x Iterator to the first element.
+/// \param y Iterator past the last element.
+/// @return An iterator_range covering [\p x, \p y).
 template <class T> iterator_range<T> make_range(T x, T y) {
   return iterator_range<T>(std::move(x), std::move(y));
 }
 
 /// Construct an iterator_range from a pair of iterators.
+///
+/// \param p Pair whose first and second elements are the begin and end
+/// iterators.
+/// @return An iterator_range covering [\p p.first, \p p.second).
 template <typename T> iterator_range<T> make_range(std::pair<T, T> p) {
   return iterator_range<T>(std::move(p.first), std::move(p.second));
 }

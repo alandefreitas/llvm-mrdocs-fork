@@ -39,40 +39,87 @@ using TimePoint = std::chrono::time_point<std::chrono::system_clock, D>;
 // utc_clock and utc_time are only available since C++20. Add enough code to
 // support formatting date/time in UTC.
 /// Clock whose time points represent UTC instants for formatting.
-class UtcClock : public std::chrono::system_clock {};
+class UtcClock : public std::chrono::system_clock {
+public:
+  /// Duration type representing intervals between UtcClock time points.
+  using duration = std::chrono::system_clock::duration;
+  /// Arithmetic representation type of \c duration.
+  using rep = std::chrono::system_clock::rep;
+  /// Ratio type representing the tick period of \c duration.
+  using period = std::chrono::system_clock::period;
+  /// A point in time measured by this clock.
+  using time_point = std::chrono::system_clock::time_point;
+  /// Whether this clock is steady; always false for wall-clock UTC time.
+  static constexpr bool is_steady = std::chrono::system_clock::is_steady;
+
+  /// Return the current wall-clock time as a time point.
+  using std::chrono::system_clock::now;
+
+  /// Convert a time point to \c std::time_t.
+  ///
+  /// \param Time Time point to convert.
+  /// \return The equivalent calendar time as \c std::time_t.
+  static std::time_t to_time_t(const time_point &Time) noexcept {
+    return std::chrono::system_clock::to_time_t(Time);
+  }
+
+  /// Convert a \c std::time_t to a time point on this clock.
+  ///
+  /// \param Time Calendar time to convert.
+  /// \return The equivalent time point on this clock.
+  static time_point from_time_t(std::time_t Time) noexcept {
+    return std::chrono::system_clock::from_time_t(Time);
+  }
+};
 
 /// A time point on the UTC clock with duration \p D (default nanoseconds).
 template <typename D = std::chrono::nanoseconds>
 using UtcTime = std::chrono::time_point<UtcClock, D>;
 
-/// Convert a std::time_t to a UtcTime
+/// Convert a std::time_t to a UtcTime.
+///
+/// \param T Calendar time to convert.
+/// \return The equivalent UTC time point with second precision.
 inline UtcTime<std::chrono::seconds> toUtcTime(std::time_t T) {
   using namespace std::chrono;
   return UtcTime<seconds>(seconds(T));
 }
 
-/// Convert a TimePoint to std::time_t
+/// Convert a TimePoint to std::time_t.
+///
+/// \param TP Time point to convert.
+/// \return The equivalent calendar time as \c std::time_t.
 inline std::time_t toTimeT(TimePoint<> TP) {
   using namespace std::chrono;
   return system_clock::to_time_t(
       time_point_cast<system_clock::time_point::duration>(TP));
 }
 
-/// Convert a UtcTime to std::time_t
+/// Convert a UtcTime to std::time_t.
+///
+/// \param TP UTC time point to convert.
+/// \return The equivalent calendar time as \c std::time_t.
 inline std::time_t toTimeT(UtcTime<> TP) {
   using namespace std::chrono;
   return system_clock::to_time_t(time_point<system_clock, seconds>(
       duration_cast<seconds>(TP.time_since_epoch())));
 }
 
-/// Convert a std::time_t to a TimePoint
+/// Convert a std::time_t to a TimePoint.
+///
+/// \param T Calendar time to convert.
+/// \return The equivalent time point with second precision.
 inline TimePoint<std::chrono::seconds>
 toTimePoint(std::time_t T) {
   using namespace std::chrono;
   return time_point_cast<seconds>(system_clock::from_time_t(T));
 }
 
-/// Convert a std::time_t + nanoseconds to a TimePoint
+/// Convert a std::time_t + nanoseconds to a TimePoint.
+///
+/// \param T Calendar time providing the whole-second component.
+/// \param nsec Additional nanoseconds to add to \p T.
+/// \return The equivalent time point with nanosecond precision.
 inline TimePoint<>
 toTimePoint(std::time_t T, uint32_t nsec) {
   using namespace std::chrono;
@@ -83,11 +130,19 @@ toTimePoint(std::time_t T, uint32_t nsec) {
 } // namespace sys
 
 /// Write time point \p TP to stream \p OS.
+///
+/// \param OS Output stream to write to.
+/// \param TP Time point to write.
+/// \return A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, sys::TimePoint<> TP);
 /// Write UTC time point \p TP to stream \p OS.
+///
+/// \param OS Output stream to write to.
+/// \param TP UTC time point to write.
+/// \return A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, sys::UtcTime<> TP);
 
-/// Format provider for TimePoint<>
+/// Format provider for TimePoint<>.
 ///
 /// The options string is a strftime format string, with extensions:
 ///   - %L is millis: 000-999
@@ -97,11 +152,22 @@ LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, sys::UtcTime<> TP);
 /// If no options are given, the default format is "%Y-%m-%d %H:%M:%S.%N".
 template <>
 struct format_provider<sys::TimePoint<>> {
+  /// Format time point \p TP to \p OS using strftime-style \p Style.
+  ///
+  /// \param TP Time point to format.
+  /// \param OS Output stream to write to.
+  /// \param Style strftime format string, or empty for the default.
   LLVM_ABI static void format(const sys::TimePoint<> &TP, llvm::raw_ostream &OS,
                               StringRef Style);
 };
 
+/// Format provider for UtcTime with second precision.
 template <> struct format_provider<sys::UtcTime<std::chrono::seconds>> {
+  /// Format UTC time point \p TP to \p OS using strftime-style \p Style.
+  ///
+  /// \param TP UTC time point to format.
+  /// \param OS Output stream to write to.
+  /// \param Style strftime format string, or empty for the default.
   LLVM_ABI static void format(const sys::UtcTime<std::chrono::seconds> &TP,
                               llvm::raw_ostream &OS, StringRef Style);
 };
@@ -197,6 +263,11 @@ private:
   }
 
 public:
+  /// Format duration \p D to \p Stream according to \p Style.
+  ///
+  /// \param D Duration value to format.
+  /// \param Stream Output stream to write to.
+  /// \param Style Duration options string (unit, show-unit, number options).
   static void format(const Dur &D, llvm::raw_ostream &Stream, StringRef Style) {
     InternalRep count;
     StringRef unit;

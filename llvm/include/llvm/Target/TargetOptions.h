@@ -27,42 +27,55 @@ struct fltSemantics;
 class MachineFunction;
 class MemoryBuffer;
 
+/// Controls when floating-point operations may be fused during code generation.
 namespace FPOpFusion {
+/// Modes controlling fusion of floating-point operations.
 enum FPOpFusionMode {
-  Fast,     // Enable fusion of FP ops wherever it's profitable.
-  Standard, // Only allow fusion of 'blessed' ops (currently just fmuladd).
-  Strict    // Never fuse FP-ops.
+  Fast,     ///< Enable fusion of FP ops wherever it's profitable.
+  Standard, ///< Only allow fusion of 'blessed' ops (currently just fmuladd).
+  Strict    ///< Never fuse FP-ops.
 };
 }
 
+/// Options for partitioning indirect call jump tables.
 namespace JumpTable {
+/// Strategy for partitioning indirect call jump tables during code generation.
 enum JumpTableType {
-  Single,     // Use a single table for all indirect jumptable calls.
-  Arity,      // Use one table per number of function parameters.
-  Simplified, // Use one table per function type, with types projected
-              // into 4 types: pointer to non-function, struct,
-              // primitive, and function pointer.
-  Full        // Use one table per unique function type
+  Single,     ///< Use a single table for all indirect jumptable calls.
+  Arity,      ///< Use one table per number of function parameters.
+  /// Use one table per function type after projecting types into four kinds.
+  ///
+  /// Types are projected into: pointer to non-function, struct, primitive,
+  /// and function pointer.
+  Simplified,
+  Full        ///< Use one table per unique function type.
 };
 }
 
+/// Threading model assumed for atomics and related code generation.
 namespace ThreadModel {
+/// Threading model for atomics and related code generation.
 enum Model {
-  POSIX, // POSIX Threads
-  Single // Single Threaded Environment
+  POSIX, ///< POSIX Threads
+  Single ///< Single Threaded Environment
 };
 }
 
+/// Controls whether basic blocks are emitted into separate ELF sections.
 enum class BasicBlockSection {
-  All,    // Use Basic Block Sections for all basic blocks.  A section
-          // for every basic block can significantly bloat object file sizes.
-  List,   // Get list of functions & BBs from a file. Selectively enables
-          // basic block sections for a subset of basic blocks which can be
-          // used to control object size bloats from creating sections.
-  Preset, // Similar to list but the blocks are identified by passes which
-          // seek to use Basic Block Sections, e.g. MachineFunctionSplitter.
-          // This option cannot be set via the command line.
-  None    // Do not use Basic Block Sections.
+  /// Use Basic Block Sections for all basic blocks.
+  ///
+  /// A section for every basic block can significantly bloat object file
+  /// sizes.
+  All,
+  /// Selectively enable basic block sections from a function/BB list file.
+  ///
+  /// Used to control object size bloat from creating sections.
+  List,
+  /// Blocks identified by passes (e.g. MachineFunctionSplitter); not CLI-settable.
+  Preset,
+  /// Do not use Basic Block Sections.
+  None
 };
 
 /// Identify a debugger for "tuning" the debug info.
@@ -89,9 +102,9 @@ enum class DebuggerKind {
 /// Enable abort calls when global instruction selection fails to lower/select
 /// an instruction.
 enum class GlobalISelAbortMode {
-  Disable,        // Disable the abort.
-  Enable,         // Enable the abort.
-  DisableWithDiag // Disable the abort but emit a diagnostic on failure.
+  Disable,        ///< Disable the abort.
+  Enable,         ///< Enable the abort.
+  DisableWithDiag ///< Disable the abort but emit a diagnostic on failure.
 };
 
 /// Indicates when and how the Swift async frame pointer bit should be set.
@@ -108,16 +121,19 @@ enum class SwiftAsyncFramePointerMode {
 /// \brief Enumeration value for AMDGPU code object version, which is the
 /// code object version times 100.
 enum CodeObjectVersionKind {
+  /// No AMDGPU code object version selected.
   COV_None,
   COV_2 = 200, // Unsupported.
-  COV_3 = 300, // Unsupported.
-  COV_4 = 400,
-  COV_5 = 500,
-  COV_6 = 600,
+  COV_3 = 300, ///< Unsupported AMDGPU code object version 3.00.
+  COV_4 = 400, ///< AMDGPU code object version 4.00.
+  COV_5 = 500, ///< AMDGPU code object version 5.00.
+  COV_6 = 600, ///< AMDGPU code object version 6.00.
 };
 
+/// Shared command-line option flags used across LLVM code generation targets.
 class TargetOptions {
 public:
+  /// Initialize target-lowering options to their conservative defaults.
   TargetOptions()
       : NoTrappingFPMath(true), EnableAIXExtendedAltivecABI(false),
         HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
@@ -141,38 +157,50 @@ public:
         EnableCFIFixup(false), MisExpect(false), XCOFFReadOnlyPointers(false),
         VerifyArgABICompliance(true) {}
 
-  /// DisableFramePointerElim - This returns true if frame pointer elimination
-  /// optimization should be disabled for the given machine function.
+  /// Return true if frame pointer elimination should be disabled for \p MF.
+  /// \param MF Machine function to query.
+  /// \return True if frame pointer elimination should be disabled for \p MF.
   LLVM_ABI bool DisableFramePointerElim(const MachineFunction &MF) const;
 
-  /// FramePointerIsReserved - This returns true if the frame pointer must
-  /// always either point to a new frame record or be un-modified in the given
-  /// function.
+  /// Return true if the frame pointer is reserved in \p MF.
+  ///
+  /// The frame pointer must always either point to a new frame record or be
+  /// un-modified in the given function.
+  /// \param MF Machine function to query.
+  /// \return True if the frame pointer is reserved in \p MF.
   LLVM_ABI bool FramePointerIsReserved(const MachineFunction &MF) const;
 
   /// If greater than 0, override the default value of
   /// MCAsmInfo::BinutilsVersion.
   std::pair<int, int> BinutilsVersion{0, 0};
 
-  /// NoTrappingFPMath - This flag is enabled when the
-  /// -enable-no-trapping-fp-math is specified on the command line. This
-  /// specifies that there are no trap handlers to handle exceptions.
+  /// Assume there are no FP exception trap handlers when set.
+  ///
+  /// This flag is enabled when -enable-no-trapping-fp-math is specified on
+  /// the command line. This specifies that there are no trap handlers to
+  /// handle exceptions.
   unsigned NoTrappingFPMath : 1;
 
-  /// EnableAIXExtendedAltivecABI - This flag returns true when -vec-extabi is
-  /// specified. The code generator is then able to use both volatile and
-  /// nonvolitle vector registers. When false, the code generator only uses
-  /// volatile vector registers which is the default setting on AIX.
+  /// Enable the AIX extended Altivec ABI for volatile and nonvolatile vectors.
+  ///
+  /// This flag is true when -vec-extabi is specified. The code generator is
+  /// then able to use both volatile and nonvolitle vector registers. When
+  /// false, the code generator only uses volatile vector registers which is
+  /// the default setting on AIX.
   unsigned EnableAIXExtendedAltivecABI : 1;
 
-  /// HonorSignDependentRoundingFPMath - This returns true when the
-  /// -enable-sign-dependent-rounding-fp-math is specified.  If this returns
-  /// false (the default), the code generator is allowed to assume that the
-  /// rounding behavior is the default (round-to-zero for all floating point
-  /// to integer conversions, and round-to-nearest for all other arithmetic
-  /// truncations).  If this is enabled (set to true), the code generator must
-  /// assume that the rounding mode may dynamically change.
+  /// Assume floating-point rounding mode may change dynamically when set.
+  ///
+  /// This is set when -enable-sign-dependent-rounding-fp-math is specified.
+  /// If this is false (the default), the code generator is allowed to assume
+  /// that the rounding behavior is the default (round-to-zero for all
+  /// floating point to integer conversions, and round-to-nearest for all
+  /// other arithmetic truncations). If this is enabled (set to true), the
+  /// code generator must assume that the rounding mode may dynamically
+  /// change.
   unsigned HonorSignDependentRoundingFPMathOption : 1;
+  /// Return true if sign-dependent rounding for FP math must be honored.
+  /// \return True if sign-dependent rounding for FP math must be honored.
   LLVM_ABI bool HonorSignDependentRoundingFPMath() const;
 
   /// NoZerosInBSS - By default some codegens place zero-initialized data to
@@ -180,18 +208,22 @@ public:
   /// crt*.o compiling).
   unsigned NoZerosInBSS : 1;
 
-  /// GuaranteedTailCallOpt - This flag is enabled when -tailcallopt is
-  /// specified on the commandline. When the flag is on, participating targets
-  /// will perform tail call optimization on all calls which use the fastcc
-  /// calling convention and which satisfy certain target-independent
-  /// criteria (being at the end of a function, having the same return type
-  /// as their parent function, etc.), using an alternate ABI if necessary.
+  /// Perform guaranteed tail call optimization for eligible fastcc calls.
+  ///
+  /// This flag is enabled when -tailcallopt is specified on the commandline.
+  /// When the flag is on, participating targets will perform tail call
+  /// optimization on all calls which use the fastcc calling convention and
+  /// which satisfy certain target-independent criteria (being at the end of
+  /// a function, having the same return type as their parent function, etc.),
+  /// using an alternate ABI if necessary.
   unsigned GuaranteedTailCallOpt : 1;
 
-  /// StackSymbolOrdering - When true, this will allow CodeGen to order
-  /// the local stack symbols (for code size, code locality, or any other
-  /// heuristics). When false, the local symbols are left in whatever order
-  /// they were generated. Default is true.
+  /// Allow CodeGen to reorder local stack symbols for size or locality.
+  ///
+  /// When true, this will allow CodeGen to order the local stack symbols
+  /// (for code size, code locality, or any other heuristics). When false,
+  /// the local symbols are left in whatever order they were generated.
+  /// Default is true.
   unsigned StackSymbolOrdering : 1;
 
   /// EnableFastISel - This flag enables fast-path instruction selection
@@ -230,6 +262,7 @@ public:
   /// Emit XCOFF traceback table.
   unsigned XCOFFTracebackTable : 1;
 
+  /// Use unique names for object file sections.
   unsigned UniqueSectionNames : 1;
 
   /// Use unique names for basic block sections.
@@ -280,8 +313,10 @@ public:
   /// Emit address-significance table.
   unsigned EmitAddrsig : 1;
 
-  // Emit the SHT_LLVM_BB_ADDR_MAP section containing basic block address
-  // which can be used to map virtual addresses to machine basic blocks.
+  /// Emit the SHT_LLVM_BB_ADDR_MAP section for basic block addresses.
+  ///
+  /// The section contains basic block addresses which can be used to map
+  /// virtual addresses to machine basic blocks.
   unsigned BBAddrMap : 1;
 
   /// Emit basic blocks into separate sections.
@@ -294,12 +329,16 @@ public:
   /// Emit section containing call graph metadata.
   unsigned EmitCallGraphSection : 1;
 
+  /// Enable production of call site info for debug info in optimized code.
+  ///
   /// The flag enables call site info production. It is used only for debug
   /// info, and it is restricted only to optimized code. This can be used for
   /// something else, so that should be controlled in the frontend.
   unsigned EmitCallSiteInfo : 1;
   /// Set if the target supports the debug entry values by default.
   unsigned SupportsDebugEntryValues : 1;
+  /// Force production of debug entry values even if the target lacks support.
+  ///
   /// When set to true, the EnableDebugEntryValues option forces production
   /// of debug entry values even if the target does not officially support
   /// it. Useful for testing purposes only. This flag should never be checked
@@ -307,11 +346,14 @@ public:
   unsigned EnableDebugEntryValues : 1;
   /// NOTE: There are targets that still do not support the debug entry values
   /// production.
+  /// \return True if debug entry values should be emitted.
   LLVM_ABI bool ShouldEmitDebugEntryValues() const;
 
-  // When set to true, use experimental new debug variable location tracking,
-  // which seeks to follow the values of variables rather than their location,
-  // post isel.
+  /// Use experimental value-tracking debug variable location information.
+  ///
+  /// When set to true, use experimental new debug variable location tracking,
+  /// which seeks to follow the values of variables rather than their location,
+  /// post isel.
   unsigned ValueTrackingVariableLocations : 1;
 
   /// Emit DWARF debug frame section.
@@ -344,6 +386,8 @@ public:
   /// into the RO data section.
   unsigned XCOFFReadOnlyPointers : 1;
 
+  /// Verify call/return extensions of narrow integers in the target backend.
+  ///
   /// When set to true, call/return argument extensions of narrow integers
   /// are verified in the target backend if it cares about them. This is
   /// not done with internal tools like llc that run many tests that ignore
@@ -358,17 +402,14 @@ public:
   /// If greater than 0, override TargetLoweringBase::PrefLoopAlignment.
   unsigned LoopAlignment = 0;
 
-  /// AllowFPOpFusion - This flag is set by the -fp-contract=xxx option.
-  /// This controls the creation of fused FP ops that store intermediate
-  /// results in higher precision than IEEE allows (E.g. FMAs).
+  /// Controls formation of fused FP ops that keep excess intermediate precision.
   ///
-  /// Fast mode - allows formation of fused FP ops whenever they're
-  /// profitable.
-  /// Standard mode - allow fusion only for 'blessed' FP ops. At present the
-  /// only blessed op is the fmuladd intrinsic. In the future more blessed ops
-  /// may be added.
-  /// Strict mode - allow fusion only if/when it can be proven that the excess
-  /// precision won't effect the result.
+  /// This flag is set by the -fp-contract=xxx option. Fast mode allows
+  /// formation of fused FP ops whenever they're profitable. Standard mode
+  /// allows fusion only for 'blessed' FP ops (currently just the fmuladd
+  /// intrinsic; more may be added later). Strict mode allows fusion only
+  /// if/when it can be proven that the excess precision won't affect the
+  /// result.
   ///
   /// Note: This option only controls formation of fused ops by the
   /// optimizers.  Fused operations that are explicitly specified (e.g. FMA

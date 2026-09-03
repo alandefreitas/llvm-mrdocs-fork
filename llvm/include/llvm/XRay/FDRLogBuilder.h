@@ -12,6 +12,8 @@
 
 namespace llvm::xray {
 
+/// Builds ad-hoc collections of FDR records.
+///
 /// The LogBuilder class allows for creating ad-hoc collections of records
 /// through the `add<...>(...)` function. An example use of this API is in
 /// crafting arbitrary sequences of records:
@@ -25,11 +27,16 @@ class LogBuilder {
   std::vector<std::unique_ptr<Record>> Records;
 
 public:
+  /// Appends a newly constructed record of type \p R to the collection.
+  /// \param A Arguments forwarded to the constructor of \p R.
+  /// \return A reference to this builder for chaining.
   template <class R, class... T> LogBuilder &add(T &&... A) {
     Records.emplace_back(new R(std::forward<T>(A)...));
     return *this;
   }
 
+  /// Moves ownership of the collected records out of this builder.
+  /// \return The collected records, leaving this builder empty.
   std::vector<std::unique_ptr<Record>> consume() { return std::move(Records); }
 };
 

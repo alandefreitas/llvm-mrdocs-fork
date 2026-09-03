@@ -26,13 +26,16 @@
 
 namespace llvm {
 
+/// In-memory MessagePack document node types.
 namespace msgpack {
   class DocNode;
   class MapDocNode;
 }
 
 namespace AMDGPU {
+/// AMDGPU HSA metadata (HSAMD) definitions and verification.
 namespace HSAMD {
+/// Code object V3 HSA metadata verification.
 namespace V3 {
 
 /// Verifier for AMDGPU HSA metadata.
@@ -65,10 +68,14 @@ class MetadataVerifier {
 public:
   /// Construct a MetadataVerifier, specifying whether it will operate in \p
   /// Strict mode.
+  ///
+  /// \param Strict If true, require well-typed metadata; otherwise coerce
+  ///               types when possible.
   MetadataVerifier(bool Strict) : Strict(Strict) {}
 
   /// Verify given HSA metadata.
   ///
+  /// \param HSAMetadataRoot Root MsgPack node of the HSA metadata document.
   /// \returns True when successful, false when metadata is invalid.
   LLVM_ABI bool verify(msgpack::DocNode &HSAMetadataRoot);
 };

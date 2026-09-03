@@ -19,6 +19,7 @@ namespace llvm {
 class raw_ostream;
 class DataExtractor;
 
+/// Parser and dump helper for the GDB `.gdb_index` section.
 class DWARFGdbIndex {
   uint32_t Version;
 
@@ -70,10 +71,20 @@ class DWARFGdbIndex {
   bool parseImpl(DataExtractor Data);
 
 public:
+  /// Dump the parsed `.gdb_index` contents to \p OS.
+  ///
+  /// \param OS Output stream to write the dump to.
   LLVM_ABI void dump(raw_ostream &OS);
+
+  /// Parse `.gdb_index` section contents from \p Data.
+  ///
+  /// \param Data Section bytes to parse as a `.gdb_index` table.
   LLVM_ABI void parse(DataExtractor Data);
 
+  /// True if this index contains parsed section content.
   bool HasContent = false;
+
+  /// True if parsing encountered an error.
   bool HasError = false;
 };
 

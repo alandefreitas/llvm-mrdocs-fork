@@ -18,7 +18,14 @@ namespace llvm {
 namespace codeview {
 class TypeCollection;
 class TypeIndex;
+/// Compute a human-readable name for the type at \p Index in \p Types.
+/// \param Types Type collection used to look up and resolve type records.
+/// \param Index Type index of the record whose name should be computed.
+/// \returns The type name, or `"<unknown UDT>"` if visitation fails.
 LLVM_ABI std::string computeTypeName(TypeCollection &Types, TypeIndex Index);
+/// Extract the name string embedded in a CodeView symbol record.
+/// \param Sym Symbol record whose name field should be read.
+/// \returns The symbol name, or an empty string if the kind has no name.
 LLVM_ABI StringRef getSymbolName(CVSymbol Sym);
 } // namespace codeview
 } // namespace llvm

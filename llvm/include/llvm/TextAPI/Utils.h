@@ -32,18 +32,33 @@
 
 namespace llvm::MachO {
 
+/// Sequence of filesystem paths.
 using PathSeq = std::vector<std::string>;
+
+/// Pair of a filesystem path and an optional platform.
 using PathToPlatform = std::pair<std::string, std::optional<PlatformType>>;
+
+/// Sequence of path-to-platform pairs.
 using PathToPlatformSeq = std::vector<PathToPlatform>;
 
-// Defines simple struct for storing symbolic links.
+/// Simple storage for a symbolic link path and its target content.
 struct SymLink {
+  /// Path of the symbolic link.
   std::string SrcPath;
+  /// Content or destination that the symbolic link points to.
   std::string LinkContent;
 
+  /// Construct a symbolic link from owning path strings.
+  ///
+  /// \param Path Path of the symbolic link.
+  /// \param Link Content that the symbolic link points to.
   SymLink(std::string Path, std::string Link)
       : SrcPath(std::move(Path)), LinkContent(std::move(Link)) {}
 
+  /// Construct a symbolic link from path string references.
+  ///
+  /// \param Path Path of the symbolic link.
+  /// \param Link Content that the symbolic link points to.
   SymLink(StringRef Path, StringRef Link)
       : SrcPath(std::string(Path)), LinkContent(std::string(Link)) {}
 };
@@ -60,6 +75,7 @@ LLVM_ABI void replace_extension(SmallVectorImpl<char> &Path,
 ///
 /// \param Path Location to symlink.
 /// \param Result Holds whether to skip over Path.
+/// \return An error code if symlink resolution fails.
 LLVM_ABI std::error_code shouldSkipSymLink(const Twine &Path, bool &Result);
 
 /// Turn absolute symlink into relative.
@@ -67,6 +83,7 @@ LLVM_ABI std::error_code shouldSkipSymLink(const Twine &Path, bool &Result);
 /// \param From The symlink.
 /// \param To What the symlink points to.
 /// \param RelativePath Path location to update what the symlink points to.
+/// \return An error code if converting the path fails.
 LLVM_ABI std::error_code make_relative(StringRef From, StringRef To,
                                        SmallVectorImpl<char> &RelativePath);
 
@@ -75,6 +92,7 @@ LLVM_ABI std::error_code make_relative(StringRef From, StringRef To,
 ///
 /// \param Path File path for library.
 /// \param IsSymLink Whether path points to a symlink.
+/// \return True if the library path is considered private.
 LLVM_ABI bool isPrivateLibrary(StringRef Path, bool IsSymLink = false);
 
 /// Create a regex rule from provided glob string.
@@ -82,7 +100,10 @@ LLVM_ABI bool isPrivateLibrary(StringRef Path, bool IsSymLink = false);
 /// \return The equivalent regex rule.
 LLVM_ABI llvm::Expected<llvm::Regex> createRegexFromGlob(llvm::StringRef Glob);
 
+/// Pair of a symbol name and its encode kind.
 using AliasEntry = std::pair<std::string, EncodeKind>;
+
+/// Map from an alias symbol to its base symbol.
 using AliasMap = std::map<AliasEntry, AliasEntry>;
 
 /// Parse input list and capture symbols and their alias.
@@ -96,6 +117,7 @@ parseAliasList(std::unique_ptr<llvm::MemoryBuffer> &Buffer);
 ///
 /// \param Paths File or search paths to pick up.
 /// \param Platform Platform to collect paths for.
+/// \return Paths that apply to the given platform.
 LLVM_ABI PathSeq getPathsForPlatform(const PathToPlatformSeq &Paths,
                                      PlatformType Platform);
 

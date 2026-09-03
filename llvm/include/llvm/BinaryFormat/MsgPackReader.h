@@ -46,23 +46,36 @@
 namespace llvm {
 namespace msgpack {
 
-/// MessagePack types as defined in the standard, with the exception of Integer
-/// being divided into a signed Int and unsigned UInt variant in order to map
+/// MessagePack type tags used by \c Object.
+///
+/// These follow the MessagePack standard, with the exception of Integer being
+/// divided into a signed Int and unsigned UInt variant in order to map
 /// directly to C++ types.
 ///
 /// The types map onto corresponding union members of the \c Object struct.
 enum class Type : uint8_t {
+  /// Signed integer; maps to \c Object::Int.
   Int,
+  /// Unsigned integer; maps to \c Object::UInt.
   UInt,
+  /// Nil value; represented only by \c Kind.
   Nil,
+  /// Boolean; maps to \c Object::Bool.
   Boolean,
+  /// Floating-point number; maps to \c Object::Float.
   Float,
+  /// UTF-8 string; maps to \c Object::Raw.
   String,
+  /// Binary blob; maps to \c Object::Raw.
   Binary,
+  /// Array; \c Object::Length holds the element count.
   Array,
+  /// Map; \c Object::Length holds the key-value pair count.
   Map,
+  /// Extension type; maps to \c Object::Extension.
   Extension,
-  Empty, // Used by MsgPackDocument to represent an empty node
+  /// Empty node used by MsgPackDocument.
+  Empty,
 };
 
 /// Extension types are composed of a user-defined type ID and an uninterpreted
@@ -80,6 +93,7 @@ struct ExtensionType {
 /// completely represented by the \c Kind itself) map to a exactly one union
 /// member.
 struct Object {
+  /// The MessagePack type tag for this object.
   Type Kind;
   union {
     /// Value for \c Type::Int.
@@ -98,6 +112,7 @@ struct Object {
     ExtensionType Extension;
   };
 
+  /// Construct an object of kind \c Type::Int with value zero.
   Object() : Kind(Type::Int), Int(0) {}
 };
 
@@ -105,12 +120,20 @@ struct Object {
 class Reader {
 public:
   /// Construct a reader, keeping a reference to the \p InputBuffer.
+  ///
+  /// \param InputBuffer buffer to read MessagePack objects from.
   LLVM_ABI Reader(MemoryBufferRef InputBuffer);
   /// Construct a reader, keeping a reference to the \p Input.
+  ///
+  /// \param Input string to read MessagePack objects from.
   LLVM_ABI Reader(StringRef Input);
 
-  Reader(const Reader &) = delete;
-  Reader &operator=(const Reader &) = delete;
+  /// Deleted copy constructor; Reader is not copyable.
+  /// \param Other Unused; copy construction is deleted.
+  Reader(const Reader &Other) = delete;
+  /// Deleted copy assignment; Reader is not copyable.
+  /// \param Other Unused; copy assignment is deleted.
+  Reader &operator=(const Reader &Other) = delete;
 
   /// Read one object from the input buffer, advancing past it.
   ///

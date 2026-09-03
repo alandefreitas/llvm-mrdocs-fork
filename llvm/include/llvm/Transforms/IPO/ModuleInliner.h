@@ -27,13 +27,26 @@ namespace llvm {
 /// what tradeoffs are made when making the decision.
 class ModuleInlinerPass : public OptionalPassInfoMixin<ModuleInlinerPass> {
 public:
+  /// Construct a module inliner pass.
+  ///
+  /// \param Params Inline cost-model parameters for the advisor.
+  /// \param Mode How the InlineAdvisor makes inlining decisions.
+  /// \param LTOPhase Thin/full LTO phase in which this pass runs.
   ModuleInlinerPass(InlineParams Params = getInlineParams(),
                     InliningAdvisorMode Mode = InliningAdvisorMode::Default,
                     ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None)
       : Params(Params), Mode(Mode), LTOPhase(LTOPhase){};
+  /// Move-construct a module inliner pass.
+  ///
+  /// \param Arg Pass instance to move from.
   ModuleInlinerPass(ModuleInlinerPass &&Arg) = default;
 
-  LLVM_ABI PreservedAnalyses run(Module &, ModuleAnalysisManager &);
+  /// Run the module inliner over the given module.
+  ///
+  /// \param M Module whose call sites are considered for inlining.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:
   InlineAdvisor &getAdvisor(const ModuleAnalysisManager &MAM,

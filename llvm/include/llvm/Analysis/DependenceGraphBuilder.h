@@ -25,12 +25,15 @@ class BasicBlock;
 class DependenceInfo;
 class Instruction;
 
+/// Abstract builder defining high-level steps for creating DDG-like graphs.
+///
 /// This abstract builder class defines a set of high-level steps for creating
 /// DDG-like graphs. The client code is expected to inherit from this class and
 /// define concrete implementation for each of the pure virtual functions used
 /// in the high-level algorithm.
 template <class GraphType> class LLVM_ABI AbstractDependenceGraphBuilder {
 protected:
+  /// List of basic blocks considered when building the graph.
   using BasicBlockListType = SmallVectorImpl<BasicBlock *>;
 
 private:
@@ -38,12 +41,20 @@ private:
   using EdgeType = typename GraphType::EdgeType;
 
 public:
+  /// Equivalence classes of basic blocks.
   using ClassesType = EquivalenceClasses<BasicBlock *>;
+  /// Small vector of graph node pointers.
   using NodeListType = SmallVector<NodeType *, 4>;
 
+  /// Construct a builder for graph \p G using dependence info \p D and blocks
+  /// \p BBs.
+  /// @param G Graph being populated by this builder.
+  /// @param D Dependence information used when creating memory edges.
+  /// @param BBs Basic blocks considered when building the graph.
   AbstractDependenceGraphBuilder(GraphType &G, DependenceInfo &D,
                                  const BasicBlockListType &BBs)
       : Graph(G), DI(D), BBList(BBs) {}
+  /// Destroy this dependence graph builder.
   virtual ~AbstractDependenceGraphBuilder() = default;
 
   /// The main entry to the graph construction algorithm.
@@ -86,6 +97,8 @@ public:
   /// reachable from the root.
   void createAndConnectRootNode();
 
+  /// Create pi-block nodes from strongly connected components.
+  ///
   /// Apply graph abstraction to groups of nodes that belong to a strongly
   /// connected component of the graph to create larger compound nodes
   /// called pi-blocks. The purpose of this abstraction is to isolate sets of
@@ -109,51 +122,78 @@ public:
 
 protected:
   /// Create the root node of the graph.
+  /// @return Newly created root node of the graph.
   virtual NodeType &createRootNode() = 0;
 
   /// Create an atomic node in the graph given a single instruction.
+  /// @param I Instruction represented by the new fine-grained node.
+  /// @return Newly created fine-grained node for \p I.
   virtual NodeType &createFineGrainedNode(Instruction &I) = 0;
 
   /// Create a pi-block node in the graph representing a group of nodes in an
   /// SCC of the graph.
+  /// @param L Nodes that belong to the SCC and become members of the pi-block.
+  /// @return Newly created pi-block node containing the nodes in \p L.
   virtual NodeType &createPiBlock(const NodeListType &L) = 0;
 
   /// Create a def-use edge going from \p Src to \p Tgt.
+  /// @param Src Source node of the def-use edge.
+  /// @param Tgt Target node of the def-use edge.
+  /// @return Newly created def-use edge from \p Src to \p Tgt.
   virtual EdgeType &createDefUseEdge(NodeType &Src, NodeType &Tgt) = 0;
 
   /// Create a memory dependence edge going from \p Src to \p Tgt.
+  /// @param Src Source node of the memory dependence edge.
+  /// @param Tgt Target node of the memory dependence edge.
+  /// @return Newly created memory dependence edge from \p Src to \p Tgt.
   virtual EdgeType &createMemoryEdge(NodeType &Src, NodeType &Tgt) = 0;
 
-  /// Create a rooted edge going from \p Src to \p Tgt .
+  /// Create a rooted edge going from \p Src to \p Tgt.
+  /// @param Src Source node of the rooted edge.
+  /// @param Tgt Target node of the rooted edge.
+  /// @return Newly created rooted edge from \p Src to \p Tgt.
   virtual EdgeType &createRootedEdge(NodeType &Src, NodeType &Tgt) = 0;
 
   /// Given a pi-block node, return a vector of all the nodes contained within
   /// it.
+  /// @param N Pi-block node whose member nodes are requested.
+  /// @return Nodes contained within pi-block \p N.
   virtual const NodeListType &getNodesInPiBlock(const NodeType &N) = 0;
 
   /// Deallocate memory of edge \p E.
+  /// @param E Edge to destroy.
   virtual void destroyEdge(EdgeType &E) { delete &E; }
 
   /// Deallocate memory of node \p N.
+  /// @param N Node to destroy.
   virtual void destroyNode(NodeType &N) { delete &N; }
 
   /// Return true if creation of pi-blocks are supported and desired,
   /// and false otherwise.
+  /// @return True if pi-block creation is supported and desired.
   virtual bool shouldCreatePiBlocks() const { return true; }
 
   /// Return true if graph simplification step is requested, and false
   /// otherwise.
+  /// @return True if graph simplification is requested.
   virtual bool shouldSimplify() const { return true; }
 
   /// Return true if it's safe to merge the two nodes.
+  /// @param A First node to consider for merging.
+  /// @param B Second node to consider for merging.
+  /// @return True if it is safe to merge \p A and \p B.
   virtual bool areNodesMergeable(const NodeType &A,
                                  const NodeType &B) const = 0;
 
   /// Append the content of node \p B into node \p A and remove \p B and
   /// the edge between \p A and \p B from the graph.
+  /// @param A Destination node that absorbs the contents of \p B.
+  /// @param B Source node whose contents are merged into \p A.
   virtual void mergeNodes(NodeType &A, NodeType &B) = 0;
 
   /// Given an instruction \p I return its associated ordinal number.
+  /// @param I Instruction whose ordinal is requested.
+  /// @return Ordinal number associated with \p I.
   size_t getOrdinal(Instruction &I) {
     assert(InstOrdinalMap.contains(&I) &&
            "No ordinal computed for this instruction.");
@@ -161,6 +201,8 @@ protected:
   }
 
   /// Given a node \p N return its associated ordinal number.
+  /// @param N Node whose ordinal is requested.
+  /// @return Ordinal number associated with \p N.
   size_t getOrdinal(NodeType &N) {
     assert(NodeOrdinalMap.contains(&N) && "No ordinal computed for this node.");
     return NodeOrdinalMap[&N];
@@ -171,6 +213,7 @@ protected:
 
   /// Map Types to map instruction/nodes to an ordinal number.
   using InstToOrdinalMap = DenseMap<Instruction *, size_t>;
+  /// Map from graph nodes to ordinal numbers.
   using NodeToOrdinalMap = DenseMap<NodeType *, size_t>;
 
   /// Reference to the graph that gets built by a concrete implementation of

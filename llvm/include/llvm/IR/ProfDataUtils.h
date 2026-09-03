@@ -24,15 +24,23 @@
 #include <type_traits>
 
 namespace llvm {
+/// Names of profiling metadata labels stored in \c !prof nodes.
 struct MDProfLabels {
+  /// Label for branch-weight metadata stored in \c !prof nodes.
   LLVM_ABI static const char *BranchWeights;
+  /// Label for value-profile metadata stored in \c !prof nodes.
   LLVM_ABI static const char *ValueProfile;
+  /// Label for function entry-count metadata stored in \c !prof nodes.
   LLVM_ABI static const char *FunctionEntryCount;
+  /// Label for synthetic function entry-count metadata stored in \c !prof nodes.
   LLVM_ABI static const char *SyntheticFunctionEntryCount;
+  /// Label for branch-weight provenance metadata stored in \c !prof nodes.
   LLVM_ABI static const char *ExpectedBranchWeights;
+  /// Label for unknown branch-weight metadata stored in \c !prof nodes.
   LLVM_ABI static const char *UnknownBranchWeightsMarker;
 };
 
+/// Command-line option that disables profile-metadata propagation fixes.
 extern LLVM_ABI cl::opt<bool> ProfcheckDisableMetadataFixes;
 
 /// Profile-based loop metadata that should be accessed only by using
@@ -40,12 +48,23 @@ extern LLVM_ABI cl::opt<bool> ProfcheckDisableMetadataFixes;
 LLVM_ABI extern const char *LLVMLoopEstimatedTripCount;
 
 /// Checks if an Instruction has MD_prof Metadata
+///
+/// \param I The instruction to check
+/// \returns True if I has MD_prof metadata. False otherwise.
 LLVM_ABI bool hasProfMD(const Instruction &I);
 
 /// Checks if an MDNode contains Branch Weight Metadata
+///
+/// \param ProfileData The MD_prof metadata node to inspect
+/// \returns True if ProfileData contains branch weight metadata. False
+/// otherwise.
 LLVM_ABI bool isBranchWeightMD(const MDNode *ProfileData);
 
 /// Checks if an MDNode contains value profiling Metadata
+///
+/// \param ProfileData The MD_prof metadata node to inspect
+/// \returns True if ProfileData contains value profiling metadata. False
+/// otherwise.
 LLVM_ABI bool isValueProfileMD(const MDNode *ProfileData);
 
 /// Checks if an instructions has Branch Weight Metadata
@@ -78,15 +97,30 @@ LLVM_ABI MDNode *getValidBranchWeightMDNode(const Instruction &I);
 
 /// Check if Branch Weight Metadata has an "expected" field from an llvm.expect*
 /// intrinsic
+///
+/// \param I The instruction to check
+/// \returns True if I has branch-weight metadata with an "expected" field from
+/// an llvm.expect* intrinsic. False otherwise.
 LLVM_ABI bool hasBranchWeightOrigin(const Instruction &I);
 
 /// Check if Branch Weight Metadata has an "expected" field from an llvm.expect*
 /// intrinsic
+///
+/// \param ProfileData The MD_prof metadata node to inspect
+/// \returns True if ProfileData has an "expected" field from an llvm.expect*
+/// intrinsic. False otherwise.
 LLVM_ABI bool hasBranchWeightOrigin(const MDNode *ProfileData);
 
 /// Return the offset to the first branch weight data
+///
+/// \param ProfileData The MD_prof metadata node to inspect
+/// \returns The index of the first branch weight operand in ProfileData.
 LLVM_ABI unsigned getBranchWeightOffset(const MDNode *ProfileData);
 
+/// Return the number of branch weights stored in \p ProfileData
+///
+/// \param ProfileData The MD_prof metadata node to inspect
+/// \returns The number of branch weights in ProfileData.
 LLVM_ABI unsigned getNumBranchWeights(const MDNode &ProfileData);
 
 /// Extract branch weights from MD_prof metadata
@@ -100,11 +134,17 @@ LLVM_ABI bool extractBranchWeights(const MDNode *ProfileData,
 
 /// Faster version of extractBranchWeights() that skips checks and must only
 /// be called with "branch_weights" metadata nodes. Supports uint32_t.
+///
+/// \param ProfileData A pointer to a "branch_weights" MDNode.
+/// \param [out] Weights An output vector to fill with branch weights
 LLVM_ABI void extractFromBranchWeightMD32(const MDNode *ProfileData,
                                           SmallVectorImpl<uint32_t> &Weights);
 
 /// Faster version of extractBranchWeights() that skips checks and must only
 /// be called with "branch_weights" metadata nodes. Supports uint64_t.
+///
+/// \param ProfileData A pointer to a "branch_weights" MDNode.
+/// \param [out] Weights An output vector to fill with branch weights
 LLVM_ABI void extractFromBranchWeightMD64(const MDNode *ProfileData,
                                           SmallVectorImpl<uint64_t> &Weights);
 
@@ -150,14 +190,25 @@ LLVM_ABI bool extractProfTotalWeight(const Instruction &I,
 /// \param I the Instruction to set branch weights on.
 /// \param Weights an array of weights to set on instruction I.
 /// \param IsExpected were these weights added from an llvm.expect* intrinsic.
+/// \param ElideAllZero if true, drop profile metadata when all weights are
+/// zero.
 LLVM_ABI void setBranchWeights(Instruction &I, ArrayRef<uint32_t> Weights,
                                bool IsExpected, bool ElideAllZero = false);
 
 /// Push the weights right to fit in uint32_t.
+///
+/// \param Weights The 64-bit weights to scale down to 32 bits.
+/// \returns The weights scaled down to fit in uint32_t.
 LLVM_ABI SmallVector<uint32_t> fitWeights(ArrayRef<uint64_t> Weights);
 
 /// Variant of `setBranchWeights` where the `Weights` will be fit first to
 /// uint32_t by shifting right.
+///
+/// \param I the Instruction to set branch weights on.
+/// \param Weights an array of 64-bit weights to fit and set on instruction I.
+/// \param IsExpected were these weights added from an llvm.expect* intrinsic.
+/// \param ElideAllZero if true, drop profile metadata when all weights are
+/// zero.
 LLVM_ABI void setFittedBranchWeights(Instruction &I, ArrayRef<uint64_t> Weights,
                                      bool IsExpected,
                                      bool ElideAllZero = false);
@@ -165,6 +216,9 @@ LLVM_ABI void setFittedBranchWeights(Instruction &I, ArrayRef<uint64_t> Weights,
 /// downscale the given weights preserving the ratio. If the maximum value is
 /// not already known and not provided via \param KnownMaxCount , it will be
 /// obtained from \param Weights.
+///
+/// \param Weights The 64-bit weights to downscale.
+/// \returns The downscaled 32-bit weights, preserving the original ratio.
 LLVM_ABI SmallVector<uint32_t>
 downscaleWeights(ArrayRef<uint64_t> Weights,
                  std::optional<uint64_t> KnownMaxCount = std::nullopt);
@@ -173,6 +227,9 @@ downscaleWeights(ArrayRef<uint64_t> Weights,
 ///
 /// Given the maximum count, calculate a divisor that will scale all the
 /// weights to strictly less than std::numeric_limits<uint32_t>::max().
+///
+/// \param MaxCount The largest count that will be scaled.
+/// \returns The divisor to use when scaling counts down to 32 bits.
 inline uint64_t calculateCountScale(uint64_t MaxCount) {
   return MaxCount < std::numeric_limits<uint32_t>::max()
              ? 1
@@ -183,59 +240,110 @@ inline uint64_t calculateCountScale(uint64_t MaxCount) {
 ///
 /// Scale a 64-bit weight down to 32-bits using \c Scale.
 ///
+/// \param Count The 64-bit branch count to scale.
+/// \param Scale The divisor returned by \c calculateCountScale.
+/// \returns The 32-bit scaled branch count.
 inline uint32_t scaleBranchCount(uint64_t Count, uint64_t Scale) {
   uint64_t Scaled = Count / Scale;
   assert(Scaled <= std::numeric_limits<uint32_t>::max() && "overflow 32-bits");
   return Scaled;
 }
 
-/// Specify that the branch weights for this terminator cannot be known at
-/// compile time. This should only be called by passes, and never as a default
-/// behavior in e.g. MDBuilder. The goal is to use this info to validate passes
-/// do not accidentally drop profile info, and this API is called in cases where
-/// the pass explicitly cannot provide that info. Defaulting it in would hide
-/// bugs where the pass forgets to transfer over or otherwise specify profile
-/// info. Use `PassName` to capture the pass name (i.e. DEBUG_TYPE) for
+/// Specify that this terminator's branch weights are unknown at compile time.
+///
+/// This should only be called by passes, and never as a default behavior in
+/// e.g. MDBuilder. The goal is to use this info to validate passes do not
+/// accidentally drop profile info, and this API is called in cases where the
+/// pass explicitly cannot provide that info. Defaulting it in would hide bugs
+/// where the pass forgets to transfer over or otherwise specify profile info.
+/// Use `PassName` to capture the pass name (i.e. DEBUG_TYPE) for
 /// debuggability.
+///
+/// \param I The terminator instruction to mark.
+/// \param PassName The pass name (typically DEBUG_TYPE) recorded for
+/// debugging.
 LLVM_ABI void setExplicitlyUnknownBranchWeights(Instruction &I,
                                                 StringRef PassName);
 
+/// Set unknown branch weights only if the parent function has an entry count.
+///
 /// Like setExplicitlyUnknownBranchWeights(...), but only sets unknown branch
 /// weights in the new instruction if the parent function of the original
 /// instruction has an entry count. This is to not confuse users by injecting
 /// profile data into non-profiled functions. If \p F is nullptr, we will fetch
 /// the function from \p I.
+///
+/// \param I The instruction to mark.
+/// \param PassName The pass name (typically DEBUG_TYPE) recorded for
+/// debugging.
+/// \param F Optional parent function; if null, taken from \p I.
 LLVM_ABI void
 setExplicitlyUnknownBranchWeightsIfProfiled(Instruction &I, StringRef PassName,
                                             const Function *F = nullptr);
 
 /// Returns a metadata node containing unknown branch weights if the function
 /// has an entry count, otherwise returns nullptr.
+///
+/// \param F The function whose entry count is checked.
+/// \param PassName The pass name (typically DEBUG_TYPE) recorded for
+/// debugging.
+/// \returns A metadata node with unknown branch weights if F has an entry
+/// count; nullptr otherwise.
 LLVM_ABI MDNode *
 getExplicitlyUnknownBranchWeightsIfProfiled(Function &F, StringRef PassName);
 
 /// Analogous to setExplicitlyUnknownBranchWeights, but for functions and their
 /// entry counts.
+///
+/// \param F The function whose entry count is marked unknown.
+/// \param PassName The pass name (typically DEBUG_TYPE) recorded for
+/// debugging.
 LLVM_ABI void setExplicitlyUnknownFunctionEntryCount(Function &F,
                                                      StringRef PassName);
 
+/// Check whether \p MD is explicitly-unknown profile metadata.
+///
+/// \param MD The MD_prof metadata node to inspect
+/// \returns True if MD is explicitly-unknown profile metadata. False
+/// otherwise.
 LLVM_ABI bool isExplicitlyUnknownProfileMetadata(const MDNode &MD);
+
+/// Check whether \p I has explicitly-unknown branch-weight metadata.
+///
+/// \param I The instruction to check
+/// \returns True if I has explicitly-unknown branch-weight metadata. False
+/// otherwise.
 LLVM_ABI bool hasExplicitlyUnknownBranchWeights(const Instruction &I);
 
 /// Scaling the profile data attached to 'I' using the ratio of S/T.
+///
+/// \param I The instruction whose profile data is scaled.
+/// \param S Numerator of the scale ratio.
+/// \param T Denominator of the scale ratio.
 LLVM_ABI void scaleProfData(Instruction &I, uint64_t S, uint64_t T);
 
-// Helper to apply a metadata setting function to an Instruction* if profiling
-// is enabled. If profiling is disabled (ProfcheckDisableMetadataFixes is true)
-// or V is not an Instruction, the callback will not be invoked.
+/// Apply a metadata callback if \p V is an instruction and profiling is enabled.
+///
+/// If profiling is disabled (\c ProfcheckDisableMetadataFixes is true) or
+/// \p V is not an Instruction, the callback will not be invoked.
+///
+/// \param V The value to inspect; the callback runs only if this is an
+/// Instruction.
+/// \param setMetadataCallback Called with \p V cast to Instruction when
+/// profiling is enabled.
 LLVM_ABI void applyProfMetadataIfEnabled(
     Value *V, llvm::function_ref<void(Instruction *)> setMetadataCallback);
 
-/// Get the branch weights of a branch conditioned on b1 || b2, where b1 and b2
-/// are 2 booleans that are the conditions of 2 branches for which we have the
-/// branch weights B1 and B2, respectively. In both B1 and B2, the first
-/// position (index 0) is for the 'true' branch, and the second position (index
-/// 1) is for the 'false' branch.
+/// Get the branch weights of a branch conditioned on b1 || b2.
+///
+/// b1 and b2 are 2 booleans that are the conditions of 2 branches for which we
+/// have the branch weights B1 and B2, respectively. In both B1 and B2, the
+/// first position (index 0) is for the 'true' branch, and the second position
+/// (index 1) is for the 'false' branch.
+///
+/// \param B1 Branch weights of the first condition, [true, false].
+/// \param B2 Branch weights of the second condition, [true, false].
+/// \returns Branch weights for the disjunction, [true, false].
 template <typename T1, typename T2,
           typename = typename std::enable_if<
               std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&

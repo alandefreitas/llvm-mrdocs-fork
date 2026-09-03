@@ -45,14 +45,31 @@ class DWARFDie {
   const DWARFDebugInfoEntry *Die = nullptr;
 
 public:
+  /// Alias for the DWARF form/value type used by attribute accessors.
   using DWARFFormValue = llvm::DWARFFormValue;
+  /// Construct an invalid DIE (no unit or debug-info entry).
   DWARFDie() = default;
   /// Bind this DIE to \p Unit and debug-info entry \p D.
+  ///
+  /// \param Unit Compile or type unit that owns \p D.
+  /// \param D Debug-info entry to bind to this DIE.
   DWARFDie(DWARFUnit *Unit, const DWARFDebugInfoEntry *D) : U(Unit), Die(D) {}
 
+  /// True if this DIE is bound to both a unit and a debug-info entry.
+  ///
+  /// \returns True if this DIE is bound to both a unit and a debug-info entry.
   bool isValid() const { return U && Die; }
+  /// True if this DIE refers to a valid unit and debug-info entry.
+  ///
+  /// \returns True if this DIE refers to a valid unit and debug-info entry.
   explicit operator bool() const { return isValid(); }
+  /// Return the underlying debug-info entry, or nullptr if invalid.
+  ///
+  /// \returns The underlying debug-info entry, or nullptr if invalid.
   const DWARFDebugInfoEntry *getDebugInfoEntry() const { return Die; }
+  /// Return the DWARF compile/type unit that owns this DIE, or nullptr.
+  ///
+  /// \returns The DWARF compile/type unit that owns this DIE, or nullptr.
   DWARFUnit *getDwarfUnit() const { return U; }
 
   /// Get the abbreviation declaration for this DIE.
@@ -71,6 +88,9 @@ public:
     return Die->getOffset();
   }
 
+  /// Return this DIE's DWARF tag, or DW_TAG_null for a null DIE.
+  ///
+  /// \returns This DIE's DWARF tag, or DW_TAG_null for a null DIE.
   dwarf::Tag getTag() const {
     auto AbbrevDecl = getAbbreviationDeclarationPtr();
     if (AbbrevDecl)
@@ -78,18 +98,27 @@ public:
     return dwarf::DW_TAG_null;
   }
 
+  /// True if this DIE has child DIEs.
+  ///
+  /// \returns True if this DIE has child DIEs.
   bool hasChildren() const {
     assert(isValid() && "must check validity prior to calling");
     return Die->hasChildren();
   }
 
   /// Returns true for a valid DIE that terminates a sibling chain.
+  ///
+  /// \returns True for a valid DIE that terminates a sibling chain.
   bool isNULL() const { return getAbbreviationDeclarationPtr() == nullptr; }
 
   /// Returns true if DIE represents a subprogram (not inlined).
+  ///
+  /// \returns True if this DIE represents a subprogram (not inlined).
   LLVM_ABI bool isSubprogramDIE() const;
 
   /// Returns true if DIE represents a subprogram or an inlined subroutine.
+  ///
+  /// \returns True if this DIE represents a subprogram or an inlined subroutine.
   LLVM_ABI bool isSubroutineDIE() const;
 
   /// Get the parent of this DIE object.
@@ -126,6 +155,7 @@ public:
   ///
   /// \param OS the stream to use for output.
   /// \param indent the number of characters to indent each line that is output.
+  /// \param DumpOpts Options controlling what and how to dump.
   LLVM_ABI void dump(raw_ostream &OS, unsigned indent = 0,
                      DIDumpOptions DumpOpts = DIDumpOptions()) const;
 
@@ -184,12 +214,27 @@ public:
   /// DWARFDie object if it doesn't.
   LLVM_ABI DWARFDie
   getAttributeValueAsReferencedDie(dwarf::Attribute Attr) const;
+  /// Resolve form value \p V as a DIE reference (any reference form).
+  ///
+  /// \param V Form value that encodes a DIE reference.
+  /// \returns The referenced DIE, or an invalid DIE if resolution fails.
   LLVM_ABI DWARFDie
   getAttributeValueAsReferencedDie(const DWARFFormValue &V) const;
 
+  /// Resolve this DIE's type-unit reference to the referenced type DIE.
+  ///
+  /// \returns The referenced type DIE, or an invalid DIE if none exists.
   LLVM_ABI DWARFDie resolveTypeUnitReference() const;
 
+  /// Resolve attribute \p Attr to a referenced DIE, then follow any type-unit signature.
+  ///
+  /// \param Attr Attribute that encodes a type or DIE reference.
+  /// \returns The referenced type DIE, or an invalid DIE if resolution fails.
   LLVM_ABI DWARFDie resolveReferencedType(dwarf::Attribute Attr) const;
+  /// Resolve form value \p V to a referenced DIE, then follow any type-unit signature.
+  ///
+  /// \param V Form value that encodes a type or DIE reference.
+  /// \returns The referenced type DIE, or an invalid DIE if resolution fails.
   LLVM_ABI DWARFDie resolveReferencedType(const DWARFFormValue &V) const;
   /// Extract the range base attribute from this DIE as absolute section offset.
   ///
@@ -198,6 +243,9 @@ public:
   ///
   /// \returns anm optional absolute section offset value for the attribute.
   LLVM_ABI std::optional<uint64_t> getRangesBaseAttribute() const;
+  /// Absolute section offset of DW_AT_loclists_base, if present on this DIE.
+  ///
+  /// \returns The absolute section offset, or std::nullopt if absent.
   LLVM_ABI std::optional<uint64_t> getLocBaseAttribute() const;
 
   /// Get the DW_AT_high_pc attribute value as an address.
@@ -213,7 +261,11 @@ public:
   LLVM_ABI std::optional<uint64_t> getHighPC(uint64_t LowPC) const;
 
   /// Retrieves DW_AT_low_pc and DW_AT_high_pc from CU.
-  /// Returns true if both attributes are present.
+  ///
+  /// \param LowPC Filled with the low PC address on success.
+  /// \param HighPC Filled with the high PC address on success.
+  /// \param SectionIndex Filled with the section index for the low/high PC.
+  /// \returns True if both attributes are present.
   LLVM_ABI bool getLowAndHighPC(uint64_t &LowPC, uint64_t &HighPC,
                                 uint64_t &SectionIndex) const;
 
@@ -229,46 +281,85 @@ public:
   /// information is available.
   LLVM_ABI Expected<DWARFAddressRangesVector> getAddressRanges() const;
 
+  /// True if \p Address falls within this DIE's address ranges.
+  ///
+  /// \param Address Address to test against this DIE's ranges.
+  /// \returns True if \p Address falls within this DIE's address ranges.
   LLVM_ABI bool addressRangeContainsAddress(const uint64_t Address) const;
 
   /// Returns the DW_LANG_ code for this DIE's DWARF unit, if it exists.
+  ///
+  /// \returns The DW_LANG_ code, or std::nullopt if it does not exist.
   LLVM_ABI std::optional<uint64_t> getLanguage() const;
 
+  /// Return location expressions for attribute \p Attr (inline or from loclists).
+  ///
+  /// \param Attr Location attribute to extract (e.g. DW_AT_location).
+  /// \returns Location expressions, or an error if the attribute is missing/invalid.
   LLVM_ABI Expected<DWARFLocationExpressionsVector>
   getLocations(dwarf::Attribute Attr) const;
 
+  /// Return the mangled or short name of a subprogram or inlined subroutine DIE.
+  ///
   /// If a DIE represents a subprogram (or inlined subroutine), returns its
   /// mangled name (or short name, if mangled is missing). This name may be
   /// fetched from specification or abstract origin for this subprogram.
   /// Returns null if no name is found.
+  ///
+  /// \param Kind Whether to prefer linkage name or short name.
+  /// \returns The mangled or short name, or null if no name is found.
   LLVM_ABI const char *getSubroutineName(DINameKind Kind) const;
 
+  /// Return the DIE name, resolving specification or abstract origin if needed.
+  ///
   /// Return the DIE name resolving DW_AT_specification or DW_AT_abstract_origin
   /// references if necessary. For the LinkageName case it additionaly searches
   /// for ShortName if LinkageName is not found.
   /// Returns null if no name is found.
+  ///
+  /// \param Kind Whether to prefer linkage name or short name.
+  /// \returns The DIE name, or null if no name is found.
   LLVM_ABI const char *getName(DINameKind Kind) const;
-  LLVM_ABI void getFullName(raw_string_ostream &,
+  /// Append this DIE's unqualified type name to \p OS (optionally keep original spelling).
+  ///
+  /// \param OS Stream to append the unqualified type name to.
+  /// \param OriginalFullName If non-null, set to the original full spelling before
+  /// any rewriting.
+  LLVM_ABI void getFullName(raw_string_ostream &OS,
                             std::string *OriginalFullName = nullptr) const;
 
   /// Return the DIE short name resolving DW_AT_specification or
   /// DW_AT_abstract_origin references if necessary. Returns null if no name
   /// is found.
+  ///
+  /// \returns The DIE short name, or null if no name is found.
   LLVM_ABI const char *getShortName() const;
 
   /// Return the DIE linkage name resolving DW_AT_specification or
   /// DW_AT_abstract_origin references if necessary. Returns null if no name
   /// is found.
+  ///
+  /// \returns The DIE linkage name, or null if no name is found.
   LLVM_ABI const char *getLinkageName() const;
 
+  /// Return the declaration line for a subprogram DIE.
+  ///
   /// Returns the declaration line (start line) for a DIE, assuming it specifies
   /// a subprogram. This may be fetched from specification or abstract origin
   /// for this subprogram by resolving DW_AT_sepcification or
   /// DW_AT_abstract_origin references if necessary.
+  ///
+  /// \returns The declaration line number for this subprogram DIE.
   LLVM_ABI uint64_t getDeclLine() const;
+  /// Declaration file path for this DIE (via DW_AT_decl_file), formatted per \p Kind.
+  ///
+  /// \param Kind How to format the declaration file path.
+  /// \returns The declaration file path string.
   LLVM_ABI std::string
   getDeclFile(DILineInfoSpecifier::FileLineInfoKind Kind) const;
 
+  /// Fill call-site file, line, column, and discriminator from this DIE.
+  ///
   /// Retrieves values of DW_AT_call_file, DW_AT_call_line and DW_AT_call_column
   /// from DIE (or zeroes if they are missing). This function looks for
   /// DW_AT_call attributes in this DIE only, it will not resolve the attribute
@@ -301,15 +392,31 @@ public:
 
   class iterator;
 
+  /// Iterator to the first child DIE of this DIE.
+  ///
+  /// \returns An iterator to the first child DIE.
   iterator begin() const;
+  /// Past-the-end iterator over this DIE's children (the terminating null DIE).
+  ///
+  /// \returns The past-the-end child iterator.
   iterator end() const;
 
+  /// Reverse iterator to the last child of this DIE.
+  ///
+  /// \returns A reverse iterator to the last child.
   std::reverse_iterator<iterator> rbegin() const;
+  /// Past-the-end reverse iterator over this DIE's children.
+  ///
+  /// \returns The past-the-end reverse iterator.
   std::reverse_iterator<iterator> rend() const;
 
+  /// Iterator range over this DIE's immediate children (excluding the null terminator).
+  ///
+  /// \returns An iterator range over this DIE's immediate children.
   iterator_range<iterator> children() const;
 };
 
+/// Forward iterator over the attributes of a single DWARFDie.
 class DWARFDie::attribute_iterator
     : public iterator_facade_base<attribute_iterator, std::forward_iterator_tag,
                                   const DWARFAttribute> {
@@ -320,6 +427,9 @@ class DWARFDie::attribute_iterator
   /// The attribute index within the abbreviation declaration in Die.
   uint32_t Index;
 
+  /// True if both attribute iterators refer to the same DIE and attribute index.
+  ///
+  /// \returns True if both iterators refer to the same DIE and attribute index.
   friend bool operator==(const attribute_iterator &LHS,
                          const attribute_iterator &RHS);
 
@@ -331,40 +441,82 @@ class DWARFDie::attribute_iterator
   void updateForIndex(const DWARFAbbreviationDeclaration &AbbrDecl, uint32_t I);
 
 public:
+  /// Deleted; attribute iterators must be constructed from a DIE and end flag.
   attribute_iterator() = delete;
+  /// Construct an attribute iterator for DIE \p D; \p End selects the end position.
+  ///
+  /// \param D DIE whose attributes will be iterated.
+  /// \param End If true, construct an end iterator; otherwise start at the first
+  /// attribute.
   LLVM_ABI explicit attribute_iterator(DWARFDie D, bool End);
 
+  /// Advance to the next attribute in the DIE's abbreviation.
+  ///
+  /// \returns A reference to this iterator.
   LLVM_ABI attribute_iterator &operator++();
+  /// Move to the previous attribute in the DIE's abbreviation.
+  ///
+  /// \returns A reference to this iterator.
   LLVM_ABI attribute_iterator &operator--();
+  /// True if the current attribute value was successfully read.
+  ///
+  /// \returns True if the current attribute value was successfully read.
   explicit operator bool() const { return AttrValue.isValid(); }
   /// Access the current attribute value.
+  ///
+  /// \returns The current attribute value.
   const DWARFAttribute &operator*() const { return AttrValue; }
 };
 
+/// True if both attribute iterators refer to the same DIE and attribute index.
+///
+/// \param LHS First attribute iterator to compare.
+/// \param RHS Second attribute iterator to compare.
+/// \returns True if both iterators refer to the same DIE and attribute index.
 inline bool operator==(const DWARFDie::attribute_iterator &LHS,
                        const DWARFDie::attribute_iterator &RHS) {
   return LHS.Index == RHS.Index;
 }
 
 /// True if the iterators refer to different attribute indices.
+///
+/// \param LHS First attribute iterator to compare.
+/// \param RHS Second attribute iterator to compare.
+/// \returns True if the iterators refer to different attribute indices.
 inline bool operator!=(const DWARFDie::attribute_iterator &LHS,
                        const DWARFDie::attribute_iterator &RHS) {
   return !(LHS == RHS);
 }
 
+/// True if \p LHS and \p RHS refer to the same unit and debug-info entry.
+///
+/// \param LHS First DIE to compare.
+/// \param RHS Second DIE to compare.
+/// \returns True if both DIEs refer to the same unit and debug-info entry.
 inline bool operator==(const DWARFDie &LHS, const DWARFDie &RHS) {
   return LHS.getDebugInfoEntry() == RHS.getDebugInfoEntry() &&
          LHS.getDwarfUnit() == RHS.getDwarfUnit();
 }
 
+/// True if \p LHS and \p RHS refer to different units or debug-info entries.
+///
+/// \param LHS First DIE to compare.
+/// \param RHS Second DIE to compare.
+/// \returns True if the DIEs refer to different units or debug-info entries.
 inline bool operator!=(const DWARFDie &LHS, const DWARFDie &RHS) {
   return !(LHS == RHS);
 }
 
+/// True if \p LHS's section offset is less than \p RHS's.
+///
+/// \param LHS First DIE to compare by section offset.
+/// \param RHS Second DIE to compare by section offset.
+/// \returns True if \p LHS's section offset is less than \p RHS's.
 inline bool operator<(const DWARFDie &LHS, const DWARFDie &RHS) {
   return LHS.getOffset() < RHS.getOffset();
 }
 
+/// Bidirectional iterator over the immediate children of a DWARFDie.
 class DWARFDie::iterator
     : public iterator_facade_base<iterator, std::bidirectional_iterator_tag,
                                   const DWARFDie> {
@@ -372,28 +524,47 @@ class DWARFDie::iterator
 
   friend std::reverse_iterator<llvm::DWARFDie::iterator>;
   /// True if both iterators refer to the same DIE.
+  ///
+  /// \returns True if both iterators refer to the same DIE.
   friend bool operator==(const DWARFDie::iterator &LHS,
                          const DWARFDie::iterator &RHS);
 
 public:
+  /// Default-construct an empty DIE iterator.
   iterator() = default;
 
   /// Construct an iterator positioned at DIE \p D.
+  ///
+  /// \param D DIE to position this iterator at.
   explicit iterator(DWARFDie D) : Die(D) {}
 
+  /// Advance to this DIE's next sibling.
+  ///
+  /// \returns A reference to this iterator.
   iterator &operator++() {
     Die = Die.getSibling();
     return *this;
   }
 
+  /// Move to this DIE's previous sibling.
+  ///
+  /// \returns A reference to this iterator.
   iterator &operator--() {
     Die = Die.getPreviousSibling();
     return *this;
   }
 
+  /// Dereference to the DIE currently pointed to by this iterator.
+  ///
+  /// \returns The DIE currently pointed to by this iterator.
   const DWARFDie &operator*() const { return Die; }
 };
 
+/// True if both DIE child iterators refer to the same DIE.
+///
+/// \param LHS First iterator to compare.
+/// \param RHS Second iterator to compare.
+/// \returns True if both iterators refer to the same DIE.
 inline bool operator==(const DWARFDie::iterator &LHS,
                        const DWARFDie::iterator &RHS) {
   return LHS.Die == RHS.Die;
@@ -475,11 +646,21 @@ public:
 
 namespace llvm {
 
+/// True if both reverse DIE iterators refer to the same position.
+///
+/// \param LHS First reverse iterator to compare.
+/// \param RHS Second reverse iterator to compare.
+/// \returns True if both reverse iterators refer to the same position.
 inline bool operator==(const std::reverse_iterator<DWARFDie::iterator> &LHS,
                        const std::reverse_iterator<DWARFDie::iterator> &RHS) {
   return LHS.equals(RHS);
 }
 
+/// True if the reverse DIE iterators do not refer to the same position.
+///
+/// \param LHS First reverse iterator to compare.
+/// \param RHS Second reverse iterator to compare.
+/// \returns True if the reverse iterators do not refer to the same position.
 inline bool operator!=(const std::reverse_iterator<DWARFDie::iterator> &LHS,
                        const std::reverse_iterator<DWARFDie::iterator> &RHS) {
   return !(LHS == RHS);
@@ -494,7 +675,16 @@ inline std::reverse_iterator<DWARFDie::iterator> DWARFDie::rend() const {
 }
 
 /// Dump the qualified type name of \p DIE to \p OS.
+///
+/// \param DIE DIE whose qualified type name to dump.
+/// \param OS Output stream to write the type name to.
 LLVM_ABI void dumpTypeQualifiedName(const DWARFDie &DIE, raw_ostream &OS);
+/// Dump the unqualified type name of \p DIE to \p OS.
+///
+/// \param DIE DIE whose unqualified type name to dump.
+/// \param OS Output stream to write the type name to.
+/// \param OriginalFullName If non-null, set to the original full spelling before
+/// any rewriting.
 LLVM_ABI void dumpTypeUnqualifiedName(const DWARFDie &DIE, raw_ostream &OS,
                                       std::string *OriginalFullName = nullptr);
 

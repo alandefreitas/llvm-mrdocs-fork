@@ -10,16 +10,22 @@
 #define LLVM_CODEGEN_CSECONFIGBASE_H
 
 namespace llvm {
-// Class representing some configuration that can be done during GlobalISel's
-// CSEInfo analysis. We define it here because TargetPassConfig can't depend on
-// the GlobalISel library, and so we use this in the interface between them
-// so that the derived classes in GISel can reference generic opcodes.
+/// Base configuration for CSE during GlobalISel CSEInfo analysis.
+///
+/// Defined here because TargetPassConfig can't depend on the GlobalISel
+/// library. Used in the interface between them so that derived classes in
+/// GISel can reference generic opcodes.
 class CSEConfigBase {
 public:
+  /// Virtual destructor.
   virtual ~CSEConfigBase() = default;
-  // Hook for defining which Generic instructions should be CSEd.
-  // GISelCSEInfo currently only calls this hook when dealing with generic
-  // opcodes.
+  /// Return whether the given generic opcode should be CSEd.
+  ///
+  /// GISelCSEInfo currently only calls this hook when dealing with generic
+  /// opcodes.
+  ///
+  /// \param Opc Opcode to check for CSE eligibility.
+  /// \return True if the opcode should be common-subexpression eliminated.
   virtual bool shouldCSEOpc(unsigned Opc) { return false; }
 };
 

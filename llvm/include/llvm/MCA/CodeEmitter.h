@@ -49,10 +49,20 @@ class CodeEmitter {
   LLVM_ABI EncodingInfo getOrCreateEncodingInfo(unsigned MCID);
 
 public:
+  /// Construct a code emitter that buffers encodings for \p S.
+  /// \param ST Subtarget info used when emitting encodings.
+  /// \param AB Asm backend for the target.
+  /// \param CE Code emitter used to encode each MCInst.
+  /// \param S Instruction sequence whose encodings are buffered.
   CodeEmitter(const MCSubtargetInfo &ST, const MCAsmBackend &AB,
               const MCCodeEmitter &CE, ArrayRef<MCInst> S)
       : STI(ST), MCE(CE), Sequence(S), Encodings(S.size()) {}
 
+  /// Return the binary encoding of the instruction at index \p MCID.
+  ///
+  /// The encoding is computed on demand and cached for later reuse.
+  /// \param MCID Index of the MCInst in the buffered sequence.
+  /// \returns A StringRef into the internal encoding buffer.
   StringRef getEncoding(unsigned MCID) {
     EncodingInfo EI = getOrCreateEncodingInfo(MCID);
     return StringRef(&Code[EI.first], EI.second);

@@ -18,8 +18,13 @@ namespace llvm {
 /// This could be used to support ifunc on systems where the program loader does not natively support it. Constant initializer uses of ifuncs are not handled.
 class LowerIFuncPass : public OptionalPassInfoMixin<LowerIFuncPass> {
 public:
+  /// Construct a LowerIFunc pass.
   LowerIFuncPass() = default;
 
+  /// Run the lower-ifunc pass over the module.
+  /// @param M Module whose ifunc calls are lowered.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

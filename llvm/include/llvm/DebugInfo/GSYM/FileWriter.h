@@ -22,19 +22,25 @@ class raw_pwrite_stream;
 
 namespace gsym {
 
-/// A simplified binary data writer class that doesn't require targets, target
-/// definitions, architectures, or require any other optional compile time
-/// libraries to be enabled via the build process. This class needs the ability
-/// to seek to different spots in the binary stream that is produces to fixup
-/// offsets and sizes.
+/// A simplified binary data writer class.
+///
+/// This class doesn't require targets, target definitions, architectures, or
+/// require any other optional compile time libraries to be enabled via the
+/// build process. This class needs the ability to seek to different spots in
+/// the binary stream that is produces to fixup offsets and sizes.
 class FileWriter {
   llvm::raw_pwrite_stream &OS;
   llvm::endianness ByteOrder;
   uint8_t StringOffsetSize = 4;
 
 public:
+  /// Construct a FileWriter that writes to the given stream.
+  ///
+  /// \param S The raw output stream to write into.
+  /// \param B The byte order to use when writing multi-byte values.
   FileWriter(llvm::raw_pwrite_stream &S, llvm::endianness B)
       : OS(S), ByteOrder(B) {}
+  /// Destroy a FileWriter.
   LLVM_ABI ~FileWriter();
   /// Write a single uint8_t value into the stream at the current file
   /// position.
@@ -43,22 +49,28 @@ public:
   LLVM_ABI void writeU8(uint8_t Value);
 
   /// Write a single uint16_t value into the stream at the current file
-  /// position. The value will be byte swapped if needed to match the byte
-  /// order specified during construction.
+  /// position.
+  ///
+  /// The value will be byte swapped if needed to match the byte order
+  /// specified during construction.
   ///
   /// \param   Value The value to write into the stream.
   LLVM_ABI void writeU16(uint16_t Value);
 
   /// Write a single uint32_t value into the stream at the current file
-  /// position. The value will be byte swapped if needed to match the byte
-  /// order specified during construction.
+  /// position.
+  ///
+  /// The value will be byte swapped if needed to match the byte order
+  /// specified during construction.
   ///
   /// \param   Value The value to write into the stream.
   LLVM_ABI void writeU32(uint32_t Value);
 
   /// Write a single uint64_t value into the stream at the current file
-  /// position. The value will be byte swapped if needed to match the byte
-  /// order specified during construction.
+  /// position.
+  ///
+  /// The value will be byte swapped if needed to match the byte order
+  /// specified during construction.
   ///
   /// \param   Value The value to write into the stream.
   LLVM_ABI void writeU64(uint64_t Value);
@@ -76,9 +88,11 @@ public:
   LLVM_ABI void writeULEB(uint64_t Value);
 
   /// Write a single unsigned value into the stream at the current file
-  /// position. The value will be byte swapped if needed to match the byte
-  /// order specified during construction. The size of the value is specified
-  /// by the Size parameter.
+  /// position.
+  ///
+  /// The value will be byte swapped if needed to match the byte order
+  /// specified during construction. The size of the value is specified by the
+  /// Size parameter.
   ///
   /// \param   Value The value to write into the stream. The higher bits which
   ///          don't fit into ByteSize should be zero.
@@ -97,18 +111,21 @@ public:
   LLVM_ABI void writeData(llvm::ArrayRef<uint8_t> Data);
 
   /// Write a NULL terminated C string into the stream at the current file
-  /// position. The entire contents of Str will be written into the steam at
-  /// the current file position and then an extra NULL termation byte will be
-  /// written. It is up to the user to ensure that Str doesn't contain any NULL
-  /// characters unless the additional NULL characters are desired.
+  /// position.
+  ///
+  /// The entire contents of Str will be written into the steam at the current
+  /// file position and then an extra NULL termation byte will be written. It
+  /// is up to the user to ensure that Str doesn't contain any NULL characters
+  /// unless the additional NULL characters are desired.
   ///
   /// \param   Str The value to write into the stream.
   LLVM_ABI void writeNullTerminated(llvm::StringRef Str);
 
-  /// Fixup a uint32_t value at the specified offset in the stream. This
-  /// function will save the current file position, seek to the specified
-  /// offset, overwrite the data using Value, and then restore the file
-  /// position to the previous file position.
+  /// Fixup a uint32_t value at the specified offset in the stream.
+  ///
+  /// This function will save the current file position, seek to the specified
+  /// offset, overwrite the data using Value, and then restore the file position
+  /// to the previous file position.
   ///
   /// \param   Value The value to write into the stream.
   /// \param   Offset The offset at which to write the Value within the stream.
@@ -127,15 +144,25 @@ public:
   ///         file position.
   LLVM_ABI uint64_t tell();
 
+  /// Return a reference to the underlying output stream.
+  ///
+  /// \return The raw pwrite stream used by this writer.
   llvm::raw_pwrite_stream &get_stream() {
     return OS;
   }
 
+  /// Return the byte order used by this writer.
+  ///
+  /// \return The endianness specified during construction.
   llvm::endianness getByteOrder() const { return ByteOrder; }
 
   /// Get the string offset size for this writer.
+  ///
+  /// \return The size in bytes of string table offsets written by this writer.
   uint8_t getStringOffsetSize() const { return StringOffsetSize; }
   /// Set the string offset size for this writer.
+  ///
+  /// \param Size The size in bytes of string table offsets to write.
   void setStringOffsetSize(uint8_t Size) { StringOffsetSize = Size; }
 
 private:

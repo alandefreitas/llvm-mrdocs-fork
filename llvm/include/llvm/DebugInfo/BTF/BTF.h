@@ -52,27 +52,32 @@
 #include "llvm/Support/TrailingObjects.h"
 
 namespace llvm {
+/// BPF Type Format (.BTF / .BTF.ext) binary layout definitions.
 namespace BTF {
 
-enum : uint32_t { MAGIC = 0xeB9F, VERSION = 1 };
+/// Magic number and version for the .BTF section header.
+enum : uint32_t {
+  MAGIC = 0xeB9F, ///< .BTF section magic number.
+  VERSION = 1     ///< .BTF section format version.
+};
 
 /// Sizes in bytes of various things in the BTF format.
 enum {
-  HeaderSize = 24,
-  ExtHeaderSize = 32,
-  CommonTypeSize = 12,
-  BTFArraySize = 12,
-  BTFEnumSize = 8,
-  BTFEnum64Size = 12,
-  BTFMemberSize = 12,
-  BTFParamSize = 8,
-  BTFDataSecVarSize = 12,
-  SecFuncInfoSize = 8,
-  SecLineInfoSize = 8,
-  SecFieldRelocSize = 8,
-  BPFFuncInfoSize = 8,
-  BPFLineInfoSize = 16,
-  BPFFieldRelocSize = 16,
+  HeaderSize = 24,         ///< Size of struct Header.
+  ExtHeaderSize = 32,      ///< Size of struct ExtHeader.
+  CommonTypeSize = 12,     ///< Size of struct CommonType.
+  BTFArraySize = 12,       ///< Size of struct BTFArray.
+  BTFEnumSize = 8,         ///< Size of struct BTFEnum.
+  BTFEnum64Size = 12,      ///< Size of struct BTFEnum64.
+  BTFMemberSize = 12,      ///< Size of struct BTFMember.
+  BTFParamSize = 8,        ///< Size of struct BTFParam.
+  BTFDataSecVarSize = 12,  ///< Size of one DATASEC variable entry.
+  SecFuncInfoSize = 8,     ///< Size of struct SecFuncInfo.
+  SecLineInfoSize = 8,     ///< Size of struct SecLineInfo.
+  SecFieldRelocSize = 8,   ///< Size of struct SecFieldReloc.
+  BPFFuncInfoSize = 8,     ///< Size of struct BPFFuncInfo.
+  BPFLineInfoSize = 16,    ///< Size of struct BPFLineInfo.
+  BPFFieldRelocSize = 16,  ///< Size of struct BPFFieldReloc.
 };
 
 /// The .BTF section header definition.
@@ -89,17 +94,21 @@ struct Header {
   uint32_t StrLen;  ///< Length of string section
 };
 
+/// Limits on variable-length type payloads.
 enum : uint32_t {
   MAX_VLEN = 0xffff ///< Max # of struct/union/enum members or func args
 };
 
+/// BTF type kind codes stored in CommonType::Info.
 enum TypeKinds : uint8_t {
 #define HANDLE_BTF_KIND(ID, NAME) BTF_KIND_##NAME = ID,
 #include "BTF.def"
 };
 
 // Constants for CommonType::Info field.
+/// Kind flag bit set when a FWD type refers to a union.
 constexpr uint32_t FWD_UNION_FLAG = 1u << 31;
+/// Kind flag bit set when an ENUM or ENUM64 type is signed.
 constexpr uint32_t ENUM_SIGNED_FLAG = 1u << 31;
 
 /// The BTF common type definition. Different kinds may have
@@ -108,6 +117,8 @@ struct CommonType {
   /// Type name offset in the string table.
   uint32_t NameOff;
 
+  /// Packed vlen, kind, and kind_flag for this type.
+  ///
   /// "Info" bits arrangement:
   /// Bits  0-15: vlen (e.g. # of struct's members)
   /// Bits 16-23: unused
@@ -117,18 +128,18 @@ struct CommonType {
   ///             struct, union and fwd
   uint32_t Info;
 
-  /// "Size" is used by INT, ENUM, STRUCT and UNION.
-  /// "Size" tells the size of the type it is describing.
-  ///
-  /// "Type" is used by PTR, TYPEDEF, VOLATILE, CONST, RESTRICT,
-  /// FUNC, FUNC_PROTO, VAR, DECL_TAG and TYPE_TAG.
-  /// "Type" is a type_id referring to another type.
   union {
+    /// Size in bytes for INT, ENUM, STRUCT, and UNION kinds.
     uint32_t Size;
+    /// Type id referring to another type for PTR, TYPEDEF, and similar kinds.
     uint32_t Type;
   };
 
+  /// Returns the BTF type kind from Info bits 24-28.
+  /// \returns The BTF type kind code.
   uint32_t getKind() const { return Info >> 24 & 0x1f; }
+  /// Returns the variable-length count from Info bits 0-15.
+  /// \returns The vlen field from the low 16 bits of Info.
   uint32_t getVlen() const { return Info & 0xffff; }
 };
 
@@ -143,9 +154,9 @@ struct CommonType {
 
 /// Attributes stored in the INT_ENCODING.
 enum : uint8_t {
-  INT_SIGNED = (1 << 0),
-  INT_CHAR = (1 << 1),
-  INT_BOOL = (1 << 2)
+  INT_SIGNED = (1 << 0), ///< Integer is signed.
+  INT_CHAR = (1 << 1),   ///< Integer is a character type.
+  INT_BOOL = (1 << 2)    ///< Integer is a boolean type.
 };
 
 /// BTF_KIND_ENUM is followed by multiple "struct BTFEnum".
@@ -172,6 +183,8 @@ struct BTFArray {
   uint32_t Nelems;    ///< Number of elements for this array
 };
 
+/// A single member of a BTF struct or union type.
+///
 /// BTF_KIND_STRUCT and BTF_KIND_UNION are followed
 /// by multiple "struct BTFMember".  The exact number
 /// of BTFMember is stored in the vlen (of the info in
@@ -192,15 +205,15 @@ struct BTFMember {
 /// The exist number of BTFParam is stored in the vlen (of the info
 /// in "struct CommonType").
 struct BTFParam {
-  uint32_t NameOff;
-  uint32_t Type;
+  uint32_t NameOff; ///< Parameter name offset in the string table
+  uint32_t Type;    ///< Parameter type id
 };
 
 /// BTF_KIND_FUNC can be global, static or extern.
 enum : uint8_t {
-  FUNC_STATIC = 0,
-  FUNC_GLOBAL = 1,
-  FUNC_EXTERN = 2,
+  FUNC_STATIC = 0, ///< Function has static linkage.
+  FUNC_GLOBAL = 1, ///< Function has global linkage.
+  FUNC_EXTERN = 2, ///< Function is an extern declaration.
 };
 
 /// Variable scoping information.
@@ -221,10 +234,10 @@ struct BTFDataSec {
 
 /// The .BTF.ext section header definition.
 struct ExtHeader {
-  uint16_t Magic;
-  uint8_t Version;
-  uint8_t Flags;
-  uint32_t HdrLen;
+  uint16_t Magic;  ///< Magic value
+  uint8_t Version; ///< Version number
+  uint8_t Flags;   ///< Extra flags
+  uint32_t HdrLen; ///< Length of this header
 
   uint32_t FuncInfoOff;   ///< Offset of func info section
   uint32_t FuncInfoLen;   ///< Length of func info section
@@ -253,7 +266,11 @@ struct BPFLineInfo {
   uint32_t LineOff;     ///< Line index in the .BTF string table
   uint32_t LineCol;     ///< Line num: line_col >> 10,
                         ///  col num: line_col & 0x3ff
+  /// Returns the source line number encoded in LineCol.
+  /// \returns The line number from the high bits of LineCol.
   uint32_t getLine() const { return LineCol >> 10; }
+  /// Returns the source column number encoded in LineCol.
+  /// \returns The column number from the low bits of LineCol.
   uint32_t getCol() const { return LineCol & 0x3ff; }
 };
 
@@ -279,20 +296,20 @@ struct SecFieldReloc {
 
 /// CO-RE relocation kind codes used in .BTF.ext section.
 enum PatchableRelocKind : uint32_t {
-  FIELD_BYTE_OFFSET = 0,
-  FIELD_BYTE_SIZE,
-  FIELD_EXISTENCE,
-  FIELD_SIGNEDNESS,
-  FIELD_LSHIFT_U64,
-  FIELD_RSHIFT_U64,
-  BTF_TYPE_ID_LOCAL,
-  BTF_TYPE_ID_REMOTE,
-  TYPE_EXISTENCE,
-  TYPE_SIZE,
-  ENUM_VALUE_EXISTENCE,
-  ENUM_VALUE,
-  TYPE_MATCH,
-  MAX_FIELD_RELOC_KIND,
+  FIELD_BYTE_OFFSET = 0, ///< Patch with the field's byte offset.
+  FIELD_BYTE_SIZE,       ///< Patch with the field's byte size.
+  FIELD_EXISTENCE,       ///< Patch with whether the field exists.
+  FIELD_SIGNEDNESS,      ///< Patch with whether the field is signed.
+  FIELD_LSHIFT_U64,      ///< Patch with the left-shift amount for a u64 field.
+  FIELD_RSHIFT_U64,      ///< Patch with the right-shift amount for a u64 field.
+  BTF_TYPE_ID_LOCAL,     ///< Patch with the local BTF type id.
+  BTF_TYPE_ID_REMOTE,    ///< Patch with the remote (target) BTF type id.
+  TYPE_EXISTENCE,        ///< Patch with whether the type exists.
+  TYPE_SIZE,             ///< Patch with the type's size in bytes.
+  ENUM_VALUE_EXISTENCE,  ///< Patch with whether the enum value exists.
+  ENUM_VALUE,            ///< Patch with the enum value.
+  TYPE_MATCH,            ///< Patch with whether the type matches.
+  MAX_FIELD_RELOC_KIND,  ///< Number of CO-RE relocation kinds.
 };
 
 // Define a number of sub-types for CommonType, each with:
@@ -311,40 +328,64 @@ enum PatchableRelocKind : uint32_t {
 #define BTF_DEFINE_TAIL_ARR(Type, Accessor)                                    \
   ArrayRef<Type> Accessor() const { return getTrailingObjects(getVlen()); }
 
+/// BTF_KIND_ARRAY type with a trailing BTFArray descriptor.
 struct ArrayType final : CommonType,
                          private TrailingObjects<ArrayType, BTFArray> {
   friend TrailingObjects;
+  /// Returns the array descriptor that follows this type.
+  /// \returns The trailing BTFArray descriptor for this type.
   BTF_DEFINE_TAIL(BTFArray, getArray)
 
+  /// True if \p V is a BTF_KIND_ARRAY type.
+  /// \param V The common type to test.
+  /// \returns True if \p V has kind BTF_KIND_ARRAY.
   static bool classof(const CommonType *V) {
     return V->getKind() == BTF_KIND_ARRAY;
   }
 };
 
+/// BTF_KIND_STRUCT or BTF_KIND_UNION type with trailing BTFMember entries.
 struct StructType final : CommonType,
                           private TrailingObjects<StructType, BTFMember> {
   friend TrailingObjects;
+  /// Returns the member descriptors that follow this type.
+  /// \returns The trailing BTFMember entries for this type.
   BTF_DEFINE_TAIL_ARR(BTFMember, members)
 
+  /// True if \p V is a BTF_KIND_STRUCT or BTF_KIND_UNION type.
+  /// \param V The common type to test.
+  /// \returns True if \p V has kind BTF_KIND_STRUCT or BTF_KIND_UNION.
   static bool classof(const CommonType *V) {
     return V->getKind() == BTF_KIND_STRUCT || V->getKind() == BTF_KIND_UNION;
   }
 };
 
+/// BTF_KIND_ENUM type with trailing BTFEnum value entries.
 struct EnumType final : CommonType, private TrailingObjects<EnumType, BTFEnum> {
   friend TrailingObjects;
+  /// Returns the enumerator values that follow this type.
+  /// \returns The trailing BTFEnum entries for this type.
   BTF_DEFINE_TAIL_ARR(BTFEnum, values)
 
+  /// True if \p V is a BTF_KIND_ENUM type.
+  /// \param V The common type to test.
+  /// \returns True if \p V has kind BTF_KIND_ENUM.
   static bool classof(const CommonType *V) {
     return V->getKind() == BTF_KIND_ENUM;
   }
 };
 
+/// BTF_KIND_ENUM64 type with trailing BTFEnum64 value entries.
 struct Enum64Type final : CommonType,
                           private TrailingObjects<Enum64Type, BTFEnum64> {
   friend TrailingObjects;
+  /// Returns the 64-bit enumerator values that follow this type.
+  /// \returns The trailing BTFEnum64 entries for this type.
   BTF_DEFINE_TAIL_ARR(BTFEnum64, values)
 
+  /// True if \p V is a BTF_KIND_ENUM64 type.
+  /// \param V The common type to test.
+  /// \returns True if \p V has kind BTF_KIND_ENUM64.
   static bool classof(const CommonType *V) {
     return V->getKind() == BTF_KIND_ENUM64;
   }

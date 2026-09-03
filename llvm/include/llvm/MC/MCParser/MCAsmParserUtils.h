@@ -18,12 +18,20 @@ class MCExpr;
 class MCSymbol;
 class StringRef;
 
+/// Helpers for parsing symbol assignment expressions in MC assembly.
 namespace MCParserUtils {
 
 /// Parse a value expression and return whether it can be assigned to a symbol
 /// with the given name.
 ///
 /// On success, returns false and sets the Symbol and Value output parameters.
+///
+/// \param Name Symbol name receiving the assignment.
+/// \param allow_redef True if an existing symbol may be redefined.
+/// \param Parser Assembly parser used to parse the RHS expression.
+/// \param Symbol Filled with the symbol being assigned on success.
+/// \param Value Filled with the parsed RHS expression on success.
+/// \return False on success; true on failure.
 LLVM_ABI bool parseAssignmentExpression(StringRef Name, bool allow_redef,
                                         MCAsmParser &Parser, MCSymbol *&Symbol,
                                         const MCExpr *&Value);

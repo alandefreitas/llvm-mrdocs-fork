@@ -38,6 +38,7 @@ using fatal_error_handler_t = void (*)(void *user_data, const char *reason,
 /// faults, blindly throwing exceptions through unfamiliar code isn't a way to
 /// achieve this.
 ///
+/// \param handler - The fatal error handler to install.
 /// \param user_data - An argument which will be passed to the install error
 /// handler.
 LLVM_ABI void install_fatal_error_handler(fatal_error_handler_t handler,
@@ -49,6 +50,9 @@ LLVM_ABI void remove_fatal_error_handler();
 /// Installs and removes a fatal error handler for a scope.
 struct ScopedFatalErrorHandler {
   /// Install \p handler for the lifetime of this object.
+  ///
+  /// \param handler Fatal error handler to install for this scope.
+  /// \param user_data Argument passed through to \p handler.
   explicit ScopedFatalErrorHandler(fatal_error_handler_t handler,
                                    void *user_data = nullptr) {
     install_fatal_error_handler(handler, user_data);
@@ -58,16 +62,31 @@ struct ScopedFatalErrorHandler {
   ~ScopedFatalErrorHandler() { remove_fatal_error_handler(); }
 };
 
+/// Report a fatal error from a C string reason.
+///
 /// @deprecated Use reportFatalInternalError() or reportFatalUsageError()
 /// instead.
+///
+/// \param reason Message describing the fatal error.
+/// \param gen_crash_diag Whether to generate a crash diagnostic.
 [[noreturn]] LLVM_ABI void report_fatal_error(const char *reason,
                                               bool gen_crash_diag = true);
+/// Report a fatal error from a StringRef reason.
+///
 /// @deprecated Use reportFatalInternalError() or reportFatalUsageError()
 /// instead.
+///
+/// \param reason Message describing the fatal error.
+/// \param gen_crash_diag Whether to generate a crash diagnostic.
 [[noreturn]] LLVM_ABI void report_fatal_error(StringRef reason,
                                               bool gen_crash_diag = true);
+/// Report a fatal error from a Twine reason.
+///
 /// @deprecated Use reportFatalInternalError() or reportFatalUsageError()
 /// instead.
+///
+/// \param reason Message describing the fatal error.
+/// \param gen_crash_diag Whether to generate a crash diagnostic.
 [[noreturn]] LLVM_ABI void report_fatal_error(const Twine &reason,
                                               bool gen_crash_diag = true);
 
@@ -78,10 +97,16 @@ struct ScopedFatalErrorHandler {
 /// This will call installed error handlers (or print the message by default)
 /// and then abort. This will produce a crash trace and *will* ask users to
 /// report an LLVM bug.
+///
+/// \param reason Message describing the fatal internal error.
 [[noreturn]] LLVM_ABI void reportFatalInternalError(const char *reason);
 /// Report a fatal internal error with message \p reason.
+///
+/// \param reason Message describing the fatal internal error.
 [[noreturn]] LLVM_ABI void reportFatalInternalError(StringRef reason);
 /// Report a fatal internal error with message \p reason.
+///
+/// \param reason Message describing the fatal internal error.
 [[noreturn]] LLVM_ABI void reportFatalInternalError(const Twine &reason);
 
 /// Report a fatal error that does not indicate a bug in LLVM.
@@ -98,10 +123,16 @@ struct ScopedFatalErrorHandler {
 /// This will call installed error handlers (or print the message by default)
 /// and then exit with code 1. It will not produce a crash trace and will
 /// *not* ask users to report an LLVM bug.
+///
+/// \param reason Message describing the fatal usage error.
 [[noreturn]] LLVM_ABI void reportFatalUsageError(const char *reason);
 /// Report a fatal usage error with message \p reason.
+///
+/// \param reason Message describing the fatal usage error.
 [[noreturn]] LLVM_ABI void reportFatalUsageError(StringRef reason);
 /// Report a fatal usage error with message \p reason.
+///
+/// \param reason Message describing the fatal usage error.
 [[noreturn]] LLVM_ABI void reportFatalUsageError(const Twine &reason);
 
 /// Installs a new bad alloc error handler that should be used whenever a
@@ -118,6 +149,7 @@ struct ScopedFatalErrorHandler {
 /// called.
 ///
 ///
+/// \param handler - The bad alloc error handler to install.
 /// \param user_data - An argument which will be passed to the installed error
 /// handler.
 LLVM_ABI void install_bad_alloc_error_handler(fatal_error_handler_t handler,
@@ -129,10 +161,12 @@ LLVM_ABI void remove_bad_alloc_error_handler();
 /// Install a new-handler that reports out-of-memory as a fatal LLVM error.
 LLVM_ABI void install_out_of_memory_new_handler();
 
-/// Reports a bad alloc error, calling any user defined bad alloc
-/// error handler. In contrast to the generic 'report_fatal_error'
-/// functions, this function might not terminate, e.g. the user
-/// defined error handler throws an exception, but it won't return.
+/// Report a bad allocation error via the installed handler.
+///
+/// Calls any user-defined bad alloc error handler. In contrast to the
+/// generic 'report_fatal_error' functions, this function might not terminate,
+/// e.g. the user defined error handler throws an exception, but it won't
+/// return.
 ///
 /// Note: When throwing an exception in the bad alloc handler, make sure that
 /// the following unwind succeeds, e.g. do not trigger additional allocations
@@ -141,12 +175,21 @@ LLVM_ABI void install_out_of_memory_new_handler();
 /// If no error handler is installed (default), throws a bad_alloc exception
 /// if LLVM is compiled with exception support. Otherwise prints the error
 /// to standard error and calls abort().
+///
+/// \param Reason Message describing the allocation failure.
+/// \param GenCrashDiag Whether to generate a crash diagnostic.
 [[noreturn]] LLVM_ABI void report_bad_alloc_error(const char *Reason,
                                                   bool GenCrashDiag = true);
 
+/// Abort with an optional message printed to stderr.
+///
 /// This function calls abort(), and prints the optional message to stderr.
 /// Use the llvm_unreachable macro (that adds location info), instead of
 /// calling this function directly.
+///
+/// \param msg Optional message printed to stderr before aborting.
+/// \param file Source file name, typically from __FILE__.
+/// \param line Source line number, typically from __LINE__.
 [[noreturn]] LLVM_ABI void llvm_unreachable_internal(const char *msg = nullptr,
                                                      const char *file = nullptr,
                                                      unsigned line = 0);

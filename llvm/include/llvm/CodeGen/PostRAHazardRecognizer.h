@@ -13,9 +13,15 @@
 
 namespace llvm {
 
+/// New PM pass that runs the post-RA hazard recognizer and emits noops.
 class PostRAHazardRecognizerPass
     : public RequiredPassInfoMixin<PostRAHazardRecognizerPass> {
 public:
+  /// Run the post-RA hazard recognizer on machine instructions in \p MF.
+  /// \param MF Machine function whose hazards are recognized.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after running the post-RA hazard
+  ///         recognizer.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

@@ -26,9 +26,15 @@ namespace llvm {
   class StringRef;
   template<typename T> class SmallVectorImpl;
 
+  /// POSIX regular expression matcher.
+  ///
+  /// Supports Basic and Extended POSIX regular expressions (ERE), including
+  /// backreferences in matches and strings with embedded NUL characters.
   class Regex {
   public:
+    /// Compilation and matching option flags.
     enum RegexFlags : unsigned {
+      /// No special options; use default Extended POSIX regex matching.
       NoFlags = 0,
       /// Compile for matching that ignores upper/lower case distinctions.
       IgnoreCase = 1,
@@ -46,33 +52,60 @@ namespace llvm {
       LLVM_MARK_AS_BITMASK_ENUM(BasicRegex)
     };
 
+    /// Construct an empty, invalid regex.
     LLVM_ABI Regex();
     /// Compiles the given regular expression \p Regex.
     ///
     /// \param Regex - referenced string is no longer needed after this
     /// constructor does finish.  Only its compiled form is kept stored.
+    /// \param Flags - compilation options controlling matching behavior.
     LLVM_ABI Regex(StringRef Regex, RegexFlags Flags = NoFlags);
+    /// Compiles the given regular expression \p Regex with unsigned flags.
+    ///
+    /// \param Regex - pattern string to compile; only the compiled form is kept.
+    /// \param Flags - bitfield of RegexFlags values.
     LLVM_ABI Regex(StringRef Regex, unsigned Flags);
-    Regex(const Regex &) = delete;
+    /// Copy construction is deleted; Regex is move-only.
+    ///
+    /// \param regex Unused; copy construction is deleted.
+    Regex(const Regex &regex) = delete;
+    /// Move-assign from \p regex, swapping internal state.
+    ///
+    /// \param regex Regex to take ownership from via swap.
+    /// \return A reference to this Regex after the swap.
     Regex &operator=(Regex regex) {
       std::swap(preg, regex.preg);
       std::swap(error, regex.error);
       return *this;
     }
+    /// Move-construct from \p regex.
+    ///
+    /// \param regex Regex to move from.
     LLVM_ABI Regex(Regex &&regex);
+    /// Destroy the regex and free compiled state.
     LLVM_ABI ~Regex();
 
-    /// isValid - returns the error encountered during regex compilation, if
-    /// any.
+    /// Fill \p Error with any compilation error and return true if valid.
+    ///
+    /// \param Error - receives the error message from regex compilation, if any.
+    /// \return True if the regex compiled successfully.
     LLVM_ABI bool isValid(std::string &Error) const;
+    /// Return true if the regex compiled successfully.
+    ///
+    /// \return True if the regex compiled successfully.
     bool isValid() const { return !error; }
 
-    /// getNumMatches - In a valid regex, return the number of parenthesized
-    /// matches it contains.  The number filled in by match will include this
-    /// many entries plus one for the whole regex (as element 0).
+    /// Return the number of parenthesized capture groups in a valid regex.
+    ///
+    /// The number filled in by match will include this many entries plus one
+    /// for the whole regex (as element 0).
+    ///
+    /// \return The number of parenthesized subgroups in the pattern.
     LLVM_ABI unsigned getNumMatches() const;
 
-    /// matches - Match the regex against a given \p String.
+    /// Match the regex against a given \p String.
+    ///
+    /// \param String - the input to match against the compiled regex.
     ///
     /// \param Matches - If given, on a successful match this will be filled in
     /// with references to the matched group expressions (inside \p String),
@@ -81,30 +114,39 @@ namespace llvm {
     /// \param Error - If non-null, any errors in the matching will be recorded
     /// as a non-empty string. If there is no error, it will be an empty string.
     ///
-    /// This returns true on a successful match.
+    /// \return True on a successful match.
     LLVM_ABI bool match(StringRef String,
                         SmallVectorImpl<StringRef> *Matches = nullptr,
                         std::string *Error = nullptr) const;
 
-    /// sub - Return the result of replacing the first match of the regex in
-    /// \p String with the \p Repl string. Backreferences like "\0" and "\g<1>"
-    /// in the replacement string are replaced with the appropriate match
-    /// substring.
+    /// Replace the first regex match in \p String with \p Repl.
+    ///
+    /// Backreferences like "\0" and "\g<1>" in the replacement string are
+    /// replaced with the appropriate match substring.
     ///
     /// Note that the replacement string has backslash escaping performed on
     /// it. Invalid backreferences are ignored (replaced by empty strings).
     ///
+    /// \param Repl - replacement text, which may contain backreferences.
+    /// \param String - input in which to replace the first match.
     /// \param Error If non-null, any errors in the substitution (invalid
     /// backreferences, trailing backslashes) will be recorded as a non-empty
     /// string. If there is no error, it will be an empty string.
+    /// \return The string after replacing the first match, or \p String if none.
     LLVM_ABI std::string sub(StringRef Repl, StringRef String,
                              std::string *Error = nullptr) const;
 
     /// If this function returns true, ^Str$ is an extended regular
     /// expression that matches Str and only Str.
+    ///
+    /// \param Str - candidate string to test for literal ERE safety.
+    /// \return True if \p Str is safe to use as a literal ERE pattern.
     LLVM_ABI static bool isLiteralERE(StringRef Str);
 
     /// Turn String into a regex by escaping its special characters.
+    ///
+    /// \param String - literal text to escape for use in a regex pattern.
+    /// \return The escaped string, safe for use as a regex pattern.
     LLVM_ABI static std::string escape(StringRef String);
 
   private:

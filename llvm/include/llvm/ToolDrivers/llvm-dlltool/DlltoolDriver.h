@@ -19,6 +19,11 @@
 namespace llvm {
 template <typename T> class ArrayRef;
 
+/// Entry point for the dlltool.exe-compatible driver used by llvm-dlltool.
+///
+/// \param ArgsArr Command-line arguments, including the program name as the
+///        first element.
+/// \return Zero on success; a non-zero exit status on failure.
 LLVM_ABI int dlltoolDriverMain(ArrayRef<const char *> ArgsArr);
 } // namespace llvm
 

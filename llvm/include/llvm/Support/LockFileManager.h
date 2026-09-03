@@ -46,6 +46,8 @@ class LLVM_ABI LockFileManager : public AdvisoryLock {
 
 public:
   /// Does not try to acquire the lock.
+  ///
+  /// \param FileName Path of the file for which the lock is managed.
   LockFileManager(StringRef FileName);
 
   /// Tries to acquire the lock without blocking.
@@ -56,11 +58,14 @@ public:
   /// For a shared lock, wait until the owner releases the lock.
   ///
   /// \param MaxSeconds the maximum total wait time in seconds.
+  /// \returns the result of waiting, such as success, owner death, or timeout.
   WaitForUnlockResult
   waitForUnlockFor(std::chrono::seconds MaxSeconds) override;
 
   /// Remove the lock file.  This may delete a different lock file than
   /// the one previously read if there is a race.
+  ///
+  /// \returns an error code describing the outcome of the unlock attempt.
   std::error_code unsafeUnlock() override;
 
   /// Unlocks the lock if previously acquired by \c tryLock().

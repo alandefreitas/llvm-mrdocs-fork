@@ -26,18 +26,29 @@ class Function;
 class Module;
 class DILocation;
 
-/// A class to collect and print dropped debug information due to LLVM IR
-/// optimization passes. After every LLVM IR pass is run, it will print how many
-/// #dbg_values were dropped due to that pass.
+/// Collects and prints debug values dropped by LLVM IR optimization passes.
+///
+/// After every LLVM IR pass is run, it will print how many #dbg_values were
+/// dropped due to that pass.
 class LLVM_ABI DroppedVariableStatsIR : public DroppedVariableStats {
 public:
+  /// Construct dropped-variable stats for LLVM IR passes.
+  /// \param DroppedVarStatsEnabled When true, collect and print dropped stats.
   DroppedVariableStatsIR(bool DroppedVarStatsEnabled)
       : llvm::DroppedVariableStats(DroppedVarStatsEnabled) {}
 
+  /// Record debug variables in \p IR before pass \p P runs.
+  /// \param P Identifier of the pass about to run.
+  /// \param IR Function or Module the pass will run on.
   void runBeforePass(StringRef P, IRUnitRef IR);
 
+  /// Compute and print debug variables dropped from \p IR by pass \p P.
+  /// \param P Identifier of the pass that just ran.
+  /// \param IR Function or Module the pass ran on.
   void runAfterPass(StringRef P, IRUnitRef IR);
 
+  /// Register before/after pass callbacks on \p PIC.
+  /// \param PIC Pass instrumentation callbacks to register with.
   void registerCallbacks(PassInstrumentationCallbacks &PIC);
 
 private:

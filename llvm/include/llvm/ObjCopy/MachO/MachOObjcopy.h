@@ -25,17 +25,25 @@ struct CommonConfig;
 struct MachOConfig;
 class MultiFormatConfig;
 
+/// Mach-O-specific object-file copying and stripping operations.
 namespace macho {
 /// Apply the transformations described by \p Config and \p MachOConfig to
 /// \p In and writes the result into \p Out.
+/// \param Config Common objcopy configuration options.
+/// \param MachOConfig Mach-O-specific configuration options.
+/// \param In Input Mach-O object file to transform.
+/// \param Out Output stream to write the transformed binary to.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const CommonConfig &Config,
                                       const MachOConfig &MachOConfig,
                                       object::MachOObjectFile &In,
                                       raw_ostream &Out);
 
-/// Apply the transformations described by \p Config and \p MachOConfig to
-/// \p In and writes the result into \p Out.
+/// Apply the transformations described by \p Config to \p In and writes the
+/// result into \p Out.
+/// \param Config Multi-format objcopy configuration options.
+/// \param In Input Mach-O universal binary to transform.
+/// \param Out Output stream to write the transformed binary to.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnMachOUniversalBinary(
     const MultiFormatConfig &Config, const object::MachOUniversalBinary &In,

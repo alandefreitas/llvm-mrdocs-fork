@@ -62,7 +62,8 @@ template <typename T> struct make_const_ref {
   using type = std::add_lvalue_reference_t<std::add_const_t<T>>;
 };
 
-/// This class provides various trait information about a callable object.
+/// Trait information about a callable object's arguments and result type.
+///
 ///   * To access the number of arguments: Traits::num_args
 ///   * To access the type of an argument: Traits::arg_t<Index>
 ///   * To access the type of the result:  Traits::result_t
@@ -72,8 +73,11 @@ struct function_traits : public function_traits<decltype(&T::operator())> {};
 /// Overload for class function types.
 template <typename ClassType, typename ReturnType, typename... Args>
 struct function_traits<ReturnType (ClassType::*)(Args...) const, false> {
-  /// The number of arguments to this function.
-  enum { num_args = sizeof...(Args) };
+  /// Compile-time traits for the callable's argument list.
+  enum {
+    /// The number of arguments to this function.
+    num_args = sizeof...(Args)
+  };
 
   /// The result type of this function.
   using result_t = ReturnType;
@@ -89,8 +93,11 @@ struct function_traits<ReturnType (ClassType::*)(Args...), false>
 /// Overload for non-class function types.
 template <typename ReturnType, typename... Args>
 struct function_traits<ReturnType (*)(Args...), false> {
-  /// The number of arguments to this function.
-  enum { num_args = sizeof...(Args) };
+  /// Compile-time traits for the callable's argument list.
+  enum {
+    /// The number of arguments to this function.
+    num_args = sizeof...(Args)
+  };
 
   /// The result type of this function.
   using result_t = ReturnType;
@@ -99,6 +106,7 @@ struct function_traits<ReturnType (*)(Args...), false> {
   template <size_t i>
   using arg_t = std::tuple_element_t<i, std::tuple<Args...>>;
 };
+/// Overload for const function pointers.
 template <typename ReturnType, typename... Args>
 struct function_traits<ReturnType (*const)(Args...), false>
     : public function_traits<ReturnType (*)(Args...)> {};
@@ -133,7 +141,9 @@ constexpr bool all_types_equal_v = all_types_equal<T, Ts...>::value;
 /// Expensive (currently quadratic in sizeof(Ts...)), and so should only be
 /// asserted once per instantiation of a type which requires it.
 template <typename... Ts> struct TypesAreDistinct;
+/// Empty pack specialization: an empty type list is vacuously distinct.
 template <> struct TypesAreDistinct<> : std::true_type {};
+/// Recursive specialization: \c T is absent from \c Us and \c Us are distinct.
 template <typename T, typename... Us>
 struct TypesAreDistinct<T, Us...>
     : std::conjunction<std::negation<is_one_of<T, Us...>>,
@@ -150,11 +160,42 @@ struct TypesAreDistinct<T, Us...>
 /// It is a compile-time error to instantiate when T is not present in Us, i.e.
 /// if is_one_of<T, Us...>::value is false.
 template <typename T, typename... Us> struct FirstIndexOfType;
+/// Specialization when the head type differs from \c T: continue searching.
 template <typename T, typename U, typename... Us>
 struct FirstIndexOfType<T, U, Us...>
-    : std::integral_constant<size_t, 1 + FirstIndexOfType<T, Us...>::value> {};
+    : std::integral_constant<size_t, 1 + FirstIndexOfType<T, Us...>::value> {
+  /// Underlying integral-constant type for this specialization.
+  using Base =
+      std::integral_constant<size_t, 1 + FirstIndexOfType<T, Us...>::value>;
+  /// Type of the compile-time index value.
+  using typename Base::value_type;
+  /// This integral-constant specialization type.
+  using typename Base::type;
+  /// Compile-time index of the first occurrence of \c T.
+  ///
+  /// Equal to one plus the index of \c T in the remaining types after \c U.
+  using Base::value;
+  /// Convert to the compile-time index value.
+  using Base::operator value_type;
+  /// Return the compile-time index value.
+  using Base::operator();
+};
+/// Specialization when the head type matches \c T: index is zero.
 template <typename T, typename... Us>
-struct FirstIndexOfType<T, T, Us...> : std::integral_constant<size_t, 0> {};
+struct FirstIndexOfType<T, T, Us...> : std::integral_constant<size_t, 0> {
+  /// Underlying integral-constant type for this specialization.
+  using Base = std::integral_constant<size_t, 0>;
+  /// Type of the compile-time index value.
+  using typename Base::value_type;
+  /// This integral-constant specialization type.
+  using typename Base::type;
+  /// Zero-based index of the first occurrence of \c T.
+  using Base::value;
+  /// Convert to the compile-time index value.
+  using Base::operator value_type;
+  /// Return the compile-time index value.
+  using Base::operator();
+};
 
 /// Find the type at a given index in a list of types.
 ///
@@ -162,8 +203,13 @@ struct FirstIndexOfType<T, T, Us...> : std::integral_constant<size_t, 0> {};
 template <size_t I, typename... Ts>
 using TypeAtIndex = std::tuple_element_t<I, std::tuple<Ts...>>;
 
-/// Helper which adds two underlying types of enumeration type.
+/// Add the underlying integer values of two enumeration values.
+///
 /// Implicit conversion to a common type is accepted.
+///
+/// \param LHS Left-hand enumeration value.
+/// \param RHS Right-hand enumeration value.
+/// \return Sum of the underlying integer values of \p LHS and \p RHS.
 template <typename EnumTy1, typename EnumTy2,
           typename = std::enable_if_t<std::is_enum_v<EnumTy1> &&
                                       std::is_enum_v<EnumTy2>>>
@@ -204,14 +250,23 @@ public:
   /// Default-construct an empty callable wrapper.
   Callable() = default;
   /// Construct a callable wrapper from \p O.
+  ///
+  /// \param O Callable object to store.
   Callable(T const &O) : Obj(std::in_place, O) {}
 
   /// Copy-construct a callable wrapper.
+  ///
+  /// \param Other Callable wrapper to copy.
   Callable(Callable const &Other) = default;
   /// Move-construct a callable wrapper.
+  ///
+  /// \param Other Callable wrapper to move from.
   Callable(Callable &&Other) = default;
 
   /// Copy-assign a callable wrapper.
+  ///
+  /// \param Other Callable wrapper to copy.
+  /// \return Reference to this wrapper.
   Callable &operator=(Callable const &Other) {
     Obj = std::nullopt;
     if (Other.Obj)
@@ -220,6 +275,9 @@ public:
   }
 
   /// Move-assign a callable wrapper.
+  ///
+  /// \param Other Callable wrapper to move from.
+  /// \return Reference to this wrapper.
   Callable &operator=(Callable &&Other) {
     Obj = std::nullopt;
     if (Other.Obj)
@@ -228,6 +286,9 @@ public:
   }
 
   /// Invoke the stored callable with \p Params.
+  ///
+  /// \param Params Arguments forwarded to the stored callable.
+  /// \return Result of invoking the stored callable.
   template <typename... Pn,
             std::enable_if_t<std::is_invocable_v<T, Pn...>, int> = 0>
   decltype(auto) operator()(Pn &&...Params) {
@@ -235,6 +296,9 @@ public:
   }
 
   /// Invoke the stored callable with \p Params.
+  ///
+  /// \param Params Arguments forwarded to the stored callable.
+  /// \return Result of invoking the stored callable.
   template <typename... Pn,
             std::enable_if_t<std::is_invocable_v<T const, Pn...>, int> = 0>
   decltype(auto) operator()(Pn &&...Params) const {
@@ -242,18 +306,27 @@ public:
   }
 
   /// Return true if a callable is stored.
+  ///
+  /// \return True if a callable is stored.
   bool valid() const { return Obj != std::nullopt; }
   /// Clear the stored callable and return whether it was previously set.
+  ///
+  /// \return True if a callable was previously stored.
   bool reset() { return Obj = std::nullopt; }
 
   /// Convert to a reference to the stored callable.
+  ///
+  /// \return Reference to the stored callable.
   operator reference() { return *Obj; }
   /// Convert to a const reference to the stored callable.
+  ///
+  /// \return Const reference to the stored callable.
   operator const_reference() const { return *Obj; }
 };
 
-// Function specialization.  No need to waste extra space wrapping with a
-// std::optional.
+/// Function-pointer/reference specialization that stores a raw callable.
+///
+/// No need to waste extra space wrapping with a std::optional.
 template <typename T> class Callable<T, true> {
   static constexpr bool IsPtr = std::is_pointer_v<remove_cvref_t<T>>;
 
@@ -275,12 +348,15 @@ private:
   }
 
 public:
+  /// Default-construct an empty function callable.
   Callable() = default;
 
-  // Construct from a function pointer or reference.
-  //
-  // Disable this constructor for references to 'Callable' so we don't violate
-  // the rule of 0.
+  /// Construct from a function pointer or reference.
+  ///
+  /// Disable this constructor for references to 'Callable' so we don't violate
+  /// the rule of 0.
+  ///
+  /// \param F Function pointer or reference to store.
   template < // clang-format off
     typename FnPtrOrRef,
     std::enable_if_t<
@@ -289,15 +365,26 @@ public:
   > // clang-format on
   Callable(FnPtrOrRef &&F) : Func(convertIn(F)) {}
 
+  /// Invoke the stored function with \p Params.
+  ///
+  /// \param Params Arguments forwarded to the stored function.
+  /// \return Result of invoking the stored function.
   template <typename... Pn,
             std::enable_if_t<std::is_invocable_v<T, Pn...>, int> = 0>
   decltype(auto) operator()(Pn &&...Params) const {
     return Func(std::forward<Pn>(Params)...);
   }
 
+  /// Return true if a function is stored.
+  ///
+  /// \return True if a function is stored.
   bool valid() const { return Func != nullptr; }
+  /// Clear the stored function pointer.
   void reset() { Func = nullptr; }
 
+  /// Convert to a const reference to the stored function.
+  ///
+  /// \return Const reference to the stored function.
   operator T const &() const {
     if constexpr (IsPtr) {
       // T is a pointer... just echo it back.
@@ -313,30 +400,43 @@ public:
 
 } // namespace callable_detail
 
-/// Returns true if the given container only contains a single element.
+/// Return true if \p C contains exactly one element.
+///
+/// \param C Container or range to inspect.
+/// \return True if \p C contains exactly one element.
 template <typename ContainerTy> bool hasSingleElement(ContainerTy &&C) {
   auto B = adl_begin(C);
   auto E = adl_end(C);
   return B != E && std::next(B) == E;
 }
 
-/// Asserts that the given container has a single element and returns that
-/// element.
+/// Assert that \p C has a single element and return that element.
+///
+/// \param C Container or range expected to hold one element.
+/// \return The sole element of \p C.
 template <typename ContainerTy>
 decltype(auto) getSingleElement(ContainerTy &&C) {
   assert(hasSingleElement(C) && "expected container with single element");
   return *adl_begin(C);
 }
 
-/// Return a range covering \p RangeOrContainer with the first N elements
+/// Return a range covering \p RangeOrContainer with the first \p N elements
 /// excluded.
+///
+/// \param RangeOrContainer Range or container to view.
+/// \param N Number of leading elements to drop.
+/// \return A range over \p RangeOrContainer without its first \p N elements.
 template <typename T> auto drop_begin(T &&RangeOrContainer, size_t N = 1) {
   return make_range(std::next(adl_begin(RangeOrContainer), N),
                     adl_end(RangeOrContainer));
 }
 
-/// Return a range covering \p RangeOrContainer with the last N elements
+/// Return a range covering \p RangeOrContainer with the last \p N elements
 /// excluded.
+///
+/// \param RangeOrContainer Range or container to view.
+/// \param N Number of trailing elements to drop.
+/// \return A range over \p RangeOrContainer without its last \p N elements.
 template <typename T> auto drop_end(T &&RangeOrContainer, size_t N = 1) {
   return make_range(adl_begin(RangeOrContainer),
                     std::prev(adl_end(RangeOrContainer), N));
@@ -360,16 +460,25 @@ public:
   /// Default-construct a mapped iterator.
   mapped_iterator() = default;
   /// Construct a mapped iterator over \p U using \p F.
+  ///
+  /// \param U Underlying iterator position.
+  /// \param F Mapping function applied on dereference.
   mapped_iterator(ItTy U, FuncTy F)
     : mapped_iterator::iterator_adaptor_base(std::move(U)), F(std::move(F)) {}
 
   /// Return the underlying iterator position.
+  ///
+  /// \return The underlying iterator position.
   ItTy getCurrent() { return this->I; }
 
   /// Return the mapping function applied on dereference.
+  ///
+  /// \return The mapping function applied on dereference.
   const FuncTy &getFunction() const { return F; }
 
   /// Return the mapped value at the current position.
+  ///
+  /// \return The mapped value at the current position.
   ReferenceTy operator*() const { return F(*this->I); }
 
 private:
@@ -379,13 +488,22 @@ private:
 // map_iterator - Provide a convenient way to create mapped_iterators, just like
 // make_pair is useful for creating pairs...
 /// Create a mapped iterator over \p I using \p F.
+///
+/// \param I Underlying iterator.
+/// \param F Mapping function applied on dereference.
+/// \return A mapped iterator over \p I using \p F.
 template <class ItTy, class FuncTy>
 inline mapped_iterator<ItTy, FuncTy> map_iterator(ItTy I, FuncTy F) {
   return mapped_iterator<ItTy, FuncTy>(std::move(I), std::move(F));
 }
 
-/// Return a range that applies \p F to the elements of \p C. \p F can be a
-/// function, lambda, or member pointer.
+/// Return a range that applies \p F to the elements of \p C.
+///
+/// \p F can be a function, lambda, or member pointer.
+///
+/// \param C Container or range to map over.
+/// \param F Mapping function applied to each element.
+/// \return A range that applies \p F to each element of \p C.
 template <class ContainerTy, class FuncTy>
 auto map_range(ContainerTy &&C, FuncTy F) {
   return make_range(map_iterator(adl_begin(C), F), map_iterator(adl_end(C), F));
@@ -408,13 +526,19 @@ public:
   using BaseT = mapped_iterator_base;
 
   /// Construct a mapped iterator over \p U.
+  ///
+  /// \param U Underlying iterator position.
   mapped_iterator_base(ItTy U)
       : mapped_iterator_base::iterator_adaptor_base(std::move(U)) {}
 
   /// Return the underlying iterator position.
+  ///
+  /// \return The underlying iterator position.
   ItTy getCurrent() { return this->I; }
 
   /// Return the mapped value at the current position.
+  ///
+  /// \return The mapped value at the current position.
   ReferenceTy operator*() const {
     return static_cast<const DerivedT &>(*this).mapElement(*this->I);
   }
@@ -433,6 +557,9 @@ static constexpr bool HasFreeFunctionRBegin =
 // Returns an iterator_range over the given container which iterates in reverse.
 // Does not mutate the container.
 /// Return a reverse view over \p C without mutating it.
+///
+/// \param C Container or range to view in reverse.
+/// \return A reverse view over \p C.
 template <typename ContainerTy> [[nodiscard]] auto reverse(ContainerTy &&C) {
   if constexpr (detail::HasFreeFunctionRBegin<ContainerTy>)
     return make_range(adl_rbegin(C), adl_rend(C));
@@ -486,6 +613,10 @@ protected:
   // is, so that it can properly stop when it gets there. The end iterator only
   // needs the predicate to support bidirectional iteration.
   /// Construct a filter iterator over [\p Begin, \p End) using \p Pred.
+  ///
+  /// \param Begin Iterator to the first element of the underlying range.
+  /// \param End Iterator past the end of the underlying range.
+  /// \param Pred Predicate that selects which elements are visible.
   filter_iterator_base(WrappedIteratorT Begin, WrappedIteratorT End,
                        PredicateT Pred)
       : BaseT(Begin), End(End), Pred(Pred) {
@@ -493,9 +624,12 @@ protected:
   }
 
 public:
+  /// Bring the postfix increment operator into scope.
   using BaseT::operator++;
 
   /// Advance to the next element accepted by the predicate.
+  ///
+  /// \return Reference to this iterator.
   filter_iterator_base &operator++() {
     BaseT::operator++();
     findNextValid();
@@ -503,12 +637,16 @@ public:
   }
 
   /// Return a reference to the current filtered element.
+  ///
+  /// \return Reference to the current filtered element.
   decltype(auto) operator*() const {
     assert(BaseT::wrapped() != End && "Cannot dereference end iterator!");
     return BaseT::operator*();
   }
 
   /// Return a pointer to the current filtered element.
+  ///
+  /// \return Pointer to the current filtered element.
   decltype(auto) operator->() const {
     assert(BaseT::wrapped() != End && "Cannot dereference end iterator!");
     return BaseT::operator->();
@@ -525,6 +663,10 @@ public:
   filter_iterator_impl() = default;
 
   /// Construct a forward filter iterator over [\p Begin, \p End) using \p Pred.
+  ///
+  /// \param Begin Iterator to the first element of the underlying range.
+  /// \param End Iterator past the end of the underlying range.
+  /// \param Pred Predicate that selects which elements are visible.
   filter_iterator_impl(WrappedIteratorT Begin, WrappedIteratorT End,
                        PredicateT Pred)
       : filter_iterator_impl::filter_iterator_base(Begin, End, Pred) {}
@@ -544,14 +686,24 @@ class filter_iterator_impl<WrappedIteratorT, PredicateT,
   }
 
 public:
+  /// Bring the postfix decrement operator into scope.
   using BaseT::operator--;
 
+  /// Default-construct an empty bidirectional filter iterator.
   filter_iterator_impl() = default;
 
+  /// Construct a bidirectional filter iterator over [\p Begin, \p End).
+  ///
+  /// \param Begin Iterator to the first element of the underlying range.
+  /// \param End Iterator past the end of the underlying range.
+  /// \param Pred Predicate that selects which elements are visible.
   filter_iterator_impl(WrappedIteratorT Begin, WrappedIteratorT End,
                        PredicateT Pred)
       : BaseT(Begin, End, Pred) {}
 
+  /// Move to the previous element accepted by the predicate.
+  ///
+  /// \return Reference to this iterator.
   filter_iterator_impl &operator--() {
     BaseT::operator--();
     findPrevValid();
@@ -585,6 +737,9 @@ using filter_iterator =
 /// lifetime of that temporary is not kept by the returned range object, and the
 /// temporary is going to be dropped on the floor after the make_iterator_range
 /// full expression that contains this function call.
+/// \param Range Range whose elements are filtered.
+/// \param Pred Predicate that selects which elements are visible.
+/// \return A filter_iterator range over elements of \p Range accepted by \p Pred.
 template <typename RangeT, typename PredicateT>
 iterator_range<filter_iterator<detail::IterOfRange<RangeT>, PredicateT>>
 make_filter_range(RangeT &&Range, PredicateT Pred) {
@@ -627,10 +782,15 @@ protected:
 
 public:
   /// Construct an early-increment iterator at position \p I.
+  ///
+  /// \param I Underlying iterator position.
   early_inc_iterator_impl(WrappedIteratorT I) : BaseT(I) {}
 
+  /// Bring the const dereference operator into scope.
   using BaseT::operator*;
   /// Dereference and immediately advance the underlying iterator.
+  ///
+  /// \return The element at the previous underlying position.
   decltype(*std::declval<WrappedIteratorT>()) operator*() {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     assert(!IsEarlyIncremented && "Cannot dereference twice!");
@@ -639,8 +799,11 @@ public:
     return *(this->I)++;
   }
 
+  /// Bring the postfix increment operator into scope.
   using BaseT::operator++;
   /// Complete the early-increment step after a dereference.
+  ///
+  /// \return Reference to this iterator.
   early_inc_iterator_impl &operator++() {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     assert(IsEarlyIncremented && "Cannot increment before dereferencing!");
@@ -650,6 +813,10 @@ public:
   }
 
   /// Compare two early-increment iterators by underlying position.
+  ///
+  /// \param LHS Left-hand iterator.
+  /// \param RHS Right-hand iterator.
+  /// \return True if both iterators share the same underlying position.
   friend bool operator==(const early_inc_iterator_impl &LHS,
                          const early_inc_iterator_impl &RHS) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
@@ -671,6 +838,8 @@ public:
 /// range based for loops and other range algorithms that explicitly guarantee
 /// to dereference exactly once each element, and to increment exactly once each
 /// element.
+/// \param Range Range to iterate with early increment semantics.
+/// \return An early-increment iterator range over \p Range.
 template <typename RangeT>
 iterator_range<early_inc_iterator_impl<detail::IterOfRange<RangeT>>>
 make_early_inc_range(RangeT &&Range) {
@@ -682,10 +851,10 @@ make_early_inc_range(RangeT &&Range) {
 
 // Forward declarations required by zip_shortest/zip_equal/zip_first/zip_longest
 template <typename R, typename UnaryPredicate>
-bool all_of(R &&range, UnaryPredicate P);
+bool all_of(R &&Range, UnaryPredicate P);
 
 template <typename R, typename UnaryPredicate>
-bool any_of(R &&range, UnaryPredicate P);
+bool any_of(R &&Range, UnaryPredicate P);
 
 template <typename T> bool all_equal(std::initializer_list<T> Values);
 
@@ -867,8 +1036,12 @@ private:
 
 } // end namespace detail
 
-/// zip iterator for two or more iteratable types. Iteration continues until the
-/// end of the *shortest* iteratee is reached.
+/// Zip two or more ranges, stopping at the shortest.
+///
+/// \param t First range to iterate.
+/// \param u Second range to iterate.
+/// \param args Additional ranges to iterate.
+/// \return A zip range stopping at the shortest input.
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_shortest, T, U, Args...> zip(T &&t, U &&u,
                                                        Args &&...args) {
@@ -876,9 +1049,15 @@ detail::zippy<detail::zip_shortest, T, U, Args...> zip(T &&t, U &&u,
       std::forward<T>(t), std::forward<U>(u), std::forward<Args>(args)...);
 }
 
-/// zip iterator that assumes that all iteratees have the same length.
+/// Zip ranges that are required to have equal length.
+///
 /// In builds with assertions on, this assumption is checked before the
 /// iteration starts.
+///
+/// \param t First range to iterate.
+/// \param u Second range to iterate.
+/// \param args Additional ranges to iterate.
+/// \return A zip range over equal-length inputs.
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_first, T, U, Args...> zip_equal(T &&t, U &&u,
                                                           Args &&...args) {
@@ -888,10 +1067,16 @@ detail::zippy<detail::zip_first, T, U, Args...> zip_equal(T &&t, U &&u,
       std::forward<T>(t), std::forward<U>(u), std::forward<Args>(args)...);
 }
 
-/// zip iterator that, for the sake of efficiency, assumes the first iteratee to
-/// be the shortest. Iteration continues until the end of the first iteratee is
-/// reached. In builds with assertions on, we check that the assumption about
-/// the first iteratee being the shortest holds.
+/// Zip ranges assuming the first is the shortest.
+///
+/// Iteration continues until the end of the first iteratee is reached. In
+/// builds with assertions on, we check that the assumption about the first
+/// iteratee being the shortest holds.
+///
+/// \param t First (shortest) range to iterate.
+/// \param u Second range to iterate.
+/// \param args Additional ranges to iterate.
+/// \return A zip range stopping at the end of the first input.
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_first, T, U, Args...> zip_first(T &&t, U &&u,
                                                           Args &&...args) {
@@ -1017,9 +1202,15 @@ public:
 };
 } // namespace detail
 
-/// Iterate over two or more iterators at the same time. Iteration continues
-/// until all iterators reach the end. The std::optional only contains a value
-/// if the iterator has not reached the end.
+/// Zip ranges until every iteratee has been exhausted.
+///
+/// The std::optional only contains a value if the iterator has not reached the
+/// end.
+///
+/// \param t First range to iterate.
+/// \param u Second range to iterate.
+/// \param args Additional ranges to iterate.
+/// \return A zip range continuing until every input is exhausted.
 template <typename T, typename U, typename... Args>
 detail::zip_longest_range<T, U, Args...> zip_longest(T &&t, U &&u,
                                                      Args &&... args) {
@@ -1109,28 +1300,38 @@ class concat_iterator
   }
 
 public:
-  /// Constructs an iterator from a sequence of ranges.
+  /// Construct an iterator from a sequence of ranges.
   ///
   /// We need the full range to know how to switch between each of the
   /// iterators.
+  ///
+  /// \param Ranges Ranges whose iterators are concatenated.
   template <typename... RangeTs>
   explicit concat_iterator(RangeTs &&...Ranges)
       : Begins(adl_begin(Ranges)...), Ends(adl_end(Ranges)...) {}
 
+  /// Bring the postfix increment operator into scope.
   using BaseT::operator++;
 
   /// Advance to the next element across the concatenated ranges.
+  ///
+  /// \return Reference to this iterator.
   concat_iterator &operator++() {
     increment(std::index_sequence_for<IterTs...>());
     return *this;
   }
 
   /// Return a reference to the current concatenated element.
+  ///
+  /// \return Reference to the current concatenated element.
   reference_type operator*() const {
     return get(std::index_sequence_for<IterTs...>());
   }
 
   /// Return true if both iterators are at the same concatenated position.
+  ///
+  /// \param RHS Iterator to compare against.
+  /// \return True if both iterators are at the same concatenated position.
   bool operator==(const concat_iterator &RHS) const {
     return Begins == RHS.Begins && Ends == RHS.Ends;
   }
@@ -1188,10 +1389,13 @@ public:
 
 } // end namespace detail
 
-/// Returns a concatenated range across two or more ranges. Does not modify the
-/// ranges.
+/// Return a concatenated range across two or more ranges.
 ///
-/// The desired value type must be explicitly specified.
+/// Does not modify the ranges. The desired value type must be explicitly
+/// specified.
+///
+/// \param Ranges Ranges to concatenate in order.
+/// \return A concatenated range across \p Ranges.
 template <typename ValueT, typename... RangeTs>
 [[nodiscard]] detail::concat_range<ValueT, RangeTs...>
 concat(RangeTs &&...Ranges) {
@@ -1211,40 +1415,62 @@ class indexed_accessor_iterator
                                         std::ptrdiff_t, PointerT, ReferenceT> {
 public:
   /// Return the signed distance from \p rhs to this iterator.
+  ///
+  /// \param rhs Iterator sharing the same base.
+  /// \return Signed distance from \p rhs to this iterator.
   ptrdiff_t operator-(const indexed_accessor_iterator &rhs) const {
     assert(base == rhs.base && "incompatible iterators");
     return index - rhs.index;
   }
   /// Return true if both iterators share the same base and index.
+  ///
+  /// \param rhs Iterator to compare against.
+  /// \return True if both iterators share the same base and index.
   bool operator==(const indexed_accessor_iterator &rhs) const {
     assert(base == rhs.base && "incompatible iterators");
     return index == rhs.index;
   }
   /// Return true if this iterator precedes \p rhs over the same base.
+  ///
+  /// \param rhs Iterator to compare against.
+  /// \return True if this iterator precedes \p rhs over the same base.
   bool operator<(const indexed_accessor_iterator &rhs) const {
     assert(base == rhs.base && "incompatible iterators");
     return index < rhs.index;
   }
 
   /// Move the iterator \p offset positions forward.
+  ///
+  /// \param offset Number of positions to advance.
+  /// \return Reference to this iterator as \c DerivedT.
   DerivedT &operator+=(ptrdiff_t offset) {
     this->index += offset;
     return static_cast<DerivedT &>(*this);
   }
   /// Move the iterator \p offset positions backward.
+  ///
+  /// \param offset Number of positions to move backward.
+  /// \return Reference to this iterator as \c DerivedT.
   DerivedT &operator-=(ptrdiff_t offset) {
     this->index -= offset;
     return static_cast<DerivedT &>(*this);
   }
 
   /// Returns the current index of the iterator.
+  ///
+  /// \return The current index of the iterator.
   ptrdiff_t getIndex() const { return index; }
 
   /// Returns the current base of the iterator.
+  ///
+  /// \return The current base of the iterator.
   const BaseT &getBase() const { return base; }
 
 protected:
   /// Construct an iterator over \p base at \p index.
+  ///
+  /// \param base Object providing indexed element access.
+  /// \param index Zero-based index into \p base.
   indexed_accessor_iterator(BaseT base, ptrdiff_t index)
       : base(base), index(index) {}
   /// Object providing indexed element access.
@@ -1268,14 +1494,16 @@ template <typename DerivedT, typename BaseT, typename T,
           typename PointerT = T *, typename ReferenceT = T &>
 class indexed_accessor_range_base {
 public:
+  /// Self type used by derived range classes.
   using RangeBaseT = indexed_accessor_range_base;
 
   /// An iterator element of this range.
   class iterator : public indexed_accessor_iterator<iterator, BaseT, T,
                                                     PointerT, ReferenceT> {
   public:
+    /// Default-construct an empty indexed accessor iterator.
     iterator() : iterator::indexed_accessor_iterator(nullptr, 0) {}
-    // Index into this iterator, invoking a static method on the derived type.
+    /// Dereference this iterator via the derived range type.
     ReferenceT operator*() const {
       return DerivedT::dereference_iterator(this->getBase(), this->getIndex());
     }
@@ -1289,24 +1517,34 @@ public:
                                        ReferenceT>;
   };
 
+  /// Construct a range spanning [\p begin, \p end).
   indexed_accessor_range_base(iterator begin, iterator end)
       : base(offset_base(begin.getBase(), begin.getIndex())),
         count(end.getIndex() - begin.getIndex()) {}
+  /// Construct a range from an iterator_range of indexed accessors.
   indexed_accessor_range_base(const iterator_range<iterator> &range)
       : indexed_accessor_range_base(range.begin(), range.end()) {}
+  /// Construct a range over \p count elements of \p base.
   indexed_accessor_range_base(BaseT base, ptrdiff_t count)
       : base(base), count(count) {}
 
+  /// Return an iterator to the first element.
   iterator begin() const { return iterator(base, 0); }
+  /// Return an iterator past the last element.
   iterator end() const { return iterator(base, count); }
+  /// Return the element at \p Index.
+  ///
+  /// \param Index Zero-based offset into the range.
   ReferenceT operator[](size_t Index) const {
     assert(Index < size() && "invalid index for value range");
     return DerivedT::dereference_iterator(base, static_cast<ptrdiff_t>(Index));
   }
+  /// Return the first element of the range.
   ReferenceT front() const {
     assert(!empty() && "expected non-empty range");
     return (*this)[0];
   }
+  /// Return the last element of the range.
   ReferenceT back() const {
     assert(!empty() && "expected non-empty range");
     return (*this)[size() - 1];
@@ -1318,30 +1556,41 @@ public:
   /// Return if the range is empty.
   bool empty() const { return size() == 0; }
 
-  /// Drop the first N elements, and keep M elements.
+  /// Drop the first \p n elements and keep the next \p m elements.
+  ///
+  /// \param n Number of leading elements to drop.
+  /// \param m Number of elements to keep after dropping.
   DerivedT slice(size_t n, size_t m) const {
     assert(n + m <= size() && "invalid size specifiers");
     return DerivedT(offset_base(base, n), m);
   }
 
-  /// Drop the first n elements.
+  /// Drop the first \p n elements.
+  ///
+  /// \param n Number of leading elements to drop.
   DerivedT drop_front(size_t n = 1) const {
     assert(size() >= n && "Dropping more elements than exist");
     return slice(n, size() - n);
   }
-  /// Drop the last n elements.
+  /// Drop the last \p n elements.
+  ///
+  /// \param n Number of trailing elements to drop.
   DerivedT drop_back(size_t n = 1) const {
     assert(size() >= n && "Dropping more elements than exist");
     return DerivedT(base, size() - n);
   }
 
-  /// Take the first n elements.
+  /// Take the first \p n elements.
+  ///
+  /// \param n Number of leading elements to keep.
   DerivedT take_front(size_t n = 1) const {
     return n < size() ? drop_back(size() - n)
                       : static_cast<const DerivedT &>(*this);
   }
 
-  /// Take the last n elements.
+  /// Take the last \p n elements.
+  ///
+  /// \param n Number of trailing elements to keep.
   DerivedT take_back(size_t n = 1) const {
     return n < size() ? drop_front(size() - n)
                       : static_cast<const DerivedT &>(*this);
@@ -1364,10 +1613,15 @@ private:
   }
 
 protected:
+  /// Copy-construct an indexed accessor range base.
   indexed_accessor_range_base(const indexed_accessor_range_base &) = default;
+  /// Move-construct an indexed accessor range base.
   indexed_accessor_range_base(indexed_accessor_range_base &&) = default;
+  /// Copy-assign an indexed accessor range base.
+  ///
+  /// \param Other Range base to copy from.
   indexed_accessor_range_base &
-  operator=(const indexed_accessor_range_base &) = default;
+  operator=(const indexed_accessor_range_base &Other) = default;
 
   /// The base that owns the provided range of values.
   BaseT base;
@@ -1408,28 +1662,45 @@ class indexed_accessor_range
 public:
   /// Construct a range over \p count elements of \p base starting at
   /// \p startIndex.
+  ///
+  /// \param base Parent object providing indexed element access.
+  /// \param startIndex First index included in the range.
+  /// \param count Number of elements in the range.
   indexed_accessor_range(BaseT base, ptrdiff_t startIndex, ptrdiff_t count)
       : detail::indexed_accessor_range_base<
             DerivedT, std::pair<BaseT, ptrdiff_t>, T, PointerT, ReferenceT>(
             std::make_pair(base, startIndex), count) {}
+  /// Inherit the base range constructors.
   using detail::indexed_accessor_range_base<
       DerivedT, std::pair<BaseT, ptrdiff_t>, T, PointerT,
       ReferenceT>::indexed_accessor_range_base;
 
   /// Returns the current base of the range.
+  ///
+  /// \return The current base of the range.
   const BaseT &getBase() const { return this->base.first; }
 
   /// Returns the current start index of the range.
+  ///
+  /// \return The current start index of the range.
   ptrdiff_t getStartIndex() const { return this->base.second; }
 
-  /// See `detail::indexed_accessor_range_base` for details.
+  /// Return \p base advanced by \p index elements.
+  ///
+  /// \param base Encoded parent base and start index pair.
+  /// \param index Number of elements to offset.
+  /// \return Encoded base pair advanced by \p index elements.
   static std::pair<BaseT, ptrdiff_t>
   offset_base(const std::pair<BaseT, ptrdiff_t> &base, ptrdiff_t index) {
     // We encode the internal base as a pair of the derived base and a start
     // index into the derived base.
     return {base.first, base.second + index};
   }
-  /// See `detail::indexed_accessor_range_base` for details.
+  /// Dereference the element at \p index relative to \p base.
+  ///
+  /// \param base Encoded parent base and start index pair.
+  /// \param index Offset from the encoded start index.
+  /// \return Reference to the element at the computed index.
   static ReferenceT
   dereference_iterator(const std::pair<BaseT, ptrdiff_t> &base,
                        ptrdiff_t index) {
@@ -1451,7 +1722,10 @@ public:
 };
 } // end namespace detail
 
-/// Given a container of pairs, return a range over the first elements.
+/// Return a range over the first elements of pairs in \p c.
+///
+/// \param c Container of pair-like elements.
+/// \return A range over the first elements of pairs in \p c.
 template <typename ContainerTy> auto make_first_range(ContainerTy &&c) {
   using EltTy = decltype(*adl_begin(c));
   return llvm::map_range(std::forward<ContainerTy>(c),
@@ -1461,7 +1735,10 @@ template <typename ContainerTy> auto make_first_range(ContainerTy &&c) {
                          });
 }
 
-/// Given a container of pairs, return a range over the second elements.
+/// Return a range over the second elements of pairs in \p c.
+///
+/// \param c Container of pair-like elements.
+/// \return A range over the second elements of pairs in \p c.
 template <typename ContainerTy> auto make_second_range(ContainerTy &&c) {
   using EltTy = decltype(*adl_begin(c));
   return llvm::map_range(
@@ -1473,8 +1750,14 @@ template <typename ContainerTy> auto make_second_range(ContainerTy &&c) {
       });
 }
 
-/// Return a range that conditionally reverses \p C. The collection is iterated
-/// in reverse if \p ShouldReverse is true (otherwise, it is iterated forwards).
+/// Return a range that conditionally reverses \p C.
+///
+/// The collection is iterated in reverse if \p ShouldReverse is true
+/// (otherwise, it is iterated forwards).
+///
+/// \param C Container or range to view.
+/// \param ShouldReverse Whether to iterate in reverse order.
+/// \return A range over \p C, optionally reversed.
 template <typename ContainerTy>
 [[nodiscard]] auto reverse_conditionally(ContainerTy &&C, bool ShouldReverse) {
   using IterTy = detail::IterOfRange<ContainerTy>;
@@ -1489,21 +1772,33 @@ template <typename ContainerTy>
 //     Extra additions to <utility>
 //===----------------------------------------------------------------------===//
 
-/// Function object to check whether the first component of a container
-/// supported by std::get (like std::pair and std::tuple) compares less than the
-/// first component of another container.
+/// Compare first components of pair-like values with std::less.
+///
+/// Checks whether the first component of a container supported by std::get
+/// (like std::pair and std::tuple) compares less than the first component of
+/// another container.
 struct less_first {
   /// Compare the first components of \p lhs and \p rhs.
+  ///
+  /// \param lhs Left-hand pair-like value.
+  /// \param rhs Right-hand pair-like value.
+  /// \return True if the first component of \p lhs is less than that of \p rhs.
   template <typename T> bool operator()(const T &lhs, const T &rhs) const {
     return std::less<>()(std::get<0>(lhs), std::get<0>(rhs));
   }
 };
 
-/// Function object to check whether the second component of a container
-/// supported by std::get (like std::pair and std::tuple) compares less than the
-/// second component of another container.
+/// Compare second components of pair-like values with std::less.
+///
+/// Checks whether the second component of a container supported by std::get
+/// (like std::pair and std::tuple) compares less than the second component of
+/// another container.
 struct less_second {
   /// Compare the second components of \p lhs and \p rhs.
+  ///
+  /// \param lhs Left-hand pair-like value.
+  /// \param rhs Right-hand pair-like value.
+  /// \return True if the second component of \p lhs is less than that of \p rhs.
   template <typename T> bool operator()(const T &lhs, const T &rhs) const {
     return std::less<>()(std::get<1>(lhs), std::get<1>(rhs));
   }
@@ -1517,15 +1812,19 @@ struct on_first {
   FuncTy func;
 
   /// Apply \c func to the first components of \p lhs and \p rhs.
+  ///
+  /// \param lhs Left-hand pair.
+  /// \param rhs Right-hand pair.
+  /// \return Result of applying \c func to the first components.
   template <typename T>
   decltype(auto) operator()(const T &lhs, const T &rhs) const {
     return func(lhs.first, rhs.first);
   }
 };
 
-/// Utility type to build an inheritance chain that makes it easy to rank
-/// overload candidates.
+/// Inheritance-chain tag used to rank overload candidates.
 template <int N> struct rank : rank<N - 1> {};
+/// Base rank tag for the lowest-priority overload candidate.
 template <> struct rank<0> {};
 
 namespace detail {
@@ -1575,6 +1874,8 @@ template <typename HeadT> struct Visitor<HeadT> : remove_cvref_t<HeadT> {
 ///     [](int i) { return i; },
 ///     [](std::string s) { return atoi(s); });
 /// \endcode
+/// \param Callables Callables whose call operators are combined.
+/// \return A visitor whose call operators are the sum of \p Callables.
 template <typename... CallableTs>
 constexpr decltype(auto) makeVisitor(CallableTs &&...Callables) {
   return detail::Visitor<CallableTs...>(std::forward<CallableTs>(Callables)...);
@@ -1587,6 +1888,10 @@ constexpr decltype(auto) makeVisitor(CallableTs &&...Callables) {
 // We have a copy here so that LLVM behaves the same when using different
 // standard libraries.
 /// Randomly shuffle the elements in [\p first, \p last) using generator \p g.
+///
+/// \param first Iterator to the first element to shuffle.
+/// \param last Iterator past the last element to shuffle.
+/// \param g Uniform random bit generator.
 template <class Iterator, class RNG>
 void shuffle(Iterator first, Iterator last, RNG &&g) {
   // It would be better to use a std::uniform_int_distribution,
@@ -1603,6 +1908,10 @@ void shuffle(Iterator first, Iterator last, RNG &&g) {
 }
 
 /// Adapt std::less<T> for array_pod_sort.
+///
+/// \param P1 Pointer to the left-hand element.
+/// \param P2 Pointer to the right-hand element.
+/// \return Negative, zero, or positive as \p P1 compares less, equal, or greater.
 template<typename T>
 inline int array_pod_sort_comparator(const void *P1, const void *P2) {
   if (std::less<T>()(*reinterpret_cast<const T*>(P1),
@@ -1614,11 +1923,16 @@ inline int array_pod_sort_comparator(const void *P1, const void *P2) {
   return 0;
 }
 
-/// get_array_pod_sort_comparator - This is an internal helper function used to
-/// get type deduction of T right.
+/// Return the qsort comparator for elements of type \c T.
+///
+/// This is an internal helper used to get type deduction of \c T right.
+///
+/// \param Sample Unused sample element used only for type deduction.
+/// \return Pointer to the qsort comparator for elements of type \c T.
 template<typename T>
-inline int (*get_array_pod_sort_comparator(const T &))
+inline int (*get_array_pod_sort_comparator(const T &Sample))
              (const void*, const void*) {
+  (void)Sample;
   return array_pod_sort_comparator<T>;
 }
 
@@ -1654,6 +1968,8 @@ inline void presortShuffle(IteratorTy Start, IteratorTy End) {
 ///
 /// NOTE: If qsort_r were portable, we could allow a custom comparator and
 /// default to std::less.
+/// \param Start Iterator to the first element to sort.
+/// \param End Iterator past the last element to sort.
 template<class IteratorTy>
 inline void array_pod_sort(IteratorTy Start, IteratorTy End) {
   // Don't inefficiently call qsort with one element or trigger undefined
@@ -1666,8 +1982,12 @@ inline void array_pod_sort(IteratorTy Start, IteratorTy End) {
   qsort(&*Start, NElts, sizeof(*Start), get_array_pod_sort_comparator(*Start));
 }
 
-template <class IteratorTy>
 /// Sort POD-like elements in [\p Start, \p End) using \p Compare.
+///
+/// \param Start Iterator to the first element to sort.
+/// \param End Iterator past the last element to sort.
+/// \param Compare Comparison function compatible with qsort.
+template <class IteratorTy>
 inline void array_pod_sort(
     IteratorTy Start, IteratorTy End,
     int (*Compare)(
@@ -1696,6 +2016,9 @@ using sort_trivially_copyable = std::conjunction<
 // Provide wrappers to std::sort which shuffle the elements before sorting
 // to help uncover non-deterministic behavior (PR35135).
 /// Sort the elements in [\p Start, \p End) in ascending order.
+///
+/// \param Start Iterator to the first element to sort.
+/// \param End Iterator past the last element to sort.
 template <typename IteratorTy>
 inline void sort(IteratorTy Start, IteratorTy End) {
   if constexpr (detail::sort_trivially_copyable<IteratorTy>::value) {
@@ -1711,11 +2034,17 @@ inline void sort(IteratorTy Start, IteratorTy End) {
 }
 
 /// Sort the elements of \p C in ascending order.
+///
+/// \param C Container whose elements are sorted.
 template <typename Container> inline void sort(Container &&C) {
   llvm::sort(adl_begin(C), adl_end(C));
 }
 
 /// Sort the elements in [\p Start, \p End) using \p Comp.
+///
+/// \param Start Iterator to the first element to sort.
+/// \param End Iterator past the last element to sort.
+/// \param Comp Comparison function object.
 template <typename IteratorTy, typename Compare>
 inline void sort(IteratorTy Start, IteratorTy End, Compare Comp) {
 #ifdef EXPENSIVE_CHECKS
@@ -1725,13 +2054,21 @@ inline void sort(IteratorTy Start, IteratorTy End, Compare Comp) {
 }
 
 /// Sort the elements of \p C using \p Comp.
+///
+/// \param C Container whose elements are sorted.
+/// \param Comp Comparison function object.
 template <typename Container, typename Compare>
 inline void sort(Container &&C, Compare Comp) {
   llvm::sort(adl_begin(C), adl_end(C), Comp);
 }
 
-/// Get the size of a range. This is a wrapper function around std::distance
-/// which is only enabled when the operation is O(1).
+/// Return the size of \p Range when distance is O(1).
+///
+/// This is a wrapper around std::distance which is only enabled when the
+/// operation is O(1).
+///
+/// \param Range Random-access range whose size is computed.
+/// \return The number of elements in \p Range.
 template <typename R>
 auto size(R &&Range,
           std::enable_if_t<
@@ -1752,12 +2089,16 @@ static constexpr bool HasFreeFunctionSize =
     is_detected<check_has_free_function_size, Range>::value;
 } // namespace detail
 
-/// Returns the size of the \p Range, i.e., the number of elements. This
-/// implementation takes inspiration from `std::ranges::size` from C++20 and
+/// Return the number of elements in \p Range.
+///
+/// This implementation takes inspiration from `std::ranges::size` from C++20 and
 /// delegates the size check to `adl_size` or `std::distance`, in this order of
 /// preference. Unlike `llvm::size`, this function does *not* guarantee O(1)
 /// running time, and is intended to be used in generic code that does not know
 /// the exact range type.
+///
+/// \param Range Range whose size is computed.
+/// \return The number of elements in \p Range.
 template <typename R> constexpr size_t range_size(R &&Range) {
   if constexpr (detail::HasFreeFunctionSize<R>)
     return adl_size(Range);
@@ -1765,103 +2106,151 @@ template <typename R> constexpr size_t range_size(R &&Range) {
     return static_cast<size_t>(std::distance(adl_begin(Range), adl_end(Range)));
 }
 
-/// Wrapper for std::accumulate.
+/// Accumulate the elements of \p Range starting from \p Init.
+///
+/// \param Range Range whose elements are accumulated.
+/// \param Init Initial value for the accumulation.
+/// \return The accumulated result.
 template <typename R, typename E> auto accumulate(R &&Range, E &&Init) {
   return std::accumulate(adl_begin(Range), adl_end(Range),
                          std::forward<E>(Init));
 }
 
-/// Wrapper for std::accumulate with a binary operator.
+/// Accumulate the elements of \p Range with \p Op starting from \p Init.
+///
+/// \param Range Range whose elements are accumulated.
+/// \param Init Initial value for the accumulation.
+/// \param Op Binary operator applied during accumulation.
+/// \return The accumulated result.
 template <typename R, typename E, typename BinaryOp>
 auto accumulate(R &&Range, E &&Init, BinaryOp &&Op) {
   return std::accumulate(adl_begin(Range), adl_end(Range),
                          std::forward<E>(Init), std::forward<BinaryOp>(Op));
 }
 
-/// Returns the sum of all values in `Range` with `Init` initial value.
-/// The default initial value is 0.
+/// Return the sum of values in \p Range starting from \p Init.
+///
+/// \param Range Range whose values are summed.
+/// \param Init Initial value for the sum (defaults to 0).
+/// \return The sum of values in \p Range starting from \p Init.
 template <typename R, typename E = detail::ValueOfRange<R>>
 auto sum_of(R &&Range, E Init = E{0}) {
   return accumulate(std::forward<R>(Range), std::move(Init));
 }
 
-/// Returns the product of all values in `Range` with `Init` initial value.
-/// The default initial value is 1.
+/// Return the product of values in \p Range starting from \p Init.
+///
+/// \param Range Range whose values are multiplied.
+/// \param Init Initial value for the product (defaults to 1).
+/// \return The product of values in \p Range starting from \p Init.
 template <typename R, typename E = detail::ValueOfRange<R>>
 auto product_of(R &&Range, E Init = E{1}) {
   return accumulate(std::forward<R>(Range), std::move(Init),
                     std::multiplies<>{});
 }
 
-/// Provide wrappers to std::for_each which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Apply \p F to each element of \p Range.
+///
+/// \param Range Range to iterate.
+/// \param F Unary function applied to each element.
+/// \return The function object \p F after iteration.
 template <typename R, typename UnaryFunction>
 UnaryFunction for_each(R &&Range, UnaryFunction F) {
   return std::for_each(adl_begin(Range), adl_end(Range), F);
 }
 
-/// Provide wrappers to std::all_of which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Return true if \p P is true for every element of \p Range.
+///
+/// \param Range Range to test.
+/// \param P Unary predicate applied to each element.
+/// \return True if \p P is true for every element of \p Range.
 template <typename R, typename UnaryPredicate>
 bool all_of(R &&Range, UnaryPredicate P) {
   return std::all_of(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Provide wrappers to std::any_of which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Return true if \p P is true for any element of \p Range.
+///
+/// \param Range Range to test.
+/// \param P Unary predicate applied to each element.
+/// \return True if \p P is true for any element of \p Range.
 template <typename R, typename UnaryPredicate>
 bool any_of(R &&Range, UnaryPredicate P) {
   return std::any_of(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Provide wrappers to std::none_of which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Return true if \p P is false for every element of \p Range.
+///
+/// \param Range Range to test.
+/// \param P Unary predicate applied to each element.
+/// \return True if \p P is false for every element of \p Range.
 template <typename R, typename UnaryPredicate>
 bool none_of(R &&Range, UnaryPredicate P) {
   return std::none_of(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Provide wrappers to std::fill which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Assign \p Value to every element of \p Range.
+///
+/// \param Range Range whose elements are assigned.
+/// \param Value Value written to each element.
 template <typename R, typename T> void fill(R &&Range, T &&Value) {
   std::fill(adl_begin(Range), adl_end(Range), std::forward<T>(Value));
 }
 
-/// Provide wrappers to std::find which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Return an iterator to the first occurrence of \p Val in \p Range.
+///
+/// \param Range Range to search.
+/// \param Val Value to find.
+/// \return Iterator to the first occurrence of \p Val, or the end iterator.
 template <typename R, typename T> auto find(R &&Range, const T &Val) {
   return std::find(adl_begin(Range), adl_end(Range), Val);
 }
 
-/// Provide wrappers to std::find_if which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Return an iterator to the first element of \p Range for which \p P is true.
+///
+/// \param Range Range to search.
+/// \param P Unary predicate applied to each element.
+/// \return Iterator to the first matching element, or the end iterator.
 template <typename R, typename UnaryPredicate>
 auto find_if(R &&Range, UnaryPredicate P) {
   return std::find_if(adl_begin(Range), adl_end(Range), P);
 }
 
 /// Return an iterator to the first element of \p Range for which \p P is false.
+///
+/// \param Range Range to search.
+/// \param P Unary predicate applied to each element.
+/// \return Iterator to the first non-matching element, or the end iterator.
 template <typename R, typename UnaryPredicate>
 auto find_if_not(R &&Range, UnaryPredicate P) {
   return std::find_if_not(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Provide wrappers to std::remove_if which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Remove elements of \p Range for which \p P is true.
+///
+/// \param Range Range to compact.
+/// \param P Unary predicate selecting elements to remove.
+/// \return Iterator past the last element not removed.
 template <typename R, typename UnaryPredicate>
 auto remove_if(R &&Range, UnaryPredicate P) {
   return std::remove_if(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Provide wrappers to std::copy_if which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Copy elements of \p Range for which \p P is true into \p Out.
+///
+/// \param Range Range to copy from.
+/// \param Out Output iterator receiving matching elements.
+/// \param P Unary predicate selecting elements to copy.
+/// \return Output iterator past the last written element.
 template <typename R, typename OutputIt, typename UnaryPredicate>
 OutputIt copy_if(R &&Range, OutputIt Out, UnaryPredicate P) {
   return std::copy_if(adl_begin(Range), adl_end(Range), Out, P);
 }
 
-/// Provide wrappers to std::search which searches for the first occurrence of
-/// Range2 within Range1.
+/// Search for the first occurrence of \p Range2 within \p Range1.
+///
+/// \param Range1 Range to search in.
+/// \param Range2 Subrange to search for.
 /// \returns An iterator to the start of Range2 within Range1 if found, or
 ///          the end iterator of Range1 if not found.
 template <typename R1, typename R2> auto search(R1 &&Range1, R2 &&Range2) {
@@ -1869,8 +2258,11 @@ template <typename R1, typename R2> auto search(R1 &&Range1, R2 &&Range2) {
                      adl_end(Range2));
 }
 
-/// Provide wrappers to std::search which searches for the first occurrence of
-/// Range2 within Range1 using predicate `P`.
+/// Search for \p Range2 within \p Range1 using predicate \p P.
+///
+/// \param Range1 Range to search in.
+/// \param Range2 Subrange to search for.
+/// \param P Binary predicate comparing elements for equality.
 /// \returns An iterator to the start of Range2 within Range1 if found, or
 ///          the end iterator of Range1 if not found.
 template <typename R1, typename R2, typename BinaryPredicate>
@@ -1879,28 +2271,36 @@ auto search(R1 &&Range1, R2 &&Range2, BinaryPredicate P) {
                      adl_end(Range2), P);
 }
 
-/// Provide wrappers to std::adjacent_find which finds the first pair of
-/// adjacent elements that are equal.
-/// \returns An iterator to the first adjacent element within Range1 if found,
-///          or the end iterator of Range1 if not found.
+/// Find the first pair of adjacent equal elements in \p Range.
+///
+/// \param Range Range to search.
+/// \returns An iterator to the first adjacent element within Range if found,
+///          or the end iterator of Range if not found.
 template <typename R> auto adjacent_find(R &&Range) {
   return std::adjacent_find(adl_begin(Range), adl_end(Range));
 }
 
-/// Provide wrappers to std::adjacent_find which finds the first pair of
-/// adjacent elements that are satisfy `P`.
-/// \returns An iterator to the first adjacent element within Range1 if found,
-///          or the end iterator of Range1 if not found.
+/// Find the first adjacent pair in \p Range that satisfies \p P.
+///
+/// \param Range Range to search.
+/// \param P Binary predicate applied to adjacent elements.
+/// \returns An iterator to the first adjacent element within Range if found,
+///          or the end iterator of Range if not found.
 template <typename R, typename BinaryPredicate>
 auto adjacent_find(R &&Range, BinaryPredicate P) {
   return std::adjacent_find(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Return the single value in \p Range that satisfies
-/// \p P(<member of \p Range> *, AllowRepeats)->T * returning nullptr
-/// when no values or multiple values were found.
-/// When \p AllowRepeats is true, multiple values that compare equal
-/// are allowed.
+/// Return the single value in \p Range accepted by \p P, else nullptr.
+///
+/// \p P has the form P(<member of Range>, AllowRepeats) -> T *. Returns
+/// nullptr when no values or multiple values were found. When
+/// \p AllowRepeats is true, multiple values that compare equal are allowed.
+///
+/// \param Range Range to search.
+/// \param P Predicate returning a matching pointer or nullptr.
+/// \param AllowRepeats Whether equal repeats of the same value are allowed.
+/// \return The singleton match, or nullptr if none or multiple were found.
 template <typename T, typename R, typename Predicate>
 T *find_singleton(R &&Range, Predicate P, bool AllowRepeats = false) {
   T *RC = nullptr;
@@ -1917,15 +2317,19 @@ T *find_singleton(R &&Range, Predicate P, bool AllowRepeats = false) {
   return RC;
 }
 
-/// Return a pair consisting of the single value in \p Range that satisfies
-/// \p P(<member of \p Range> *, AllowRepeats)->std::pair<T*, bool> returning
-/// nullptr when no values or multiple values were found, and a bool indicating
-/// whether multiple values were found to cause the nullptr.
-/// When \p AllowRepeats is true, multiple values that compare equal are
-/// allowed.  The predicate \p P returns a pair<T *, bool> where T is the
-/// singleton while the bool indicates whether multiples have already been
-/// found.  It is expected that first will be nullptr when second is true.
-/// This allows using find_singleton_nested within the predicate \P.
+/// Return the nested singleton match in \p Range, or a failure pair.
+///
+/// \p P returns std::pair<T *, bool> where the pointer is the candidate and
+/// the bool reports that multiples were already found. Returns nullptr when no
+/// values or multiple values were found, with a bool indicating whether
+/// multiples caused the nullptr. When \p AllowRepeats is true, multiple equal
+/// values are allowed. It is expected that first is nullptr when second is
+/// true. This allows using find_singleton_nested within the predicate \p P.
+///
+/// \param Range Range to search.
+/// \param P Nested singleton predicate.
+/// \param AllowRepeats Whether equal repeats of the same value are allowed.
+/// \return Pair of the singleton match and whether multiples caused failure.
 template <typename T, typename R, typename Predicate>
 std::pair<T *, bool> find_singleton_nested(R &&Range, Predicate P,
                                            bool AllowRepeats = false) {
@@ -1950,13 +2354,22 @@ std::pair<T *, bool> find_singleton_nested(R &&Range, Predicate P,
 }
 
 /// Copy the elements of \p Range into the output range starting at \p Out.
+///
+/// \param Range Range to copy from.
+/// \param Out Output iterator receiving the copied elements.
+/// \return Output iterator past the last written element.
 template <typename R, typename OutputIt>
 OutputIt copy(R &&Range, OutputIt Out) {
   return std::copy(adl_begin(Range), adl_end(Range), Out);
 }
 
-/// Provide wrappers to std::replace_copy_if which take ranges instead of having
-/// to pass begin/end explicitly.
+/// Copy \p Range to \p Out, replacing elements for which \p P is true.
+///
+/// \param Range Range to copy from.
+/// \param Out Output iterator receiving the results.
+/// \param P Unary predicate selecting elements to replace.
+/// \param NewValue Replacement value for matching elements.
+/// \return Output iterator past the last written element.
 template <typename R, typename OutputIt, typename UnaryPredicate, typename T>
 OutputIt replace_copy_if(R &&Range, OutputIt Out, UnaryPredicate P,
                          const T &NewValue) {
@@ -1964,8 +2377,13 @@ OutputIt replace_copy_if(R &&Range, OutputIt Out, UnaryPredicate P,
                               NewValue);
 }
 
-/// Provide wrappers to std::replace_copy which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Copy \p Range to \p Out, replacing \p OldValue with \p NewValue.
+///
+/// \param Range Range to copy from.
+/// \param Out Output iterator receiving the results.
+/// \param OldValue Value to replace.
+/// \param NewValue Replacement value.
+/// \return Output iterator past the last written element.
 template <typename R, typename OutputIt, typename T>
 OutputIt replace_copy(R &&Range, OutputIt Out, const T &OldValue,
                       const T &NewValue) {
@@ -1973,15 +2391,21 @@ OutputIt replace_copy(R &&Range, OutputIt Out, const T &OldValue,
                            NewValue);
 }
 
-/// Provide wrappers to std::replace which take ranges instead of having to pass
-/// begin/end explicitly.
+/// Replace occurrences of \p OldValue with \p NewValue in \p Range.
+///
+/// \param Range Range whose elements are updated.
+/// \param OldValue Value to replace.
+/// \param NewValue Replacement value.
 template <typename R, typename T>
 void replace(R &&Range, const T &OldValue, const T &NewValue) {
   std::replace(adl_begin(Range), adl_end(Range), OldValue, NewValue);
 }
 
-/// Provide wrappers to std::move which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Move the elements of \p Range into the output range starting at \p Out.
+///
+/// \param Range Range to move from.
+/// \param Out Output iterator receiving the moved elements.
+/// \return Output iterator past the last written element.
 template <typename R, typename OutputIt>
 OutputIt move(R &&Range, OutputIt Out) {
   return std::move(adl_begin(Range), adl_end(Range), Out);
@@ -2007,11 +2431,16 @@ static constexpr bool HasMemberFind =
 
 } // namespace detail
 
-/// Returns true if \p Element is found in \p Range. Delegates the check to
-/// either `.contains(Element)`, `.find(Element)`, or `std::find`, in this
-/// order of preference. This is intended as the canonical way to check if an
-/// element exists in a range in generic code or range type that does not
-/// expose a `.contains(Element)` member.
+/// Return true if \p Element is found in \p Range.
+///
+/// Delegates the check to either `.contains(Element)`, `.find(Element)`, or
+/// `std::find`, in this order of preference. This is intended as the canonical
+/// way to check if an element exists in a range in generic code or range type
+/// that does not expose a `.contains(Element)` member.
+///
+/// \param Range Range or container to search.
+/// \param Element Value to look for.
+/// \return True if \p Element is found in \p Range.
 template <typename R, typename E>
 bool is_contained(R &&Range, const E &Element) {
   if constexpr (detail::HasMemberContains<R, E>)
@@ -2023,8 +2452,13 @@ bool is_contained(R &&Range, const E &Element) {
            adl_end(Range);
 }
 
-/// Returns true iff \p Element exists in \p Set. This overload takes \p Set as
-/// an initializer list and is `constexpr`-friendly.
+/// Return true iff \p Element exists in initializer list \p Set.
+///
+/// This overload is `constexpr`-friendly.
+///
+/// \param Set Initializer list to search.
+/// \param Element Value to look for.
+/// \return True if \p Element exists in \p Set.
 template <typename T, typename E>
 constexpr bool is_contained(std::initializer_list<T> Set, const E &Element) {
   // TODO: Use std::find when we switch to C++20.
@@ -2034,30 +2468,43 @@ constexpr bool is_contained(std::initializer_list<T> Set, const E &Element) {
   return false;
 }
 
-/// Wrapper function around std::is_sorted to check if elements in a range \p R
-/// are sorted with respect to a comparator \p C.
+/// Return true if \p Range is sorted with respect to comparator \p C.
+///
+/// \param Range Range to test.
+/// \param C Comparison function object.
+/// \return True if \p Range is sorted with respect to \p C.
 template <typename R, typename Compare> bool is_sorted(R &&Range, Compare C) {
   return std::is_sorted(adl_begin(Range), adl_end(Range), C);
 }
 
-/// Wrapper function around std::is_sorted to check if elements in a range \p R
-/// are sorted in non-descending order.
+/// Return true if \p Range is sorted in non-descending order.
+///
+/// \param Range Range to test.
+/// \return True if \p Range is sorted in non-descending order.
 template <typename R> bool is_sorted(R &&Range) {
   return std::is_sorted(adl_begin(Range), adl_end(Range));
 }
 
-/// Check if elements in a range \p R are sorted with respect to a comparator \p
-/// C. constexpr allows use in static_assert
-/// TODO: Remove and use std::is_sorted once upgraded to Cpp20
+/// Return true if \p Range is sorted under comparator \p C.
+///
+/// constexpr allows use in static_assert.
+/// TODO: Remove and use std::is_sorted once upgraded to Cpp20.
+///
+/// \param Range Range to test.
+/// \param C Comparison function object.
+/// \return True if \p Range is sorted under comparator \p C.
 template <typename R, typename Cmp = std::less<>>
 constexpr bool is_sorted_constexpr(R &&Range, Cmp C = Cmp{}) {
   return llvm::is_sorted_constexpr(adl_begin(Range), adl_end(Range), C);
 }
 
-/// Provide wrappers to std::includes which take ranges instead of having to
-/// pass begin/end explicitly.
-/// This function checks if the sorted range \p R2 is a subsequence of the
-/// sorted range \p R1. The ranges must be sorted in non-descending order.
+/// Return true if sorted \p Range2 is a subsequence of sorted \p Range1.
+///
+/// The ranges must be sorted in non-descending order.
+///
+/// \param Range1 Sorted range that may contain \p Range2.
+/// \param Range2 Sorted subsequence candidate.
+/// \return True if sorted \p Range2 is a subsequence of sorted \p Range1.
 template <typename R1, typename R2> bool includes(R1 &&Range1, R2 &&Range2) {
   assert(is_sorted(Range1) && "Range1 must be sorted in non-descending order");
   assert(is_sorted(Range2) && "Range2 must be sorted in non-descending order");
@@ -2065,9 +2512,14 @@ template <typename R1, typename R2> bool includes(R1 &&Range1, R2 &&Range2) {
                        adl_end(Range2));
 }
 
-/// This function checks if the sorted range \p R2 is a subsequence of the
-/// sorted range \p R1. The ranges must be sorted with respect to a comparator
-/// \p C.
+/// Return true if sorted \p Range2 is a subsequence of sorted \p Range1.
+///
+/// The ranges must be sorted with respect to comparator \p C.
+///
+/// \param Range1 Sorted range that may contain \p Range2.
+/// \param Range2 Sorted subsequence candidate.
+/// \param C Comparison function object.
+/// \return True if sorted \p Range2 is a subsequence of sorted \p Range1.
 template <typename R1, typename R2, typename Compare>
 bool includes(R1 &&Range1, R2 &&Range2, Compare &&C) {
   assert(is_sorted(Range1, C) && "Range1 must be sorted with respect to C");
@@ -2076,64 +2528,96 @@ bool includes(R1 &&Range1, R2 &&Range2, Compare &&C) {
                        adl_end(Range2), std::forward<Compare>(C));
 }
 
-/// Wrapper function around std::count to count the number of times an element
-/// \p Element occurs in the given range \p Range.
+/// Count how many times \p Element occurs in \p Range.
+///
+/// \param Range Range to search.
+/// \param Element Value to count.
+/// \return The number of times \p Element occurs in \p Range.
 template <typename R, typename E> auto count(R &&Range, const E &Element) {
   return std::count(adl_begin(Range), adl_end(Range), Element);
 }
 
-/// Wrapper function around std::count_if to count the number of times an
-/// element satisfying a given predicate occurs in a range.
+/// Count elements of \p Range for which \p P is true.
+///
+/// \param Range Range to search.
+/// \param P Unary predicate selecting elements to count.
+/// \return The number of elements for which \p P is true.
 template <typename R, typename UnaryPredicate>
 auto count_if(R &&Range, UnaryPredicate P) {
   return std::count_if(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Wrapper function around std::transform to apply a function to a range and
-/// store the result elsewhere.
+/// Apply \p F to each element of \p Range and store results at \p d_first.
+///
+/// \param Range Range to transform.
+/// \param d_first Output iterator receiving transformed values.
+/// \param F Unary function applied to each element.
+/// \return Output iterator past the last written element.
 template <typename R, typename OutputIt, typename UnaryFunction>
 OutputIt transform(R &&Range, OutputIt d_first, UnaryFunction F) {
   return std::transform(adl_begin(Range), adl_end(Range), d_first, F);
 }
 
-/// Provide wrappers to std::partition which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Partition \p Range so elements satisfying \p P precede the rest.
+///
+/// \param Range Range to partition.
+/// \param P Unary predicate selecting the true partition.
+/// \return Iterator to the first element of the false partition.
 template <typename R, typename UnaryPredicate>
 auto partition(R &&Range, UnaryPredicate P) {
   return std::partition(adl_begin(Range), adl_end(Range), P);
 }
 
-/// Provide wrappers to std::binary_search which take ranges instead of having
-/// to pass begin/end explicitly.
+/// Return whether \p Value appears in sorted \p Range.
+///
+/// \param Range Sorted range to search.
+/// \param Value Value to look for.
+/// \return True if \p Value appears in sorted \p Range.
 template <typename R, typename T> auto binary_search(R &&Range, T &&Value) {
   return std::binary_search(adl_begin(Range), adl_end(Range),
                             std::forward<T>(Value));
 }
 
-template <typename R, typename T, typename Compare>
 /// Return whether \p Value appears in sorted \p Range using \p C.
+///
+/// \param Range Sorted range to search.
+/// \param Value Value to look for.
+/// \param C Comparison function object.
+/// \return True if \p Value appears in sorted \p Range under \p C.
+template <typename R, typename T, typename Compare>
 auto binary_search(R &&Range, T &&Value, Compare C) {
   return std::binary_search(adl_begin(Range), adl_end(Range),
                             std::forward<T>(Value), C);
 }
 
-/// Provide wrappers to std::lower_bound which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Return the first position in sorted \p Range where \p Value could be inserted.
+///
+/// \param Range Sorted range to search.
+/// \param Value Value to bound.
+/// \return Iterator to the first position where \p Value could be inserted.
 template <typename R, typename T> auto lower_bound(R &&Range, T &&Value) {
   return std::lower_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value));
 }
 
-template <typename R, typename T, typename Compare>
 /// Return the first position in sorted \p Range where \p Value could be
 /// inserted using \p C.
+///
+/// \param Range Sorted range to search.
+/// \param Value Value to bound.
+/// \param C Comparison function object.
+/// \return Iterator to the first position where \p Value could be inserted.
+template <typename R, typename T, typename Compare>
 auto lower_bound(R &&Range, T &&Value, Compare C) {
   return std::lower_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value), C);
 }
 
-/// Provide wrappers to std::upper_bound which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Return the first position in sorted \p Range after which \p Value could be inserted.
+///
+/// \param Range Sorted range to search.
+/// \param Value Value to bound.
+/// \return Iterator to the first position after which \p Value could be inserted.
 template <typename R, typename T> auto upper_bound(R &&Range, T &&Value) {
   return std::upper_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value));
@@ -2141,69 +2625,100 @@ template <typename R, typename T> auto upper_bound(R &&Range, T &&Value) {
 
 /// Return the first position in sorted \p Range after which \p Value could be
 /// inserted using \p C.
+///
+/// \param Range Sorted range to search.
+/// \param Value Value to bound.
+/// \param C Comparison function object.
+/// \return Iterator to the first position after which \p Value could be inserted.
 template <typename R, typename T, typename Compare>
 auto upper_bound(R &&Range, T &&Value, Compare C) {
   return std::upper_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value), C);
 }
 
-/// Provide wrappers to std::min_element which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Return an iterator to the minimum element of \p Range.
+///
+/// \param Range Range to search.
+/// \return Iterator to the minimum element of \p Range.
 template <typename R> auto min_element(R &&Range) {
   return std::min_element(adl_begin(Range), adl_end(Range));
 }
 
-/// Return the minimum element of \p Range using \p C.
+/// Return an iterator to the minimum element of \p Range using \p C.
+///
+/// \param Range Range to search.
+/// \param C Comparison function object.
+/// \return Iterator to the minimum element of \p Range under \p C.
 template <typename R, typename Compare> auto min_element(R &&Range, Compare C) {
   return std::min_element(adl_begin(Range), adl_end(Range), C);
 }
 
-/// Provide wrappers to std::max_element which take ranges instead of having to
-/// pass begin/end explicitly.
+/// Return an iterator to the maximum element of \p Range.
+///
+/// \param Range Range to search.
+/// \return Iterator to the maximum element of \p Range.
 template <typename R> auto max_element(R &&Range) {
   return std::max_element(adl_begin(Range), adl_end(Range));
 }
 
-template <typename R, typename Compare>
 /// Return an iterator to the maximum element of \p Range using \p C.
+///
+/// \param Range Range to search.
+/// \param C Comparison function object.
+/// \return Iterator to the maximum element of \p Range under \p C.
+template <typename R, typename Compare>
 auto max_element(R &&Range, Compare C) {
   return std::max_element(adl_begin(Range), adl_end(Range), C);
 }
 
-/// Provide wrappers to std::mismatch which take ranges instead of having to
-/// pass begin/end explicitly.
-/// This function returns a pair of iterators for the first mismatching elements
-/// from `R1` and `R2`. As an example, if:
+/// Return iterators to the first mismatching elements of two ranges.
 ///
-/// R1 = [0, 1, 4, 6], R2 = [0, 1, 5, 6]
+/// As an example, if R1 = [0, 1, 4, 6] and R2 = [0, 1, 5, 6], this function
+/// returns a pair of iterators pointing to R1[2] and R2[2].
 ///
-/// this function will return a pair of iterators, first pointing to R1[2] and
-/// second pointing to R2[2].
+/// \param Range1 First range to compare.
+/// \param Range2 Second range to compare.
+/// \return Pair of iterators to the first mismatching elements.
 template <typename R1, typename R2> auto mismatch(R1 &&Range1, R2 &&Range2) {
   return std::mismatch(adl_begin(Range1), adl_end(Range1), adl_begin(Range2),
                        adl_end(Range2));
 }
 
 /// Copy range \p Src into uninitialized memory at \p Dst.
+///
+/// \param Src Range to copy from.
+/// \param Dst Output iterator into uninitialized storage.
+/// \return Output iterator past the last constructed element.
 template <typename R, typename IterTy>
 auto uninitialized_copy(R &&Src, IterTy Dst) {
   return std::uninitialized_copy(adl_begin(Src), adl_end(Src), Dst);
 }
 
 /// Stable-sort the elements of \p Range.
+///
+/// \param Range Range whose elements are sorted.
 template <typename R>
 void stable_sort(R &&Range) {
   std::stable_sort(adl_begin(Range), adl_end(Range));
 }
 
 /// Stable-sort the elements of \p Range using comparator \p C.
+///
+/// \param Range Range whose elements are sorted.
+/// \param C Comparison function object.
 template <typename R, typename Compare>
 void stable_sort(R &&Range, Compare C) {
   std::stable_sort(adl_begin(Range), adl_end(Range), C);
 }
 
-/// Binary search for the first iterator in a range where a predicate is false.
-/// Requires that C is always true below some limit, and always false above it.
+/// Return the partition point of \p Range under predicate \p P.
+///
+/// Requires that \p P is always true below some limit, and always false above
+/// it.
+///
+/// \param Range Partitioned range to search.
+/// \param P Unary predicate defining the partition.
+/// \return Iterator to the partition point of \p Range under \p P.
 template <typename R, typename Predicate,
           typename Val = decltype(*adl_begin(std::declval<R>()))>
 auto partition_point(R &&Range, Predicate P) {
@@ -2211,88 +2726,126 @@ auto partition_point(R &&Range, Predicate P) {
 }
 
 /// Collapse consecutive equal elements of \p R according to predicate \p P.
+///
+/// \param R Range to compact.
+/// \param P Binary predicate deciding element equality.
+/// \return Iterator past the last unique element.
 template<typename Range, typename Predicate>
 auto unique(Range &&R, Predicate P) {
   return std::unique(adl_begin(R), adl_end(R), P);
 }
 
-/// Wrapper function around std::unique to allow calling unique on a
-/// container without having to specify the begin/end iterators.
+/// Collapse consecutive equal elements of \p R.
+///
+/// \param R Range to compact.
+/// \return Iterator past the last unique element.
 template <typename Range> auto unique(Range &&R) {
   return std::unique(adl_begin(R), adl_end(R));
 }
 
-/// Wrapper function around std::equal to detect if pair-wise elements between
-/// two ranges are the same.
+/// Return whether corresponding elements of \p LRange and \p RRange are equal.
+///
+/// \param LRange First range to compare.
+/// \param RRange Second range to compare.
+/// \return True if corresponding elements of both ranges are equal.
 template <typename L, typename R> bool equal(L &&LRange, R &&RRange) {
   return std::equal(adl_begin(LRange), adl_end(LRange), adl_begin(RRange),
                     adl_end(RRange));
 }
 
-template <typename L, typename R, typename BinaryPredicate>
 /// Return whether corresponding elements of \p LRange and \p RRange are equal
 /// according to \p P.
+///
+/// \param LRange First range to compare.
+/// \param RRange Second range to compare.
+/// \param P Binary predicate comparing element pairs.
+/// \return True if corresponding elements are equal according to \p P.
+template <typename L, typename R, typename BinaryPredicate>
 bool equal(L &&LRange, R &&RRange, BinaryPredicate P) {
   return std::equal(adl_begin(LRange), adl_end(LRange), adl_begin(RRange),
                     adl_end(RRange), P);
 }
 
-/// Returns true if all elements in Range are equal or when the Range is empty.
+/// Return true if all elements in \p Range are equal, or if it is empty.
+///
+/// \param Range Range whose elements are compared.
+/// \return True if all elements are equal, or if \p Range is empty.
 template <typename R> bool all_equal(R &&Range) {
   auto Begin = adl_begin(Range);
   auto End = adl_end(Range);
   return Begin == End || std::equal(std::next(Begin), End, Begin);
 }
 
-/// Returns true if all Values in the initializer lists are equal or the list
-// is empty.
+/// Return true if all values in \p Values are equal, or if it is empty.
+///
+/// \param Values Initializer list whose elements are compared.
+/// \return True if all values are equal, or if \p Values is empty.
 template <typename T> bool all_equal(std::initializer_list<T> Values) {
   return all_equal<std::initializer_list<T>>(std::move(Values));
 }
 
-/// Functor variant of std::equal_to that can be used as a UnaryPredicate in
-/// functional algorithms like all_of. `Args` is forwarded and stored by value.
-/// If you would like to pass by reference, use `std::ref` or `std::cref`.
+/// Build a unary predicate that tests equality to \p Arg.
+///
+/// Functor variant of std::equal_to for algorithms like all_of. The argument is
+/// forwarded and stored by value. To pass by reference, use `std::ref` or
+/// `std::cref`.
+///
+/// \param Arg Value to compare against.
+/// \return A unary predicate that tests equality to \p Arg.
 template <typename T> constexpr auto equal_to(T &&Arg) {
   return llvm::bind_front(std::equal_to<>{}, std::forward<T>(Arg));
 }
 
-/// Functor variant of std::not_equal_to that can be used as a UnaryPredicate in
-/// functional algorithms like all_of. `Args` is forwarded and stored by value.
-/// If you would like to pass by reference, use `std::ref` or `std::cref`.
+/// Build a unary predicate that tests inequality to \p Arg.
+///
+/// Functor variant of std::not_equal_to for algorithms like all_of. The
+/// argument is forwarded and stored by value. To pass by reference, use
+/// `std::ref` or `std::cref`.
+///
+/// \param Arg Value to compare against.
+/// \return A unary predicate that tests inequality to \p Arg.
 template <typename T> constexpr auto not_equal_to(T &&Arg) {
   return llvm::bind_front(std::not_equal_to<>{}, std::forward<T>(Arg));
 }
 
-/// Provide a container algorithm similar to C++ Library Fundamentals v2's
-/// `erase_if` which is equivalent to:
+/// Erase elements of \p C for which \p P is true.
 ///
-///   C.erase(remove_if(C, pred), C.end());
+/// Equivalent to `C.erase(remove_if(C, pred), C.end())`. Works for any
+/// container whose erase method accepts two iterators.
 ///
-/// This version works for any container with an erase method call accepting
-/// two iterators.
+/// \param C Container to modify.
+/// \param P Unary predicate selecting elements to erase.
 template <typename Container, typename UnaryPredicate>
 void erase_if(Container &C, UnaryPredicate P) {
   C.erase(remove_if(C, P), C.end());
 }
 
-/// Wrapper function to remove a value from a container:
+/// Erase all occurrences of \p V from container \p C.
 ///
-/// C.erase(remove(C.begin(), C.end(), V), C.end());
+/// Equivalent to `C.erase(remove(C.begin(), C.end(), V), C.end())`.
+///
+/// \param C Container to modify.
+/// \param V Value to erase.
 template <typename Container, typename ValueType>
 void erase(Container &C, ValueType V) {
   C.erase(std::remove(C.begin(), C.end(), V), C.end());
 }
 
-/// Wrapper function to append range `R` to container `C`.
+/// Append the elements of range \p R to container \p C.
 ///
-/// C.insert(C.end(), R.begin(), R.end());
+/// Equivalent to `C.insert(C.end(), R.begin(), R.end())`.
+///
+/// \param C Container to extend.
+/// \param R Range whose elements are appended.
 template <typename Container, typename Range>
 void append_range(Container &C, Range &&R) {
   C.insert(C.end(), adl_begin(R), adl_end(R));
 }
 
-/// Appends all `Values` to container `C`.
+/// Append each of \p Values to container \p C.
+///
+/// \param C Container to extend.
+/// \param Values Values inserted at the end of \p C.
 template <typename Container, typename... Args>
 void append_values(Container &C, Args &&...Values) {
   if (size_t InitialSize = range_size(C); InitialSize == 0) {
@@ -2310,8 +2863,15 @@ void append_values(Container &C, Args &&...Values) {
   ((void)C.insert(C.end(), std::forward<Args>(Values)), ...);
 }
 
-/// Given a sequence container Cont, replace the range [ContIt, ContEnd) with
-/// the range [ValIt, ValEnd) (which is not from the same container).
+/// Replace [\p ContIt, \p ContEnd) in \p Cont with [\p ValIt, \p ValEnd).
+///
+/// The replacement range must not come from the same container.
+///
+/// \param Cont Sequence container to modify.
+/// \param ContIt Start of the destination subrange.
+/// \param ContEnd End of the destination subrange.
+/// \param ValIt Start of the replacement values.
+/// \param ValEnd End of the replacement values.
 template <typename Container, typename RandomAccessIterator>
 void replace(Container &Cont, typename Container::iterator ContIt,
              typename Container::iterator ContEnd, RandomAccessIterator ValIt,
@@ -2331,8 +2891,12 @@ void replace(Container &Cont, typename Container::iterator ContIt,
   }
 }
 
-/// Given a sequence container Cont, replace the range [ContIt, ContEnd) with
-/// the range R.
+/// Replace [\p ContIt, \p ContEnd) in \p Cont with the elements of \p R.
+///
+/// \param Cont Sequence container to modify.
+/// \param ContIt Start of the destination subrange.
+/// \param ContEnd End of the destination subrange.
+/// \param R Replacement range.
 template <typename Container, typename Range = std::initializer_list<
                                   typename Container::value_type>>
 void replace(Container &Cont, typename Container::iterator ContIt,
@@ -2340,8 +2904,7 @@ void replace(Container &Cont, typename Container::iterator ContIt,
   replace(Cont, ContIt, ContEnd, adl_begin(R), adl_end(R));
 }
 
-/// An STL-style algorithm similar to std::for_each that applies a second
-/// functor between every pair of elements.
+/// Apply \p each_fn to each element in [\p begin, \p end), with \p between_fn between.
 ///
 /// This provides the control flow logic to, for example, print a
 /// comma-separated list:
@@ -2350,6 +2913,11 @@ void replace(Container &Cont, typename Container::iterator ContIt,
 ///              [&](StringRef name) { os << name; },
 ///              [&] { os << ", "; });
 /// \endcode
+///
+/// \param begin Iterator to the first element.
+/// \param end Iterator past the last element.
+/// \param each_fn Functor applied to each element.
+/// \param between_fn Functor invoked between consecutive elements.
 template <typename ForwardIterator, typename UnaryFunctor,
           typename NullaryFunctor,
           typename = std::enable_if_t<
@@ -2368,6 +2936,10 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
 }
 
 /// Apply \p each_fn to every element of \p c, invoking \p between_fn between them.
+///
+/// \param c Container whose elements are visited.
+/// \param each_fn Functor applied to each element.
+/// \param between_fn Functor invoked between consecutive elements.
 template <typename Container, typename UnaryFunctor, typename NullaryFunctor,
           typename = std::enable_if_t<
               !std::is_constructible<StringRef, UnaryFunctor>::value &&
@@ -2377,7 +2949,12 @@ inline void interleave(const Container &c, UnaryFunctor each_fn,
   interleave(adl_begin(c), adl_end(c), each_fn, between_fn);
 }
 
-/// Overload of interleave for the common case of string separator.
+/// Interleave elements of \p c into \p os using \p each_fn and \p separator.
+///
+/// \param c Container whose elements are printed.
+/// \param os Output stream receiving the interleaved text.
+/// \param each_fn Functor that writes one element to \p os.
+/// \param separator Text inserted between elements.
 template <typename Container, typename UnaryFunctor, typename StreamT,
           typename T = detail::ValueOfRange<Container>>
 inline void interleave(const Container &c, StreamT &os, UnaryFunctor each_fn,
@@ -2385,6 +2962,10 @@ inline void interleave(const Container &c, StreamT &os, UnaryFunctor each_fn,
   interleave(adl_begin(c), adl_end(c), each_fn, [&] { os << separator; });
 }
 /// Interleave elements of \p c into \p os using \p separator.
+///
+/// \param c Container whose elements are printed.
+/// \param os Output stream receiving the interleaved text.
+/// \param separator Text inserted between elements.
 template <typename Container, typename StreamT,
           typename T = detail::ValueOfRange<Container>>
 inline void interleave(const Container &c, StreamT &os,
@@ -2394,15 +2975,22 @@ inline void interleave(const Container &c, StreamT &os,
 }
 
 /// Interleave elements of \p c into \p os separated by commas using \p each_fn.
+///
+/// \param c Container whose elements are printed.
+/// \param os Output stream receiving the interleaved text.
+/// \param each_fn Functor that writes one element to \p os.
 template <typename Container, typename UnaryFunctor, typename StreamT,
           typename T = detail::ValueOfRange<Container>>
 inline void interleaveComma(const Container &c, StreamT &os,
                             UnaryFunctor each_fn) {
   interleave(c, os, each_fn, ", ");
 }
+/// Interleave elements of \p c into \p os separated by commas.
+///
+/// \param c Container whose elements are printed.
+/// \param os Output stream receiving the interleaved text.
 template <typename Container, typename StreamT,
           typename T = detail::ValueOfRange<Container>>
-/// Interleave elements of \p c into \p os separated by commas.
 inline void interleaveComma(const Container &c, StreamT &os) {
   interleaveComma(c, os, [&](const T &a) { os << a; });
 }
@@ -2414,6 +3002,8 @@ inline void interleaveComma(const Container &c, StreamT &os) {
 /// Deleter that calls \c free on a pointer allocated with \c malloc.
 struct FreeDeleter {
   /// Free the allocation pointed to by \p v.
+  ///
+  /// \param v Pointer previously returned by malloc-family allocation.
   void operator()(void* v) {
     ::free(v);
   }
@@ -2423,6 +3013,9 @@ struct FreeDeleter {
 template<typename First, typename Second>
 struct pair_hash {
   /// Hash pair \p P from its two components.
+  ///
+  /// \param P Pair value to hash.
+  /// \return Hash value computed from both components of \p P.
   size_t operator()(const std::pair<First, Second> &P) const {
     return std::hash<First>()(P.first) * 31 + std::hash<Second>()(P.second);
   }
@@ -2438,6 +3031,10 @@ template <typename T> struct deref {
   // non-binary functors (should be a variadic template member function
   // operator()).
   /// Invoke the stored functor on the values pointed to by \p lhs and \p rhs.
+  ///
+  /// \param lhs Left-hand pointer-like operand.
+  /// \param rhs Right-hand pointer-like operand.
+  /// \return Result of invoking the stored functor on the dereferenced operands.
   template <typename A, typename B> auto operator()(A &lhs, B &rhs) const {
     assert(lhs);
     assert(rhs);
@@ -2603,18 +3200,27 @@ class index_range {
 
 public:
   /// Construct a half-open index range [\p Begin, \p End).
+  ///
+  /// \param Begin First index in the range.
+  /// \param End One-past-the-last index in the range.
   index_range(std::size_t Begin, std::size_t End) : Begin(Begin), End(End) {}
   /// Return an iterator to the first index in the range.
+  ///
+  /// \return Iterator to the first index in the range.
   detail::index_iterator begin() const { return {Begin}; }
   /// Return an iterator past the last index in the range.
+  ///
+  /// \return Iterator past the last index in the range.
   detail::index_iterator end() const { return {End}; }
 };
 
-/// Given two or more input ranges, returns a new range whose values are
-/// tuples (A, B, C, ...), such that A is the 0-based index of the item in the
-/// sequence, and B, C, ..., are the values from the original input ranges. All
-/// input ranges are required to have equal lengths. Note that the returned
-/// iterator allows for the values (B, C, ...) to be modified.  Example:
+/// Enumerate one or more ranges, yielding (index, values...).
+///
+/// Returns a new range whose values are tuples (A, B, C, ...), such that A is
+/// the 0-based index of the item in the sequence, and B, C, ..., are the values
+/// from the original input ranges. All input ranges are required to have equal
+/// lengths. Note that the returned iterator allows for the values (B, C, ...)
+/// to be modified. Example:
 ///
 /// ```c++
 /// std::vector<char> Letters = {'A', 'B', 'C', 'D'};
@@ -2646,6 +3252,9 @@ public:
 ///   Item 2: 22
 ///   Item 3: 23
 ///
+/// \param First First range to enumerate.
+/// \param Rest Additional ranges zipped with \p First.
+/// \return A range of (index, values...) tuples over the inputs.
 template <typename FirstRange, typename... RestRanges>
 auto enumerate(FirstRange &&First, RestRanges &&...Rest) {
   if constexpr (sizeof...(Rest) != 0) {
@@ -2691,9 +3300,13 @@ bool all_of_zip_predicate_last(
 
 } // end namespace detail
 
-/// Compare two zipped ranges using the provided predicate (as last argument).
-/// Return true if all elements satisfy the predicate and false otherwise.
-//  Return false if the zipped iterator aren't all at end (size mismatch).
+/// Return true if the trailing predicate holds for every zipped tuple.
+///
+/// Compare zipped ranges using the provided predicate (as last argument).
+/// Returns false if the zipped iterators are not all at end (size mismatch).
+///
+/// \param argsAndPredicate Ranges to zip followed by the predicate.
+/// \return True if the predicate holds for every zipped tuple and sizes match.
 template <typename... ArgsAndPredicate>
 bool all_of_zip(ArgsAndPredicate &&...argsAndPredicate) {
   return detail::all_of_zip_predicate_last(
@@ -2701,9 +3314,16 @@ bool all_of_zip(ArgsAndPredicate &&...argsAndPredicate) {
       std::make_index_sequence<sizeof...(argsAndPredicate) - 1>{});
 }
 
-/// Return true if the sequence [Begin, End) has exactly N items. Runs in O(N)
-/// time. Not meant for use with random-access iterators.
-/// Can optionally take a predicate to filter lazily some items.
+/// Return true if [\p Begin, \p End) contains exactly \p N counted items.
+///
+/// Runs in O(N) time. Not meant for use with random-access iterators. Can
+/// optionally take a predicate to filter lazily some items.
+///
+/// \param Begin Iterator to the first element.
+/// \param End Iterator past the last element.
+/// \param N Exact number of counted items required.
+/// \param ShouldBeCounted Predicate selecting which items count toward \p N.
+/// \return True if the range contains exactly \p N counted items.
 template <typename IterTy,
           typename Pred = bool (*)(const decltype(*std::declval<IterTy>()) &)>
 bool hasNItems(
@@ -2726,9 +3346,16 @@ bool hasNItems(
   return true;
 }
 
-/// Return true if the sequence [Begin, End) has N or more items. Runs in O(N)
-/// time. Not meant for use with random-access iterators.
-/// Can optionally take a predicate to lazily filter some items.
+/// Return true if [\p Begin, \p End) contains at least \p N counted items.
+///
+/// Runs in O(N) time. Not meant for use with random-access iterators. Can
+/// optionally take a predicate to lazily filter some items.
+///
+/// \param Begin Iterator to the first element.
+/// \param End Iterator past the last element.
+/// \param N Minimum number of counted items required.
+/// \param ShouldBeCounted Predicate selecting which items count toward \p N.
+/// \return True if the range contains at least \p N counted items.
 template <typename IterTy,
           typename Pred = bool (*)(const decltype(*std::declval<IterTy>()) &)>
 bool hasNItemsOrMore(
@@ -2748,8 +3375,15 @@ bool hasNItemsOrMore(
   return true;
 }
 
-/// Returns true if the sequence [Begin, End) has N or less items. Can
-/// optionally take a predicate to lazily filter some items.
+/// Return true if [\p Begin, \p End) contains at most \p N counted items.
+///
+/// Can optionally take a predicate to lazily filter some items.
+///
+/// \param Begin Iterator to the first element.
+/// \param End Iterator past the last element.
+/// \param N Maximum number of counted items allowed.
+/// \param ShouldBeCounted Predicate selecting which items count toward \p N.
+/// \return True if the range contains at most \p N counted items.
 template <typename IterTy,
           typename Pred = bool (*)(const decltype(*std::declval<IterTy>()) &)>
 bool hasNItemsOrLess(
@@ -2761,18 +3395,30 @@ bool hasNItemsOrLess(
   return !hasNItemsOrMore(Begin, End, N + 1, ShouldBeCounted);
 }
 
-/// Returns true if the given container has exactly N items
+/// Return true if container \p C has exactly \p N items.
+///
+/// \param C Container to inspect.
+/// \param N Exact number of items required.
+/// \return True if \p C has exactly \p N items.
 template <typename ContainerTy> bool hasNItems(ContainerTy &&C, unsigned N) {
   return hasNItems(adl_begin(C), adl_end(C), N);
 }
 
-/// Returns true if the given container has N or more items
+/// Return true if container \p C has at least \p N items.
+///
+/// \param C Container to inspect.
+/// \param N Minimum number of items required.
+/// \return True if \p C has at least \p N items.
 template <typename ContainerTy>
 bool hasNItemsOrMore(ContainerTy &&C, unsigned N) {
   return hasNItemsOrMore(adl_begin(C), adl_end(C), N);
 }
 
-/// Returns true if the given container has N or less items
+/// Return true if container \p C has at most \p N items.
+///
+/// \param C Container to inspect.
+/// \param N Maximum number of items allowed.
+/// \return True if \p C has at most \p N items.
 template <typename ContainerTy>
 bool hasNItemsOrLess(ContainerTy &&C, unsigned N) {
   return hasNItemsOrLess(adl_begin(C), adl_end(C), N);

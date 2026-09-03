@@ -27,14 +27,17 @@ struct MCSymbolTableValue {
   /// the prefix (symbol table key).
   unsigned NextUniqueID = 0;
 
-  /// Whether the name associated with this value is used for a symbol. This is
-  /// not necessarily true: sometimes, we use a symbol table value without an
-  /// associated symbol for accessing NextUniqueID when a suffix is added to a
-  /// name. However, Used might be true even if Symbol is nullptr: temporary
-  /// named symbols are not added to the symbol table.
+  /// Whether the name associated with this value is used for a symbol.
+  ///
+  /// This is not necessarily true: sometimes, we use a symbol table value
+  /// without an associated symbol for accessing NextUniqueID when a suffix is
+  /// added to a name. However, Used might be true even if Symbol is nullptr:
+  /// temporary named symbols are not added to the symbol table.
   bool Used = false;
 };
 
+/// String map entry holding an MCSymbolTableValue in an MCContext.
+///
 /// MCContext stores MCSymbolTableValue in a string map (see MCSymbol::operator
 /// new). To avoid redundant storage of the name, MCSymbol stores a pointer (8
 /// bytes -- half the size of a StringRef) to the entry to access it.

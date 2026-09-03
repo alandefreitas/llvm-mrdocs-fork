@@ -32,9 +32,13 @@ class ScalarEvolution;
 class SCEV;
 class TargetTransformInfo;
 
+/// Estimated cache cost in cache-line units, as an InstructionCost.
 using CacheCostTy = InstructionCost;
+/// A vector of loops, typically the loops of a nest in breadth-first order.
 using LoopVectorTy = SmallVector<Loop *, 8>;
 
+/// A memory reference as a base pointer and a set of indexing operations.
+///
 /// Represents a memory reference as a base pointer and a set of indexing
 /// operations. For example given the array reference A[i][2j+1][3k+2] in a
 /// 3-dim loop nest:
@@ -47,46 +51,83 @@ using LoopVectorTy = SmallVector<Loop *, 8>;
 ///   Subscripts -> [{0,+,1}<%for.i>][{1,+,2}<%for.j>][{2,+,3}<%for.k>]
 ///   Sizes -> [m][o][4]
 class IndexedReference {
+  /// Write indexed reference \p R to stream \p OS.
+  /// @param OS Output stream.
+  /// @param R Indexed reference to print.
+  /// @return The output stream \p OS.
   friend LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
                                           const IndexedReference &R);
 
 public:
   /// Construct an indexed reference given a \p StoreOrLoadInst instruction.
+  /// @param StoreOrLoadInst Load or store to delinearize.
+  /// @param LI Loop info used during delinearization.
+  /// @param SE Scalar evolution used to form subscripts.
   LLVM_ABI IndexedReference(Instruction &StoreOrLoadInst, const LoopInfo &LI,
                             ScalarEvolution &SE);
 
+  /// Return true if this reference was successfully delinearized.
+  /// @return True if delinearization succeeded.
   bool isValid() const { return IsValid; }
+  /// Return the base pointer of this memory reference.
+  /// @return The SCEV for the base pointer.
   const SCEV *getBasePointer() const { return BasePointer; }
+  /// Return the number of indexing subscripts.
+  /// @return The number of subscripts.
   size_t getNumSubscripts() const { return Subscripts.size(); }
+  /// Return the subscript at zero-based index \p SubNum.
+  /// @param SubNum Subscript index; must be less than getNumSubscripts().
+  /// @return The SCEV for the subscript at \p SubNum.
   const SCEV *getSubscript(unsigned SubNum) const {
     assert(SubNum < getNumSubscripts() && "Invalid subscript number");
     return Subscripts[SubNum];
   }
+  /// Return the first (outermost) subscript.
+  /// @return The SCEV for the outermost subscript.
   const SCEV *getFirstSubscript() const {
     assert(!Subscripts.empty() && "Expecting non-empty container");
     return Subscripts.front();
   }
+  /// Return the last (innermost) subscript.
+  /// @return The SCEV for the innermost subscript.
   const SCEV *getLastSubscript() const {
     assert(!Subscripts.empty() && "Expecting non-empty container");
     return Subscripts.back();
   }
 
+  /// Check whether this reference and \p Other share a cache line of size
+  /// \p CLS.
+  ///
   /// Return true/false if the current object and the indexed reference \p Other
   /// are/aren't in the same cache line of size \p CLS. Two references are in
   /// the same chace line iff the distance between them in the innermost
   /// dimension is less than the cache line size. Return std::nullopt if unsure.
+  /// @param Other Other indexed reference to compare against.
+  /// @param CLS Cache line size in bytes.
+  /// @param AA Alias analysis used to test whether the references alias.
+  /// @return True or false when spatial reuse is known; std::nullopt if unsure.
   LLVM_ABI std::optional<bool> hasSpacialReuse(const IndexedReference &Other,
                                                unsigned CLS,
                                                AAResults &AA) const;
 
+  /// Check whether this reference and \p Other have temporal reuse in \p L.
+  ///
   /// Return true if the current object and the indexed reference \p Other
   /// have distance smaller than \p MaxDistance in the dimension associated with
   /// the given loop \p L. Return false if the distance is not smaller than \p
   /// MaxDistance and std::nullopt if unsure.
+  /// @param Other Other indexed reference to compare against.
+  /// @param MaxDistance Maximum dependence distance counted as temporal reuse.
+  /// @param L Loop whose dimension is tested for reuse.
+  /// @param DI Dependence analysis used to obtain dependence distances.
+  /// @param AA Alias analysis used to test whether the references alias.
+  /// @return True or false when temporal reuse is known; std::nullopt if unsure.
   LLVM_ABI std::optional<bool>
   hasTemporalReuse(const IndexedReference &Other, unsigned MaxDistance,
                    const Loop &L, DependenceInfo &DI, AAResults &AA) const;
 
+  /// Compute the cache cost of this reference with loop \p L innermost.
+  ///
   /// Compute the cost of the reference w.r.t. the given loop \p L when it is
   /// considered in the innermost position in the loop nest.
   /// The cost is defined as:
@@ -96,6 +137,9 @@ public:
   ///     + the coefficient of this loop's index variable used in all other
   ///       subscripts is zero
   ///   - or otherwise equal to 'TripCount'.
+  /// @param L Loop considered to be in the innermost position.
+  /// @param CLS Cache line size in bytes.
+  /// @return Estimated cache cost in cache-line units.
   LLVM_ABI CacheCostTy computeRefCost(const Loop &L, unsigned CLS) const;
 
 private:
@@ -154,6 +198,8 @@ private:
   ScalarEvolution &SE;
 };
 
+/// A set of memory references that exhibit temporal or spatial reuse.
+///
 /// A reference group represents a set of memory references that exhibit
 /// temporal or spacial reuse. Two references belong to the same
 /// reference group with respect to a inner loop L iff:
@@ -168,8 +214,11 @@ private:
 /// the same cache line. Conditions 1,2 above account for temporal reuse, while
 /// contition 3 accounts for spacial reuse.
 using ReferenceGroupTy = SmallVector<std::unique_ptr<IndexedReference>, 8>;
+/// A collection of reference groups for a loop nest.
 using ReferenceGroupsTy = SmallVector<ReferenceGroupTy, 8>;
 
+/// Estimated cache-line cost of loops in a nest.
+///
 /// \c CacheCost represents the estimated cost of a inner loop as the number of
 /// cache lines used by the memory references it contains.
 /// The 'cache cost' of a loop 'L' in a loop nest 'LN' is computed as the sum of
@@ -186,30 +235,50 @@ using ReferenceGroupsTy = SmallVector<ReferenceGroupTy, 8>;
 ///  - equal to the innermost loop trip count if the reference stride is greater
 ///    or equal to the cache line size CLS.
 class CacheCost {
+  /// Write cache cost \p CC to stream \p OS.
+  /// @param OS Output stream.
+  /// @param CC Cache cost to print.
+  /// @return The output stream \p OS.
   friend LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const CacheCost &CC);
   using LoopTripCountTy = std::pair<const Loop *, unsigned>;
   using LoopCacheCostTy = std::pair<const Loop *, CacheCostTy>;
 
 public:
-  /// Construct a CacheCost object for the loop nest described by \p Loops.
+  /// Construct a CacheCost for the loop nest described by \p Loops.
+  ///
   /// The optional parameter \p TRT can be used to specify the max. distance
   /// between array elements accessed in a loop so that the elements are
   /// classified to have temporal reuse.
+  /// @param Loops Loops in the nest, collected in breadth-first order.
+  /// @param LI Loop info for the function.
+  /// @param SE Scalar evolution analysis for subscript expressions.
+  /// @param TTI Target transform info providing the cache line size.
+  /// @param AA Alias analysis used when grouping references.
+  /// @param DI Dependence information used when grouping references.
+  /// @param TRT Optional max distance for classifying temporal reuse.
   LLVM_ABI CacheCost(const LoopVectorTy &Loops, const LoopInfo &LI,
                      ScalarEvolution &SE, TargetTransformInfo &TTI,
                      AAResults &AA, DependenceInfo &DI,
                      std::optional<unsigned> TRT = std::nullopt);
 
   /// Create a CacheCost for the loop nest rooted by \p Root.
+  ///
   /// The optional parameter \p TRT can be used to specify the max. distance
   /// between array elements accessed in a loop so that the elements are
   /// classified to have temporal reuse.
+  /// @param Root Outermost loop of the nest to analyze.
+  /// @param AR Loop analyses used to compute the cost.
+  /// @param DI Dependence information for the nest.
+  /// @param TRT Optional max distance for classifying temporal reuse.
+  /// @return A CacheCost for the nest, or nullptr if the nest cannot be analyzed.
   LLVM_ABI static std::unique_ptr<CacheCost>
   getCacheCost(Loop &Root, LoopStandardAnalysisResults &AR, DependenceInfo &DI,
                std::optional<unsigned> TRT = std::nullopt);
 
   /// Return the estimated cost of loop \p L if the given loop is part of the
   /// loop nest associated with this object. Return -1 otherwise.
+  /// @param L Loop whose cache cost is requested.
+  /// @return Estimated cache cost for \p L, or -1 if \p L is not in the nest.
   CacheCostTy getLoopCost(const Loop &L) const {
     auto IT = llvm::find_if(LoopCosts, [&L](const LoopCacheCostTy &LCC) {
       return LCC.first == &L;
@@ -218,6 +287,7 @@ public:
   }
 
   /// Return the estimated ordered loop costs.
+  /// @return Loop-cost pairs sorted by decreasing cache cost.
   ArrayRef<LoopCacheCostTy> getLoopCosts() const { return LoopCosts; }
 
 private:
@@ -277,7 +347,15 @@ private:
   DependenceInfo &DI;
 };
 
+/// Write indexed reference \p R to stream \p OS.
+/// @param OS Output stream.
+/// @param R Indexed reference to print.
+/// @return The output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const IndexedReference &R);
+/// Write cache cost \p CC to stream \p OS.
+/// @param OS Output stream.
+/// @param CC Cache cost to print.
+/// @return The output stream \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const CacheCost &CC);
 
 /// Printer pass for the \c CacheCost results.
@@ -286,8 +364,14 @@ class LoopCachePrinterPass
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes cache costs to \p OS.
+  /// @param OS Output stream for the printed cache costs.
   explicit LoopCachePrinterPass(raw_ostream &OS) : OS(OS) {}
 
+  /// Print cache cost results for \p F.
+  /// @param F Function whose loop cache costs are printed.
+  /// @param FAM Function analysis manager providing loop analyses.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

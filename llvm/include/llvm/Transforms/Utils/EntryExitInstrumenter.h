@@ -21,16 +21,31 @@ namespace llvm {
 
 class Function;
 
+/// Pass that instruments function entry and exit with profiling hooks.
+///
+/// Inserts calls to mcount(), @__cyg_profile_func_{enter,exit}, and similar
+/// functions. There are two variants, intended to run pre- and post-inlining,
+/// respectively.
 struct EntryExitInstrumenterPass
     : public RequiredPassInfoMixin<EntryExitInstrumenterPass> {
+  /// Construct an entry/exit instrumenter pass.
+  /// @param PostInlining When true, run the post-inlining variant of the pass.
   EntryExitInstrumenterPass(bool PostInlining) : PostInlining(PostInlining) {}
 
+  /// Run entry/exit instrumentation over the function.
+  /// @param F Function to instrument.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
 
+  /// Whether this pass runs after inlining.
   bool PostInlining;
 };
 

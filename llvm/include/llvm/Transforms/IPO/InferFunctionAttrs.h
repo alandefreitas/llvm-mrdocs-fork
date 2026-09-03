@@ -23,6 +23,11 @@ class Module;
 /// A pass which infers function attributes from the names and signatures of
 /// function declarations in a module.
 struct InferFunctionAttrsPass : OptionalPassInfoMixin<InferFunctionAttrsPass> {
+  /// Infer function attributes from declaration names and signatures in \p M.
+  ///
+  /// \param M Module whose function declarations receive inferred attributes.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 }

@@ -21,7 +21,11 @@ namespace llvm {
 /// A pass that lowers atomic intrinsic into non-atomic intrinsics.
 class LowerAtomicPass : public RequiredPassInfoMixin<LowerAtomicPass> {
 public:
-  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+  /// Run atomic lowering over the function.
+  /// @param F Function whose atomic operations may be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }
 

@@ -331,20 +331,26 @@ template <typename T> struct iota_range {
   }
 
   /// Return the number of values in the range.
+  /// @return The number of values in the range.
   constexpr size_t size() const { return PastEndValue - BeginValue; }
   /// Return true if the range contains no values.
+  /// @return True if the range contains no values.
   constexpr bool empty() const { return BeginValue == PastEndValue; }
 
   /// Return an iterator to the first value in the range.
+  /// @return Iterator to the first value in the range.
   constexpr auto begin() const { return const_iterator(BeginValue); }
   /// Return an iterator past the last value.
+  /// @return Iterator past the last value.
   constexpr auto end() const { return const_iterator(PastEndValue); }
 
   /// Return a reverse iterator to the last value in the range.
+  /// @return Reverse iterator to the last value in the range.
   constexpr auto rbegin() const {
     return const_reverse_iterator(PastEndValue - 1);
   }
   /// Return a reverse iterator past the first value.
+  /// @return Reverse iterator past the first value.
   constexpr auto rend() const { return const_reverse_iterator(BeginValue - 1); }
 
 private:
@@ -357,42 +363,53 @@ private:
   iterator PastEndValue;
 };
 
-/// Iterate over an integral type from Begin up to - but not including - End.
-/// Note: Begin and End values have to be within [INTMAX_MIN, INTMAX_MAX] for
-/// forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX] for reverse
-/// iteration).
+/// Return a half-open sequence of integral values from \p Begin to \p End.
+///
+/// \p Begin and \p End must be within [INTMAX_MIN, INTMAX_MAX] for forward
+/// iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX] for reverse iteration).
+/// @param Begin First value in the sequence.
+/// @param End Past-the-end value (not included).
+/// @return Half-open iota_range of integral values [\p Begin, \p End).
 template <typename T, typename = std::enable_if_t<std::is_integral<T>::value &&
                                                   !std::is_enum<T>::value>>
 constexpr auto seq(T Begin, T End) {
   return iota_range<T>(Begin, End, false);
 }
 
-/// Iterate over an integral type from 0 up to - but not including - Size.
-/// Note: Size value has to be within [INTMAX_MIN, INTMAX_MAX - 1] for
-/// forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse
-/// iteration).
+/// Return a half-open sequence of integral values from 0 to \p Size.
+///
+/// \p Size must be within [INTMAX_MIN, INTMAX_MAX - 1] for forward iteration
+/// (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse iteration).
+/// @param Size Past-the-end value of the sequence starting at 0.
+/// @return Half-open iota_range of integral values [0, \p Size).
 template <typename T, typename = std::enable_if_t<std::is_integral<T>::value &&
                                                   !std::is_enum<T>::value>>
 constexpr auto seq(T Size) {
   return seq<T>(0, Size);
 }
 
-/// Iterate over an integral type from Begin to End inclusive.
-/// Note: Begin and End values have to be within [INTMAX_MIN, INTMAX_MAX - 1]
-/// for forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse
-/// iteration).
+/// Return an inclusive sequence of integral values from \p Begin to \p End.
+///
+/// \p Begin and \p End must be within [INTMAX_MIN, INTMAX_MAX - 1] for forward
+/// iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse iteration).
+/// @param Begin First value in the sequence.
+/// @param End Last value in the sequence (included).
+/// @return Inclusive iota_range of integral values [\p Begin, \p End].
 template <typename T, typename = std::enable_if_t<std::is_integral<T>::value &&
                                                   !std::is_enum<T>::value>>
 constexpr auto seq_inclusive(T Begin, T End) {
   return iota_range<T>(Begin, End, true);
 }
 
-/// Iterate over an enum type from Begin up to - but not including - End.
-/// Note: `enum_seq` will generate each consecutive value, even if no
-/// enumerator with that value exists.
-/// Note: Begin and End values have to be within [INTMAX_MIN, INTMAX_MAX] for
+/// Return a half-open sequence of enum values from \p Begin to \p End.
+///
+/// Generates each consecutive value, even if no enumerator with that value
+/// exists. \p Begin and \p End must be within [INTMAX_MIN, INTMAX_MAX] for
 /// forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX] for reverse
 /// iteration).
+/// @param Begin First enumerator in the sequence.
+/// @param End Past-the-end enumerator (not included).
+/// @return Half-open iota_range of enum values [\p Begin, \p End).
 template <typename EnumT,
           typename = std::enable_if_t<std::is_enum<EnumT>::value>>
 constexpr auto enum_seq(EnumT Begin, EnumT End) {
@@ -401,26 +418,33 @@ constexpr auto enum_seq(EnumT Begin, EnumT End) {
   return iota_range<EnumT>(Begin, End, false);
 }
 
-/// Iterate over an enum type from Begin up to - but not including - End, even
-/// when `EnumT` is not marked as safely iterable by `enum_iteration_traits`.
-/// Note: `enum_seq` will generate each consecutive value, even if no
-/// enumerator with that value exists.
-/// Note: Begin and End values have to be within [INTMAX_MIN, INTMAX_MAX] for
+/// Return a half-open enum sequence even when \p EnumT is not marked iterable.
+///
+/// Generates each consecutive value, even if no enumerator with that value
+/// exists. \p Begin and \p End must be within [INTMAX_MIN, INTMAX_MAX] for
 /// forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX] for reverse
 /// iteration).
+/// @param Begin First enumerator in the sequence.
+/// @param End Past-the-end enumerator (not included).
+/// @param Force Tag that opts into iterating enums without
+///        enum_iteration_traits.
+/// @return Half-open iota_range of enum values [\p Begin, \p End).
 template <typename EnumT,
           typename = std::enable_if_t<std::is_enum<EnumT>::value>>
 constexpr auto enum_seq(EnumT Begin, EnumT End,
-                        force_iteration_on_noniterable_enum_t) {
+                        force_iteration_on_noniterable_enum_t Force) {
   return iota_range<EnumT>(Begin, End, false);
 }
 
-/// Iterate over an enum type from Begin to End inclusive.
-/// Note: `enum_seq_inclusive` will generate each consecutive value, even if no
-/// enumerator with that value exists.
-/// Note: Begin and End values have to be within [INTMAX_MIN, INTMAX_MAX - 1]
+/// Return an inclusive sequence of enum values from \p Begin to \p End.
+///
+/// Generates each consecutive value, even if no enumerator with that value
+/// exists. \p Begin and \p End must be within [INTMAX_MIN, INTMAX_MAX - 1]
 /// for forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse
 /// iteration).
+/// @param Begin First enumerator in the sequence.
+/// @param End Last enumerator in the sequence (included).
+/// @return Inclusive iota_range of enum values [\p Begin, \p End].
 template <typename EnumT,
           typename = std::enable_if_t<std::is_enum<EnumT>::value>>
 constexpr auto enum_seq_inclusive(EnumT Begin, EnumT End) {
@@ -429,17 +453,21 @@ constexpr auto enum_seq_inclusive(EnumT Begin, EnumT End) {
   return iota_range<EnumT>(Begin, End, true);
 }
 
-/// Iterate over an enum type from Begin to End inclusive, even when `EnumT`
-/// is not marked as safely iterable by `enum_iteration_traits`.
-/// Note: `enum_seq_inclusive` will generate each consecutive value, even if no
-/// enumerator with that value exists.
-/// Note: Begin and End values have to be within [INTMAX_MIN, INTMAX_MAX - 1]
+/// Return an inclusive enum sequence even when \p EnumT is not marked iterable.
+///
+/// Generates each consecutive value, even if no enumerator with that value
+/// exists. \p Begin and \p End must be within [INTMAX_MIN, INTMAX_MAX - 1]
 /// for forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse
 /// iteration).
+/// @param Begin First enumerator in the sequence.
+/// @param End Last enumerator in the sequence (included).
+/// @param Force Tag that opts into iterating enums without
+///        enum_iteration_traits.
+/// @return Inclusive iota_range of enum values [\p Begin, \p End].
 template <typename EnumT,
           typename = std::enable_if_t<std::is_enum<EnumT>::value>>
 constexpr auto enum_seq_inclusive(EnumT Begin, EnumT End,
-                                  force_iteration_on_noniterable_enum_t) {
+                                  force_iteration_on_noniterable_enum_t Force) {
   return iota_range<EnumT>(Begin, End, true);
 }
 

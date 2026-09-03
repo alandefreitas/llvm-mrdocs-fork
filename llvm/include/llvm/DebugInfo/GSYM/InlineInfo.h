@@ -24,6 +24,8 @@ class raw_ostream;
 namespace gsym {
 
 class GsymReader;
+/// Inline function name, ranges, and call site for GSYM unwind.
+///
 /// Inline information stores the name of the inline function along with
 /// an array of address ranges. It also stores the call file and call line
 /// that called this inline function. This allows us to unwind inline call
@@ -63,9 +65,11 @@ struct InlineInfo {
   gsym_strp_t Name = 0;  ///< String table offset in the string table.
   uint32_t CallFile = 0; ///< 1 based file index in the file table.
   uint32_t CallLine = 0; ///< Source line number.
-  AddressRanges Ranges;
-  std::vector<InlineInfo> Children;
+  AddressRanges Ranges; ///< Address ranges covered by this inline function.
+  std::vector<InlineInfo> Children; ///< Nested inline functions in this one.
+  /// Construct an empty InlineInfo.
   InlineInfo() = default;
+  /// Clear all members of this InlineInfo.
   void clear() {
     Name = 0;
     CallFile = 0;
@@ -73,8 +77,12 @@ struct InlineInfo {
     Ranges.clear();
     Children.clear();
   }
+  /// Query if an InlineInfo object is valid.
+  ///
+  /// \returns True if this object has one or more address ranges.
   bool isValid() const { return !Ranges.empty(); }
 
+  /// Vector of InlineInfo pointers forming an inline call stack.
   using InlineArray = std::vector<const InlineInfo *>;
 
   /// Lookup a single address within the inline info data.
@@ -176,15 +184,29 @@ struct InlineInfo {
   /// to the GSYM file. We have seen cases where LTO messes up the inline
   /// function information for the same address range, so this helps ensure we
   /// get the most descriptive information we can for an address range.
+  ///
+  /// \param RHS The InlineInfo to compare against.
+  /// \returns True if this InlineInfo has fewer nested inline functions than
+  ///          \a RHS.
   LLVM_ABI bool operator<(const InlineInfo &RHS) const;
 };
 
+/// Equality comparison operator for InlineInfo.
+///
+/// \param LHS The left-hand InlineInfo to compare.
+/// \param RHS The right-hand InlineInfo to compare.
+/// \returns True if both InlineInfo objects compare equal.
 inline bool operator==(const InlineInfo &LHS, const InlineInfo &RHS) {
   return LHS.Name == RHS.Name && LHS.CallFile == RHS.CallFile &&
          LHS.CallLine == RHS.CallLine && LHS.Ranges == RHS.Ranges &&
          LHS.Children == RHS.Children;
 }
 
+/// Stream a human-readable representation of \p FI to \p OS.
+///
+/// \param OS Destination stream.
+/// \param FI InlineInfo to print.
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const InlineInfo &FI);
 
 } // namespace gsym

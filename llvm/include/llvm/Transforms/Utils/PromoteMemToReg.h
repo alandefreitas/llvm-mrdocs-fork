@@ -29,6 +29,9 @@ class AssumptionCache;
 /// (transitively) using this alloca. This also enforces that there is only
 /// ever one layer of bitcasts or GEPs between the alloca and the lifetime
 /// markers.
+///
+/// \param AI Alloca to test for promotion eligibility.
+/// \return True if the alloca is legal for promotion.
 LLVM_ABI bool isAllocaPromotable(const AllocaInst *AI);
 
 /// Promote the specified list of alloca instructions into scalar
@@ -38,6 +41,9 @@ LLVM_ABI bool isAllocaPromotable(const AllocaInst *AI);
 /// does not modify the CFG of the function at all.  All allocas must be from
 /// the same function.
 ///
+/// \param Allocas Allocas from one function to promote into SSA registers.
+/// \param DT Dominator tree for the function containing the allocas.
+/// \param AC Optional assumption cache used during promotion.
 LLVM_ABI void PromoteMemToReg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
                               AssumptionCache *AC = nullptr);
 

@@ -26,7 +26,9 @@ class MergingTypeTableBuilder;
 /// Used to forward information about PCH.OBJ (precompiled) files, when
 /// applicable.
 struct PCHMergerInfo {
+  /// Signature identifying the precompiled header object file.
   uint32_t PCHSignature{};
+  /// Type index of the LF_ENDPRECOMP record in the type stream.
   uint32_t EndPrecompIndex = ~0U;
 };
 
@@ -47,13 +49,14 @@ LLVM_ABI Error mergeTypeRecords(MergingTypeTableBuilder &Dest,
                                 SmallVectorImpl<TypeIndex> &SourceToDest,
                                 const CVTypeArray &Types);
 
-/// Merge one set of id records into another.  This method assumes
-/// that all records are id records, and there are no Type records present.
-/// However, since Id records can refer back to Type records, this method
-/// assumes that the referenced type records have also been merged into
-/// another type stream (for example using the above method), and accepts
-/// the mapping from source to dest for that stream so that it can re-write
-/// the type record mappings accordingly.
+/// Merge one set of id records into another.
+///
+/// This method assumes that all records are id records, and there are no Type
+/// records present. However, since Id records can refer back to Type records,
+/// this method assumes that the referenced type records have also been merged
+/// into another type stream (for example using the above method), and accepts
+/// the mapping from source to dest for that stream so that it can re-write the
+/// type record mappings accordingly.
 ///
 /// \param Dest The table to store the re-written id records into.
 ///
@@ -86,6 +89,9 @@ LLVM_ABI Error mergeIdRecords(MergingTypeTableBuilder &Dest,
 ///
 /// \param IdsAndTypes The collection of id records to merge in.
 ///
+/// \param PCHInfo Optional storage for PCH merger information discovered
+/// while merging, when applicable.
+///
 /// \returns Error::success() if the operation succeeded, otherwise an
 /// appropriate error code.
 LLVM_ABI Error mergeTypeAndIdRecords(MergingTypeTableBuilder &DestIds,
@@ -94,6 +100,26 @@ LLVM_ABI Error mergeTypeAndIdRecords(MergingTypeTableBuilder &DestIds,
                                      const CVTypeArray &IdsAndTypes,
                                      std::optional<PCHMergerInfo> &PCHInfo);
 
+/// Merge a unified set of type and id records into global tables, splitting
+/// them into separate output streams.
+///
+/// \param DestIds The table to store the re-written id records into.
+///
+/// \param DestTypes The table to store the re-written type records into.
+///
+/// \param SourceToDest A vector, indexed by the TypeIndex in the source
+/// stream, that contains the index of the corresponding record in the
+/// destination stream.
+///
+/// \param IdsAndTypes The collection of type and id records to merge in.
+///
+/// \param Hashes Global hashes for each record in \p IdsAndTypes.
+///
+/// \param PCHInfo Optional storage for PCH merger information discovered
+/// while merging, when applicable.
+///
+/// \returns Error::success() if the operation succeeded, otherwise an
+/// appropriate error code.
 LLVM_ABI Error mergeTypeAndIdRecords(GlobalTypeTableBuilder &DestIds,
                                      GlobalTypeTableBuilder &DestTypes,
                                      SmallVectorImpl<TypeIndex> &SourceToDest,
@@ -101,12 +127,55 @@ LLVM_ABI Error mergeTypeAndIdRecords(GlobalTypeTableBuilder &DestIds,
                                      ArrayRef<GloballyHashedType> Hashes,
                                      std::optional<PCHMergerInfo> &PCHInfo);
 
+/// Merge one set of type records into a global type table.
+///
+/// This method assumes that all records are type records, and there are no Id
+/// records present.
+///
+/// \param Dest The table to store the re-written type records into.
+///
+/// \param SourceToDest A vector, indexed by the TypeIndex in the source
+/// type stream, that contains the index of the corresponding type record
+/// in the destination stream.
+///
+/// \param Types The collection of types to merge in.
+///
+/// \param Hashes Global hashes for each record in \p Types.
+///
+/// \param PCHInfo Optional storage for PCH merger information discovered
+/// while merging, when applicable.
+///
+/// \returns Error::success() if the operation succeeded, otherwise an
+/// appropriate error code.
 LLVM_ABI Error mergeTypeRecords(GlobalTypeTableBuilder &Dest,
                                 SmallVectorImpl<TypeIndex> &SourceToDest,
                                 const CVTypeArray &Types,
                                 ArrayRef<GloballyHashedType> Hashes,
                                 std::optional<PCHMergerInfo> &PCHInfo);
 
+/// Merge one set of id records into a global id table.
+///
+/// This method assumes that all records are id records, and there are no Type
+/// records present. However, since Id records can refer back to Type records,
+/// this method assumes that the referenced type records have also been merged
+/// into another type stream, and accepts the mapping from source to dest for
+/// that stream so that it can re-write the type record mappings accordingly.
+///
+/// \param Dest The table to store the re-written id records into.
+///
+/// \param Types The mapping to use for the type records that these id
+/// records refer to.
+///
+/// \param SourceToDest A vector, indexed by the TypeIndex in the source
+/// id stream, that contains the index of the corresponding id record
+/// in the destination stream.
+///
+/// \param Ids The collection of id records to merge in.
+///
+/// \param Hashes Global hashes for each record in \p Ids.
+///
+/// \returns Error::success() if the operation succeeded, otherwise an
+/// appropriate error code.
 LLVM_ABI Error mergeIdRecords(GlobalTypeTableBuilder &Dest,
                               ArrayRef<TypeIndex> Types,
                               SmallVectorImpl<TypeIndex> &SourceToDest,

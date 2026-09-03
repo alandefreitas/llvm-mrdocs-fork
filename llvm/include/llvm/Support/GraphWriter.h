@@ -36,42 +36,77 @@
 
 namespace llvm {
 
-namespace DOT {  // Private functions...
+/// Helpers for writing Graphviz DOT text.
+namespace DOT {
 
+/// Escape special characters in \p Label for inclusion in a DOT string.
+///
+/// \param Label Text that may contain characters special to DOT.
+/// \return A copy of \p Label with DOT-special characters escaped.
 LLVM_ABI std::string EscapeString(const std::string &Label);
 
-/// Get a color string for this node number. Simply round-robin selects
-/// from a reasonable number of colors.
+/// Get a color string for this node number.
+///
+/// Simply round-robin selects from a reasonable number of colors.
+///
+/// \param NodeNumber Index used to pick a color in round-robin order.
+/// \return A DOT color name selected for \p NodeNumber.
 LLVM_ABI StringRef getColorString(unsigned NodeNumber);
 
 } // end namespace DOT
 
+/// Identifiers for Graphviz layout programs used to render graphs.
 namespace GraphProgram {
 
+/// Graphviz program used to layout and render a DOT graph.
 enum Name {
+  /// The standard \c dot hierarchical layout program.
   DOT,
+  /// The \c fdp force-directed layout program.
   FDP,
+  /// The \c neato spring-model layout program.
   NEATO,
+  /// The \c twopi radial layout program.
   TWOPI,
+  /// The \c circo circular layout program.
   CIRCO
 };
 
 } // end namespace GraphProgram
 
+/// Display a DOT graph file with the given Graphviz program.
+///
+/// \param Filename Path of the DOT file to display.
+/// \param wait If true, wait for the viewer process to exit.
+/// \param program Graphviz program used to render the graph.
+/// \return True if the graph was displayed successfully.
 LLVM_ABI bool DisplayGraph(StringRef Filename, bool wait = true,
                            GraphProgram::Name program = GraphProgram::DOT);
 
+/// CRTP base that emits a Graphviz DOT representation of a graph.
+///
+/// \tparam GraphType Graph type modeled by \c GraphTraits.
+/// \tparam Derived Concrete writer type that customizes emission hooks.
 template <typename GraphType, typename Derived> class GraphWriterBase {
 protected:
+  /// Stream that receives the emitted DOT text.
   raw_ostream &O;
+  /// Graph being written.
   const GraphType &G;
+  /// Whether nodes are emitted with HTML-like labels.
   bool RenderUsingHTML = false;
 
+  /// DOT customization traits for \c GraphType.
   using DOTTraits = DOTGraphTraits<GraphType>;
+  /// Graph traversal traits for \c GraphType.
   using GTraits = GraphTraits<GraphType>;
+  /// Reference type for a node in the graph.
   using NodeRef = typename GTraits::NodeRef;
+  /// Iterator over all nodes in the graph.
   using node_iterator = typename GTraits::nodes_iterator;
+  /// Iterator over children of a node.
   using child_iterator = typename GTraits::ChildIteratorType;
+  /// Instance of the DOT traits used while writing.
   DOTTraits DTraits;
 
   static_assert(std::is_pointer_v<NodeRef>,
@@ -79,14 +114,22 @@ protected:
                 "be a pointer.\nThe pointer usage should be moved to "
                 "DOTGraphTraits, and removed from GraphWriterBase itself.");
 
-  // Cast the 'this' pointer to the derived type and return a reference.
+  /// Cast \c this to the derived writer type.
+  ///
+  /// \return A reference to this writer as \c Derived.
   Derived &getDerived() { return *static_cast<Derived *>(this); }
+  /// Cast \c this to the derived writer type.
+  ///
+  /// \return A const reference to this writer as \c Derived.
   const Derived &getDerived() const {
     return *static_cast<const Derived *>(this);
   }
 
-  // Writes the edge labels of the node to O and returns true if there are any
-  // edge labels not equal to the empty string "".
+  /// Write edge source labels for \p Node to \p O.
+  ///
+  /// \param O Stream that receives the edge source label DOT fragment.
+  /// \param Node Node whose outgoing edge source labels are written.
+  /// \return True if any non-empty edge source labels were written.
   bool getEdgeSourceLabels(raw_ostream &O, NodeRef Node) {
     child_iterator EI = GTraits::child_begin(Node);
     child_iterator EE = GTraits::child_end(Node);
@@ -124,12 +167,21 @@ protected:
   }
 
 public:
+  /// Construct a graph writer for \p g that writes to \p o.
+  ///
+  /// \param o Stream that receives the DOT output.
+  /// \param g Graph to write.
+  /// \param SN If true, request short names from the DOT traits.
   GraphWriterBase(raw_ostream &o, const GraphType &g, bool SN) : O(o), G(g) {
     DTraits = DOTTraits(SN);
     RenderUsingHTML = DTraits.renderNodesUsingHTML();
   }
+  /// Destroy the graph writer.
   virtual ~GraphWriterBase() = default;
 
+  /// Write the complete DOT graph, including header, nodes, and footer.
+  ///
+  /// \param Title Optional title used as the graph name and label.
   void writeGraph(const std::string &Title = "") {
     // Output the header for the graph...
     getDerived().writeHeader(Title);
@@ -144,6 +196,9 @@ public:
     getDerived().writeFooter();
   }
 
+  /// Write the opening DOT digraph header and graph properties.
+  ///
+  /// \param Title Optional title used as the digraph name and label.
   void writeHeader(const std::string &Title) {
     std::string GraphName(DTraits.getGraphName(G));
 
@@ -165,11 +220,13 @@ public:
     O << "\n";
   }
 
+  /// Write the closing brace that ends the DOT digraph.
   void writeFooter() {
     // Finish off the graph
     O << "}\n";
   }
 
+  /// Write every non-hidden node in the graph.
   void writeNodes() {
     // Loop over the graph, printing it out...
     for (const auto Node : nodes<GraphType>(G))
@@ -177,8 +234,15 @@ public:
         getDerived().writeNode(Node);
   }
 
+  /// Return true if \p Node should be omitted from the DOT output.
+  ///
+  /// \param Node Node to test for visibility.
+  /// \return True if \p Node should be omitted from the DOT output.
   bool isNodeHidden(NodeRef Node) { return DTraits.isNodeHidden(Node, G); }
 
+  /// Write the DOT record for \p Node and its outgoing edges.
+  ///
+  /// \param Node Node to emit.
   void writeNode(NodeRef Node) {
     std::string NodeAttributes = DTraits.getNodeAttributes(Node, G);
 
@@ -294,6 +358,11 @@ public:
         writeEdge(Node, 64, EI);
   }
 
+  /// Write the DOT edge from \p Node along child iterator \p EI.
+  ///
+  /// \param Node Source node of the edge.
+  /// \param edgeidx Source-port index for the edge, or a truncated-port index.
+  /// \param EI Child iterator identifying the destination.
   void writeEdge(NodeRef Node, unsigned edgeidx, child_iterator EI) {
     if (NodeRef TargetNode = *EI) {
       int DestPort = -1;
@@ -315,7 +384,13 @@ public:
     }
   }
 
-  /// emitSimpleNode - Outputs a simple (non-record) node
+  /// Output a simple (non-record) node.
+  ///
+  /// \param ID Opaque pointer identity used in the DOT node name.
+  /// \param Attr Optional DOT attribute string for the node.
+  /// \param Label Text shown as the node label.
+  /// \param NumEdgeSources Number of source ports to emit on the node.
+  /// \param EdgeSourceLabels Optional labels for each source port.
   void emitSimpleNode(const void *ID, const std::string &Attr,
                    const std::string &Label, unsigned NumEdgeSources = 0,
                    const std::vector<std::string> *EdgeSourceLabels = nullptr) {
@@ -338,7 +413,13 @@ public:
     O << "\"];\n";
   }
 
-  /// emitEdge - Output an edge from a simple node into the graph...
+  /// Output an edge from a simple node into the graph.
+  ///
+  /// \param SrcNodeID Opaque pointer identity of the source node.
+  /// \param SrcNodePort Source port index, or a negative value for none.
+  /// \param DestNodeID Opaque pointer identity of the destination node.
+  /// \param DestNodePort Destination port index, or a negative value for none.
+  /// \param Attrs Optional DOT attribute string for the edge.
   void emitEdge(const void *SrcNodeID, int SrcNodePort,
                 const void *DestNodeID, int DestNodePort,
                 const std::string &Attrs) {
@@ -357,21 +438,40 @@ public:
     O << ";\n";
   }
 
-  /// getOStream - Get the raw output stream into the graph file. Useful to
-  /// write fancy things using addCustomGraphFeatures().
+  /// Get the raw output stream into the graph file.
+  ///
+  /// Useful to write fancy things using \c addCustomGraphFeatures().
+  ///
+  /// \return The raw output stream receiving the DOT text.
   raw_ostream &getOStream() {
     return O;
   }
 };
 
+/// Default DOT graph writer for a graph type.
+///
+/// \tparam GraphType Graph type modeled by \c GraphTraits.
 template <typename GraphType>
 class GraphWriter : public GraphWriterBase<GraphType, GraphWriter<GraphType>> {
 public:
+  /// Construct a graph writer for \p g that writes to \p o.
+  ///
+  /// \param o Stream that receives the DOT output.
+  /// \param g Graph to write.
+  /// \param SN If true, request short names from the DOT traits.
   GraphWriter(raw_ostream &o, const GraphType &g, bool SN)
       : GraphWriterBase<GraphType, GraphWriter<GraphType>>(o, g, SN) {}
+  /// Destroy the graph writer.
   ~GraphWriter() override = default;
 };
 
+/// Write graph \p G as DOT text to stream \p O.
+///
+/// \param O Stream that receives the DOT output.
+/// \param G Graph to write.
+/// \param ShortNames If true, request short names from the DOT traits.
+/// \param Title Optional title used as the graph name and label.
+/// \return The output stream \p O.
 template <typename GraphType>
 raw_ostream &WriteGraph(raw_ostream &O, const GraphType &G,
                         bool ShortNames = false, const Twine &Title = "") {
@@ -384,12 +484,24 @@ raw_ostream &WriteGraph(raw_ostream &O, const GraphType &G,
   return O;
 }
 
+/// Create a temporary file name suitable for writing a DOT graph.
+///
+/// \param Name Twine used as a prefix when generating the file name.
+/// \param FD Set to an open file descriptor for the created file, or -1 on
+/// failure.
+/// \return The generated file path.
 LLVM_ABI std::string createGraphFilename(const Twine &Name, int &FD);
 
-/// Writes graph into a provided @c Filename.
-/// If @c Filename is empty, generates a random one.
-/// \return The resulting filename, or an empty string if writing
-/// failed.
+/// Write graph \p G into a DOT file.
+///
+/// If \p Filename is empty, generates a random one.
+///
+/// \param G Graph to write.
+/// \param Name Twine used when generating a temporary file name.
+/// \param ShortNames If true, request short names from the DOT traits.
+/// \param Title Optional title used as the graph name and label.
+/// \param Filename Destination path, or empty to create a temporary file.
+/// \return The resulting filename, or an empty string if writing failed.
 template <typename GraphType>
 std::string WriteGraph(const GraphType &G, const Twine &Name,
                        bool ShortNames = false,
@@ -425,8 +537,14 @@ std::string WriteGraph(const GraphType &G, const Twine &Name,
   return Filename;
 }
 
-/// DumpDotGraph - Just dump a dot graph to the user-provided file name.
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+/// Dump a DOT graph to the user-provided file name.
+///
+/// \param G Graph to write.
+/// \param FileName Destination path for the DOT file.
+/// \param Title Optional title used as the graph name and label.
+/// \param ShortNames If true, request short names from the DOT traits.
+/// \param Name Twine used when generating a temporary file name.
 template <typename GraphType>
 LLVM_DUMP_METHOD void
 dumpDotGraphToFile(const GraphType &G, const Twine &FileName,
@@ -436,9 +554,16 @@ dumpDotGraphToFile(const GraphType &G, const Twine &FileName,
 }
 #endif
 
-/// ViewGraph - Emit a dot graph, run 'dot', run gv on the postscript file,
-/// then cleanup.  For use from the debugger.
+/// Emit a DOT graph and open it with a Graphviz viewer.
 ///
+/// Useful from a debugger: writes the graph, runs the selected program, then
+/// cleans up.
+///
+/// \param G Graph to write and display.
+/// \param Name Twine used when generating a temporary file name.
+/// \param ShortNames If true, request short names from the DOT traits.
+/// \param Title Optional title used as the graph name and label.
+/// \param Program Graphviz program used to render the graph.
 template<typename GraphType>
 void ViewGraph(const GraphType &G, const Twine &Name,
                bool ShortNames = false, const Twine &Title = "",

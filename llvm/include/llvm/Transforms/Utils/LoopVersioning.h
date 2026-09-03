@@ -40,10 +40,17 @@ template <typename T> class ArrayRef;
 /// already has a preheader.
 class LoopVersioning {
 public:
-  /// Expects LoopAccessInfo, Loop, LoopInfo, DominatorTree as input.
-  /// It uses runtime check provided by the user. If \p UseLAIChecks is true,
-  /// we will retain the default checks made by LAI. Otherwise, construct an
-  /// object having no checks and we expect the user to add them.
+  /// Construct a loop versioning utility for \p L.
+  ///
+  /// Expects LoopAccessInfo, Loop, LoopInfo, DominatorTree as input.  It uses
+  /// runtime checks provided by the user via \p Checks.
+  ///
+  /// \param LAI Loop access analysis for \p L.
+  /// \param Checks Runtime pointer checks used to version the loop.
+  /// \param L Loop to version.
+  /// \param LI LoopInfo to update.
+  /// \param DT Dominator tree to update.
+  /// \param SE ScalarEvolution analysis for \p L.
   LLVM_ABI LoopVersioning(const LoopAccessInfo &LAI,
                           ArrayRef<RuntimePointerCheck> Checks, Loop *L,
                           LoopInfo *LI, DominatorTree *DT, ScalarEvolution *SE);
@@ -65,16 +72,24 @@ public:
 
   /// Same but if the client has already precomputed the set of values
   /// used outside the loop, this API will allows passing that.
+  ///
+  /// \param DefsUsedOutside Loop-defined values used outside the loop.
   LLVM_ABI void
   versionLoop(const SmallVectorImpl<Instruction *> &DefsUsedOutside);
 
-  /// Returns the versioned loop.  Control flows here if pointers in the
-  /// loop don't alias (i.e. all memchecks passed).  (This loop is actually the
-  /// same as the original loop that we got constructed with.)
+  /// Returns the versioned loop.
+  ///
+  /// Control flows here if pointers in the loop don't alias (i.e. all
+  /// memchecks passed).  (This loop is actually the same as the original loop
+  /// that we got constructed with.)
+  ///
+  /// \return The versioned loop.
   Loop *getVersionedLoop() { return VersionedLoop; }
 
   /// Returns the fall-back loop.  Control flows here if pointers in the
   /// loop may alias (i.e. one of the memchecks failed).
+  ///
+  /// \return The non-versioned fall-back loop.
   Loop *getNonVersionedLoop() { return NonVersionedLoop; }
 
   /// Annotate memory instructions in the versioned loop with no-alias
@@ -86,6 +101,11 @@ public:
 
   /// Returns a pair containing the alias_scope and noalias metadata nodes for
   /// \p OrigInst, if they exists.
+  ///
+  /// \param OrigInst Original-loop instruction to look up no-alias metadata
+  ///        for.
+  /// \return A pair of (alias_scope, noalias) metadata nodes, or null nodes
+  ///         if none exist.
   LLVM_ABI std::pair<MDNode *, MDNode *>
   getNoAliasMetadataFor(const Instruction *OrigInst) const;
 
@@ -98,6 +118,9 @@ public:
   /// \p OrigInst is the instruction corresponding to \p VersionedInst in the
   /// original loop.  Initialize the aliasing scopes with
   /// prepareNoAliasMetadata once before this can be called.
+  ///
+  /// \param VersionedInst Instruction in the versioned loop to annotate.
+  /// \param OrigInst Corresponding instruction in the original loop.
   LLVM_ABI void annotateInstWithNoAlias(Instruction *VersionedInst,
                                         const Instruction *OrigInst);
 
@@ -150,11 +173,17 @@ private:
   ScalarEvolution *SE;
 };
 
-/// Expose LoopVersioning as a pass.  Currently this is only used for
-/// unit-testing.  It adds all memchecks necessary to remove all may-aliasing
-/// array accesses from the loop.
+/// Expose LoopVersioning as a pass.
+///
+/// Currently this is only used for unit-testing.  It adds all memchecks
+/// necessary to remove all may-aliasing array accesses from the loop.
 class LoopVersioningPass : public OptionalPassInfoMixin<LoopVersioningPass> {
 public:
+  /// Run loop versioning over \p F.
+  ///
+  /// \param F Function whose loops may be versioned.
+  /// \param FAM Function analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 }

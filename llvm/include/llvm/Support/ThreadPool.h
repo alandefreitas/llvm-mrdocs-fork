@@ -59,23 +59,36 @@ public:
   /// thread may participate in the execution of the pending tasks.
   virtual ~ThreadPoolInterface();
 
-  /// Blocking wait for all the threads to complete and the queue to be empty.
+  /// Block until all threads complete and the queue is empty.
+  ///
   /// It is an error to try to add new tasks while blocking on this call.
   /// Calling wait() from a task would deadlock waiting for itself.
   virtual void wait() = 0;
 
-  /// Blocking wait for only all the threads in the given group to complete.
+  /// Block until all tasks in the given group complete.
+  ///
   /// It is possible to wait even inside a task, but waiting (directly or
   /// indirectly) on itself will deadlock. If called from a task running on a
   /// worker thread, the call may process pending tasks while waiting in order
   /// not to waste the thread.
+  ///
+  /// \param Group Task group whose tasks to wait for.
   virtual void wait(ThreadPoolTaskGroup &Group) = 0;
 
   /// Returns the maximum number of worker this pool can eventually grow to.
+  ///
+  /// \return Maximum number of worker threads this pool can grow to.
   virtual unsigned getMaxConcurrency() const = 0;
 
-  /// Asynchronous submission of a task to the pool. The returned future can be
-  /// used to wait for the task to finish and is *non-blocking* on destruction.
+  /// Asynchronously submit a task to the pool.
+  ///
+  /// The returned future can be used to wait for the task to finish and is
+  /// *non-blocking* on destruction.
+  ///
+  /// \param F Callable to run asynchronously.
+  /// \param ArgList Arguments forwarded to \p F.
+  /// \return A shared future for the task's result that is non-blocking on
+  /// destruction.
   template <typename Function, typename... Args>
   auto async(Function &&F, Args &&...ArgList) {
     auto Task =
@@ -83,7 +96,13 @@ public:
     return async(std::move(Task));
   }
 
-  /// Overload, task will be in the given task group.
+  /// Asynchronously submit a task to the pool in the given group.
+  ///
+  /// \param Group Task group that owns the submitted task.
+  /// \param F Callable to run asynchronously.
+  /// \param ArgList Arguments forwarded to \p F.
+  /// \return A shared future for the task's result that is non-blocking on
+  /// destruction.
   template <typename Function, typename... Args>
   auto async(ThreadPoolTaskGroup &Group, Function &&F, Args &&...ArgList) {
     auto Task =
@@ -91,14 +110,29 @@ public:
     return async(Group, std::move(Task));
   }
 
-  /// Asynchronous submission of a task to the pool. The returned future can be
-  /// used to wait for the task to finish and is *non-blocking* on destruction.
+  /// Asynchronously submit a task to the pool.
+  ///
+  /// The returned future can be used to wait for the task to finish and is
+  /// *non-blocking* on destruction.
+  ///
+  /// \param F Callable to run asynchronously.
+  /// \return A shared future for the task's result that is non-blocking on
+  /// destruction.
   template <typename Func>
   auto async(Func &&F) -> std::shared_future<decltype(F())> {
     return asyncImpl(
         llvm::unique_function<decltype(F())()>(std::forward<Func>(F)), nullptr);
   }
 
+  /// Asynchronously submit a task to the pool in the given group.
+  ///
+  /// The returned future can be used to wait for the task to finish and is
+  /// *non-blocking* on destruction.
+  ///
+  /// \param Group Task group that owns the submitted task.
+  /// \param F Callable to run asynchronously.
+  /// \return A shared future for the task's result that is non-blocking on
+  /// destruction.
   template <typename Func>
   auto async(ThreadPoolTaskGroup &Group, Func &&F)
       -> std::shared_future<decltype(F())> {
@@ -125,32 +159,43 @@ private:
 /// for some work to become available.
 class LLVM_ABI StdThreadPool : public ThreadPoolInterface {
 public:
-  /// Construct a pool using the hardware strategy \p S for mapping hardware
-  /// execution resources (threads, cores, CPUs)
-  /// Defaults to using the maximum execution resources in the system, but
-  /// accounting for the affinity mask.
+  /// Construct a pool using hardware strategy \p S.
+  ///
+  /// Maps hardware execution resources (threads, cores, CPUs). Defaults to
+  /// using the maximum execution resources in the system, but accounting for
+  /// the affinity mask.
+  ///
+  /// \param S Strategy for mapping hardware execution resources.
   StdThreadPool(ThreadPoolStrategy S = hardware_concurrency());
 
   /// Blocking destructor: the pool will wait for all the threads to complete.
   ~StdThreadPool() override;
 
-  /// Blocking wait for all the threads to complete and the queue to be empty.
+  /// Block until all threads complete and the queue is empty.
+  ///
   /// It is an error to try to add new tasks while blocking on this call.
   /// Calling wait() from a task would deadlock waiting for itself.
   void wait() override;
 
-  /// Blocking wait for only all the threads in the given group to complete.
+  /// Block until all tasks in the given group complete.
+  ///
   /// It is possible to wait even inside a task, but waiting (directly or
   /// indirectly) on itself will deadlock. If called from a task running on a
   /// worker thread, the call may process pending tasks while waiting in order
   /// not to waste the thread.
+  ///
+  /// \param Group Task group whose tasks to wait for.
   void wait(ThreadPoolTaskGroup &Group) override;
 
   /// Returns the maximum number of worker threads in the pool, not the current
   /// number of threads!
+  ///
+  /// \return Maximum number of worker threads this pool can grow to.
   unsigned getMaxConcurrency() const override { return MaxThreadCount; }
 
   /// Returns true if the current thread is a worker thread of this thread pool.
+  ///
+  /// \return True if the calling thread belongs to this pool.
   bool isWorkerThread() const;
 
 private:
@@ -219,28 +264,46 @@ private:
 /// A non-threaded implementation.
 class LLVM_ABI SingleThreadExecutor : public ThreadPoolInterface {
 public:
-  /// Construct a non-threaded pool, ignoring using the hardware strategy.
+  /// Construct a non-threaded pool, ignoring the hardware strategy.
+  ///
+  /// \param ignored Unused strategy accepted for API compatibility.
   SingleThreadExecutor(ThreadPoolStrategy ignored = {});
 
   /// Blocking destructor: the pool will first execute the pending tasks.
   ~SingleThreadExecutor() override;
 
-  // Excplicitly disable copy. This is necessary for the MSVC LLVM_DYLIB build
-  // because MSVC tries to generate copy constructor and assignment operator
-  // for classes marked with `__declspec(dllexport)`.
-  SingleThreadExecutor(const SingleThreadExecutor &) = delete;
-  SingleThreadExecutor &operator=(const SingleThreadExecutor &) = delete;
+  /// Deleted copy constructor required for the MSVC LLVM_DYLIB build.
+  ///
+  /// MSVC tries to generate copy constructor and assignment operator for
+  /// classes marked with `__declspec(dllexport)`.
+  ///
+  /// \param Other Unused source instance; the constructor is deleted.
+  SingleThreadExecutor(const SingleThreadExecutor &Other) = delete;
+
+  /// Deleted copy assignment required for the MSVC LLVM_DYLIB build.
+  ///
+  /// MSVC tries to generate copy constructor and assignment operator for
+  /// classes marked with `__declspec(dllexport)`.
+  ///
+  /// \param Other Unused source instance; the assignment is deleted.
+  SingleThreadExecutor &operator=(const SingleThreadExecutor &Other) = delete;
 
   /// Blocking wait for all the tasks to execute first
   void wait() override;
 
   /// Blocking wait for only all the tasks in the given group to complete.
+  ///
+  /// \param Group Task group whose tasks to wait for.
   void wait(ThreadPoolTaskGroup &Group) override;
 
   /// Returns always 1: there is no concurrency.
+  ///
+  /// \return Always 1, since this executor has no concurrency.
   unsigned getMaxConcurrency() const override { return 1; }
 
   /// Returns true if the current thread is a worker thread of this thread pool.
+  ///
+  /// \return True if the calling thread belongs to this pool.
   bool isWorkerThread() const;
 
 private:
@@ -257,25 +320,36 @@ private:
 };
 
 #if LLVM_ENABLE_THREADS
+/// Preferred thread-pool type when LLVM is built with thread support.
 using DefaultThreadPool = StdThreadPool;
 #else
+/// Preferred thread-pool type when LLVM is built without thread support.
 using DefaultThreadPool = SingleThreadExecutor;
 #endif
 
-/// A group of tasks to be run on a thread pool. Thread pool tasks in different
-/// groups can run on the same threadpool but can be waited for separately.
-/// It is even possible for tasks of one group to submit and wait for tasks
-/// of another group, as long as this does not form a loop.
+/// A group of tasks that can be waited for separately on a shared thread pool.
+///
+/// Thread pool tasks in different groups can run on the same threadpool but
+/// can be waited for separately. It is even possible for tasks of one group to
+/// submit and wait for tasks of another group, as long as this does not form a
+/// loop.
 class ThreadPoolTaskGroup {
 public:
-  /// The ThreadPool argument is the thread pool to forward calls to.
+  /// Create a task group that forwards work to \p Pool.
+  ///
+  /// \param Pool Thread pool that will execute tasks in this group.
   ThreadPoolTaskGroup(ThreadPoolInterface &Pool) : Pool(Pool) {}
 
   /// Blocking destructor: will wait for all the tasks in the group to complete
   /// by calling ThreadPool::wait().
   ~ThreadPoolTaskGroup() { wait(); }
 
-  /// Calls ThreadPool::async() for this group.
+  /// Asynchronously submit a task to this group.
+  ///
+  /// \param F Callable to run asynchronously.
+  /// \param ArgList Arguments forwarded to \p F.
+  /// \return A shared future for the task's result that is non-blocking on
+  /// destruction.
   template <typename Function, typename... Args>
   inline auto async(Function &&F, Args &&...ArgList) {
     return Pool.async(*this, std::forward<Function>(F),

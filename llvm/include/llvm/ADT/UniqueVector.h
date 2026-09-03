@@ -17,10 +17,11 @@
 namespace llvm {
 
 //===----------------------------------------------------------------------===//
-/// UniqueVector - This class produces a sequential ID number (base 1) for each
-/// unique entry that is added.  T is the type of entries in the vector. This
-/// class should have an implementation of operator== and of operator<.
-/// Entries can be fetched using operator[] with the entry ID.
+/// Vector that assigns a sequential base-1 ID to each unique entry.
+///
+/// T is the type of entries in the vector. T should have implementations of
+/// operator== and of operator<. Entries can be fetched using operator[] with
+/// the entry ID.
 template<class T> class UniqueVector {
 public:
   /// Underlying contiguous storage of unique entries in insertion order.
@@ -40,6 +41,8 @@ private:
 public:
   /// insert - Append entry to the vector if it doesn't already exist.  Returns
   /// the entry's index + 1 to be used as a unique ID.
+  /// @param Entry The entry to insert.
+  /// @return The entry's 1-based ID (existing or newly assigned).
   unsigned insert(const T &Entry) {
     // Check if the entry is already in the map.
     unsigned &Val = Map[Entry];
@@ -57,6 +60,8 @@ public:
 
   /// idFor - return the ID for an existing entry.  Returns 0 if the entry is
   /// not found.
+  /// @param Entry The entry to look up.
+  /// @return The entry's 1-based ID, or 0 if the entry is not found.
   unsigned idFor(const T &Entry) const {
     // Search for entry in the map.
     typename std::map<T, unsigned>::const_iterator MI = Map.find(Entry);
@@ -69,27 +74,35 @@ public:
   }
 
   /// operator[] - Returns a reference to the entry with the specified ID.
+  /// @param ID The 1-based ID of the entry to retrieve.
+  /// @return A const reference to the entry with the given ID.
   const T &operator[](unsigned ID) const {
     assert(ID-1 < size() && "ID is 0 or out of range!");
     return Vector[ID - 1];
   }
 
   /// Return an iterator to the start of the vector.
+  /// @return An iterator to the first entry.
   iterator begin() { return Vector.begin(); }
 
   /// Return an iterator to the start of the vector.
+  /// @return A const iterator to the first entry.
   const_iterator begin() const { return Vector.begin(); }
 
   /// Return an iterator to the end of the vector.
+  /// @return An iterator past the last entry.
   iterator end() { return Vector.end(); }
 
   /// Return an iterator to the end of the vector.
+  /// @return A const iterator past the last entry.
   const_iterator end() const { return Vector.end(); }
 
   /// size - Returns the number of entries in the vector.
+  /// @return The number of unique entries stored.
   size_t size() const { return Vector.size(); }
 
   /// empty - Returns true if the vector is empty.
+  /// @return True if the vector contains no entries.
   bool empty() const { return Vector.empty(); }
 
   /// reset - Clears all the entries.

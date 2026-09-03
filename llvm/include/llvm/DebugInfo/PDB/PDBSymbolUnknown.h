@@ -16,11 +16,28 @@ namespace llvm {
 
 namespace pdb {
 
+/// PDB symbol for an unrecognized or out-of-range symbol tag.
+///
+/// Used when a raw symbol's tag is `PDB_SymType::None` or greater than or
+/// equal to `PDB_SymType::Max`, so no more specific concrete type applies.
 class LLVM_ABI PDBSymbolUnknown : public PDBSymbol {
-  DECLARE_PDB_SYMBOL_CUSTOM_TYPE(S->getSymTag() == PDB_SymType::None ||
-                                 S->getSymTag() >= PDB_SymType::Max)
+private:
+  using PDBSymbol::PDBSymbol;
+  friend class PDBSymbol;
 
 public:
+  /// True if \p S has an unknown or unsupported PDB symbol tag.
+  ///
+  /// \param S Symbol to test.
+  /// \returns True if \p S has an unknown or unsupported PDB symbol tag.
+  static bool classof(const PDBSymbol *S) {
+    return S->getSymTag() == PDB_SymType::None ||
+           S->getSymTag() >= PDB_SymType::Max;
+  }
+
+  /// Dump this unknown symbol using the given dumper.
+  ///
+  /// \param Dumper Visitor used to format and emit the symbol.
   void dump(PDBSymDumper &Dumper) const override;
 };
 

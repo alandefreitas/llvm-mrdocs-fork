@@ -14,6 +14,7 @@
 #include <mutex>
 
 namespace llvm {
+/// Language Server Protocol types, transport, and logging utilities.
 namespace lsp {
 
 /// This class represents the main interface for logging, and allows for
@@ -21,19 +22,34 @@ namespace lsp {
 class Logger {
 public:
   /// The level of significance for a log message.
-  enum class Level { Debug, Info, Error };
+  enum class Level {
+    /// Verbose messages useful during development.
+    Debug,
+    /// Informational messages about normal operation.
+    Info,
+    /// Messages indicating a failure or unexpected condition.
+    Error
+  };
 
   /// Set the severity level of the logger.
+  /// \param LogLevel Minimum severity of messages that will be emitted.
   LLVM_ABI static void setLogLevel(Level LogLevel);
 
-  /// Initiate a log message at various severity levels. These should be called
-  /// after a call to `initialize`.
+  /// Log a debug-severity message using a formatv-style format string.
+  /// \param Fmt formatv-style format string for the message.
+  /// \param Vals Values substituted into \p Fmt.
   template <typename... Ts> static void debug(const char *Fmt, Ts &&...Vals) {
     log(Level::Debug, Fmt, llvm::formatv(Fmt, std::forward<Ts>(Vals)...));
   }
+  /// Log an info-severity message using a formatv-style format string.
+  /// \param Fmt formatv-style format string for the message.
+  /// \param Vals Values substituted into \p Fmt.
   template <typename... Ts> static void info(const char *Fmt, Ts &&...Vals) {
     log(Level::Info, Fmt, llvm::formatv(Fmt, std::forward<Ts>(Vals)...));
   }
+  /// Log an error-severity message using a formatv-style format string.
+  /// \param Fmt formatv-style format string for the message.
+  /// \param Vals Values substituted into \p Fmt.
   template <typename... Ts> static void error(const char *Fmt, Ts &&...Vals) {
     log(Level::Error, Fmt, llvm::formatv(Fmt, std::forward<Ts>(Vals)...));
   }

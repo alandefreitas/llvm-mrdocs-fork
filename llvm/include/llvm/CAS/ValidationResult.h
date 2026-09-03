@@ -9,9 +9,7 @@
 #ifndef LLVM_CAS_VALIDATIONRESULT_H
 #define LLVM_CAS_VALIDATIONRESULT_H
 
-/// Top-level LLVM library namespace.
 namespace llvm {
-/// Content-addressable storage (CAS) APIs.
 namespace cas {
 
 /// Represents the result of validating the contents using

@@ -18,6 +18,20 @@ struct DIDumpOptions;
 
 namespace dwarf {
 
+/// Print a Call Frame Information program to the stream.
+///
+/// \param P the CFI program to print.
+///
+/// \param OS the stream to use for output.
+///
+/// \param DumpOpts options controlling dump formatting, including register
+/// name resolution.
+///
+/// \param IndentLevel specify the indent level as an integer. Each instruction
+/// will be output to the stream preceded by 2 * IndentLevel number of spaces.
+///
+/// \param Address optional initial program counter used when printing factored
+/// code offsets as absolute addresses; advanced as address operands are seen.
 LLVM_ABI void printCFIProgram(const CFIProgram &P, raw_ostream &OS,
                               const DIDumpOptions &DumpOpts,
                               unsigned IndentLevel,

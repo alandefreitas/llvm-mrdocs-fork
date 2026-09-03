@@ -103,13 +103,23 @@ struct ControlFlowHub {
   struct BranchDescriptor {
     /// Basic block containing the branch to split.
     BasicBlock *BB;
+    /// First successor to reroute through the hub, or nullptr to leave it.
     BasicBlock *Succ0;
+    /// Second successor to reroute through the hub, or nullptr to leave it.
     BasicBlock *Succ1;
 
+    /// Construct a descriptor for the branch in \p BB to \p Succ0 and \p Succ1.
+    /// \param BB Basic block containing the branch to split.
+    /// \param Succ0 First successor to reroute, or nullptr to leave it.
+    /// \param Succ1 Second successor to reroute, or nullptr to leave it.
     BranchDescriptor(BasicBlock *BB, BasicBlock *Succ0, BasicBlock *Succ1)
         : BB(BB), Succ0(Succ0), Succ1(Succ1) {}
   };
 
+  /// Record a branch in \p BB whose successors should be split through the hub.
+  /// \param BB Basic block containing the branch to split.
+  /// \param Succ0 First successor to reroute, or nullptr to leave it.
+  /// \param Succ1 Second successor to reroute, or nullptr to leave it.
   void addBranch(BasicBlock *BB, BasicBlock *Succ0,
                  BasicBlock *Succ1 = nullptr) {
     assert(BB);
@@ -119,11 +129,18 @@ struct ControlFlowHub {
 
   /// Return the unified loop exit block and a flag indicating if the CFG was
   /// changed at all.
+  /// \param DTU Optional dominator-tree updater for CFG changes.
+  /// \param GuardBlocks Output vector filled with the hub's guard blocks.
+  /// \param Prefix Name prefix for newly created guard blocks.
+  /// \param MaxControlFlowBooleans Optional limit on outgoing targets before
+  ///        switching from per-edge boolean predicates to an integer index.
+  /// \return Pair of the unified loop exit block and whether the CFG changed.
   LLVM_ABI std::pair<BasicBlock *, bool>
   finalize(DomTreeUpdater *DTU, SmallVectorImpl<BasicBlock *> &GuardBlocks,
            const StringRef Prefix,
            std::optional<unsigned> MaxControlFlowBooleans = std::nullopt);
 
+  /// Branch descriptors queued for splitting when \ref finalize is called.
   SmallVector<BranchDescriptor> Branches;
 };
 

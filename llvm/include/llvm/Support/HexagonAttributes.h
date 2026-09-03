@@ -13,18 +13,22 @@
 #include "llvm/Support/ELFAttributes.h"
 
 namespace llvm {
+/// Enumerations and helpers for Qualcomm Hexagon ELF build attributes.
 namespace HexagonAttrs {
 
+/// Return the map from Hexagon build-attribute tags to their \c Tag_* names.
+/// @return The Hexagon attribute tag-name map.
 LLVM_ABI const TagNameMap &getHexagonAttributeTags();
 
+/// Public tags in the Hexagon ELF \c .hexagon.attributes section.
 enum AttrType : unsigned {
-  ARCH = 4,
-  HVXARCH = 5,
-  HVXIEEEFP = 6,
-  HVXQFLOAT = 7,
-  ZREG = 8,
-  AUDIO = 9,
-  CABAC = 10
+  ARCH = 4,      ///< Architecture version (Tag_arch).
+  HVXARCH = 5,   ///< HVX architecture version (Tag_hvx_arch).
+  HVXIEEEFP = 6, ///< HVX IEEE floating-point support (Tag_hvx_ieeefp).
+  HVXQFLOAT = 7, ///< HVX QFloat support (Tag_hvx_qfloat).
+  ZREG = 8,      ///< Z-register support (Tag_zreg).
+  AUDIO = 9,     ///< Audio extensions (Tag_audio).
+  CABAC = 10     ///< CABAC codec support (Tag_cabac).
 };
 
 } // namespace HexagonAttrs

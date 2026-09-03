@@ -25,19 +25,23 @@ class MCContext;
 class MCObjectStreamer;
 class MCFragment;
 
+/// Emits sframe unwinding information from CFI directives.
+///
+/// Relies on FDEs and CIEs created for DWARF frame info, but emits that info
+/// in the sframe format.
 class MCSFrameEmitter {
 public:
-  // Emit the sframe section.
-  //
-  // \param Streamer - Emit into this stream.
+  /// Emit the sframe section for all recorded frames.
+  ///
+  /// \param Streamer - Object streamer that receives the sframe section.
   LLVM_ABI static void emit(MCObjectStreamer &Streamer);
 
-  // Encode the FRE's function offset.
-  //
-  // \param C - Context.
-  // \param Offset - Offset to encode.
-  // \param Out - Destination of the encoding.
-  // \param FDEFrag - Frag that specifies the encoding format.
+  /// Encode an FRE function offset into the given buffer.
+  ///
+  /// \param C - Assembler context used for the encoding.
+  /// \param Offset - Function offset to encode.
+  /// \param Out - Destination buffer that receives the encoded bytes.
+  /// \param FDEFrag - Fragment that specifies the encoding format.
   LLVM_ABI static void encodeFuncOffset(MCContext &C, uint64_t Offset,
                                         SmallVectorImpl<char> &Out,
                                         MCFragment *FDEFrag);

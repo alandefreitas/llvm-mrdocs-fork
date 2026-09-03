@@ -51,8 +51,12 @@ public:
   /// \param Compatible when set, write in "Compatibility Mode".
   LLVM_ABI Writer(raw_ostream &OS, bool Compatible = false);
 
-  Writer(const Writer &) = delete;
-  Writer &operator=(const Writer &) = delete;
+  /// Deleted copy constructor; Writer is not copyable.
+  /// \param Other Unused; copy construction is deleted.
+  Writer(const Writer &Other) = delete;
+  /// Deleted copy assignment; Writer is not copyable.
+  /// \param Other Unused; copy assignment is deleted.
+  Writer &operator=(const Writer &Other) = delete;
 
   /// Write a \em Nil to the output stream.
   ///
@@ -62,6 +66,8 @@ public:
   /// Write a \em Boolean to the output stream.
   ///
   /// The output will be a \em bool format.
+  ///
+  /// \param b boolean value to write.
   LLVM_ABI void write(bool b);
 
   /// Write a signed integer to the output stream.
@@ -69,21 +75,29 @@ public:
   /// The output will be in the smallest possible \em int format.
   ///
   /// The format chosen may be for an unsigned integer.
+  ///
+  /// \param i signed integer to write.
   LLVM_ABI void write(int64_t i);
 
   /// Write an unsigned integer to the output stream.
   ///
   /// The output will be in the smallest possible \em int format.
+  ///
+  /// \param u unsigned integer to write.
   LLVM_ABI void write(uint64_t u);
 
   /// Write a floating point number to the output stream.
   ///
   /// The output will be in the smallest possible \em float format.
+  ///
+  /// \param d floating point number to write.
   LLVM_ABI void write(double d);
 
   /// Write a string to the output stream.
   ///
   /// The output will be in the smallest possible \em str format.
+  ///
+  /// \param s string to write.
   LLVM_ABI void write(StringRef s);
 
   /// Write a memory buffer to the output stream.
@@ -91,6 +105,8 @@ public:
   /// The output will be in the smallest possible \em bin format.
   ///
   /// \warning Do not use this overload if in \c Compatible mode.
+  ///
+  /// \param Buffer memory buffer to write.
   LLVM_ABI void write(MemoryBufferRef Buffer);
 
   /// Write the header for an \em Array of the given size.
@@ -102,6 +118,8 @@ public:
   ///
   /// N.B. The caller must subsequently call \c Write an additional \p Size
   /// times to complete the array.
+  ///
+  /// \param Size number of elements in the array.
   LLVM_ABI void writeArraySize(uint32_t Size);
 
   /// Write the header for a \em Map of the given size.
@@ -114,11 +132,16 @@ public:
   /// N.B. The caller must subsequently call \c Write and additional \c Size*2
   /// times to complete the map. Each even numbered call to \c Write defines a
   /// new key, and each odd numbered call defines the previous key's value.
+  ///
+  /// \param Size number of key-value pairs in the map.
   LLVM_ABI void writeMapSize(uint32_t Size);
 
   /// Write a typed memory buffer (an extension type) to the output stream.
   ///
   /// The output will be in the smallest possible \em ext format.
+  ///
+  /// \param Type extension type identifier.
+  /// \param Buffer memory buffer containing the extension payload.
   LLVM_ABI void writeExt(int8_t Type, MemoryBufferRef Buffer);
 
 private:

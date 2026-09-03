@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+/// LLVM-provided high-level optimization level.
 enum class OptimizationLevel {
   /// Disable as many optimizations as possible. This doesn't completely
   /// disable the optimizer in all cases, for example always_inline functions

@@ -20,11 +20,17 @@
 
 namespace llvm {
 namespace sys {
-  // True if Valgrind is controlling this process.
+/// Returns true if Valgrind is controlling this process.
+///
+/// \returns True when this process is running under Valgrind.
 LLVM_ABI bool RunningOnValgrind();
 
-// Discard valgrind's translation of code in the range [Addr .. Addr + Len).
-// Otherwise valgrind may continue to execute the old version of the code.
+/// Discards Valgrind's translation of code in the given address range.
+///
+/// Otherwise Valgrind may continue to execute the old version of the code.
+///
+/// \param Addr Start of the code range whose translation should be discarded.
+/// \param Len Length in bytes of the range \c [Addr .. Addr + Len).
 LLVM_ABI void ValgrindDiscardTranslations(const void *Addr, size_t Len);
 } // namespace sys
 } // end namespace llvm

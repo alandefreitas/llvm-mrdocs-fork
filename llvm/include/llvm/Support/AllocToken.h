@@ -43,15 +43,23 @@ inline constexpr AllocTokenMode DefaultAllocTokenMode =
 
 /// Returns the AllocTokenMode from its canonical string name; if an invalid
 /// name was provided returns nullopt.
+///
+/// \param Name The canonical string name of the allocation token mode.
+/// \return The AllocTokenMode for Name, or std::nullopt if the name is invalid.
 LLVM_ABI std::optional<AllocTokenMode>
 getAllocTokenModeFromString(StringRef Name);
 
 /// Returns the canonical string name for the given AllocTokenMode.
+///
+/// \param Mode The allocation token mode.
+/// \return The canonical string name for Mode.
 LLVM_ABI StringRef getAllocTokenModeAsString(AllocTokenMode Mode);
 
 /// Metadata about an allocation used to generate a token ID.
 struct AllocTokenMetadata {
+  /// The name of the allocated type.
   SmallString<64> TypeName;
+  /// Whether the allocated type contains a pointer.
   bool ContainsPointer;
 };
 

@@ -20,7 +20,13 @@ namespace llvm {
 class Duration {
   std::chrono::milliseconds Value;
   public:
+  /// Construct a Duration from a milliseconds value.
+  ///
+  /// \param Value Duration in milliseconds.
   Duration(std::chrono::milliseconds Value) : Value(Value) {}
+  /// Return the stored duration in milliseconds.
+  ///
+  /// \return The duration in milliseconds.
   std::chrono::milliseconds getDuration() const { return Value; }
 };
 }

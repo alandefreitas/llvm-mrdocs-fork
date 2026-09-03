@@ -20,7 +20,13 @@ namespace llvm {
 
 class Module;
 
+/// Pass that lowers all remaining coroutine intrinsics.
 struct CoroCleanupPass : RequiredPassInfoMixin<CoroCleanupPass> {
+  /// Lower remaining coroutine intrinsics in module \p M.
+  ///
+  /// \param M The module to process.
+  /// \param MAM The module analysis manager.
+  /// \return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 } // end namespace llvm

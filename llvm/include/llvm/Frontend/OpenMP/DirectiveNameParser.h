@@ -18,9 +18,11 @@
 #include <memory>
 
 namespace llvm::omp {
-/// Parser class for OpenMP directive names. It only recognizes names listed
-/// in OMP.td, in particular it does not recognize Fortran's end-directives
-/// if they are not explicitly listed in OMP.td.
+/// Parser for OpenMP directive names.
+///
+/// It only recognizes names listed in OMP.td, in particular it does not
+/// recognize Fortran's end-directives if they are not explicitly listed in
+/// OMP.td.
 ///
 /// The class itself may be a singleton, once it's constructed it never
 /// changes.
@@ -45,9 +47,13 @@ namespace llvm::omp {
 ///   }
 /// }
 struct DirectiveNameParser {
+  /// Construct a parser for directive names in source language \p L.
+  /// \param L Source language whose directive names are recognized.
   LLVM_ABI DirectiveNameParser(SourceLanguage L = SourceLanguage::C);
 
+  /// Intermediate state while incrementally parsing a directive name.
   struct State {
+    /// Recognized directive, or \c OMPD_unknown if the name is incomplete.
     Directive Value = Directive::OMPD_unknown;
 
   private:
@@ -62,9 +68,20 @@ struct DirectiveNameParser {
     friend struct DirectiveNameParser;
   };
 
+  /// Return the starting parse state before any tokens are consumed.
+  /// \return The initial parse state.
   const State *initial() const { return &InitialState; }
+  /// Advance from \p Current by consuming the next token \p Tok.
+  ///
+  /// Passing a null \p Current is allowed and returns null.
+  /// \param Current Current parse state, or null.
+  /// \param Tok Next whitespace-separated token of the directive name.
+  /// \return The next state, or null if no valid transition exists.
   LLVM_ABI const State *consume(const State *Current, StringRef Tok) const;
 
+  /// Split a directive name into whitespace-separated tokens.
+  /// \param N Directive name string to tokenize.
+  /// \return The whitespace-separated tokens of \p N.
   LLVM_ABI static SmallVector<StringRef> tokenize(StringRef N);
 
 private:

@@ -72,30 +72,54 @@ class BinaryRef {
   bool DataIsHexString = true;
 
 public:
+  /// Construct an empty BinaryRef.
   BinaryRef() = default;
+  /// Construct a BinaryRef that references raw binary data.
+  ///
+  /// \param Data Raw bytes to reference (not interpreted as hex).
   BinaryRef(ArrayRef<uint8_t> Data) : Data(Data), DataIsHexString(false) {}
+  /// Construct a BinaryRef that references a string of hex digits.
+  ///
+  /// \param Data Hex digit string (must contain an even number of characters).
   BinaryRef(StringRef Data) : Data(arrayRefFromStringRef(Data)) {}
 
   /// The number of bytes that are represented by this BinaryRef.
+  ///
   /// This is the number of bytes that writeAsBinary() will write.
+  ///
+  /// \returns The number of bytes of binary content.
   ArrayRef<uint8_t>::size_type binary_size() const {
     if (DataIsHexString)
       return Data.size() / 2;
     return Data.size();
   }
 
-  /// Write the contents (regardless of whether it is binary or a
-  /// hex string) as binary to the given raw_ostream.
-  /// N can be used to specify the maximum number of bytes.
+  /// Write up to \p N bytes of binary content to \p OS.
+  ///
+  /// The contents are written as binary regardless of whether this
+  /// BinaryRef holds raw binary data or a hex string.
+  ///
+  /// \param OS Destination stream for the binary bytes.
+  /// \param N Maximum number of bytes to write.
   LLVM_ABI void writeAsBinary(raw_ostream &OS, uint64_t N = UINT64_MAX) const;
 
   /// Write the contents (regardless of whether it is binary or a
   /// hex string) as hex to the given raw_ostream.
   ///
   /// For example, a possible output could be `DEADBEEFCAFEBABE`.
+  ///
+  /// \param OS Destination stream for the hex digits.
   LLVM_ABI void writeAsHex(raw_ostream &OS) const;
 };
 
+/// Compare two BinaryRefs for equality of mode and data.
+///
+/// Empty default-constructed BinaryRefs compare equal.
+///
+/// \param LHS Left-hand BinaryRef.
+/// \param RHS Right-hand BinaryRef.
+/// \returns True if both are empty, or they share the same hex/binary
+/// mode and the same underlying data.
 inline bool operator==(const BinaryRef &LHS, const BinaryRef &RHS) {
   // Special case for default constructed BinaryRef.
   if (LHS.Data.empty() && RHS.Data.empty())
@@ -104,9 +128,26 @@ inline bool operator==(const BinaryRef &LHS, const BinaryRef &RHS) {
   return LHS.DataIsHexString == RHS.DataIsHexString && LHS.Data == RHS.Data;
 }
 
+/// YAMLIO scalar traits specialization for BinaryRef.
 template <> struct ScalarTraits<BinaryRef> {
-  LLVM_ABI static void output(const BinaryRef &, void *, raw_ostream &);
-  LLVM_ABI static StringRef input(StringRef, void *, BinaryRef &);
+  /// Write \p Val as a hex string to \p Out.
+  ///
+  /// \param Val BinaryRef to serialize.
+  /// \param Ctx Unused client context.
+  /// \param Out Destination stream.
+  LLVM_ABI static void output(const BinaryRef &Val, void *Ctx,
+                              raw_ostream &Out);
+  /// Parse hex string \p Scalar into \p Val.
+  ///
+  /// \param Scalar Hex digit string from YAML.
+  /// \param Ctx Unused client context.
+  /// \param Val Destination BinaryRef.
+  /// \returns Empty StringRef on success, or an error message.
+  LLVM_ABI static StringRef input(StringRef Scalar, void *Ctx, BinaryRef &Val);
+  /// Decide whether \p S must be quoted in YAML output.
+  ///
+  /// \param S Scalar text to inspect.
+  /// \returns The quoting style required for \p S.
   static QuotingType mustQuote(StringRef S) { return needsQuotes(S); }
 };
 

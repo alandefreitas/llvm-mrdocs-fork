@@ -15,20 +15,31 @@
 #include <bitset>
 #include <cassert>
 
-namespace llvm::MCD {
+namespace llvm {
+/// Helpers and opcodes for MC disassembler instruction decoding.
+namespace MCD {
 
-// Helper to propagate SoftFail status. Returns false if the status is Fail;
-// callers are expected to early-exit in that condition. (Note, the '&' operator
-// is correct to propagate the values of this enum; see comment on 'enum
-// DecodeStatus'.)
+/// Propagate SoftFail status by combining \p Out with \p In.
+///
+/// Returns false if the combined status is Fail; callers are expected to
+/// early-exit in that condition. (Note, the '&' operator is correct to
+/// propagate the values of this enum; see comment on 'enum DecodeStatus'.)
+///
+/// \param Out - Accumulated decode status updated with \p In.
+/// \param In - New decode status to combine into \p Out.
+/// \return False if the resulting status is Fail; true otherwise.
 inline bool Check(MCDisassembler::DecodeStatus &Out,
                   MCDisassembler::DecodeStatus In) {
   Out = static_cast<MCDisassembler::DecodeStatus>(Out & In);
   return Out != MCDisassembler::Fail;
 }
 
-// Extracts a given span of bits from the instruction bits and return it as an
-// integer.
+/// Extract a span of bits from an integral instruction word.
+///
+/// \param Insn - Instruction bits to extract from.
+/// \param StartBit - Index of the least significant bit of the field.
+/// \param NumBits - Width of the field in bits.
+/// \return The extracted field as an integer of type \p IntType.
 template <typename IntType>
 #if defined(_MSC_VER) && !defined(__clang__)
 __declspec(noinline)
@@ -42,6 +53,12 @@ fieldFromInstruction(const IntType &Insn, unsigned StartBit, unsigned NumBits) {
   return (Insn >> StartBit) & Mask;
 }
 
+/// Extract a span of bits from a non-integral instruction representation.
+///
+/// \param Insn - Instruction object supporting \c extractBitsAsZExtValue.
+/// \param StartBit - Index of the least significant bit of the field.
+/// \param NumBits - Width of the field in bits.
+/// \return The extracted field as a zero-extended 64-bit value.
 template <typename InsnType>
 inline std::enable_if_t<!std::is_integral_v<InsnType>, uint64_t>
 fieldFromInstruction(const InsnType &Insn, unsigned StartBit,
@@ -49,6 +66,12 @@ fieldFromInstruction(const InsnType &Insn, unsigned StartBit,
   return Insn.extractBitsAsZExtValue(NumBits, StartBit);
 }
 
+/// Extract a span of bits from a \c std::bitset instruction encoding.
+///
+/// \param Insn - Bitset holding the instruction bits.
+/// \param StartBit - Index of the least significant bit of the field.
+/// \param NumBits - Width of the field in bits.
+/// \return The extracted field as a zero-extended 64-bit value.
 template <size_t N>
 uint64_t fieldFromInstruction(const std::bitset<N> &Insn, unsigned StartBit,
                               unsigned NumBits) {
@@ -58,6 +81,7 @@ uint64_t fieldFromInstruction(const std::bitset<N> &Insn, unsigned StartBit,
   return ((Insn >> StartBit) & Mask).to_ullong();
 }
 
-} // namespace llvm::MCD
+} // namespace MCD
+} // namespace llvm
 
 #endif // LLVM_MC_MCDECODER_H

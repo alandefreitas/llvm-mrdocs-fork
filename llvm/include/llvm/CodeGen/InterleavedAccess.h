@@ -21,12 +21,23 @@ namespace llvm {
 
 class TargetMachine;
 
+/// New PM pass that matches interleaved memory accesses to target intrinsics.
+///
+/// Identifies interleaved loads and stores and replaces them with
+/// target-specific interleaved-access intrinsics when supported.
 class InterleavedAccessPass
     : public OptionalPassInfoMixin<InterleavedAccessPass> {
   const TargetMachine *TM;
 
 public:
+  /// Construct an interleaved-access pass for target machine \p TM.
+  /// \param TM Target machine used to query interleaved-access support.
   explicit InterleavedAccessPass(const TargetMachine &TM) : TM(&TM) {}
+
+  /// Match interleaved accesses in \p F to target intrinsics.
+  /// \param F Function to transform.
+  /// \param FAM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

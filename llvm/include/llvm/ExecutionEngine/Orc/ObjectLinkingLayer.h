@@ -46,39 +46,56 @@ private:
   using BaseObjectLayer = RTTIExtends<ObjectLinkingLayer, ObjectLayer>;
 
 public:
+  /// RTTI identifier for this ObjectLinkingLayer type.
   static char ID;
 
+  /// Callback that receives ownership of object buffers after linking.
   using ReturnObjectBufferFunction =
       std::function<void(std::unique_ptr<MemoryBuffer>)>;
 
   /// Construct an ObjectLinkingLayer.
+  /// @param ES Execution session this layer is attached to.
+  /// @param MemMgr Memory manager used for JITLink allocations.
   ObjectLinkingLayer(ExecutionSession &ES,
                      jitlink::JITLinkMemoryManager &MemMgr)
       : LinkGraphLinkingLayer(ES, MemMgr), BaseObjectLayer(ES) {}
 
-  /// Construct an ObjectLinkingLayer. Takes ownership of the given
-  /// JITLinkMemoryManager. This method is a temporary hack to simplify
-  /// co-existence with RTDyldObjectLinkingLayer (which also owns its
-  /// allocators).
+  /// Construct an ObjectLinkingLayer that owns its memory manager.
+  ///
+  /// Takes ownership of the given JITLinkMemoryManager. This method is a
+  /// temporary hack to simplify co-existence with RTDyldObjectLinkingLayer
+  /// (which also owns its allocators).
+  /// @param ES Execution session this layer is attached to.
+  /// @param MemMgr Memory manager to take ownership of.
   ObjectLinkingLayer(ExecutionSession &ES,
                      std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr)
       : LinkGraphLinkingLayer(ES, std::move(MemMgr)), BaseObjectLayer(ES) {}
 
+  /// Inherit getExecutionSession from LinkGraphLinkingLayer.
   using LinkGraphLinkingLayer::getExecutionSession;
 
-  /// Set an object buffer return function. By default object buffers are
-  /// deleted once the JIT has linked them. If a return function is set then
-  /// it will be called to transfer ownership of the buffer instead.
+  /// Set an object buffer return function.
+  ///
+  /// By default object buffers are deleted once the JIT has linked them. If a
+  /// return function is set then it will be called to transfer ownership of the
+  /// buffer instead.
+  /// @param ReturnObjectBuffer Callback that receives ownership of linked
+  ///        object buffers.
   void setReturnObjectBuffer(ReturnObjectBufferFunction ReturnObjectBuffer) {
     this->ReturnObjectBuffer = std::move(ReturnObjectBuffer);
   }
 
+  /// Inherit add overloads from LinkGraphLinkingLayer.
   using LinkGraphLinkingLayer::add;
+  /// Inherit emit overloads from LinkGraphLinkingLayer.
   using LinkGraphLinkingLayer::emit;
 
+  /// Inherit add overloads from ObjectLayer.
   using ObjectLayer::add;
 
   /// Emit an object file.
+  /// @param R Materialization responsibility for the symbols being emitted.
+  /// @param O Memory buffer containing the object file to materialize.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             std::unique_ptr<MemoryBuffer> O) override;
 };

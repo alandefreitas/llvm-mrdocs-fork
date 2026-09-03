@@ -31,6 +31,8 @@ class Module;
 class TargetLoweringBase;
 class TargetMachine;
 
+/// Per-function layout information used when deciding and applying stack
+/// protectors.
 class SSPLayoutInfo {
   friend class StackProtectorPass;
   friend class SSPLayoutAnalysis;
@@ -59,12 +61,19 @@ class SSPLayoutInfo {
   bool HasIRCheck = false;
 
 public:
-  // Return true if StackProtector is supposed to be handled by SelectionDAG.
+  /// Return true if StackProtector should be handled by SelectionDAG.
+  ///
+  /// \param BB Basic block used to decide whether an SD check is needed.
+  /// \return True if SelectionDAG should emit the stack-protector check.
   LLVM_ABI bool shouldEmitSDCheck(const BasicBlock &BB) const;
 
+  /// Copy SSP layout decisions for allocas into machine frame info.
+  ///
+  /// \param MFI Machine frame info to update with SSP layout kinds.
   LLVM_ABI void copyToMachineFrameInfo(MachineFrameInfo &MFI) const;
 };
 
+/// Analysis that computes stack-protector layout information for a function.
 class SSPLayoutAnalysis : public AnalysisInfoMixin<SSPLayoutAnalysis> {
   friend AnalysisInfoMixin<SSPLayoutAnalysis>;
   using SSPLayoutMap = SSPLayoutInfo::SSPLayoutMap;
@@ -72,24 +81,45 @@ class SSPLayoutAnalysis : public AnalysisInfoMixin<SSPLayoutAnalysis> {
   static AnalysisKey Key;
 
 public:
+  /// Result type produced by this analysis.
   using Result = SSPLayoutInfo;
 
+  /// Compute stack-protector layout information for \p F.
+  ///
+  /// \param F Function to analyze.
+  /// \param FAM Function analysis manager providing required analyses.
+  /// \return Layout information describing whether and how SSP applies.
   LLVM_ABI Result run(Function &F, FunctionAnalysisManager &FAM);
 
   /// Check whether or not \p F needs a stack protector based upon the stack
   /// protector level.
+  ///
+  /// \param F Function to inspect for stack-protector requirements.
+  /// \param Layout Optional map filled with per-alloca SSP layout kinds.
+  /// \return True if \p F requires a stack protector.
   LLVM_ABI static bool requiresStackProtector(Function *F,
                                               SSPLayoutMap *Layout = nullptr);
 };
 
+/// New PM pass that inserts stack protectors into functions that need them.
 class StackProtectorPass : public RequiredPassInfoMixin<StackProtectorPass> {
   const TargetMachine *TM;
 
 public:
+  /// Construct a StackProtector pass for target machine \p TM.
+  ///
+  /// \param TM Target machine used when inserting stack protectors.
   explicit StackProtectorPass(const TargetMachine &TM) : TM(&TM) {}
+  /// Insert stack protectors into \p F when required.
+  ///
+  /// \param F Function to transform.
+  /// \param FAM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 
+/// Legacy FunctionPass that inserts stack protectors into functions that need
+/// them.
 class LLVM_ABI StackProtector : public FunctionPass {
 private:
   /// A mapping of AllocaInsts to their required SSP layout.
@@ -105,27 +135,49 @@ private:
   SSPLayoutInfo LayoutInfo;
 
 public:
-  static char ID; // Pass identification, replacement for typeid.
+  /// Pass identification, replacement for typeid.
+  static char ID;
 
+  /// Construct the legacy StackProtector pass.
   StackProtector();
 
+  /// Return the computed stack-protector layout information.
+  ///
+  /// \return Mutable reference to this pass's SSP layout info.
   SSPLayoutInfo &getLayoutInfo() { return LayoutInfo; }
 
+  /// Declare required and preserved analyses for this pass.
+  ///
+  /// \param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
-  // Return true if StackProtector is supposed to be handled by SelectionDAG.
+  /// Return true if StackProtector should be handled by SelectionDAG.
+  ///
+  /// \param BB Basic block used to decide whether an SD check is needed.
+  /// \return True if SelectionDAG should emit the stack-protector check.
   bool shouldEmitSDCheck(const BasicBlock &BB) const {
     return LayoutInfo.shouldEmitSDCheck(BB);
   }
 
+  /// Insert stack protectors into \p Fn when required.
+  ///
+  /// \param Fn Function to transform.
+  /// \return True if the function was modified.
   bool runOnFunction(Function &Fn) override;
 
+  /// Copy SSP layout decisions for allocas into machine frame info.
+  ///
+  /// \param MFI Machine frame info to update with SSP layout kinds.
   void copyToMachineFrameInfo(MachineFrameInfo &MFI) const {
     LayoutInfo.copyToMachineFrameInfo(MFI);
   }
 
   /// Check whether or not \p F needs a stack protector based upon the stack
   /// protector level.
+  ///
+  /// \param F Function to inspect for stack-protector requirements.
+  /// \param Layout Optional map filled with per-alloca SSP layout kinds.
+  /// \return True if \p F requires a stack protector.
   static bool requiresStackProtector(Function *F,
                                      SSPLayoutMap *Layout = nullptr) {
     return SSPLayoutAnalysis::requiresStackProtector(F, Layout);

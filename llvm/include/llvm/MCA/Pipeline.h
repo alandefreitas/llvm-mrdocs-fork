@@ -70,15 +70,23 @@ class Pipeline {
   void notifyCycleEnd();
 
 public:
+  /// Construct an empty pipeline with no stages.
   Pipeline() = default;
+
+  /// Append a stage to the end of this pipeline.
+  /// \param S Stage to own and run in pipeline order.
   LLVM_ABI void appendStage(std::unique_ptr<Stage> S);
 
   /// Returns the total number of simulated cycles.
+  /// \return The number of cycles simulated, or an error on failure.
   LLVM_ABI Expected<unsigned> run();
 
+  /// Register a listener for hardware events from this pipeline.
+  /// \param Listener Listener notified of pipeline hardware events.
   LLVM_ABI void addEventListener(HWEventListener *Listener);
 
   /// Returns whether the pipeline is currently paused.
+  /// \return True if the pipeline is currently paused.
   bool isPaused() const { return CurrentState == State::Paused; }
 };
 } // namespace mca

@@ -47,19 +47,27 @@ public:
     /// Construct an offset of zero (the empty string).
     constexpr Offset() = default;
     /// Construct an offset with the given byte index \p Value.
+    /// @param Value Byte index into the packed table.
     constexpr Offset(unsigned Value) : Value(Value) {}
 
     /// Return true if \p LHS and \p RHS name the same table offset.
+    /// @param LHS First offset to compare.
+    /// @param RHS Second offset to compare.
+    /// @return True if both offsets have the same value.
     friend constexpr bool operator==(const Offset &LHS, const Offset &RHS) {
       return LHS.Value == RHS.Value;
     }
 
     /// Return true if \p LHS and \p RHS name different table offsets.
+    /// @param LHS First offset to compare.
+    /// @param RHS Second offset to compare.
+    /// @return True if the offsets have different values.
     friend constexpr bool operator!=(const Offset &LHS, const Offset &RHS) {
       return LHS.Value != RHS.Value;
     }
 
     /// Return the raw byte offset into the table.
+    /// @return The byte index into the packed table.
     constexpr unsigned value() const { return Value; }
   };
 
@@ -68,6 +76,8 @@ public:
   /// Unlike \c StringLiteral, null bytes inside the payload are preserved; the
   /// array length \p N is the table size. Offset zero must be the empty string
   /// and the final byte must be null.
+  /// @param RawTable Character array holding the densely packed, null-terminated
+  /// strings.
   template <size_t N>
   constexpr StringTable(const char (&RawTable)[N]) : Table(RawTable, N) {
     static_assert(N <= std::numeric_limits<unsigned>::max(),
@@ -86,15 +96,20 @@ public:
   }
 
   /// Return a pointer to the null-terminated C string at offset \p O.
+  /// @param O Offset of the string within the table.
+  /// @return Pointer to the null-terminated string at \p O.
   constexpr const char *getCString(Offset O) const {
     assert(O.value() < Table.size() && "Out of bounds offset!");
     return Table.data() + O.value();
   }
 
   /// Return the string at offset \p O as a \c StringRef (also null-terminated).
+  /// @param O Offset of the string within the table.
+  /// @return A \c StringRef naming the string at \p O.
   constexpr StringRef operator[](Offset O) const { return getCString(O); }
 
   /// Returns the byte size of the table.
+  /// @return The number of bytes in the packed table.
   constexpr size_t size() const { return Table.size(); }
 
   /// Forward iterator over the non-empty strings stored in the table.
@@ -114,40 +129,53 @@ public:
 
   public:
     /// Copy-construct an iterator.
+    /// @param RHS Iterator to copy.
     constexpr Iterator(const Iterator &RHS) = default;
     /// Move-construct an iterator.
+    /// @param RHS Iterator to move from.
     constexpr Iterator(Iterator &&RHS) = default;
 
     /// Copy-assign an iterator.
+    /// @param RHS Iterator to copy.
+    /// @return Reference to this iterator.
     constexpr Iterator &operator=(const Iterator &RHS) = default;
     /// Move-assign an iterator.
+    /// @param RHS Iterator to move from.
+    /// @return Reference to this iterator.
     constexpr Iterator &operator=(Iterator &&RHS) = default;
 
     /// Return true if both iterators point at the same offset in the same table.
+    /// @param RHS Iterator to compare with.
+    /// @return True if both iterators name the same offset.
     bool operator==(const Iterator &RHS) const {
       assert(Table == RHS.Table && "Compared iterators for unrelated tables!");
       return O == RHS.O;
     }
 
     /// Return a reference to the string at the current offset.
+    /// @return Reference to the string at the current offset.
     const StringRef &operator*() const {
       S = (*Table)[O];
       return S;
     }
 
     /// Advance to the next null-terminated string in the table.
+    /// @return Reference to this iterator after advancing.
     Iterator &operator++() {
       O = O.value() + (*Table)[O].size() + 1;
       return *this;
     }
 
     /// Return the table offset of the string this iterator currently names.
+    /// @return The current table offset.
     Offset offset() const { return O; }
   };
 
   /// Return an iterator to the first non-empty string (skipping offset zero).
+  /// @return Iterator to the first non-empty string.
   constexpr Iterator begin() const { return Iterator(*this, 1); }
   /// Return an iterator past the last string in the table.
+  /// @return Iterator past the last string.
   constexpr Iterator end() const { return Iterator(*this, size() - 1); }
 };
 

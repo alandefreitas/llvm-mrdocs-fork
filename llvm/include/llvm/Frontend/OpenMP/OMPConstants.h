@@ -20,7 +20,33 @@
 
 namespace llvm {
 namespace omp {
-LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+// Expanded (instead of the macro) so MrDocs can attach docs to each using.
+/// Bring bitmask enum bitwise NOT into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator~;
+/// Bring bitmask enum bitwise OR into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator|;
+/// Bring bitmask enum bitwise AND into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator&;
+/// Bring bitmask enum bitwise XOR into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator^;
+/// Bring bitmask enum left-shift into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator<<;
+/// Bring bitmask enum right-shift into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator>>;
+/// Bring bitmask enum in-place OR into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator|=;
+/// Bring bitmask enum in-place AND into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator&=;
+/// Bring bitmask enum in-place XOR into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator^=;
+/// Bring bitmask enum in-place left-shift into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator<<=;
+/// Bring bitmask enum in-place right-shift into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator>>=;
+/// Bring bitmask enum logical-not into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::operator!;
+/// Bring bitmask enum any-bits-set test into this namespace for ADL.
+using ::llvm::BitmaskEnumDetail::any;
 
 /// IDs for all Internal Control Variables (ICVs).
 enum class InternalControlVar {
@@ -32,6 +58,7 @@ enum class InternalControlVar {
   constexpr auto Enum = omp::InternalControlVar::Enum;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
+/// Initial values that OpenMP Internal Control Variables may take.
 enum class ICVInitValue {
 #define ICV_INIT_VALUE(Enum, Name) Enum,
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
@@ -65,6 +92,7 @@ enum class DefaultKind {
 enum class IdentFlag {
 #define OMP_IDENT_FLAG(Enum, Str, Value) Enum = Value,
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
+  /// Largest enumerator marker for LLVM_BITMASK_LARGEST_ENUMERATOR.
   LLVM_MARK_AS_BITMASK_ENUM(0x7FFFFFFF)
 };
 
@@ -77,116 +105,181 @@ enum class IdentFlag {
 // Minimum version of the compiler that generates a kernel dynamic pointer.
 #define OMP_KERNEL_ARG_MIN_VERSION_WITH_DYN_PTR 3
 
+/// Schedule kinds for OpenMP worksharing loops, matching kmp.h sched_type.
+///
 /// \note This needs to be kept in sync with kmp.h enum sched_type.
 /// Todo: Update kmp.h to include this file, and remove the enums in kmp.h
 enum class OMPScheduleType {
-  // For typed comparisons, not a valid schedule
+  /// Sentinel for typed comparisons; not a valid schedule.
   None = 0,
 
-  // Schedule algorithms
+  /// Static schedule with an explicit chunk size.
   BaseStaticChunked = 1,
+  /// Static schedule without an explicit chunk size.
   BaseStatic = 2,
+  /// Dynamic schedule with chunking.
   BaseDynamicChunked = 3,
+  /// Guided schedule with chunking.
   BaseGuidedChunked = 4,
+  /// Runtime-selected schedule.
   BaseRuntime = 5,
+  /// Auto schedule chosen by the runtime.
   BaseAuto = 6,
+  /// Trapezoidal schedule algorithm.
   BaseTrapezoidal = 7,
+  /// Greedy schedule algorithm.
   BaseGreedy = 8,
+  /// Balanced schedule algorithm.
   BaseBalanced = 9,
+  /// Guided iterative chunked schedule.
   BaseGuidedIterativeChunked = 10,
+  /// Guided analytical chunked schedule.
   BaseGuidedAnalyticalChunked = 11,
+  /// Work-stealing schedule algorithm.
   BaseSteal = 12,
 
-  // with chunk adjustment (e.g., simd)
+  /// Static balanced schedule with chunk adjustment (e.g. simd).
   BaseStaticBalancedChunked = 13,
+  /// Guided schedule with simd chunk adjustment.
   BaseGuidedSimd = 14,
+  /// Runtime schedule with simd chunk adjustment.
   BaseRuntimeSimd = 15,
 
-  // static schedules algorithims for distribute
+  /// Static distribute schedule with chunking.
   BaseDistributeChunked = 27,
+  /// Static distribute schedule without chunking.
   BaseDistribute = 28,
 
-  // Modifier flags to be combined with schedule algorithms
+  /// Modifier flag for unordered iterations.
   ModifierUnordered = (1 << 5),
+  /// Modifier flag for ordered iterations.
   ModifierOrdered = (1 << 6),
+  /// Modifier flag to disable schedule merging.
   ModifierNomerge = (1 << 7),
+  /// Modifier flag for monotonic scheduling.
   ModifierMonotonic = (1 << 29),
+  /// Modifier flag for nonmonotonic scheduling.
   ModifierNonmonotonic = (1 << 30),
 
-  // Masks combining multiple flags
+  /// Mask of ordering-related modifier flags.
   OrderingMask = ModifierUnordered | ModifierOrdered | ModifierNomerge,
+  /// Mask of monotonicity-related modifier flags.
   MonotonicityMask = ModifierMonotonic | ModifierNonmonotonic,
+  /// Mask of all schedule modifier flags.
   ModifierMask = OrderingMask | MonotonicityMask,
 
-  // valid schedule type values, without monotonicity flags
+  /// Unordered static chunked schedule.
   UnorderedStaticChunked = BaseStaticChunked | ModifierUnordered,        //  33
+  /// Unordered static schedule.
   UnorderedStatic = BaseStatic | ModifierUnordered,                      //  34
+  /// Unordered dynamic chunked schedule.
   UnorderedDynamicChunked = BaseDynamicChunked | ModifierUnordered,      //  35
+  /// Unordered guided chunked schedule.
   UnorderedGuidedChunked = BaseGuidedChunked | ModifierUnordered,        //  36
+  /// Unordered runtime schedule.
   UnorderedRuntime = BaseRuntime | ModifierUnordered,                    //  37
+  /// Unordered auto schedule.
   UnorderedAuto = BaseAuto | ModifierUnordered,                          //  38
+  /// Unordered trapezoidal schedule.
   UnorderedTrapezoidal = BaseTrapezoidal | ModifierUnordered,            //  39
+  /// Unordered greedy schedule.
   UnorderedGreedy = BaseGreedy | ModifierUnordered,                      //  40
+  /// Unordered balanced schedule.
   UnorderedBalanced = BaseBalanced | ModifierUnordered,                  //  41
+  /// Unordered guided iterative chunked schedule.
   UnorderedGuidedIterativeChunked =
       BaseGuidedIterativeChunked | ModifierUnordered,                    //  42
+  /// Unordered guided analytical chunked schedule.
   UnorderedGuidedAnalyticalChunked =
       BaseGuidedAnalyticalChunked | ModifierUnordered,                   //  43
+  /// Unordered work-stealing schedule.
   UnorderedSteal = BaseSteal | ModifierUnordered,                        //  44
 
+  /// Unordered static balanced chunked schedule.
   UnorderedStaticBalancedChunked =
       BaseStaticBalancedChunked | ModifierUnordered,                     //  45
+  /// Unordered guided simd schedule.
   UnorderedGuidedSimd = BaseGuidedSimd | ModifierUnordered,              //  46
+  /// Unordered runtime simd schedule.
   UnorderedRuntimeSimd = BaseRuntimeSimd | ModifierUnordered,            //  47
 
+  /// Ordered static chunked schedule.
   OrderedStaticChunked = BaseStaticChunked | ModifierOrdered,            //  65
+  /// Ordered static schedule.
   OrderedStatic = BaseStatic | ModifierOrdered,                          //  66
+  /// Ordered dynamic chunked schedule.
   OrderedDynamicChunked = BaseDynamicChunked | ModifierOrdered,          //  67
+  /// Ordered guided chunked schedule.
   OrderedGuidedChunked = BaseGuidedChunked | ModifierOrdered,            //  68
+  /// Ordered runtime schedule.
   OrderedRuntime = BaseRuntime | ModifierOrdered,                        //  69
+  /// Ordered auto schedule.
   OrderedAuto = BaseAuto | ModifierOrdered,                              //  70
+  /// Ordered trapezoidal schedule (historical spelling OrderdTrapezoidal).
   OrderdTrapezoidal = BaseTrapezoidal | ModifierOrdered,                 //  71
 
+  /// Ordered distribute chunked schedule.
   OrderedDistributeChunked = BaseDistributeChunked | ModifierOrdered,    //  91
+  /// Ordered distribute schedule.
   OrderedDistribute = BaseDistribute | ModifierOrdered,                  //  92
 
+  /// Nomerge unordered static chunked schedule.
   NomergeUnorderedStaticChunked =
       BaseStaticChunked | ModifierUnordered | ModifierNomerge,           // 161
+  /// Nomerge unordered static schedule.
   NomergeUnorderedStatic =
       BaseStatic | ModifierUnordered | ModifierNomerge,                  // 162
+  /// Nomerge unordered dynamic chunked schedule.
   NomergeUnorderedDynamicChunked =
       BaseDynamicChunked | ModifierUnordered | ModifierNomerge,          // 163
+  /// Nomerge unordered guided chunked schedule.
   NomergeUnorderedGuidedChunked =
       BaseGuidedChunked | ModifierUnordered | ModifierNomerge,           // 164
+  /// Nomerge unordered runtime schedule.
   NomergeUnorderedRuntime =
       BaseRuntime | ModifierUnordered | ModifierNomerge,                 // 165
+  /// Nomerge unordered auto schedule.
   NomergeUnorderedAuto = BaseAuto | ModifierUnordered | ModifierNomerge, // 166
+  /// Nomerge unordered trapezoidal schedule.
   NomergeUnorderedTrapezoidal =
       BaseTrapezoidal | ModifierUnordered | ModifierNomerge,             // 167
+  /// Nomerge unordered greedy schedule.
   NomergeUnorderedGreedy =
       BaseGreedy | ModifierUnordered | ModifierNomerge,                  // 168
+  /// Nomerge unordered balanced schedule.
   NomergeUnorderedBalanced =
       BaseBalanced | ModifierUnordered | ModifierNomerge,                // 169
+  /// Nomerge unordered guided iterative chunked schedule.
   NomergeUnorderedGuidedIterativeChunked =
       BaseGuidedIterativeChunked | ModifierUnordered | ModifierNomerge,  // 170
+  /// Nomerge unordered guided analytical chunked schedule.
   NomergeUnorderedGuidedAnalyticalChunked =
       BaseGuidedAnalyticalChunked | ModifierUnordered | ModifierNomerge, // 171
+  /// Nomerge unordered work-stealing schedule.
   NomergeUnorderedSteal =
       BaseSteal | ModifierUnordered | ModifierNomerge,                   // 172
 
+  /// Nomerge ordered static chunked schedule.
   NomergeOrderedStaticChunked =
       BaseStaticChunked | ModifierOrdered | ModifierNomerge,             // 193
+  /// Nomerge ordered static schedule.
   NomergeOrderedStatic = BaseStatic | ModifierOrdered | ModifierNomerge, // 194
+  /// Nomerge ordered dynamic chunked schedule.
   NomergeOrderedDynamicChunked =
       BaseDynamicChunked | ModifierOrdered | ModifierNomerge,            // 195
+  /// Nomerge ordered guided chunked schedule.
   NomergeOrderedGuidedChunked =
       BaseGuidedChunked | ModifierOrdered | ModifierNomerge,             // 196
+  /// Nomerge ordered runtime schedule.
   NomergeOrderedRuntime =
       BaseRuntime | ModifierOrdered | ModifierNomerge,                   // 197
+  /// Nomerge ordered auto schedule.
   NomergeOrderedAuto = BaseAuto | ModifierOrdered | ModifierNomerge,     // 198
+  /// Nomerge ordered trapezoidal schedule.
   NomergeOrderedTrapezoidal =
       BaseTrapezoidal | ModifierOrdered | ModifierNomerge,               // 199
 
+  /// Largest enumerator marker for LLVM_BITMASK_LARGEST_ENUMERATOR.
   LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ ModifierMask)
 };
 
@@ -200,7 +293,7 @@ enum class OMPDynGroupprivateFallbackType : uint64_t {
   DefaultMem = 2
 };
 
-// Default OpenMP mapper name suffix.
+/// Default OpenMP mapper name suffix.
 inline constexpr const char *OmpDefaultMapperName = "_omp_default_mapper";
 
 /// Values for bit flags used to specify the mapping type for
@@ -266,46 +359,82 @@ enum class OpenMPOffloadMappingFlags : uint64_t {
   LLVM_MARK_AS_BITMASK_ENUM(/* LargestFlag = */ OMP_MAP_MEMBER_OF)
 };
 
+/// Reserved device IDs used for OpenMP offloading.
 enum OpenMPOffloadingReservedDeviceIDs {
   /// Device ID if the device was not defined, runtime should get it
   /// from environment variables in the spec.
   OMP_DEVICEID_UNDEF = -1
 };
 
+/// OpenMP target address spaces used in device code generation.
 enum class AddressSpace : unsigned {
+  /// Generic (flat) address space.
   Generic = 0,
+  /// Global device memory address space.
   Global = 1,
+  /// Shared (work-group local) address space.
   Shared = 3,
+  /// Constant (read-only) address space.
   Constant = 4,
+  /// Local (private per-lane) address space.
   Local = 5,
 };
 
+/// OpenMP interop object kinds, matching interop.h kmp_interop_type_t.
+///
 /// \note This needs to be kept in sync with interop.h enum kmp_interop_type_t.:
-enum class OMPInteropType { Unknown, Target, TargetSync };
+enum class OMPInteropType {
+  /// Unknown or unspecified interop type.
+  Unknown,
+  /// Target interop object.
+  Target,
+  /// Target synchronization interop object.
+  TargetSync
+};
 
 /// Atomic compare operations. Currently OpenMP only supports ==, >, and <.
-enum class OMPAtomicCompareOp : unsigned { EQ, MIN, MAX };
+enum class OMPAtomicCompareOp : unsigned {
+  /// Equality comparison (==).
+  EQ,
+  /// Minimum comparison (<).
+  MIN,
+  /// Maximum comparison (>).
+  MAX
+};
 
 /// Fields ids in kmp_depend_info record.
-enum class RTLDependInfoFields { BaseAddr, Len, Flags };
+enum class RTLDependInfoFields {
+  /// Base address of the dependence object.
+  BaseAddr,
+  /// Length of the dependence object in bytes.
+  Len,
+  /// Dependence flags for the object.
+  Flags
+};
 
 /// Dependence kind for RTL.
 enum class RTLDependenceKindTy {
+  /// Unknown or unspecified dependence kind.
   DepUnknown = 0x0,
+  /// Input dependence.
   DepIn = 0x01,
+  /// Input-output dependence.
   DepInOut = 0x3,
+  /// Mutexinoutset dependence.
   DepMutexInOutSet = 0x4,
+  /// Inoutset dependence.
   DepInOutSet = 0x8,
+  /// Dependence on all memory.
   DepOmpAllMem = 0x80,
 };
 
 /// A type of worksharing loop construct
 enum class WorksharingLoopType {
-  // Worksharing `for`-loop
+  /// Worksharing `for`-loop.
   ForStaticLoop,
-  // Worksharing `distrbute`-loop
+  /// Worksharing `distribute`-loop.
   DistributeStaticLoop,
-  // Worksharing `distrbute parallel for`-loop
+  /// Worksharing `distribute parallel for`-loop.
   DistributeForStaticLoop
 };
 

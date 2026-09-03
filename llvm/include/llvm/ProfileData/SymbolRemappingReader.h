@@ -68,22 +68,38 @@ namespace llvm {
 
 class MemoryBuffer;
 
+/// ErrorInfo specialization for symbol remapping parse failures.
 class SymbolRemappingParseError : public ErrorInfo<SymbolRemappingParseError> {
 public:
+  /// Construct a parse error for a remapping file.
+  /// \param File Path of the remapping file being parsed.
+  /// \param Line Line number where the error occurred.
+  /// \param Message Human-readable error description.
   SymbolRemappingParseError(StringRef File, int64_t Line, const Twine &Message)
       : File(File), Line(Line), Message(Message.str()) {}
 
+  /// Write the error location and message to \p OS.
+  /// \param OS Output stream.
   void log(llvm::raw_ostream &OS) const override {
     OS << File << ':' << Line << ": " << Message;
   }
+  /// Convert this error into a std::error_code.
+  /// \return An inconvertible error code for this parse failure.
   std::error_code convertToErrorCode() const override {
     return llvm::inconvertibleErrorCode();
   }
 
+  /// Return the path of the remapping file that failed to parse.
+  /// \return The remapping file path.
   StringRef getFileName() const { return File; }
+  /// Return the line number where the parse error occurred.
+  /// \return The 1-based line number of the parse error.
   int64_t getLineNum() const { return Line; }
+  /// Return the human-readable parse error message.
+  /// \return The parse error message text.
   StringRef getMessage() const { return Message; }
 
+  /// ErrorInfo class identity key.
   LLVM_ABI static char ID;
 
 private:
@@ -100,17 +116,22 @@ class SymbolRemappingReader {
 public:
   /// Read remappings from the given buffer, which must live as long as
   /// the remapper.
+  /// \param B Memory buffer containing the remapping file contents.
+  /// \return Success, or a parse error if the remapping file is invalid.
   LLVM_ABI Error read(MemoryBuffer &B);
 
   /// A Key represents an equivalence class of symbol names.
   using Key = uintptr_t;
 
-  /// Construct a key for the given symbol, or return an existing one if an
-  /// equivalent name has already been inserted. The symbol name must live
-  /// as long as the remapper.
+  /// Construct a key for the given symbol.
+  ///
+  /// Return an existing key if an equivalent name has already been inserted.
+  /// The symbol name must live as long as the remapper.
   ///
   /// The result will be Key() if the name cannot be remapped (typically
   /// because it is not a valid mangled name).
+  /// \param FunctionName Symbol name to insert into the remapper.
+  /// \return The key for \p FunctionName, or Key() if it cannot be remapped.
   Key insert(StringRef FunctionName) {
     return Canonicalizer.canonicalize(FunctionName);
   }
@@ -121,6 +142,8 @@ public:
   /// The result will typically be Key() if no equivalent symbol has been
   /// inserted, but this is not guaranteed: a Key different from all keys ever
   /// returned by \c insert may be returned instead.
+  /// \param FunctionName Symbol name to look up.
+  /// \return The key for the equivalence class of \p FunctionName.
   Key lookup(StringRef FunctionName) {
     return Canonicalizer.lookup(FunctionName);
   }

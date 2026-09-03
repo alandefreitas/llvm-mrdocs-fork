@@ -21,18 +21,25 @@
 
 namespace llvm::xray {
 
-// The BlockIndexer will gather all related records associated with a
-// process+thread and group them by 'Block'.
+/// RecordVisitor that groups FDR records into per-process/thread blocks.
+///
+/// The BlockIndexer will gather all related records associated with a
+/// process+thread and group them by 'Block'.
 class LLVM_ABI BlockIndexer : public RecordVisitor {
 public:
+  /// One contiguous FDR block for a process and thread.
   struct Block {
+    /// Process identifier for this block.
     uint64_t ProcessID;
+    /// Thread identifier for this block.
     int32_t ThreadID;
+    /// Wall-clock timestamp record for this block, if present.
     WallclockRecord *WallclockTime;
+    /// Records belonging to this block, in visitation order.
     std::vector<Record *> Records;
   };
 
-  // This maps the process + thread combination to a sequence of blocks.
+  /// Map from process+thread to the sequence of blocks seen for that pair.
   using Index = DenseMap<std::pair<uint64_t, int32_t>, std::vector<Block>>;
 
 private:
@@ -41,24 +48,65 @@ private:
   Block CurrentBlock{0, 0, nullptr, {}};
 
 public:
+  /// Construct an indexer that appends completed blocks into \p I.
+  /// \param I Index that receives flushed blocks.
   explicit BlockIndexer(Index &I) : Indices(I) {}
 
-  Error visit(BufferExtents &) override;
-  Error visit(WallclockRecord &) override;
-  Error visit(NewCPUIDRecord &) override;
-  Error visit(TSCWrapRecord &) override;
-  Error visit(CustomEventRecord &) override;
-  Error visit(CallArgRecord &) override;
-  Error visit(PIDRecord &) override;
-  Error visit(NewBufferRecord &) override;
-  Error visit(EndBufferRecord &) override;
-  Error visit(FunctionRecord &) override;
-  Error visit(CustomEventRecordV5 &) override;
-  Error visit(TypedEventRecord &) override;
+  /// Visit a buffer-extents metadata record (no-op for indexing).
+  /// \param R Buffer extents record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(BufferExtents &R) override;
+  /// Visit a wall-clock record and record it as the block's timestamp.
+  /// \param R Wall-clock record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(WallclockRecord &R) override;
+  /// Visit a new-CPU-ID record and append it to the current block.
+  /// \param R New CPU ID record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(NewCPUIDRecord &R) override;
+  /// Visit a TSC-wrap record and append it to the current block.
+  /// \param R TSC wrap record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(TSCWrapRecord &R) override;
+  /// Visit a custom-event record and append it to the current block.
+  /// \param R Custom event record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(CustomEventRecord &R) override;
+  /// Visit a call-argument record and append it to the current block.
+  /// \param R Call argument record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(CallArgRecord &R) override;
+  /// Visit a PID record and set the current block's process ID.
+  /// \param R PID record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(PIDRecord &R) override;
+  /// Visit a new-buffer record, flushing any prior block first.
+  /// \param R New buffer record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(NewBufferRecord &R) override;
+  /// Visit an end-of-buffer record and append it to the current block.
+  /// \param R End-of-buffer record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(EndBufferRecord &R) override;
+  /// Visit a function record and append it to the current block.
+  /// \param R Function record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(FunctionRecord &R) override;
+  /// Visit a v5 custom-event record and append it to the current block.
+  /// \param R V5 custom event record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(CustomEventRecordV5 &R) override;
+  /// Visit a typed-event record and append it to the current block.
+  /// \param R Typed event record being visited.
+  /// \return Success, or an error if indexing failed.
+  Error visit(TypedEventRecord &R) override;
 
+  /// Flush the current block into the index and reset visitor state.
+  ///
   /// The flush() function will clear out the current state of the visitor, to
   /// allow for explicitly flushing a block's records to the currently
   /// recognized thread and process combination.
+  /// \return Success, or an error if flushing failed.
   Error flush();
 };
 

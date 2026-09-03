@@ -32,15 +32,27 @@ public:
   /// Construct an empty unique ID.
   UniqueID() = default;
   /// Construct from device number \p Device and file number \p File.
+  ///
+  /// \param Device Device number of the filesystem object.
+  /// \param File Inode or file number of the filesystem object.
   UniqueID(uint64_t Device, uint64_t File) : Device(Device), File(File) {}
 
   /// Return true if both IDs identify the same filesystem object.
+  ///
+  /// \param Other Unique ID to compare against.
+  /// \return True if both IDs identify the same filesystem object.
   bool operator==(const UniqueID &Other) const {
     return Device == Other.Device && File == Other.File;
   }
   /// Return true if the IDs identify different filesystem objects.
+  ///
+  /// \param Other Unique ID to compare against.
+  /// \return True if the IDs identify different filesystem objects.
   bool operator!=(const UniqueID &Other) const { return !(*this == Other); }
   /// Order UniqueIDs by device then inode for use in ordered containers.
+  ///
+  /// \param Other Unique ID to compare against.
+  /// \return True if this UniqueID orders before \p Other by device then inode.
   bool operator<(const UniqueID &Other) const {
     /// Don't use std::tie since it bloats the compile time of this header.
     if (Device < Other.Device)
@@ -51,20 +63,33 @@ public:
   }
 
   /// Return the device component of the unique ID.
+  ///
+  /// \return The device component of the unique ID.
   uint64_t getDevice() const { return Device; }
   /// Return the file/inode component of the unique ID.
+  ///
+  /// \return The file/inode component of the unique ID.
   uint64_t getFile() const { return File; }
 };
 
 } // end namespace fs
 } // end namespace sys
 
-// Support UniqueIDs as DenseMap keys.
+/// DenseMapInfo specialization so UniqueID can be used as a DenseMap key.
 template <> struct DenseMapInfo<llvm::sys::fs::UniqueID> {
+  /// Compute a hash value for unique ID \p Tag.
+  ///
+  /// \param Tag Unique ID to hash.
+  /// \return A hash code derived from \p Tag's device and file components.
   static hash_code getHashValue(const llvm::sys::fs::UniqueID &Tag) {
     return hash_value(std::make_pair(Tag.getDevice(), Tag.getFile()));
   }
 
+  /// Return true if \p LHS and \p RHS identify the same filesystem object.
+  ///
+  /// \param LHS Left-hand unique ID.
+  /// \param RHS Right-hand unique ID.
+  /// \return True if \p LHS and \p RHS identify the same filesystem object.
   static bool isEqual(const llvm::sys::fs::UniqueID &LHS,
                       const llvm::sys::fs::UniqueID &RHS) {
     return LHS == RHS;

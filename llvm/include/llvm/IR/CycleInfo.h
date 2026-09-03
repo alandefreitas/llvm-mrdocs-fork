@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+/// Cycle information for LLVM IR, specialized from GenericCycleInfo.
 // Use class instead of using to allow forward declarations.
 class CycleInfo : public GenericCycleInfo<SSAContext> {};
 

@@ -37,10 +37,23 @@ class ModulePass;
 /// Pass to remove unused function declarations.
 class GlobalDCEPass : public OptionalPassInfoMixin<GlobalDCEPass> {
 public:
+  /// Construct a global dead-code elimination pass.
+  ///
+  /// \param InLTOPostLink Whether the pass runs in the LTO post-link pipeline,
+  /// enabling virtual function elimination for linkage-unit visibility.
   GlobalDCEPass(bool InLTOPostLink = false) : InLTOPostLink(InLTOPostLink) {}
 
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Run global dead-code elimination over the given module.
+  ///
+  /// \param M Module whose unreachable internal globals are eliminated.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
+  /// Print this pass's pipeline representation to \p OS.
+  ///
+  /// \param OS Stream to write the pipeline string to.
+  /// \param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
@@ -80,6 +93,9 @@ private:
   void ComputeDependencies(Value *V, SmallPtrSetImpl<GlobalValue *> &U);
 };
 
+/// Create a legacy pass manager instance of the global DCE pass.
+///
+/// \return A new global DCE pass for the legacy pass manager.
 LLVM_ABI ModulePass *createGlobalDCEPass();
 }
 

@@ -40,15 +40,19 @@ class Function;
 /// it is queried.
 class PhiValues {
 public:
+  /// Set of non-phi values reachable from a phi.
   using ValueSet = SmallSetVector<Value *, 4>;
 
   /// Construct an empty PhiValues.
+  /// @param F Function whose phis will be analyzed.
   PhiValues(const Function &F) : F(F) {}
 
   /// Get the underlying values of a phi.
   ///
   /// This returns the cached value if PN has previously been processed,
   /// otherwise it processes it first.
+  /// @param PN Phi whose underlying non-phi values are requested.
+  /// @return Set of non-phi values reachable from \p PN.
   LLVM_ABI const ValueSet &getValuesForPhi(const PHINode *PN);
 
   /// Notify PhiValues that the cached information using V is no longer valid
@@ -57,17 +61,23 @@ public:
   /// (and the phis that use that phi) become invalid. A user of PhiValues has
   /// to notify it of this by calling invalidateValue on either the operand or
   /// the phi, which will then clear the relevant cached information.
+  /// @param V Value whose related cached phi information is invalidated.
   LLVM_ABI void invalidateValue(const Value *V);
 
   /// Free the memory used by this class.
   LLVM_ABI void releaseMemory();
 
   /// Print out the values currently in the cache.
+  /// @param OS Output stream for the printed cache contents.
   LLVM_ABI void print(raw_ostream &OS) const;
 
   /// Handle invalidation events in the new pass manager.
-  LLVM_ABI bool invalidate(Function &, const PreservedAnalyses &,
-                           FunctionAnalysisManager::Invalidator &);
+  /// @param F Function whose analysis result may be invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if this analysis result should be invalidated.
+  LLVM_ABI bool invalidate(Function &F, const PreservedAnalyses &PA,
+                           FunctionAnalysisManager::Invalidator &Inv);
 
 private:
   using ConstValueSet = SmallSetVector<const Value *, 4>;
@@ -118,8 +128,14 @@ class PhiValuesAnalysis : public AnalysisInfoMixin<PhiValuesAnalysis> {
   LLVM_ABI static AnalysisKey Key;
 
 public:
+  /// Provide the result type for this analysis pass.
   using Result = PhiValues;
-  LLVM_ABI PhiValues run(Function &F, FunctionAnalysisManager &);
+
+  /// Run the analysis pass over a function and produce a PhiValues.
+  /// @param F Function to analyze.
+  /// @param AM Function analysis manager (unused).
+  /// @return PhiValues for \p F.
+  LLVM_ABI PhiValues run(Function &F, FunctionAnalysisManager &AM);
 };
 
 /// A pass for printing the PhiValues for a function.
@@ -132,7 +148,14 @@ class PhiValuesPrinterPass
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes to \p OS.
+  /// @param OS Output stream for the printed PhiValues.
   explicit PhiValuesPrinterPass(raw_ostream &OS) : OS(OS) {}
+
+  /// Print the PhiValues for \p F and return all analyses preserved.
+  /// @param F Function whose PhiValues are printed.
+  /// @param AM Function analysis manager providing PhiValues.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
@@ -141,14 +164,29 @@ class LLVM_ABI PhiValuesWrapperPass : public FunctionPass {
   std::unique_ptr<PhiValues> Result;
 
 public:
+  /// Pass identification, replacement for typeid.
   static char ID;
+
+  /// Construct the legacy PhiValues wrapper pass.
   PhiValuesWrapperPass();
 
+  /// Return the PhiValues computed by this pass.
+  /// @return The PhiValues computed by this pass.
   PhiValues &getResult() { return *Result; }
+  /// Return the PhiValues computed by this pass.
+  /// @return The PhiValues computed by this pass.
   const PhiValues &getResult() const { return *Result; }
 
+  /// Compute the PhiValues for \p F.
+  /// @param F Function to analyze.
+  /// @return False; this analysis does not modify the function.
   bool runOnFunction(Function &F) override;
+
+  /// Release the PhiValues owned by this pass.
   void releaseMemory() override;
+
+  /// Report analysis usage for this pass.
+  /// @param AU Analysis usage to populate.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 

@@ -19,6 +19,12 @@
 
 namespace llvm {
 
+/// Lower a printf call into AMDGPU device library calls.
+///
+/// \param Builder IR builder used to emit the lowered printf sequence.
+/// \param Args Printf arguments; the first must be the format string.
+/// \param isBuffered True to use the buffered printf path, false for hostcall.
+/// \returns An i32 value with the printf result.
 LLVM_ABI Value *emitAMDGPUPrintfCall(IRBuilder<> &Builder,
                                      ArrayRef<Value *> Args, bool isBuffered);
 

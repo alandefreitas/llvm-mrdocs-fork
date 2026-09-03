@@ -31,32 +31,46 @@ namespace llvm {
 template <typename T> class ArrayRef;
 class StringRef;
 
+/// Incremental SHA-256 message-digest computation.
 class SHA256 {
 public:
+  /// Construct a SHA256 hasher with initial state.
   explicit SHA256() { init(); }
 
   /// Reinitialize the internal state
   LLVM_ABI void init();
 
   /// Digest more data.
+  ///
+  /// \param Data Bytes to absorb into the hash state.
   LLVM_ABI void update(ArrayRef<uint8_t> Data);
 
   /// Digest more data.
+  ///
+  /// \param Str String bytes to absorb into the hash state.
   LLVM_ABI void update(StringRef Str);
 
-  /// Return the current raw 256-bits SHA256 for the digested
-  /// data since the last call to init(). This call will add data to the
-  /// internal state and as such is not suited for getting an intermediate
-  /// result (see result()).
+  /// Return the raw 256-bit SHA256 digest and finalize the state.
+  ///
+  /// This returns the hash for data digested since the last call to init().
+  /// This call will add data to the internal state and as such is not suited
+  /// for getting an intermediate result (see result()).
+  ///
+  /// \return The finalized 32-byte SHA-256 digest.
   LLVM_ABI std::array<uint8_t, 32> final();
 
-  /// Return the current raw 256-bits SHA256 for the digested
-  /// data since the last call to init(). This is suitable for getting the
-  /// SHA256 at any time without invalidating the internal state so that more
-  /// calls can be made into update.
+  /// Return the current raw 256-bit SHA256 digest without finalizing state.
+  ///
+  /// This is suitable for getting the SHA256 at any time without invalidating
+  /// the internal state so that more calls can be made into update.
+  ///
+  /// \return The current 32-byte SHA-256 digest.
   LLVM_ABI std::array<uint8_t, 32> result();
 
   /// Returns a raw 256-bit SHA256 hash for the given data.
+  ///
+  /// \param Data Bytes to hash in a single shot.
+  /// \return The 32-byte SHA-256 digest of \p Data.
   LLVM_ABI static std::array<uint8_t, 32> hash(ArrayRef<uint8_t> Data);
 
 private:

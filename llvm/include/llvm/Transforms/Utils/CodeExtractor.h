@@ -40,10 +40,11 @@ class Type;
 class Value;
 class StructType;
 
-/// A cache for the CodeExtractor analysis. The operation \ref
-/// CodeExtractor::extractCodeRegion is guaranteed not to invalidate this
-/// object. This object should conservatively be considered invalid if any
-/// other mutating operations on the IR occur.
+/// A cache of analysis results for CodeExtractor.
+///
+/// The operation \ref CodeExtractor::extractCodeRegion is guaranteed not to
+/// invalidate this object. This object should conservatively be considered
+/// invalid if any other mutating operations on the IR occur.
 ///
 /// Constructing this object is O(n) in the size of the function.
 class CodeExtractorAnalysisCache {
@@ -60,15 +61,25 @@ class CodeExtractorAnalysisCache {
   void findSideEffectInfoForBlock(BasicBlock &BB);
 
 public:
+  /// Construct an analysis cache for a function.
+  ///
+  /// \param F Function to analyze.
   LLVM_ABI CodeExtractorAnalysisCache(Function &F);
 
-  /// Get the allocas in the function at the time the analysis was created.
+  /// Get the allocas recorded when this analysis was created.
+  ///
   /// Note that some of these allocas may no longer be present in the function,
   /// due to \ref CodeExtractor::extractCodeRegion.
+  ///
+  /// \returns The allocas recorded for this function.
   ArrayRef<AllocaInst *> getAllocas() const { return Allocas; }
 
   /// Check whether \p BB contains an instruction thought to load from, store
   /// to, or otherwise clobber the alloca \p Addr.
+  ///
+  /// \param BB Basic block to inspect for clobbers.
+  /// \param Addr Alloca whose address may be clobbered.
+  /// \returns True if \p BB may clobber \p Addr.
   LLVM_ABI bool doesBlockContainClobberOfAddr(BasicBlock &BB,
                                               AllocaInst *Addr) const;
 };
@@ -169,6 +180,24 @@ public:
   /// declared in zero address space. If VoidReturnWithSingleOutput is set to
   /// true, then the return type of the outlined function is set void even if
   /// there is only one output.
+  ///
+  /// \param BBs Sequence of basic blocks to extract; the first must dominate
+  /// the rest.
+  /// \param DT Optional dominator tree enabling extra checks and transforms.
+  /// \param AggregateArgs Whether to pack scalar args into an aggregate.
+  /// \param BFI Optional block frequency info for the extraction.
+  /// \param BPI Optional branch probability info for the extraction.
+  /// \param AC Optional assumption cache for the extraction.
+  /// \param AllowVarArgs Whether vararg functions may be extracted.
+  /// \param AllowAlloca Whether blocks containing allocas may be extracted.
+  /// \param AllocationBlock Block for new allocations, or null to use the
+  /// entry block.
+  /// \param DeallocationBlocks Blocks where explicit deallocations are placed.
+  /// \param Suffix Suffix appended to the extracted function name.
+  /// \param ArgsInZeroAddressSpace Whether the aggregate arg pointer is in
+  /// address space zero.
+  /// \param VoidReturnWithSingleOutput Whether a single-output outline returns
+  /// void.
   CodeExtractor(ArrayRef<BasicBlock *> BBs, DominatorTree *DT = nullptr,
                 bool AggregateArgs = false, BlockFrequencyInfo *BFI = nullptr,
                 BranchProbabilityInfo *BPI = nullptr,
@@ -178,12 +207,14 @@ public:
                 std::string Suffix = "", bool ArgsInZeroAddressSpace = false,
                 bool VoidReturnWithSingleOutput = true);
 
+  /// Destroy the code extractor.
   virtual ~CodeExtractor() = default;
 
   /// Perform the extraction, returning the new function.
   ///
-  /// Returns zero when called on a CodeExtractor instance where isEligible
-  /// returns false.
+  /// \param CEAC - Cache to speed up operations for the CodeExtractor when
+  /// hoisting, and extracting lifetime values and assumes.
+  /// \returns The new function, or null when isEligible returns false.
   Function *extractCodeRegion(const CodeExtractorAnalysisCache &CEAC);
 
   /// Perform the extraction, returning the new function and providing an
@@ -200,9 +231,15 @@ public:
   Function *extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
                               ValueSet &Inputs, ValueSet &Outputs);
 
-  /// Verify that assumption cache isn't stale after a region is extracted.
-  /// Returns true when verifier finds errors. AssumptionCache is passed as
-  /// parameter to make this function stateless.
+  /// Verify that the assumption cache is not stale after extraction.
+  ///
+  /// AssumptionCache is passed as a parameter to make this function
+  /// stateless.
+  ///
+  /// \param OldFunc Original function before extraction.
+  /// \param NewFunc Newly extracted function.
+  /// \param AC Assumption cache to verify.
+  /// \returns True when the verifier finds errors.
   static bool verifyAssumptionCache(const Function &OldFunc,
                                     const Function &NewFunc,
                                     AssumptionCache *AC);
@@ -214,6 +251,8 @@ public:
   ///
   /// Checks that varargs handling (with vastart and vaend) is only done in the
   /// outlined blocks.
+  ///
+  /// \returns True if the selected blocks are eligible for extraction.
   bool isEligible() const;
 
   /// Compute the set of input values and output values for the code.
@@ -224,6 +263,11 @@ public:
   /// sequence, that sequence is modified, including changing these sets, before
   /// extraction occurs. These modifications won't have any significant impact
   /// on the cost however.
+  ///
+  /// \param Inputs [out] Values marked as inputs to the region.
+  /// \param Outputs [out] Values marked as outputs from the region.
+  /// \param Allocas Allocas already known to belong to the region.
+  /// \param CollectGlobalInputs Whether to treat used globals as inputs.
   void findInputsOutputs(ValueSet &Inputs, ValueSet &Outputs,
                          const ValueSet &Allocas,
                          bool CollectGlobalInputs = false);
@@ -231,7 +275,10 @@ public:
   /// Check if life time marker nodes can be hoisted/sunk into the outline
   /// region.
   ///
-  /// Returns true if it is safe to do the code motion.
+  /// \param CEAC Analysis cache used to check for clobbers.
+  /// \param AllocaAddr Address of the alloca whose lifetime markers are
+  /// considered.
+  /// \returns True if it is safe to do the code motion.
   bool
   isLegalToShrinkwrapLifetimeMarkers(const CodeExtractorAnalysisCache &CEAC,
                                      Instruction *AllocaAddr) const;
@@ -243,6 +290,13 @@ public:
   /// should be pushed to the outlined function. The address bitcasts that are
   /// used by the lifetime markers are also candidates for shrink-wrapping. The
   /// instructions that need to be sunk are collected in 'Allocas'.
+  ///
+  /// \param CEAC Analysis cache used when inspecting lifetime markers.
+  /// \param SinkCands [out] Instructions that should be sunk into the outlined
+  /// region.
+  /// \param HoistCands [out] Instructions that should be hoisted into the
+  /// outlined region.
+  /// \param ExitBlock [out] Exit block associated with the lifetime analysis.
   void findAllocas(const CodeExtractorAnalysisCache &CEAC, ValueSet &SinkCands,
                    ValueSet &HoistCands, BasicBlock *&ExitBlock) const;
 
@@ -253,20 +307,40 @@ public:
   /// inside the region that is the predecessor of CommonExitBlock, that block
   /// will be returned. Otherwise CommonExitBlock will be split and the original
   /// block will be added to the outline region.
+  ///
+  /// \param CommonExitBlock Common successor of blocks inside the outline
+  /// region.
+  /// \returns The block inside the outline region where hoisted code should be
+  /// placed.
   BasicBlock *findOrCreateBlockForHoisting(BasicBlock *CommonExitBlock);
 
   /// Exclude a value from aggregate argument passing when extracting a code
   /// region, passing it instead as a scalar.
+  ///
+  /// \param Arg Value to pass as a scalar instead of packing into the
+  /// aggregate.
   void excludeArgFromAggregate(Value *Arg);
 
 protected:
   /// Allocate an intermediate variable at the specified point.
+  ///
+  /// \param AllocaIP Insertion point for the allocation.
+  /// \param VarType Type of the variable to allocate.
+  /// \param Name Optional name for the allocated value.
+  /// \param CastedAlloc Optional out-parameter set to any addrspace cast of
+  /// the allocation.
+  /// \returns The allocated variable instruction.
   virtual Instruction *allocateVar(IRBuilder<>::InsertPoint AllocaIP,
                                    Type *VarType, const Twine &Name = Twine(""),
                                    AddrSpaceCastInst **CastedAlloc = nullptr);
 
   /// Deallocate a previously-allocated intermediate variable at the specified
   /// point.
+  ///
+  /// \param DeallocIP Insertion point for the deallocation.
+  /// \param Var Value to deallocate.
+  /// \param VarType Type of the variable being deallocated.
+  /// \returns The deallocation instruction, or nullptr if none is needed.
   virtual Instruction *deallocateVar(IRBuilder<>::InsertPoint DeallocIP,
                                      Value *Var, Type *VarType);
 

@@ -20,6 +20,7 @@
 #include <memory>
 
 namespace llvm {
+/// Private implementation of SignpostEmitter.
 class SignpostEmitterImpl;
 class StringRef;
 
@@ -29,14 +30,25 @@ class SignpostEmitter {
   std::unique_ptr<SignpostEmitterImpl> Impl;
 
 public:
+  /// Create a signpost emitter for OS-supported profiling annotations.
   LLVM_ABI SignpostEmitter();
+  /// Destroy the signpost emitter and release its implementation.
   LLVM_ABI ~SignpostEmitter();
 
+  /// Return true if signpost emission is supported and enabled on this OS.
+  ///
+  /// \return True if signpost emission is supported and enabled on this OS.
   LLVM_ABI bool isEnabled() const;
 
   /// Begin a signposted interval for a given object.
+  ///
+  /// \param O Object used as the key for this interval.
+  /// \param Name Display name shown for the interval in the profiler.
   LLVM_ABI void startInterval(const void *O, StringRef Name);
   /// End a signposted interval for a given object.
+  ///
+  /// \param O Object used as the key for this interval.
+  /// \param Name Display name shown for the interval in the profiler.
   LLVM_ABI void endInterval(const void *O, StringRef Name);
 };
 

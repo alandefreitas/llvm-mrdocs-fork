@@ -35,26 +35,27 @@ class Loop;
 class Type;
 class Value;
 
+/// Kinds of SCEV expression nodes, ordered by increasing complexity.
 enum SCEVTypes : unsigned short {
   // These should be ordered in terms of increasing complexity to make the
   // folders simpler.
-  scConstant,
-  scVScale,
-  scTruncate,
-  scZeroExtend,
-  scSignExtend,
-  scAddExpr,
-  scMulExpr,
-  scUDivExpr,
-  scAddRecExpr,
-  scUMaxExpr,
-  scSMaxExpr,
-  scUMinExpr,
-  scSMinExpr,
-  scSequentialUMinExpr,
-  scPtrToAddr,
-  scUnknown,
-  scCouldNotCompute
+  scConstant,           ///< Constant integer value.
+  scVScale,             ///< Runtime vscale value.
+  scTruncate,           ///< Integer truncation.
+  scZeroExtend,         ///< Zero extension.
+  scSignExtend,         ///< Sign extension.
+  scAddExpr,            ///< N-ary addition.
+  scMulExpr,            ///< N-ary multiplication.
+  scUDivExpr,           ///< Unsigned division.
+  scAddRecExpr,         ///< Add recurrence over a loop.
+  scUMaxExpr,           ///< Unsigned maximum.
+  scSMaxExpr,           ///< Signed maximum.
+  scUMinExpr,           ///< Unsigned minimum.
+  scSMinExpr,           ///< Signed minimum.
+  scSequentialUMinExpr, ///< Sequential unsigned minimum.
+  scPtrToAddr,          ///< Pointer-to-address cast.
+  scUnknown,            ///< Opaque value-backed SCEV.
+  scCouldNotCompute     ///< Sentinel for an uncomputable SCEV.
 };
 
 /// This class represents a constant integer value.
@@ -67,10 +68,16 @@ class SCEVConstant : public SCEV {
       : SCEV(ID, scConstant, 1, v->getType()), V(v) {}
 
 public:
+  /// Return the constant integer value.
+  /// @return The constant integer value.
   ConstantInt *getValue() const { return V; }
+  /// Return the APInt underlying this constant.
+  /// @return The APInt underlying this constant.
   const APInt &getAPInt() const { return getValue()->getValue(); }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVConstant.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scConstant; }
 };
 
@@ -83,10 +90,15 @@ class SCEVVScale : public SCEV {
       : SCEV(ID, scVScale, 0, ty) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVVScale.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scVScale; }
 };
 
+/// Compute a saturated expression-size estimate from operand sizes.
+/// @param Args Operand SCEV uses whose expression sizes are summed.
+/// @return Saturated expression-size estimate.
 inline unsigned short computeExpressionSize(ArrayRef<SCEVUse> Args) {
   APInt Size(16, 1);
   for (const SCEV *Arg : Args)
@@ -97,21 +109,38 @@ inline unsigned short computeExpressionSize(ArrayRef<SCEVUse> Args) {
 /// This is the base class for unary cast operator classes.
 class SCEVCastExpr : public SCEV {
 protected:
+  /// The single cast operand.
   SCEVUse Op;
 
+  /// Construct a unary cast SCEV of kind \p SCEVTy.
+  /// @param ID Folding-set ID for this node.
+  /// @param SCEVTy SCEV kind for this cast.
+  /// @param op Operand being cast.
+  /// @param ty Result type of the cast.
   LLVM_ABI SCEVCastExpr(const FoldingSetNodeIDRef ID, SCEVTypes SCEVTy,
                         SCEVUse op, Type *ty);
 
 public:
+  /// Return the cast operand.
+  /// @return The cast operand.
   SCEVUse getOperand() const { return Op; }
+  /// Return the cast operand at index \p i (must be 0).
+  /// @param i Operand index; must be zero.
+  /// @return The cast operand at index \p i.
   SCEVUse getOperand(unsigned i) const {
     assert(i == 0 && "Operand index out of range!");
     return Op;
   }
+  /// Return the single-element operand array for this cast.
+  /// @return The single-element operand array for this cast.
   ArrayRef<SCEVUse> operands() const { return Op; }
+  /// Return the number of operands (always 1).
+  /// @return The number of operands (always 1).
   size_t getNumOperands() const { return 1; }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a cast expression.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scPtrToAddr || S->getSCEVType() == scTruncate ||
            S->getSCEVType() == scZeroExtend || S->getSCEVType() == scSignExtend;
@@ -126,18 +155,27 @@ class SCEVPtrToAddrExpr : public SCEVCastExpr {
   SCEVPtrToAddrExpr(const FoldingSetNodeIDRef ID, const SCEV *Op, Type *ITy);
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVPtrToAddrExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scPtrToAddr; }
 };
 
 /// This is the base class for unary integral cast operator classes.
 class SCEVIntegralCastExpr : public SCEVCastExpr {
 protected:
+  /// Construct a unary integral cast SCEV of kind \p SCEVTy.
+  /// @param ID Folding-set ID for this node.
+  /// @param SCEVTy SCEV kind for this cast.
+  /// @param op Operand being cast.
+  /// @param ty Result type of the cast.
   LLVM_ABI SCEVIntegralCastExpr(const FoldingSetNodeIDRef ID, SCEVTypes SCEVTy,
                                 SCEVUse op, Type *ty);
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is an integral cast expression.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scTruncate || S->getSCEVType() == scZeroExtend ||
            S->getSCEVType() == scSignExtend;
@@ -152,7 +190,9 @@ class SCEVTruncateExpr : public SCEVIntegralCastExpr {
   SCEVTruncateExpr(const FoldingSetNodeIDRef ID, SCEVUse op, Type *ty);
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVTruncateExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scTruncate; }
 };
 
@@ -164,7 +204,9 @@ class SCEVZeroExtendExpr : public SCEVIntegralCastExpr {
   SCEVZeroExtendExpr(const FoldingSetNodeIDRef ID, SCEVUse op, Type *ty);
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVZeroExtendExpr.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scZeroExtend;
   }
@@ -178,7 +220,9 @@ class SCEVSignExtendExpr : public SCEVIntegralCastExpr {
   SCEVSignExtendExpr(const FoldingSetNodeIDRef ID, SCEVUse op, Type *ty);
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVSignExtendExpr.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scSignExtend;
   }
@@ -192,39 +236,65 @@ protected:
   // arrays with its SCEVAllocator, so this class just needs a simple
   // pointer rather than a more elaborate vector-like data structure.
   // This also avoids the need for a non-trivial destructor.
+  /// Pointer to the immutable operand array owned by ScalarEvolution.
   const SCEVUse *Operands;
+  /// Number of operands.
   size_t NumOperands;
 
+  /// Construct an n-ary SCEV of kind \p T with operands \p O.
+  /// @param ID Folding-set ID for this node.
+  /// @param T SCEV kind for this expression.
+  /// @param O Operand array allocated by ScalarEvolution.
+  /// @param N Number of operands in \p O.
+  /// @param Ty Result type of the expression.
   SCEVNAryExpr(const FoldingSetNodeIDRef ID, enum SCEVTypes T, const SCEVUse *O,
                size_t N, Type *Ty)
       : SCEV(ID, T, computeExpressionSize(ArrayRef(O, N)), Ty), Operands(O),
         NumOperands(N) {}
 
 public:
+  /// Return the number of operands.
+  /// @return The number of operands.
   size_t getNumOperands() const { return NumOperands; }
 
+  /// Return the operand at index \p i.
+  /// @param i Operand index.
+  /// @return The operand at index \p i.
   SCEVUse getOperand(unsigned i) const {
     assert(i < NumOperands && "Operand index out of range!");
     return Operands[i];
   }
 
+  /// Return the array of operands.
+  /// @return The array of operands.
   ArrayRef<SCEVUse> operands() const { return ArrayRef(Operands, NumOperands); }
 
+  /// Return no-wrap flags selected by \p Mask.
+  /// @param Mask Bits of no-wrap flags to return.
+  /// @return No-wrap flags selected by \p Mask.
   NoWrapFlags getNoWrapFlags(NoWrapFlags Mask = NoWrapMask) const {
     return static_cast<NoWrapFlags>(SubclassData) & Mask;
   }
 
+  /// Return true if this expression has the no-unsigned-wrap flag.
+  /// @return True if this expression has the no-unsigned-wrap flag.
   bool hasNoUnsignedWrap() const {
     return getNoWrapFlags(FlagNUW) != FlagAnyWrap;
   }
 
+  /// Return true if this expression has the no-signed-wrap flag.
+  /// @return True if this expression has the no-signed-wrap flag.
   bool hasNoSignedWrap() const {
     return getNoWrapFlags(FlagNSW) != FlagAnyWrap;
   }
 
+  /// Return true if this expression has the no-self-wrap flag.
+  /// @return True if this expression has the no-self-wrap flag.
   bool hasNoSelfWrap() const { return getNoWrapFlags(FlagNW) != FlagAnyWrap; }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is an n-ary expression.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scAddExpr || S->getSCEVType() == scMulExpr ||
            S->getSCEVType() == scSMaxExpr || S->getSCEVType() == scUMaxExpr ||
@@ -232,18 +302,29 @@ public:
            S->getSCEVType() == scSequentialUMinExpr ||
            S->getSCEVType() == scAddRecExpr;
   }
+  /// Return true if the SCEV pointed to by \p U is an n-ary expression.
+  /// @param U SCEVUse to test.
+  /// @return True if the SCEV pointed to by \p U is an n-ary expression.
   static bool classof(const SCEVUse *U) { return classof(U->getPointer()); }
 };
 
 /// This node is the base class for n'ary commutative operators.
 class SCEVCommutativeExpr : public SCEVNAryExpr {
 protected:
+  /// Construct a commutative n-ary SCEV of kind \p T with operands \p O.
+  /// @param ID Folding-set ID for this node.
+  /// @param T SCEV kind for this expression.
+  /// @param O Operand array allocated by ScalarEvolution.
+  /// @param N Number of operands in \p O.
+  /// @param Ty Result type of the expression.
   SCEVCommutativeExpr(const FoldingSetNodeIDRef ID, enum SCEVTypes T,
                       const SCEVUse *O, size_t N, Type *Ty)
       : SCEVNAryExpr(ID, T, O, N, Ty) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a commutative expression.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scAddExpr || S->getSCEVType() == scMulExpr ||
            S->getSCEVType() == scSMaxExpr || S->getSCEVType() == scUMaxExpr ||
@@ -251,6 +332,7 @@ public:
   }
 
   /// Set flags for a non-recurrence without clearing previously set flags.
+  /// @param Flags No-wrap flags to set.
   void setNoWrapFlags(NoWrapFlags Flags) {
     SubclassData |= static_cast<unsigned short>(Flags);
   }
@@ -275,8 +357,13 @@ class SCEVAddExpr : public SCEVCommutativeExpr {
       : SCEVCommutativeExpr(ID, scAddExpr, O, N, computeType(O, N)) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVAddExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scAddExpr; }
+  /// Return true if the SCEV pointed to by \p U is an add expression.
+  /// @param U SCEVUse to test.
+  /// @return True if the SCEV pointed to by \p U is an add expression.
   static bool classof(const SCEVUse *U) { return classof(U->getPointer()); }
 };
 
@@ -288,8 +375,13 @@ class SCEVMulExpr : public SCEVCommutativeExpr {
       : SCEVCommutativeExpr(ID, scMulExpr, O, N, O[0]->getType()) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVMulExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scMulExpr; }
+  /// Return true if the SCEV pointed to by \p U is a mul expression.
+  /// @param U SCEVUse to test.
+  /// @return True if the SCEV pointed to by \p U is a mul expression.
   static bool classof(const SCEVUse *U) { return classof(U->getPointer()); }
 };
 
@@ -307,28 +399,41 @@ class SCEVUDivExpr : public SCEV {
   }
 
 public:
+  /// Return the left-hand (dividend) operand.
+  /// @return The left-hand (dividend) operand.
   SCEVUse getLHS() const { return Operands[0]; }
+  /// Return the right-hand (divisor) operand.
+  /// @return The right-hand (divisor) operand.
   SCEVUse getRHS() const { return Operands[1]; }
+  /// Return the number of operands (always 2).
+  /// @return The number of operands (always 2).
   size_t getNumOperands() const { return 2; }
+  /// Return the operand at index \p i (0 for LHS, 1 for RHS).
+  /// @param i Operand index; must be 0 or 1.
+  /// @return The operand at index \p i.
   SCEVUse getOperand(unsigned i) const {
     assert((i == 0 || i == 1) && "Operand index out of range!");
     return i == 0 ? getLHS() : getRHS();
   }
 
+  /// Return the two operands as an array.
+  /// @return The two operands as an array.
   ArrayRef<SCEVUse> operands() const { return Operands; }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVUDivExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scUDivExpr; }
 };
 
-/// This node represents a polynomial recurrence on the trip count
-/// of the specified loop.  This is the primary focus of the
-/// ScalarEvolution framework; all the other SCEV subclasses are
-/// mostly just supporting infrastructure to allow SCEVAddRecExpr
-/// expressions to be created and analyzed.
+/// This node represents a polynomial recurrence on the trip count of the
+/// specified loop.
+///
+/// This is the primary focus of the ScalarEvolution framework; all the other
+/// SCEV subclasses are mostly just supporting infrastructure to allow
+/// SCEVAddRecExpr expressions to be created and analyzed.
 ///
 /// All operands of an AddRec are required to be loop invariant.
-///
 class SCEVAddRecExpr : public SCEVNAryExpr {
   friend class ScalarEvolution;
 
@@ -339,13 +444,19 @@ class SCEVAddRecExpr : public SCEVNAryExpr {
       : SCEVNAryExpr(ID, scAddRecExpr, O, N, O[0]->getType()), L(l) {}
 
 public:
+  /// Return the start value of this recurrence.
+  /// @return The start value of this recurrence.
   SCEVUse getStart() const { return Operands[0]; }
+  /// Return the loop this recurrence is associated with.
+  /// @return The loop this recurrence is associated with.
   const Loop *getLoop() const { return L; }
 
-  /// Constructs and returns the recurrence indicating how much this
-  /// expression steps by.  If this is a polynomial of degree N, it
-  /// returns a chrec of degree N-1.  We cannot determine whether
-  /// the step recurrence has self-wraparound.
+  /// Return the recurrence describing how much this expression steps by.
+  ///
+  /// If this is a polynomial of degree N, it returns a chrec of degree N-1.
+  /// We cannot determine whether the step recurrence has self-wraparound.
+  /// @param SE Scalar evolution used to build a higher-degree step.
+  /// @return The step recurrence for this expression.
   SCEVUse getStepRecurrence(ScalarEvolution &SE) const {
     if (isAffine())
       return getOperand(1);
@@ -355,6 +466,7 @@ public:
 
   /// Return true if this represents an expression A + B*x where A
   /// and B are loop invariant values.
+  /// @return True if this is an affine add-recurrence.
   bool isAffine() const {
     // We know that the start value is invariant.  This expression is thus
     // affine iff the step is also invariant.
@@ -364,11 +476,14 @@ public:
   /// Return true if this represents an expression A + B*x + C*x^2
   /// where A, B and C are loop invariant values.  This corresponds
   /// to an addrec of the form {L,+,M,+,N}
+  /// @return True if this is a quadratic add-recurrence.
   bool isQuadratic() const { return getNumOperands() == 3; }
 
   /// Set flags for a recurrence without clearing any previously set flags.
+  ///
   /// For AddRec, either NUW or NSW implies NW. Keep track of this fact here
   /// to make it easier to propagate flags.
+  /// @param Flags No-wrap flags to set.
   void setNoWrapFlags(NoWrapFlags Flags) {
     if (any(Flags & (FlagNUW | FlagNSW)))
       Flags = ScalarEvolution::setFlags(Flags, FlagNW);
@@ -377,29 +492,44 @@ public:
 
   /// Return the value of this chain of recurrences at the specified
   /// iteration number.
+  /// @param It Iteration number at which to evaluate the recurrence.
+  /// @param SE Scalar evolution used to build the result.
+  /// @return The value of this recurrence at iteration \p It.
   LLVM_ABI const SCEV *evaluateAtIteration(const SCEV *It,
                                            ScalarEvolution &SE) const;
 
-  /// Return the value of this chain of recurrences at the specified iteration
-  /// number. Takes an explicit list of operands to represent an AddRec.
+  /// Return the value of an AddRec with the given operands at iteration \p It.
+  ///
+  /// Takes an explicit list of operands to represent an AddRec.
+  /// @param Operands AddRec operands (start and steps).
+  /// @param It Iteration number at which to evaluate the recurrence.
+  /// @param SE Scalar evolution used to build the result.
+  /// @return The value of the AddRec at iteration \p It.
   LLVM_ABI static const SCEV *evaluateAtIteration(ArrayRef<SCEVUse> Operands,
                                                   const SCEV *It,
                                                   ScalarEvolution &SE);
 
-  /// Return the number of iterations of this loop that produce
-  /// values in the specified constant range.  Another way of
-  /// looking at this is that it returns the first iteration number
-  /// where the value is not in the condition, thus computing the
-  /// exit count.  If the iteration count can't be computed, an
-  /// instance of SCEVCouldNotCompute is returned.
+  /// Return how many iterations produce values in the given constant range.
+  ///
+  /// Another way of looking at this is that it returns the first iteration
+  /// number where the value is not in the condition, thus computing the exit
+  /// count. If the iteration count can't be computed, an instance of
+  /// SCEVCouldNotCompute is returned.
+  /// @param Range Constant range of values to count iterations for.
+  /// @param SE Scalar evolution used to build the result.
+  /// @return The number of iterations in \p Range, or SCEVCouldNotCompute.
   LLVM_ABI const SCEV *getNumIterationsInRange(const ConstantRange &Range,
                                                ScalarEvolution &SE) const;
 
   /// Return an expression representing the value of this expression
   /// one iteration of the loop ahead.
+  /// @param SE Scalar evolution used to build the post-increment expression.
+  /// @return This expression evaluated one iteration ahead.
   LLVM_ABI const SCEVAddRecExpr *getPostIncExpr(ScalarEvolution &SE) const;
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVAddRecExpr.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scAddRecExpr;
   }
@@ -415,7 +545,13 @@ class SCEVMinMaxExpr : public SCEVCommutativeExpr {
   }
 
 protected:
-  /// Note: Constructing subclasses via this constructor is allowed
+  /// Construct a min/max SCEV of kind \p T with operands \p O.
+  ///
+  /// Note: Constructing subclasses via this constructor is allowed.
+  /// @param ID Folding-set ID for this node.
+  /// @param T Min/max SCEV kind.
+  /// @param O Operand array allocated by ScalarEvolution.
+  /// @param N Number of operands in \p O.
   SCEVMinMaxExpr(const FoldingSetNodeIDRef ID, enum SCEVTypes T,
                  const SCEVUse *O, size_t N)
       : SCEVCommutativeExpr(ID, T, O, N, O[0]->getType()) {
@@ -425,8 +561,14 @@ protected:
   }
 
 public:
+  /// Return true if \p S is a non-sequential min/max expression.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a non-sequential min/max expression.
   static bool classof(const SCEV *S) { return isMinMaxType(S->getSCEVType()); }
 
+  /// Return the dual min/max SCEV type for \p T.
+  /// @param T Min/max SCEV type to negate.
+  /// @return The dual min/max SCEV type for \p T.
   static enum SCEVTypes negate(enum SCEVTypes T) {
     switch (T) {
     case scSMaxExpr:
@@ -451,7 +593,9 @@ class SCEVSMaxExpr : public SCEVMinMaxExpr {
       : SCEVMinMaxExpr(ID, scSMaxExpr, O, N) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVSMaxExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scSMaxExpr; }
 };
 
@@ -463,7 +607,9 @@ class SCEVUMaxExpr : public SCEVMinMaxExpr {
       : SCEVMinMaxExpr(ID, scUMaxExpr, O, N) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVUMaxExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scUMaxExpr; }
 };
 
@@ -475,7 +621,9 @@ class SCEVSMinExpr : public SCEVMinMaxExpr {
       : SCEVMinMaxExpr(ID, scSMinExpr, O, N) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVSMinExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scSMinExpr; }
 };
 
@@ -487,16 +635,19 @@ class SCEVUMinExpr : public SCEVMinMaxExpr {
       : SCEVMinMaxExpr(ID, scUMinExpr, O, N) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVUMinExpr.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scUMinExpr; }
 };
 
-/// This node is the base class for sequential/in-order min/max selections.
-/// Note that their fundamental difference from SCEVMinMaxExpr's is that they
-/// are early-returning upon reaching saturation point.
-/// I.e. given `0 umin_seq poison`, the result will be `0`, while the result of
-/// `0 umin poison` is `poison`. When returning early, later expressions are not
-/// executed, so `0 umin_seq (%x u/ 0)` does not result in undefined behavior.
+/// Base class for sequential/in-order min/max selections.
+///
+/// Their fundamental difference from SCEVMinMaxExpr's is that they are
+/// early-returning upon reaching saturation point. I.e. given `0 umin_seq
+/// poison`, the result will be `0`, while the result of `0 umin poison` is
+/// `poison`. When returning early, later expressions are not executed, so
+/// `0 umin_seq (%x u/ 0)` does not result in undefined behavior.
 class SCEVSequentialMinMaxExpr : public SCEVNAryExpr {
   friend class ScalarEvolution;
 
@@ -510,7 +661,13 @@ class SCEVSequentialMinMaxExpr : public SCEVNAryExpr {
   }
 
 protected:
-  /// Note: Constructing subclasses via this constructor is allowed
+  /// Construct a sequential min/max SCEV of kind \p T with operands \p O.
+  ///
+  /// Note: Constructing subclasses via this constructor is allowed.
+  /// @param ID Folding-set ID for this node.
+  /// @param T Sequential min/max SCEV kind.
+  /// @param O Operand array allocated by ScalarEvolution.
+  /// @param N Number of operands in \p O.
   SCEVSequentialMinMaxExpr(const FoldingSetNodeIDRef ID, enum SCEVTypes T,
                            const SCEVUse *O, size_t N)
       : SCEVNAryExpr(ID, T, O, N, O[0]->getType()) {
@@ -520,6 +677,9 @@ protected:
   }
 
 public:
+  /// Return the non-sequential SCEV type corresponding to sequential type \p Ty.
+  /// @param Ty Sequential min/max SCEV type.
+  /// @return The equivalent non-sequential SCEV type for \p Ty.
   static SCEVTypes getEquivalentNonSequentialSCEVType(SCEVTypes Ty) {
     assert(isSequentialMinMaxType(Ty));
     switch (Ty) {
@@ -530,13 +690,21 @@ public:
     }
   }
 
+  /// Return the non-sequential SCEV type equivalent to this expression's kind.
+  /// @return The equivalent non-sequential SCEV type for this expression.
   SCEVTypes getEquivalentNonSequentialSCEVType() const {
     return getEquivalentNonSequentialSCEVType(getSCEVType());
   }
 
+  /// Return true if \p S is a sequential min/max expression.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a sequential min/max expression.
   static bool classof(const SCEV *S) {
     return isSequentialMinMaxType(S->getSCEVType());
   }
+  /// Return true if the SCEV pointed to by \p U is sequential min/max.
+  /// @param U SCEVUse to test.
+  /// @return True if the SCEV pointed to by \p U is sequential min/max.
   static bool classof(const SCEVUse *U) { return classof(U->getPointer()); }
 };
 
@@ -549,7 +717,9 @@ class SCEVSequentialUMinExpr : public SCEVSequentialMinMaxExpr {
       : SCEVSequentialMinMaxExpr(ID, scSequentialUMinExpr, O, N) {}
 
 public:
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVSequentialUMinExpr.
   static bool classof(const SCEV *S) {
     return S->getSCEVType() == scSequentialUMinExpr;
   }
@@ -580,15 +750,22 @@ class LLVM_ABI SCEVUnknown final : public SCEV, private CallbackVH {
   void allUsesReplacedWith(Value *New) override;
 
 public:
+  /// Return the LLVM Value this unknown SCEV represents.
+  /// @return The LLVM Value this unknown SCEV represents.
   Value *getValue() const { return getValPtr(); }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  /// @param S SCEV to test.
+  /// @return True if \p S is a SCEVUnknown.
   static bool classof(const SCEV *S) { return S->getSCEVType() == scUnknown; }
 };
 
 /// This class defines a simple visitor class that may be used for
 /// various SCEV analysis purposes.
 template <typename SC, typename RetVal = void> struct SCEVVisitor {
+  /// Dispatch to the typed visit method for \p S.
+  /// @param S SCEV to visit.
+  /// @return The result of the typed visit method for \p S.
   RetVal visit(const SCEV *S) {
     switch (S->getSCEVType()) {
     case scConstant:
@@ -630,6 +807,9 @@ template <typename SC, typename RetVal = void> struct SCEVVisitor {
     llvm_unreachable("Unknown SCEV kind!");
   }
 
+  /// Default handler for SCEVCouldNotCompute; aborts on use.
+  /// @param S Could-not-compute SCEV that was visited.
+  /// @return Never returns; aborts if called.
   RetVal visitCouldNotCompute(const SCEVCouldNotCompute *S) {
     llvm_unreachable("Invalid use of SCEVCouldNotCompute!");
   }
@@ -637,6 +817,9 @@ template <typename SC, typename RetVal = void> struct SCEVVisitor {
 
 /// A visitor class for SCEVUse.
 template <typename SC, typename RetVal = void> struct SCEVUseVisitor {
+  /// Dispatch to the typed visit method for SCEVUse \p S.
+  /// @param S SCEVUse to visit.
+  /// @return The result of the typed visit method for \p S.
   RetVal visit(SCEVUse S) {
     switch (S->getSCEVType()) {
     case scConstant:
@@ -692,6 +875,9 @@ template <typename SC, typename RetVal = void> struct SCEVUseVisitor {
     llvm_unreachable("Unknown SCEV kind!");
   }
 
+  /// Default handler for SCEVCouldNotCompute uses; aborts on use.
+  /// @param S Could-not-compute SCEVUse that was visited.
+  /// @return Never returns; aborts if called.
   RetVal visitCouldNotCompute(SCEVUseT<const SCEVCouldNotCompute *> S) {
     llvm_unreachable("Invalid use of SCEVCouldNotCompute!");
   }
@@ -715,8 +901,12 @@ template <typename SV> class SCEVTraversal {
   }
 
 public:
+  /// Construct a traversal that notifies \p V for each followed node.
+  /// @param V Visitor implementing follow/isDone.
   SCEVTraversal(SV &V) : Visitor(V) {}
 
+  /// Traverse every reachable SCEV starting at \p Root.
+  /// @param Root Root SCEV of the expression tree.
   void visitAll(const SCEV *Root) {
     push(Root);
     while (!Worklist.empty() && !Visitor.isDone()) {
@@ -755,12 +945,17 @@ public:
 };
 
 /// Use SCEVTraversal to visit all nodes in the given expression tree.
+/// @param Root Root SCEV of the expression tree.
+/// @param Visitor Visitor implementing follow/isDone.
 template <typename SV> void visitAll(const SCEV *Root, SV &Visitor) {
   SCEVTraversal<SV> T(Visitor);
   T.visitAll(Root);
 }
 
 /// Return true if any node in \p Root satisfies the predicate \p Pred.
+/// @param Root Root SCEV of the expression tree.
+/// @param Pred Predicate invoked for each visited SCEV.
+/// @return True if any node in \p Root satisfies \p Pred.
 template <typename PredTy>
 bool SCEVExprContains(const SCEV *Root, PredTy Pred) {
   struct FindClosure {
@@ -791,17 +986,24 @@ bool SCEVExprContains(const SCEV *Root, PredTy Pred) {
 template <typename SC>
 class SCEVRewriteVisitor : public SCEVVisitor<SC, const SCEV *> {
 protected:
+  /// Scalar evolution used to rebuild rewritten expressions.
   ScalarEvolution &SE;
   // Memoize the result of each visit so that we only compute once for
   // the same input SCEV. This is to avoid redundant computations when
   // a SCEV is referenced by multiple SCEVs. Without memoization, this
   // visit algorithm would have exponential time complexity in the worst
   // case, causing the compiler to hang on certain tests.
+  /// Memoized rewrite results keyed by the original SCEV.
   SmallDenseMap<const SCEV *, const SCEV *> RewriteResults;
 
 public:
+  /// Construct a rewrite visitor using scalar evolution \p SE.
+  /// @param SE Scalar evolution used to rebuild expressions.
   SCEVRewriteVisitor(ScalarEvolution &SE) : SE(SE) {}
 
+  /// Rewrite \p S, memoizing the result for repeated visits.
+  /// @param S SCEV to rewrite.
+  /// @return The rewritten SCEV for \p S.
   const SCEV *visit(const SCEV *S) {
     auto It = RewriteResults.find(S);
     if (It != RewriteResults.end())
@@ -812,15 +1014,27 @@ public:
     return Result.first->second;
   }
 
+  /// Return \p Constant unchanged.
+  /// @param Constant Constant SCEV to rewrite.
+  /// @return \p Constant unchanged.
   const SCEV *visitConstant(const SCEVConstant *Constant) { return Constant; }
 
+  /// Return \p VScale unchanged.
+  /// @param VScale VScale SCEV to rewrite.
+  /// @return \p VScale unchanged.
   const SCEV *visitVScale(const SCEVVScale *VScale) { return VScale; }
 
+  /// Rewrite a pointer-to-address cast by rewriting its operand.
+  /// @param Expr Pointer-to-address expression to rewrite.
+  /// @return The rewritten pointer-to-address SCEV.
   const SCEV *visitPtrToAddrExpr(const SCEVPtrToAddrExpr *Expr) {
     const SCEV *Operand = ((SC *)this)->visit(Expr->getOperand());
     return Operand == Expr->getOperand() ? Expr : SE.getPtrToAddrExpr(Operand);
   }
 
+  /// Rewrite a truncate by rewriting its operand.
+  /// @param Expr Truncate expression to rewrite.
+  /// @return The rewritten truncate SCEV.
   const SCEV *visitTruncateExpr(const SCEVTruncateExpr *Expr) {
     const SCEV *Operand = ((SC *)this)->visit(Expr->getOperand());
     return Operand == Expr->getOperand()
@@ -828,6 +1042,9 @@ public:
                : SE.getTruncateExpr(Operand, Expr->getType());
   }
 
+  /// Rewrite a zero-extend by rewriting its operand.
+  /// @param Expr Zero-extend expression to rewrite.
+  /// @return The rewritten zero-extend SCEV.
   const SCEV *visitZeroExtendExpr(const SCEVZeroExtendExpr *Expr) {
     const SCEV *Operand = ((SC *)this)->visit(Expr->getOperand());
     return Operand == Expr->getOperand()
@@ -835,6 +1052,9 @@ public:
                : SE.getZeroExtendExpr(Operand, Expr->getType());
   }
 
+  /// Rewrite a sign-extend by rewriting its operand.
+  /// @param Expr Sign-extend expression to rewrite.
+  /// @return The rewritten sign-extend SCEV.
   const SCEV *visitSignExtendExpr(const SCEVSignExtendExpr *Expr) {
     const SCEV *Operand = ((SC *)this)->visit(Expr->getOperand());
     return Operand == Expr->getOperand()
@@ -842,6 +1062,9 @@ public:
                : SE.getSignExtendExpr(Operand, Expr->getType());
   }
 
+  /// Rewrite an add by rewriting each operand.
+  /// @param Expr Add expression to rewrite.
+  /// @return The rewritten add SCEV.
   const SCEV *visitAddExpr(const SCEVAddExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -852,6 +1075,9 @@ public:
     return !Changed ? Expr : SE.getAddExpr(Operands);
   }
 
+  /// Rewrite a mul by rewriting each operand.
+  /// @param Expr Mul expression to rewrite.
+  /// @return The rewritten mul SCEV.
   const SCEV *visitMulExpr(const SCEVMulExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -862,6 +1088,9 @@ public:
     return !Changed ? Expr : SE.getMulExpr(Operands);
   }
 
+  /// Rewrite an unsigned division by rewriting both operands.
+  /// @param Expr UDiv expression to rewrite.
+  /// @return The rewritten udiv SCEV.
   const SCEV *visitUDivExpr(const SCEVUDivExpr *Expr) {
     auto *LHS = ((SC *)this)->visit(Expr->getLHS());
     auto *RHS = ((SC *)this)->visit(Expr->getRHS());
@@ -869,6 +1098,9 @@ public:
     return !Changed ? Expr : SE.getUDivExpr(LHS, RHS);
   }
 
+  /// Rewrite an add-recurrence by rewriting each operand.
+  /// @param Expr Add-recurrence expression to rewrite.
+  /// @return The rewritten add-recurrence SCEV.
   const SCEV *visitAddRecExpr(const SCEVAddRecExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -881,6 +1113,9 @@ public:
                                        Expr->getNoWrapFlags());
   }
 
+  /// Rewrite a signed max by rewriting each operand.
+  /// @param Expr SMax expression to rewrite.
+  /// @return The rewritten smax SCEV.
   const SCEV *visitSMaxExpr(const SCEVSMaxExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -891,6 +1126,9 @@ public:
     return !Changed ? Expr : SE.getSMaxExpr(Operands);
   }
 
+  /// Rewrite an unsigned max by rewriting each operand.
+  /// @param Expr UMax expression to rewrite.
+  /// @return The rewritten umax SCEV.
   const SCEV *visitUMaxExpr(const SCEVUMaxExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -901,6 +1139,9 @@ public:
     return !Changed ? Expr : SE.getUMaxExpr(Operands);
   }
 
+  /// Rewrite a signed min by rewriting each operand.
+  /// @param Expr SMin expression to rewrite.
+  /// @return The rewritten smin SCEV.
   const SCEV *visitSMinExpr(const SCEVSMinExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -911,6 +1152,9 @@ public:
     return !Changed ? Expr : SE.getSMinExpr(Operands);
   }
 
+  /// Rewrite an unsigned min by rewriting each operand.
+  /// @param Expr UMin expression to rewrite.
+  /// @return The rewritten umin SCEV.
   const SCEV *visitUMinExpr(const SCEVUMinExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -921,6 +1165,9 @@ public:
     return !Changed ? Expr : SE.getUMinExpr(Operands);
   }
 
+  /// Rewrite a sequential unsigned min by rewriting each operand.
+  /// @param Expr Sequential UMin expression to rewrite.
+  /// @return The rewritten sequential umin SCEV.
   const SCEV *visitSequentialUMinExpr(const SCEVSequentialUMinExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     bool Changed = false;
@@ -931,29 +1178,48 @@ public:
     return !Changed ? Expr : SE.getUMinExpr(Operands, /*Sequential=*/true);
   }
 
+  /// Return \p Expr unchanged.
+  /// @param Expr Unknown SCEV to rewrite.
+  /// @return \p Expr unchanged.
   const SCEV *visitUnknown(const SCEVUnknown *Expr) { return Expr; }
 
+  /// Return \p Expr unchanged.
+  /// @param Expr Could-not-compute SCEV to rewrite.
+  /// @return \p Expr unchanged.
   const SCEV *visitCouldNotCompute(const SCEVCouldNotCompute *Expr) {
     return Expr;
   }
 };
 
+/// Map from LLVM values to replacement LLVM values.
 using ValueToValueMap = DenseMap<const Value *, Value *>;
+/// Map from LLVM values to replacement SCEVs.
 using ValueToSCEVMapTy = DenseMap<const Value *, const SCEV *>;
 
 /// The SCEVParameterRewriter takes a scalar evolution expression and updates
 /// the SCEVUnknown components following the Map (Value -> SCEV).
 class SCEVParameterRewriter : public SCEVRewriteVisitor<SCEVParameterRewriter> {
 public:
+  /// Rewrite \p Scev, replacing unknown values found in \p Map.
+  /// @param Scev SCEV to rewrite.
+  /// @param SE Scalar evolution used to rebuild expressions.
+  /// @param Map Mapping from values to replacement SCEVs.
+  /// @return The rewritten SCEV with unknowns replaced from \p Map.
   static const SCEV *rewrite(const SCEV *Scev, ScalarEvolution &SE,
                              ValueToSCEVMapTy &Map) {
     SCEVParameterRewriter Rewriter(SE, Map);
     return Rewriter.visit(Scev);
   }
 
+  /// Construct a parameter rewriter using \p Map.
+  /// @param SE Scalar evolution used to rebuild expressions.
+  /// @param M Mapping from values to replacement SCEVs.
   SCEVParameterRewriter(ScalarEvolution &SE, ValueToSCEVMapTy &M)
       : SCEVRewriteVisitor(SE), Map(M) {}
 
+  /// Replace an unknown SCEV when its value appears in the rewrite map.
+  /// @param Expr Unknown SCEV to rewrite.
+  /// @return The mapped SCEV, or \p Expr if unmapped.
   const SCEV *visitUnknown(const SCEVUnknown *Expr) {
     auto I = Map.find(Expr->getValue());
     if (I == Map.end())
@@ -965,6 +1231,7 @@ private:
   ValueToSCEVMapTy &Map;
 };
 
+/// Map from loops to SCEVs used to evaluate add-recurrences.
 using LoopToScevMapT = DenseMap<const Loop *, const SCEV *>;
 
 /// The SCEVLoopAddRecRewriter takes a scalar evolution expression and applies
@@ -972,15 +1239,26 @@ using LoopToScevMapT = DenseMap<const Loop *, const SCEV *>;
 class SCEVLoopAddRecRewriter
     : public SCEVRewriteVisitor<SCEVLoopAddRecRewriter> {
 public:
+  /// Construct a loop add-rec rewriter using \p Map.
+  /// @param SE Scalar evolution used to rebuild expressions.
+  /// @param M Mapping from loops to iteration SCEVs.
   SCEVLoopAddRecRewriter(ScalarEvolution &SE, LoopToScevMapT &M)
       : SCEVRewriteVisitor(SE), Map(M) {}
 
+  /// Rewrite \p Scev, evaluating add-recs for loops found in \p Map.
+  /// @param Scev SCEV to rewrite.
+  /// @param Map Mapping from loops to iteration SCEVs.
+  /// @param SE Scalar evolution used to rebuild expressions.
+  /// @return The rewritten SCEV with mapped add-recs evaluated.
   static const SCEV *rewrite(const SCEV *Scev, LoopToScevMapT &Map,
                              ScalarEvolution &SE) {
     SCEVLoopAddRecRewriter Rewriter(SE, Map);
     return Rewriter.visit(Scev);
   }
 
+  /// Rewrite an add-recurrence, evaluating it when its loop is mapped.
+  /// @param Expr Add-recurrence expression to rewrite.
+  /// @return The rewritten or evaluated add-recurrence SCEV.
   const SCEV *visitAddRecExpr(const SCEVAddRecExpr *Expr) {
     SmallVector<SCEVUse, 2> Operands;
     for (SCEVUse Op : Expr->operands())
@@ -998,6 +1276,14 @@ private:
   LoopToScevMapT &Map;
 };
 
+/// Construct a SCEVUse with use-specific no-wrap flags.
+///
+/// Only NUW/NSW are encoded; NW is dropped. \p S must be an expression
+/// supporting flags. Only flags not already present on \p S are added. Note
+/// that the expression may gain flags also part of the SCEVUse later, via
+/// settNoWrapFlags.
+/// @param S Expression that may carry no-wrap flags.
+/// @param Flags Use-specific no-wrap flags to attach.
 template <typename SCEVPtrT>
 inline SCEVUseT<SCEVPtrT>::SCEVUseT(SCEVPtrT S, SCEVNoWrapFlags Flags)
     : Base(S, 0) {
@@ -1010,6 +1296,9 @@ inline SCEVUseT<SCEVPtrT>::SCEVUseT(SCEVPtrT S, SCEVNoWrapFlags Flags)
   Base::setInt(static_cast<unsigned>(Flags) >> 1);
 }
 
+/// Return the combined no-wrap flags for this use, masked by \p Mask.
+/// @param Mask Bits of no-wrap flags to return.
+/// @return Combined no-wrap flags for this use, masked by \p Mask.
 template <typename SCEVPtrT>
 inline SCEVNoWrapFlags
 SCEVUseT<SCEVPtrT>::getNoWrapFlags(SCEVNoWrapFlags Mask) const {

@@ -116,6 +116,7 @@ template <typename KeyT, typename ValueT,
           bool IsConst = false>
 class DenseMapIterator;
 
+/// CRTP base implementing a dense probed hash map from keys to values.
 template <typename DerivedT, typename KeyT, typename ValueT, typename KeyInfoT,
           typename BucketT>
 class DenseMapBase : public DebugEpochBase {
@@ -141,52 +142,63 @@ public:
       DenseMapIterator<KeyT, ValueT, KeyInfoT, BucketT, true>;
 
   /// Return an iterator to the beginning of the map.
+  /// @return Iterator to the first entry.
   [[nodiscard]] inline iterator begin() {
     return iterator::makeBegin(getBuckets(), getUsed(), getNumBuckets(),
                                empty(), *this);
   }
   /// Return an iterator to the end of the map.
+  /// @return Past-the-end iterator.
   [[nodiscard]] inline iterator end() {
     return iterator::makeEnd(getBuckets(), getUsed(), getNumBuckets(), *this);
   }
   /// Return a const iterator to the beginning of the map.
+  /// @return Const iterator to the first entry.
   [[nodiscard]] inline const_iterator begin() const {
     return const_iterator::makeBegin(getBuckets(), getUsed(), getNumBuckets(),
                                      empty(), *this);
   }
   /// Return a const iterator to the end of the map.
+  /// @return Const past-the-end iterator.
   [[nodiscard]] inline const_iterator end() const {
     return const_iterator::makeEnd(getBuckets(), getUsed(), getNumBuckets(),
                                    *this);
   }
 
   /// Return a range over the keys in the map.
+  /// @return Range of keys.
   [[nodiscard]] inline auto keys() {
     return map_range(*this, [](const BucketT &P) { return P.getFirst(); });
   }
 
   /// Return an iterator to iterate over values in the map.
+  /// @return Range of mapped values.
   [[nodiscard]] inline auto values() {
     return map_range(*this, [](const BucketT &P) { return P.getSecond(); });
   }
 
   /// Return a range over the keys in a const map.
+  /// @return Range of const keys.
   [[nodiscard]] inline auto keys() const {
     return map_range(*this, [](const BucketT &P) { return P.getFirst(); });
   }
 
   /// Return a range over the mapped values in a const map.
+  /// @return Range of const mapped values.
   [[nodiscard]] inline auto values() const {
     return map_range(*this, [](const BucketT &P) { return P.getSecond(); });
   }
 
   /// Return true if the map contains no entries.
+  /// @return True if the map has no entries.
   [[nodiscard]] bool empty() const { return getNumEntries() == 0; }
   /// Return the number of entries in the map.
+  /// @return Number of key/value pairs currently stored.
   [[nodiscard]] unsigned size() const { return getNumEntries(); }
 
   /// Grow the densemap so that it can contain at least \p NumEntries items
   /// before resizing again.
+  /// @param NumEntries Minimum number of entries to accommodate without growing.
   void reserve(size_type NumEntries) {
     auto NumBuckets = getMinBucketToReserveForEntries(NumEntries);
     incrementEpoch();
@@ -228,20 +240,28 @@ public:
   }
 
   /// Return true if the specified key is in the map, false otherwise.
+  /// @param Val Key to look up.
+  /// @return True if \p Val is present in the map.
   [[nodiscard]] bool contains(const_arg_type_t<KeyT> Val) const {
     return doFind(Val) != nullptr;
   }
 
   /// Return 1 if the specified key is in the map, 0 otherwise.
+  /// @param Val Key to look up.
+  /// @return 1 if \p Val is present, otherwise 0.
   [[nodiscard]] size_type count(const_arg_type_t<KeyT> Val) const {
     return contains(Val) ? 1 : 0;
   }
 
   /// Return an iterator to the entry for \p Val, or end() if not found.
+  /// @param Val Key to look up.
+  /// @return Iterator to the matching entry, or end() if not found.
   [[nodiscard]] iterator find(const_arg_type_t<KeyT> Val) {
     return find_as(Val);
   }
   /// Return a const iterator to the entry for \p Val, or end() if not found.
+  /// @param Val Key to look up.
+  /// @return Const iterator to the matching entry, or end() if not found.
   [[nodiscard]] const_iterator find(const_arg_type_t<KeyT> Val) const {
     return find_as(Val);
   }
@@ -270,6 +290,8 @@ public:
 
   /// Return the entry for the specified key, or a default constructed value if
   /// no such entry exists.
+  /// @param Val Key to look up.
+  /// @return The mapped value for \p Val, or a default-constructed ValueT.
   [[nodiscard]] ValueT lookup(const_arg_type_t<KeyT> Val) const {
     if (const BucketT *Bucket = doFind(Val))
       return Bucket->getSecond();
@@ -277,8 +299,12 @@ public:
   }
 
   /// Return the entry with the specified key, or \p Default.
+  ///
   /// This variant is useful when `lookup` cannot be used with
   /// non-default-constructible values.
+  /// @param Val Key to look up.
+  /// @param Default Value returned when \p Val is not present.
+  /// @return The mapped value for \p Val, or \p Default if absent.
   template <typename U = std::remove_cv_t<ValueT>>
   [[nodiscard]] ValueT lookup_or(const_arg_type_t<KeyT> Val,
                                  U &&Default) const {
@@ -288,6 +314,8 @@ public:
   }
 
   /// Return the entry for the specified key, or abort if no such entry exists.
+  /// @param Val Key of the entry to retrieve.
+  /// @return Reference to the mapped value for \p Val.
   [[nodiscard]] ValueT &at(const_arg_type_t<KeyT> Val) {
     auto Iter = this->find(std::move(Val));
     assert(Iter != this->end() && "DenseMap::at failed due to a missing key");
@@ -295,6 +323,8 @@ public:
   }
 
   /// Return the entry for the specified key, or abort if no such entry exists.
+  /// @param Val Key of the entry to retrieve.
+  /// @return Const reference to the mapped value for \p Val.
   [[nodiscard]] const ValueT &at(const_arg_type_t<KeyT> Val) const {
     auto Iter = this->find(std::move(Val));
     assert(Iter != this->end() && "DenseMap::at failed due to a missing key");
@@ -337,11 +367,14 @@ public:
     return try_emplace_impl(Key, std::forward<Ts>(Args)...);
   }
 
-  /// Alternate version of insert() which allows a different, and possibly
-  /// less expensive, key type.
+  /// Insert using an alternate, possibly cheaper, lookup key type.
+  ///
   /// The DenseMapInfo is responsible for supplying methods
   /// getHashValue(LookupKeyT) and isEqual(LookupKeyT, KeyT) for each key
   /// type used.
+  /// @param KV Key/value pair to insert, moved from.
+  /// @param Val Alternate lookup key used for hashing and equality.
+  /// @return An iterator to the entry and whether insertion occurred.
   template <typename LookupKeyT>
   std::pair<iterator, bool> insert_as(std::pair<KeyT, ValueT> &&KV,
                                       const LookupKeyT &Val) {
@@ -357,17 +390,23 @@ public:
   }
 
   /// Range insertion of pairs.
+  /// @param I Begin iterator of key/value pairs to insert.
+  /// @param E End iterator of key/value pairs to insert.
   template <typename InputIt> void insert(InputIt I, InputIt E) {
     for (; I != E; ++I)
       insert(*I);
   }
 
   /// Inserts range of 'std::pair<KeyT, ValueT>' values into the map.
+  /// @param R Range of key/value pairs to insert.
   template <typename Range> void insert_range(Range &&R) {
     insert(adl_begin(R), adl_end(R));
   }
 
   /// Insert \p Key with value \p Val, or assign \p Val if the key exists.
+  /// @param Key Key to insert or update.
+  /// @param Val Value to insert or assign.
+  /// @return An iterator to the entry and whether insertion occurred.
   template <typename V>
   std::pair<iterator, bool> insert_or_assign(const KeyT &Key, V &&Val) {
     auto Ret = try_emplace(Key, std::forward<V>(Val));
@@ -377,6 +416,9 @@ public:
   }
 
   /// Insert \p Key with value \p Val, or assign \p Val if the key exists.
+  /// @param Key Key to insert or update, moved from.
+  /// @param Val Value to insert or assign.
+  /// @return An iterator to the entry and whether insertion occurred.
   template <typename V>
   std::pair<iterator, bool> insert_or_assign(KeyT &&Key, V &&Val) {
     auto Ret = try_emplace(std::move(Key), std::forward<V>(Val));
@@ -387,6 +429,9 @@ public:
 
   /// Emplace \p Key with value constructed from \p Args, or assign a new value
   /// if the key exists.
+  /// @param Key Key to insert or update.
+  /// @param Args Arguments forwarded to construct or assign the mapped value.
+  /// @return An iterator to the entry and whether insertion occurred.
   template <typename... Ts>
   std::pair<iterator, bool> emplace_or_assign(const KeyT &Key, Ts &&...Args) {
     auto Ret = try_emplace(Key, std::forward<Ts>(Args)...);
@@ -397,6 +442,9 @@ public:
 
   /// Emplace \p Key with value constructed from \p Args, or assign a new value
   /// if the key exists.
+  /// @param Key Key to insert or update, moved from.
+  /// @param Args Arguments forwarded to construct or assign the mapped value.
+  /// @return An iterator to the entry and whether insertion occurred.
   template <typename... Ts>
   std::pair<iterator, bool> emplace_or_assign(KeyT &&Key, Ts &&...Args) {
     auto Ret = try_emplace(std::move(Key), std::forward<Ts>(Args)...);
@@ -406,11 +454,14 @@ public:
   }
 
   /// Erase the entry at \p TheBucket without invoking a move callback.
+  /// @param TheBucket Pointer to the occupied bucket to erase.
   void eraseFromFilledBucket(BucketT *TheBucket) {
     eraseFromFilledBucket(TheBucket, [](BucketT &) {});
   }
 
   /// Erase the entry for \p Val if present; return whether an entry was removed.
+  /// @param Val Key of the entry to remove.
+  /// @return True if an entry was erased, false if \p Val was not found.
   bool erase(const KeyT &Val) {
     BucketT *TheBucket = doFind(Val);
     if (!TheBucket)
@@ -420,14 +471,19 @@ public:
     return true;
   }
   /// Erase the entry at \p I.
+  /// @param I Iterator to the entry to remove.
   void erase(iterator I) { eraseFromFilledBucket(&*I); }
 
-  /// Remove entries that match the given predicate. \p Pred is invoked
-  /// with a reference to each live bucket and must not access the map being
-  /// modified. This is the safe replacement for erase-while-iterating.
+  /// Remove entries that match the given predicate.
+  ///
+  /// \p Pred is invoked with a reference to each live bucket and must not
+  /// access the map being modified. This is the safe replacement for
+  /// erase-while-iterating.
   ///
   /// Returns whether anything was removed. If so, all iterators and references
   /// into the map are invalidated.
+  /// @param Pred Predicate over each live bucket; return true to erase it.
+  /// @return True if at least one entry was removed.
   template <typename Predicate> bool remove_if(Predicate Pred) {
     UsedT *U = getUsed();
     unsigned NumBuckets = getNumBuckets();
@@ -454,30 +510,38 @@ public:
   /// Return the value for \p Key, inserting a default-constructed value if
   /// absent.
   /// @param Key Key to look up or insert.
+  /// @return Reference to the mapped value for \p Key.
   ValueT &operator[](const KeyT &Key) {
     return lookupOrInsertIntoBucket(Key).first->second;
   }
 
   /// Return the value for \p Key, inserting a default-constructed value if
   /// absent.
+  /// @param Key Key to look up or insert.
+  /// @return Reference to the mapped value for \p Key.
   ValueT &operator[](KeyT &&Key) {
     return lookupOrInsertIntoBucket(std::move(Key)).first->second;
   }
 
   /// Return true if the specified pointer points somewhere into the DenseMap's
   /// array of buckets (i.e. either to a key or value in the DenseMap).
+  /// @param Ptr Pointer that may address a key or value in the bucket array.
+  /// @return True if \p Ptr addresses storage inside the buckets array.
   [[nodiscard]] bool isPointerIntoBucketsArray(const void *Ptr) const {
     return Ptr >= getBuckets() && Ptr < getBucketsEnd();
   }
 
-  /// getPointerIntoBucketsArray() - Return an opaque pointer into the buckets
-  /// array.  In conjunction with the previous method, this can be used to
+  /// Return an opaque pointer into the buckets array.
+  ///
+  /// In conjunction with isPointerIntoBucketsArray, this can be used to
   /// determine whether an insertion caused the DenseMap to reallocate.
+  /// @return Opaque pointer to the start of the buckets array.
   [[nodiscard]] const void *getPointerIntoBucketsArray() const {
     return getBuckets();
   }
 
   /// Swap the contents of this map with \p RHS.
+  /// @param RHS Other map with which to exchange contents.
   void swap(DerivedT &RHS) {
     this->incrementEpoch();
     RHS.incrementEpoch();
@@ -504,6 +568,7 @@ protected:
   };
 
   /// Initialize bucket storage with exactly \p NewNumBuckets buckets.
+  /// @param NewNumBuckets Exact power-of-two bucket count to allocate.
   void initWithExactBucketCount(unsigned NewNumBuckets) {
     if (derived().allocateBuckets(NewNumBuckets))
       initEmpty();
@@ -548,6 +613,8 @@ protected:
 
   /// Returns the number of buckets to allocate to ensure that the DenseMap can
   /// accommodate \p NumEntries without need to grow().
+  /// @param NumEntries Number of entries that must fit without grow().
+  /// @return Power-of-two bucket count sufficient for \p NumEntries.
   unsigned getMinBucketToReserveForEntries(unsigned NumEntries) {
     // Ensure that "NumEntries * 4 < NumBuckets * 3"
     if (NumEntries == 0)
@@ -558,7 +625,8 @@ protected:
   }
 
   /// Move key/value pairs from \p Other into this empty map.
-  /// \p Other is left in a valid but empty state.
+  ///
+  /// @param Other Map to move entries from; left in a valid but empty state.
   LLVM_ATTRIBUTE_NOINLINE void moveFrom(DerivedT &Other) {
     assert(getNumEntries() == 0 && "moveFrom requires an empty destination");
     BucketT *OtherB = Other.getBuckets();
@@ -587,6 +655,8 @@ protected:
   }
 
   /// Replace this map's contents with a copy of \p other.
+  ///
+  /// @param other Map whose entries are copied into this map.
   LLVM_ATTRIBUTE_NOINLINE void copyFrom(const DerivedT &other) {
     this->destroyAll();
     derived().deallocateBuckets();
@@ -835,10 +905,11 @@ private:
   }
 
 public:
-  /// Return the approximate size (in bytes) of the actual map.
-  /// This is just the raw memory used by DenseMap.
-  /// If entries are pointers to objects, the size of the referenced objects
-  /// are not included.
+  /// Return the approximate size in bytes of the map's storage.
+  ///
+  /// This is just the raw memory used by DenseMap. If entries are pointers to
+  /// objects, the size of the referenced objects are not included.
+  /// @return Approximate size in bytes of the map's bucket storage.
   [[nodiscard]] size_t getMemorySize() const {
     return llvm::densemap::detail::allocBytes<BucketT>(getNumBuckets());
   }
@@ -850,6 +921,9 @@ public:
 /// is also in RHS, and that no additional pairs are in RHS.
 /// Equivalent to N calls to RHS.find and N value comparisons. Amortized
 /// complexity is linear, worst case is O(N^2) (if every hash collides).
+/// @param LHS Left-hand map.
+/// @param RHS Right-hand map.
+/// @return True if both maps have the same size and contents.
 template <typename DerivedT, typename KeyT, typename ValueT, typename KeyInfoT,
           typename BucketT>
 [[nodiscard]] bool
@@ -870,6 +944,9 @@ operator==(const DenseMapBase<DerivedT, KeyT, ValueT, KeyInfoT, BucketT> &LHS,
 /// Inequality comparison for DenseMap.
 ///
 /// Equivalent to !(LHS == RHS). See operator== for performance notes.
+/// @param LHS Left-hand map.
+/// @param RHS Right-hand map.
+/// @return True if the maps differ in size or contents.
 template <typename DerivedT, typename KeyT, typename ValueT, typename KeyInfoT,
           typename BucketT>
 [[nodiscard]] bool
@@ -878,6 +955,7 @@ operator!=(const DenseMapBase<DerivedT, KeyT, ValueT, KeyInfoT, BucketT> &LHS,
   return !(LHS == RHS);
 }
 
+/// Heap-allocated dense probed hash map from keys to values.
 template <typename KeyT, typename ValueT,
           typename KeyInfoT = DenseMapInfo<KeyT>,
           typename BucketT = llvm::detail::DenseMapPair<KeyT, ValueT>>
@@ -902,6 +980,7 @@ class DenseMap : public DenseMapBase<DenseMap<KeyT, ValueT, KeyInfoT, BucketT>,
 public:
   /// Create a DenseMap with an optional \p NumElementsToReserve to guarantee
   /// that this number of elements can be inserted in the map without grow().
+  /// @param NumElementsToReserve Entries to accommodate without grow().
   explicit DenseMap(unsigned NumElementsToReserve = 0)
       : DenseMap(BaseT::getMinBucketToReserveForEntries(NumElementsToReserve),
                  typename BaseT::ExactBucketCount{}) {}
@@ -915,15 +994,18 @@ public:
   DenseMap(DenseMap &&other) : DenseMap() { this->swap(other); }
 
   /// Construct a map and insert the range [\p I, \p E).
+  /// @param I Begin iterator of key/value pairs to insert.
+  /// @param E End iterator of key/value pairs to insert.
   template <typename InputIt>
   DenseMap(const InputIt &I, const InputIt &E) : DenseMap(std::distance(I, E)) {
     this->insert(I, E);
   }
 
   /// Construct a map and insert the elements of \p Range.
+  /// @param Tag Discriminator selecting the range constructor.
   /// @param Range Container or view supplying key/value pairs.
   template <typename RangeT>
-  DenseMap(llvm::from_range_t, const RangeT &Range)
+  DenseMap(llvm::from_range_t Tag, const RangeT &Range)
       : DenseMap(adl_begin(Range), adl_end(Range)) {}
 
   /// Construct a map from the key/value pairs in \p Vals.
@@ -938,6 +1020,8 @@ public:
   }
 
   /// Copy-assign from \p other.
+  /// @param other Map to copy from.
+  /// @return Reference to this map after the assignment.
   DenseMap &operator=(const DenseMap &other) {
     if (&other != this)
       this->copyFrom(other);
@@ -945,6 +1029,8 @@ public:
   }
 
   /// Move-assign from \p other.
+  /// @param other Map to move from.
+  /// @return Reference to this map after the move.
   DenseMap &operator=(DenseMap &&other) {
     this->destroyAll();
     deallocateBuckets();
@@ -1031,6 +1117,7 @@ private:
   }
 };
 
+/// DenseMap with a small inline bucket buffer to avoid heap allocation.
 template <typename KeyT, typename ValueT, unsigned InlineBuckets = 4,
           typename KeyInfoT = DenseMapInfo<KeyT>,
           typename BucketT = llvm::detail::DenseMapPair<KeyT, ValueT>>
@@ -1079,20 +1166,25 @@ class SmallDenseMap
 public:
   /// Create a SmallDenseMap with an optional \p NumElementsToReserve to
   /// guarantee that this number of elements can be inserted without grow().
+  /// @param NumElementsToReserve Entries to accommodate without grow().
   explicit SmallDenseMap(unsigned NumElementsToReserve = 0)
       : SmallDenseMap(
             BaseT::getMinBucketToReserveForEntries(NumElementsToReserve),
             typename BaseT::ExactBucketCount{}) {}
 
   /// Copy-construct from \p other.
+  /// @param other Map to copy from.
   SmallDenseMap(const SmallDenseMap &other) : SmallDenseMap() {
     this->copyFrom(other);
   }
 
   /// Move-construct from \p other.
+  /// @param other Map to move from.
   SmallDenseMap(SmallDenseMap &&other) : SmallDenseMap() { this->swap(other); }
 
   /// Construct a map and insert the range [\p I, \p E).
+  /// @param I Begin iterator of key/value pairs to insert.
+  /// @param E End iterator of key/value pairs to insert.
   template <typename InputIt>
   SmallDenseMap(const InputIt &I, const InputIt &E)
       : SmallDenseMap(std::distance(I, E)) {
@@ -1100,12 +1192,14 @@ public:
   }
 
   /// Construct a map and insert the elements of \p Range.
+  /// @param Tag Discriminator selecting the range constructor.
   /// @param Range Container or view supplying key/value pairs.
   template <typename RangeT>
-  SmallDenseMap(llvm::from_range_t, const RangeT &Range)
+  SmallDenseMap(llvm::from_range_t Tag, const RangeT &Range)
       : SmallDenseMap(adl_begin(Range), adl_end(Range)) {}
 
   /// Construct a map from the key/value pairs in \p Vals.
+  /// @param Vals Initial entries to insert.
   SmallDenseMap(std::initializer_list<typename BaseT::value_type> Vals)
       : SmallDenseMap(Vals.begin(), Vals.end()) {}
 
@@ -1116,6 +1210,8 @@ public:
   }
 
   /// Copy-assign from \p other.
+  /// @param other Map to copy from.
+  /// @return Reference to this map after the assignment.
   SmallDenseMap &operator=(const SmallDenseMap &other) {
     if (&other != this)
       this->copyFrom(other);
@@ -1123,6 +1219,8 @@ public:
   }
 
   /// Move-assign from \p other.
+  /// @param other Map to move from.
+  /// @return Reference to this map after the move.
   SmallDenseMap &operator=(SmallDenseMap &&other) {
     this->destroyAll();
     deallocateBuckets();
@@ -1415,6 +1513,7 @@ public:
   /// @param Used Parallel used-bit array.
   /// @param NumBuckets Number of buckets in the array.
   /// @param Epoch Epoch tracker for the owning map.
+  /// @return Iterator positioned at \p P within the bucket range.
   static DenseMapIterator makeIterator(pointer P, pointer Buckets,
                                        const UsedT *Used, unsigned NumBuckets,
                                        const DebugEpochBase &Epoch) {
@@ -1436,15 +1535,20 @@ public:
         Buckets(I.Buckets), Used(I.Used) {}
 
   /// Return a reference to the bucket at this iterator position.
+  /// @return Reference to the bucket at this iterator position.
   [[nodiscard]] reference operator*() const {
     assert(isHandleInSync() && "invalid iterator access!");
     assert(Ptr != End && "dereferencing end() iterator");
     return *Ptr;
   }
   /// Return a pointer to the bucket at this iterator position.
+  /// @return Pointer to the bucket at this iterator position.
   [[nodiscard]] pointer operator->() const { return &operator*(); }
 
   /// Return whether \p LHS and \p RHS refer to the same bucket.
+  /// @param LHS Left-hand iterator.
+  /// @param RHS Right-hand iterator.
+  /// @return True if both iterators refer to the same bucket.
   [[nodiscard]] friend bool operator==(const DenseMapIterator &LHS,
                                        const DenseMapIterator &RHS) {
     assert((!LHS.getEpochAddress() || LHS.isHandleInSync()) &&
@@ -1457,12 +1561,16 @@ public:
   }
 
   /// Return whether \p LHS and \p RHS refer to different buckets.
+  /// @param LHS Left-hand iterator.
+  /// @param RHS Right-hand iterator.
+  /// @return True if the iterators refer to different buckets.
   [[nodiscard]] friend bool operator!=(const DenseMapIterator &LHS,
                                        const DenseMapIterator &RHS) {
     return !(LHS == RHS);
   }
 
   /// Advance to the next occupied bucket.
+  /// @return Reference to this iterator after advancing.
   inline DenseMapIterator &operator++() { // Preincrement
     assert(isHandleInSync() && "invalid iterator access!");
     assert(Ptr != End && "incrementing end() iterator");
@@ -1471,7 +1579,9 @@ public:
     return *this;
   }
   /// Advance to the next occupied bucket, returning the previous position.
-  DenseMapIterator operator++(int) { // Postincrement
+  /// @param Unused Unused postfix-discriminator parameter.
+  /// @return Copy of the iterator before advancing.
+  DenseMapIterator operator++(int Unused) { // Postincrement
     assert(isHandleInSync() && "invalid iterator access!");
     DenseMapIterator tmp = *this;
     ++*this;

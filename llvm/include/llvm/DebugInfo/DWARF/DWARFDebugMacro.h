@@ -25,6 +25,7 @@ class DwarfStreamer;
 }
 } // namespace dwarf_linker
 
+/// Parser for DWARF .debug_macinfo and .debug_macro sections.
 class DWARFDebugMacro {
   friend dwarf_linker::classic::DwarfStreamer;
   friend dwarf_linker::parallel::CompileUnit;
@@ -113,24 +114,43 @@ class DWARFDebugMacro {
   std::vector<MacroList> MacroLists;
 
 public:
+  /// Construct an empty parser with no macro lists.
   DWARFDebugMacro() = default;
 
   /// Print the macro list found within the debug_macinfo/debug_macro section.
+  ///
+  /// \param OS Output stream to write the dump to.
   LLVM_ABI void dump(raw_ostream &OS) const;
 
+  /// Parse a DWARFv5 .debug_macro section.
+  ///
+  /// \param Units Compile units used to resolve DW_MACRO_strx string offsets.
+  /// \param StringExtractor .debug_str extractor for DW_MACRO_strp entries.
+  /// \param MacroData Contents of the .debug_macro section to parse.
+  /// \returns Success, or an error describing why parsing failed.
   Error parseMacro(DWARFUnitVector::compile_unit_range Units,
                    DataExtractor StringExtractor,
                    DWARFDataExtractor MacroData) {
     return parseImpl(Units, StringExtractor, MacroData, /*IsMacro=*/true);
   }
 
+  /// Parse a DWARF .debug_macinfo section.
+  ///
+  /// \param MacroData Contents of the .debug_macinfo section to parse.
+  /// \returns Success, or an error describing why parsing failed.
   Error parseMacinfo(DWARFDataExtractor MacroData) {
     return parseImpl(std::nullopt, std::nullopt, MacroData, /*IsMacro=*/false);
   }
 
   /// Return whether the section has any entries.
+  ///
+  /// \returns True if no macro lists have been parsed.
   bool empty() const { return MacroLists.empty(); }
 
+  /// Return whether a parsed macro list starts at \p Offset.
+  ///
+  /// \param Offset Byte offset of a macro contribution in the parsed section.
+  /// \returns True if a macro list was parsed at \p Offset.
   bool hasEntryForOffset(uint64_t Offset) const {
     for (const MacroList &List : MacroLists)
       if (Offset == List.Offset)

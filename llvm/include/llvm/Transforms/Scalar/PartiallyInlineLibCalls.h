@@ -19,9 +19,18 @@
 
 namespace llvm {
 class Function;
+
+/// Pass that partially inlines the fast path of well-known library functions.
+///
+/// For example, it may use square-root instructions for cases where sqrt()
+/// does not need to set errno.
 class PartiallyInlineLibCallsPass
     : public OptionalPassInfoMixin<PartiallyInlineLibCallsPass> {
 public:
+  /// Run partial library-call inlining over the function.
+  /// @param F Function whose library calls may be partially inlined.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

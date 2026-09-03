@@ -19,11 +19,12 @@
 
 namespace llvm {
 
-/// Utility to embed an integer into a pointer-like type. This is specifically
-/// intended to allow embedding integers where fewer bits are required than
-/// exist in a pointer, and the integer can participate in abstractions along
-/// side other pointer-like types. For example it can be placed into a \c
-/// PointerSumType or \c PointerUnion.
+/// Utility to embed an integer into a pointer-like type.
+///
+/// This is specifically intended to allow embedding integers where fewer bits
+/// are required than exist in a pointer, and the integer can participate in
+/// abstractions along side other pointer-like types. For example it can be
+/// placed into a \c PointerSumType or \c PointerUnion.
 ///
 /// Note that much like pointers, an integer value of zero has special utility
 /// due to boolean conversions. For example, a non-null value can be tested for
@@ -57,9 +58,12 @@ public:
   PointerEmbeddedInt() = default;
 
   /// Construct by embedding integer \p I into the pointer-like representation.
+  /// \param I Integer value to embed.
   PointerEmbeddedInt(IntT I) { *this = I; }
 
   /// Embed integer \p I, asserting it fits in the reserved \c Bits.
+  /// \param I Integer value to embed.
+  /// @return Reference to this object after embedding \p I.
   PointerEmbeddedInt &operator=(IntT I) {
     assert((std::is_signed<IntT>::value ? isInt<Bits>(I) : isUInt<Bits>(I)) &&
            "Integer has bits outside those preserved!");
@@ -70,6 +74,7 @@ public:
   // Note that this implicit conversion additionally allows all of the basic
   // comparison operators to work transparently, etc.
   /// Extract the embedded integer value.
+  /// @return The integer previously stored via construction or assignment.
   operator IntT() const {
     if (std::is_signed<IntT>::value)
       return static_cast<IntT>(static_cast<intptr_t>(Value) >> Shift);
@@ -77,37 +82,59 @@ public:
   }
 };
 
-// Provide pointer like traits to support use with pointer unions and sum
-// types.
+/// PointerLikeTypeTraits specialization treating PointerEmbeddedInt as a
+/// pointer.
+///
+/// Enables use with pointer unions and sum types.
 template <typename IntT, int Bits>
 struct PointerLikeTypeTraits<PointerEmbeddedInt<IntT, Bits>> {
+  /// PointerEmbeddedInt type this traits specialization describes.
   using T = PointerEmbeddedInt<IntT, Bits>;
 
+  /// Return the embedded bit pattern of \p P as a void pointer.
+  /// \param P Value to convert.
+  /// @return Opaque void pointer encoding the embedded bit pattern.
   static inline void *getAsVoidPointer(const T &P) {
     return reinterpret_cast<void *>(P.Value);
   }
 
+  /// Reconstruct a PointerEmbeddedInt from opaque void pointer \p P.
+  /// \param P Opaque value previously returned by getAsVoidPointer.
+  /// @return PointerEmbeddedInt reconstructed from the opaque bit pattern.
   static inline T getFromVoidPointer(void *P) {
     return T(reinterpret_cast<uintptr_t>(P), typename T::RawValueTag());
   }
 
+  /// Reconstruct a PointerEmbeddedInt from opaque const void pointer \p P.
+  /// \param P Opaque value previously returned by getAsVoidPointer.
+  /// @return PointerEmbeddedInt reconstructed from the opaque bit pattern.
   static inline T getFromVoidPointer(const void *P) {
     return T(reinterpret_cast<uintptr_t>(P), typename T::RawValueTag());
   }
 
+  /// Number of spare low bits available for nesting after the embedded bits.
   static constexpr int NumLowBitsAvailable = T::Shift;
 };
 
-// Teach DenseMap how to use PointerEmbeddedInt objects as keys if the Int type
-// itself can be a key.
+/// DenseMapInfo specialization so PointerEmbeddedInt can be a DenseMap key.
+///
+/// Requires that DenseMapInfo is available for the underlying IntT type.
 template <typename IntT, int Bits>
 struct DenseMapInfo<PointerEmbeddedInt<IntT, Bits>> {
+  /// PointerEmbeddedInt type this DenseMapInfo specialization describes.
   using T = PointerEmbeddedInt<IntT, Bits>;
 
+  /// Hash \p Arg by extracting and hashing the embedded integer.
+  /// \param Arg Key value to hash.
+  /// @return Hash of the embedded integer value.
   static unsigned getHashValue(const T &Arg) {
     return DenseMapInfo<IntT>::getHashValue(Arg);
   }
 
+  /// Return true if \p LHS and \p RHS hold equal embedded integers.
+  /// \param LHS Left-hand key.
+  /// \param RHS Right-hand key.
+  /// @return True if both keys hold the same embedded integer.
   static bool isEqual(const T &LHS, const T &RHS) { return LHS == RHS; }
 };
 

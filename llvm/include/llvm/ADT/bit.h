@@ -88,6 +88,8 @@ enum class endianness {
 /// This implementation of bit_cast is different from the C++20 one in two ways:
 ///  - It isn't constexpr because that requires compiler support.
 ///  - It requires trivially-constructible To, to avoid UB in the implementation.
+/// @param from Object whose representation is reinterpreted as \p To.
+/// @return Value of type \p To with the same object representation as \p from.
 template <
     typename To, typename From,
     typename = std::enable_if_t<sizeof(To) == sizeof(From)>,
@@ -105,6 +107,8 @@ template <
 }
 
 /// Reverses the bytes in the given integer value V.
+/// @param V Integer value whose bytes are reversed.
+/// @return Integer of the same type with bytes in reverse order.
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 [[nodiscard]] constexpr T byteswap(T V) noexcept {
   if constexpr (sizeof(T) == 1) {
@@ -153,6 +157,8 @@ template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 }
 
 /// Return true if \p Value is a non-zero power of two.
+/// @param Value Unsigned value to test.
+/// @return True if \p Value is a non-zero power of two.
 template <typename T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
 [[nodiscard]] constexpr inline bool has_single_bit(T Value) noexcept {
   return (Value != 0) && ((Value & (Value - 1)) == 0);
@@ -161,6 +167,8 @@ template <typename T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
 /// Count the number of set bits in a value.
 /// Ex. popcount(0xF000F000) = 8
 /// Returns 0 if Value is zero.
+/// @param Value Unsigned value whose set bits are counted.
+/// @return Number of set bits in \p Value, or 0 if \p Value is zero.
 template <typename T> [[nodiscard]] constexpr int popcount(T Value) noexcept {
   static_assert(std::is_unsigned_v<T>, "T must be an unsigned integer type");
   static_assert(sizeof(T) <= 8, "T must be 8 bytes or less");
@@ -195,6 +203,8 @@ template <typename T> [[nodiscard]] constexpr int popcount(T Value) noexcept {
 /// Only unsigned integral types are allowed.
 ///
 /// Returns std::numeric_limits<T>::digits on an input of 0.
+/// @param Val Unsigned value to scan from the least significant bit.
+/// @return Trailing zero count, or std::numeric_limits<T>::digits if \p Val is 0.
 template <typename T> [[nodiscard]] constexpr int countr_zero_constexpr(T Val) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -209,6 +219,8 @@ template <typename T> [[nodiscard]] constexpr int countr_zero_constexpr(T Val) {
 /// Only unsigned integral types are allowed.
 ///
 /// Returns std::numeric_limits<T>::digits on an input of 0.
+/// @param Val Unsigned value to scan from the least significant bit.
+/// @return Trailing zero count, or std::numeric_limits<T>::digits if \p Val is 0.
 template <typename T> [[nodiscard]] int countr_zero(T Val) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -245,6 +257,8 @@ template <typename T> [[nodiscard]] int countr_zero(T Val) {
 /// Only unsigned integral types are allowed.
 ///
 /// Returns std::numeric_limits<T>::digits on an input of 0.
+/// @param Val Unsigned value to scan from the most significant bit.
+/// @return Leading zero count, or std::numeric_limits<T>::digits if \p Val is 0.
 template <typename T> [[nodiscard]] constexpr int countl_zero_constexpr(T Val) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -268,6 +282,8 @@ template <typename T> [[nodiscard]] constexpr int countl_zero_constexpr(T Val) {
 /// Only unsigned integral types are allowed.
 ///
 /// Returns std::numeric_limits<T>::digits on an input of 0.
+/// @param Val Unsigned value to scan from the most significant bit.
+/// @return Leading zero count, or std::numeric_limits<T>::digits if \p Val is 0.
 template <typename T> [[nodiscard]] int countl_zero(T Val) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -307,6 +323,8 @@ template <typename T> [[nodiscard]] int countl_zero(T Val) {
 /// Only unsigned integral types are allowed.
 ///
 /// Returns std::numeric_limits<T>::digits on an input of all ones.
+/// @param Value Unsigned value to scan from the most significant bit.
+/// @return Leading one count, or std::numeric_limits<T>::digits if all bits are set.
 template <typename T> [[nodiscard]] int countl_one(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -320,6 +338,8 @@ template <typename T> [[nodiscard]] int countl_one(T Value) {
 /// Only unsigned integral types are allowed.
 ///
 /// Returns std::numeric_limits<T>::digits on an input of all ones.
+/// @param Value Unsigned value to scan from the least significant bit.
+/// @return Trailing one count, or std::numeric_limits<T>::digits if all bits are set.
 template <typename T> [[nodiscard]] int countr_one(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -330,6 +350,8 @@ template <typename T> [[nodiscard]] int countr_one(T Value) {
 /// Returns 0 otherwise.
 ///
 /// Ex. bit_width(5) == 3.
+/// @param Value Unsigned value whose bit width is computed.
+/// @return Bit width of \p Value, or 0 if \p Value is zero.
 template <typename T> [[nodiscard]] int bit_width(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -342,6 +364,8 @@ template <typename T> [[nodiscard]] int bit_width(T Value) {
 /// A constexpr version of bit_width.
 ///
 /// Ex. bit_width_constexpr(5) == 3.
+/// @param Value Unsigned value whose bit width is computed.
+/// @return Bit width of \p Value, or 0 if \p Value is zero.
 template <typename T> [[nodiscard]] constexpr int bit_width_constexpr(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -352,6 +376,8 @@ template <typename T> [[nodiscard]] constexpr int bit_width_constexpr(T Value) {
 /// nonzero.  Returns 0 otherwise.
 ///
 /// Ex. bit_floor(5) == 4.
+/// @param Value Unsigned value to floor to a power of two.
+/// @return Largest power of two ≤ \p Value, or 0 if \p Value is zero.
 template <typename T> [[nodiscard]] T bit_floor(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -367,6 +393,8 @@ template <typename T> [[nodiscard]] T bit_floor(T Value) {
 ///
 /// The return value is undefined if the input is larger than the largest power
 /// of two representable in T.
+/// @param Value Unsigned value to ceil to a power of two.
+/// @return Smallest power of two ≥ \p Value, or 1 if \p Value is less than 2.
 template <typename T> [[nodiscard]] T bit_ceil(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -382,6 +410,8 @@ template <typename T> [[nodiscard]] T bit_ceil(T Value) {
 ///
 /// The return value is undefined if the input is larger than the largest power
 /// of two representable in T.
+/// @param Value Unsigned value to ceil to a power of two.
+/// @return Smallest power of two ≥ \p Value, or 1 if \p Value is less than 2.
 template <typename T> [[nodiscard]] constexpr T bit_ceil_constexpr(T Value) {
   static_assert(std::is_unsigned_v<T>,
                 "Only unsigned integral types are allowed.");
@@ -391,6 +421,9 @@ template <typename T> [[nodiscard]] constexpr T bit_ceil_constexpr(T Value) {
 }
 
 /// Rotate \p V left by \p R bit positions.
+/// @param V Unsigned value to rotate.
+/// @param R Number of bit positions to rotate left.
+/// @return \p V rotated left by \p R bit positions.
 template <typename T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
 [[nodiscard]] constexpr T rotl(T V, int R) {
   constexpr unsigned N = std::numeric_limits<T>::digits;
@@ -405,6 +438,9 @@ template <typename T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
 }
 
 /// Rotate \p V right by \p R bit positions.
+/// @param V Unsigned value to rotate.
+/// @param R Number of bit positions to rotate right.
+/// @return \p V rotated right by \p R bit positions.
 template <typename T, typename = std::enable_if_t<std::is_unsigned_v<T>>>
 [[nodiscard]] constexpr T rotr(T V, int R) {
   constexpr unsigned N = std::numeric_limits<T>::digits;

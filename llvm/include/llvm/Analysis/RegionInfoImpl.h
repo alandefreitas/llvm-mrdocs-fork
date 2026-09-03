@@ -167,6 +167,11 @@ typename RegionBase<Tr>::BlockT *RegionBase<Tr>::getEnteringBlock() const {
                                 isEnteringBlock);
 }
 
+/// Collect all blocks of this region's single exit edge, if existing.
+///
+/// @param Exitings Filled with the predecessors of the exit that leave this
+///                 region.
+/// @return True if this region contains all the predecessors of the exit.
 template <class Tr>
 bool RegionBase<Tr>::getExitingBlocks(
     SmallVectorImpl<BlockT *> &Exitings) const {
@@ -289,16 +294,22 @@ void RegionBase<Tr>::verifyRegionNest() const {
   verifyRegion();
 }
 
+/// Return an iterator to the first direct child RegionNode.
+/// @return Iterator to the first direct child RegionNode.
 template <class Tr>
 typename RegionBase<Tr>::element_iterator RegionBase<Tr>::element_begin() {
   return GraphTraits<RegionT *>::nodes_begin(static_cast<RegionT *>(this));
 }
 
+/// Return an iterator past the last direct child RegionNode.
+/// @return Iterator past the last direct child RegionNode.
 template <class Tr>
 typename RegionBase<Tr>::element_iterator RegionBase<Tr>::element_end() {
   return GraphTraits<RegionT *>::nodes_end(static_cast<RegionT *>(this));
 }
 
+/// Return a const iterator to the first direct child RegionNode.
+/// @return Const iterator to the first direct child RegionNode.
 template <class Tr>
 typename RegionBase<Tr>::const_element_iterator
 RegionBase<Tr>::element_begin() const {
@@ -306,6 +317,8 @@ RegionBase<Tr>::element_begin() const {
       static_cast<const RegionT *>(this));
 }
 
+/// Return a const iterator past the last direct child RegionNode.
+/// @return Const iterator past the last direct child RegionNode.
 template <class Tr>
 typename RegionBase<Tr>::const_element_iterator
 RegionBase<Tr>::element_end() const {
@@ -460,6 +473,12 @@ typename Tr::RegionT *RegionBase<Tr>::getExpandedRegion() const {
   return new RegionT(getEntry(), R->getExit(), RI, DT);
 }
 
+/// Print the region.
+///
+/// @param OS The output stream the Region is printed to.
+/// @param printTree Print also the tree of subregions.
+/// @param level The indentation level used for printing.
+/// @param Style How much detail to print for region contents.
 template <class Tr>
 void RegionBase<Tr>::print(raw_ostream &OS, bool print_tree, unsigned level,
                            PrintStyle Style) const {
@@ -735,6 +754,7 @@ void RegionInfoBase<Tr>::buildRegionsTree(DomTreeNodeT *N, RegionT *region) {
   }
 }
 
+/// Whether expensive region-info verification is enabled.
 #ifdef EXPENSIVE_CHECKS
 template <class Tr>
 bool RegionInfoBase<Tr>::VerifyRegionInfo = true;
@@ -743,10 +763,13 @@ template <class Tr>
 bool RegionInfoBase<Tr>::VerifyRegionInfo = false;
 #endif
 
+/// Default print style used when printing region trees.
 template <class Tr>
 typename Tr::RegionT::PrintStyle RegionInfoBase<Tr>::printStyle =
     RegionBase<Tr>::PrintNone;
 
+/// Print the region tree to \p OS.
+/// @param OS Output stream to write to.
 template <class Tr>
 void RegionInfoBase<Tr>::print(raw_ostream &OS) const {
   OS << "Region tree:\n";
@@ -755,10 +778,12 @@ void RegionInfoBase<Tr>::print(raw_ostream &OS) const {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+/// Dump the region tree to dbgs().
 template <class Tr>
 void RegionInfoBase<Tr>::dump() const { print(dbgs()); }
 #endif
 
+/// Release memory used by the region tree.
 template <class Tr> void RegionInfoBase<Tr>::releaseMemory() {
   BBtoRegion.clear();
   if (TopLevelRegion) {
@@ -767,6 +792,7 @@ template <class Tr> void RegionInfoBase<Tr>::releaseMemory() {
   }
 }
 
+/// Verify that the region tree is consistent.
 template <class Tr>
 void RegionInfoBase<Tr>::verifyAnalysis() const {
   // Do only verify regions if explicitely activated using EXPENSIVE_CHECKS or

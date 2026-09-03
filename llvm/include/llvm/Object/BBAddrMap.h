@@ -24,16 +24,20 @@
 namespace llvm {
 namespace object {
 
-// Struct representing the BBAddrMap for one function.
+/// BB address map for one function, including ranges and optional PGO data.
 struct BBAddrMap {
 
-  // Bitfield of optional features to control the extra information
-  // emitted/encoded in the section. The feature list lives in BBAddrMap.def.
+  /// Optional feature flags controlling extra data encoded in the section.
+  ///
+  /// The feature list lives in BBAddrMap.def.
   struct Features {
+    /// Bit indices for each optional feature flag.
     enum {
+/// Expand a feature name into a bit-index enumerator.
+/// \param Name Feature flag identifier from BBAddrMap.def.
 #define HANDLE_BB_ADDR_MAP_FEATURE(Name) Name##Bit,
 #include "llvm/Object/BBAddrMap.def"
-      NumBits,
+      NumBits, ///< Number of defined feature bits.
     };
     static_assert(NumBits <= 16,
                   "BBAddrMap::Features is encoded as a uint16_t");
@@ -41,14 +45,20 @@ struct BBAddrMap {
 #define HANDLE_BB_ADDR_MAP_FEATURE(Name) bool Name : 1;
 #include "llvm/Object/BBAddrMap.def"
 
+    /// Mask of all defined feature bits in the encoded uint16_t value.
     static constexpr uint16_t KnownMask =
         (static_cast<uint16_t>(1) << NumBits) - 1;
 
+    /// Return true if any PGO analysis feature is enabled.
+    /// \return True if any PGO analysis feature is enabled.
     bool hasPGOAnalysis() const { return FuncEntryCount || BBFreq || BrProb; }
 
+    /// Return true if any per-basic-block PGO analysis feature is enabled.
+    /// \return True if any per-basic-block PGO analysis feature is enabled.
     bool hasPGOAnalysisBBData() const { return BBFreq || BrProb; }
 
-    // Encodes to minimum bit width representation.
+    /// Encode the feature flags into a packed uint16_t value.
+    /// \return Packed feature flags as a uint16_t.
     uint16_t encode() const {
       uint16_t V = 0;
 #define HANDLE_BB_ADDR_MAP_FEATURE(Name)                                       \
@@ -57,8 +67,9 @@ struct BBAddrMap {
       return V;
     }
 
-    // Decodes from minimum bit width representation and validates no
-    // unnecessary bits are used.
+    /// Decode feature flags from a packed uint16_t, rejecting unknown bits.
+    /// \param Val Encoded feature bitfield to decode.
+    /// \return Decoded Features, or an error if unknown bits are set.
     static Expected<Features> decode(uint16_t Val) {
       Features Feat{
 #define HANDLE_BB_ADDR_MAP_FEATURE(Name)                                       \
@@ -71,18 +82,24 @@ struct BBAddrMap {
       return Feat;
     }
 
+    /// Return true if this equals \p Other.
+    /// \param Other Features value to compare against.
+    /// \return True if the feature flags are equal.
     bool operator==(const Features &Other) const {
       return encode() == Other.encode();
     }
   };
 
-  // Struct representing the BBAddrMap information for one basic block.
+  /// Address-map entry describing one basic block.
   struct BBEntry {
+    /// Compact metadata flags for a basic block.
     struct Metadata {
+      /// Bit indices for each basic-block metadata flag.
       enum {
-#define HANDLE_BB_ADDR_MAP_BB_METADATA(Name) Name##Bit,
+#define HANDLE_BB_ADDR_MAP_BB_METADATA(Name)                                   \
+  Name##Bit, ///< Metadata flag bit index.
 #include "llvm/Object/BBAddrMap.def"
-        NumBits,
+        NumBits, ///< Number of defined metadata bits.
       };
       static_assert(NumBits <= 32,
                     "BBAddrMap::BBEntry::Metadata is encoded as a uint32_t");
@@ -90,11 +107,15 @@ struct BBAddrMap {
 #define HANDLE_BB_ADDR_MAP_BB_METADATA(Name) bool Name : 1;
 #include "llvm/Object/BBAddrMap.def"
 
+      /// Return true if this equals \p Other.
+      /// \param Other Metadata value to compare against.
+      /// \return True if the metadata flags are equal.
       bool operator==(const Metadata &Other) const {
         return encode() == Other.encode();
       }
 
-      // Encodes this struct as a uint32_t value.
+      /// Encode this metadata as a packed uint32_t value.
+      /// \return Packed metadata flags as a uint32_t.
       uint32_t encode() const {
         uint32_t V = 0;
 #define HANDLE_BB_ADDR_MAP_BB_METADATA(Name)                                   \
@@ -103,7 +124,9 @@ struct BBAddrMap {
         return V;
       }
 
-      // Decodes and returns a Metadata struct from a uint32_t value.
+      /// Decode metadata flags from a packed uint32_t, rejecting unknown bits.
+      /// \param V Encoded metadata bitfield to decode.
+      /// \return Decoded Metadata, or an error if unknown bits are set.
       static Expected<Metadata> decode(uint32_t V) {
         Metadata MD{
 #define HANDLE_BB_ADDR_MAP_BB_METADATA(Name)                                   \
@@ -117,59 +140,88 @@ struct BBAddrMap {
       }
     };
 
-    uint32_t ID = 0;     // Unique ID of this basic block.
-    uint32_t Offset = 0; // Offset of basic block relative to the base address.
-    uint32_t Size = 0;   // Size of the basic block.
-    Metadata MD = {false, false, false, false,
-                   false}; // Metadata for this basic block.
-    // Offsets of end of call instructions, relative to the basic block start.
+    /// Unique ID of this basic block.
+    uint32_t ID = 0;
+    /// Offset of the basic block relative to the range base address.
+    uint32_t Offset = 0;
+    /// Size of the basic block in bytes.
+    uint32_t Size = 0;
+    /// Metadata flags for this basic block.
+    Metadata MD = {false, false, false, false, false};
+    /// Offsets of call instruction ends, relative to the basic block start.
     SmallVector<uint32_t, 1> CallsiteEndOffsets;
-    uint64_t Hash = 0; // Hash for this basic block.
+    /// Hash of this basic block.
+    uint64_t Hash = 0;
 
+    /// Construct a basic-block entry with the given fields.
+    /// \param ID Unique basic-block identifier.
+    /// \param Offset Offset from the range base address.
+    /// \param Size Size of the basic block in bytes.
+    /// \param MD Metadata flags for the basic block.
+    /// \param CallsiteEndOffsets Call-end offsets relative to the block start.
+    /// \param Hash Hash of the basic block.
     BBEntry(uint32_t ID, uint32_t Offset, uint32_t Size, Metadata MD,
             SmallVector<uint32_t, 1> CallsiteEndOffsets, uint64_t Hash)
         : ID(ID), Offset(Offset), Size(Size), MD(MD),
           CallsiteEndOffsets(std::move(CallsiteEndOffsets)), Hash(Hash) {}
 
+    /// Return this basic block's unique ID.
+    /// \return Unique basic-block identifier.
     UniqueBBID getID() const { return {ID, 0}; }
 
+    /// Return true if this equals \p Other.
+    /// \param Other Basic-block entry to compare against.
+    /// \return True if the entries are equal.
     bool operator==(const BBEntry &Other) const {
       return ID == Other.ID && Offset == Other.Offset && Size == Other.Size &&
              MD == Other.MD && CallsiteEndOffsets == Other.CallsiteEndOffsets &&
              Hash == Other.Hash;
     }
 
+    /// Return true if this basic block ends with a return.
+    /// \return True if the block ends with a return.
     bool hasReturn() const { return MD.HasReturn; }
+    /// Return true if this basic block ends with a tail call.
+    /// \return True if the block ends with a tail call.
     bool hasTailCall() const { return MD.HasTailCall; }
+    /// Return true if this basic block is an exception-handling pad.
+    /// \return True if the block is an exception-handling pad.
     bool isEHPad() const { return MD.IsEHPad; }
+    /// Return true if this basic block can fall through to the next.
+    /// \return True if the block can fall through to the next.
     bool canFallThrough() const { return MD.CanFallThrough; }
+    /// Return true if this basic block ends with an indirect branch.
+    /// \return True if the block ends with an indirect branch.
     bool hasIndirectBranch() const { return MD.HasIndirectBranch; }
   };
 
-  // Struct representing the BBAddrMap information for a contiguous range of
-  // basic blocks (a function or a basic block section).
+  /// Contiguous range of basic blocks (a function or a basic-block section).
   struct BBRangeEntry {
-    uint64_t BaseAddress = 0;       // Base address of the range.
-    std::vector<BBEntry> BBEntries; // Basic block entries for this range.
+    /// Base address of this basic-block range.
+    uint64_t BaseAddress = 0;
+    /// Basic-block entries belonging to this range.
+    std::vector<BBEntry> BBEntries;
 
-    // Equality operator for unit testing.
+    /// Return true if this equals \p Other.
+    /// \param Other Range entry to compare against.
+    /// \return True if the ranges are equal.
     bool operator==(const BBRangeEntry &Other) const {
       return BaseAddress == Other.BaseAddress && BBEntries == Other.BBEntries;
     }
   };
 
-  // All ranges for this function. Cannot be empty. The first range always
-  // corresponds to the function entry.
+  /// All ranges for this function; the first is always the function entry.
   std::vector<BBRangeEntry> BBRanges;
 
-  // Returns the function address associated with this BBAddrMap, which is
-  // stored as the `BaseAddress` of its first BBRangeEntry.
+  /// Return the function address stored as the first range's base address.
+  /// \return Base address of the first range.
   uint64_t getFunctionAddress() const {
     assert(!BBRanges.empty());
     return BBRanges.front().BaseAddress;
   }
 
-  // Returns the total number of bb entries in all bb ranges.
+  /// Return the total number of basic-block entries across all ranges.
+  /// \return Total number of basic-block entries.
   size_t getNumBBEntries() const {
     size_t NumBBEntries = 0;
     for (const auto &BBR : BBRanges)
@@ -177,8 +229,9 @@ struct BBAddrMap {
     return NumBBEntries;
   }
 
-  // Returns the index of the bb range with the given base address, or
-  // `std::nullopt` if no such range exists.
+  /// Return the index of the range with \p BaseAddress, if any.
+  /// \param BaseAddress Base address of the range to look up.
+  /// \return Index of the matching range, or std::nullopt if none.
   std::optional<size_t>
   getBBRangeIndexForBaseAddress(uint64_t BaseAddress) const {
     for (size_t I = 0; I < BBRanges.size(); ++I)
@@ -187,14 +240,19 @@ struct BBAddrMap {
     return {};
   }
 
-  // Returns bb entries in the first range.
+  /// Return the basic-block entries in the first range.
+  /// \return Basic-block entries in the first range.
   const std::vector<BBEntry> &getBBEntries() const {
     return BBRanges.front().BBEntries;
   }
 
+  /// Return all basic-block ranges for this function.
+  /// \return All basic-block ranges for this function.
   const std::vector<BBRangeEntry> &getBBRanges() const { return BBRanges; }
 
-  // Equality operator for unit testing.
+  /// Return true if this equals \p Other.
+  /// \param Other BB address map to compare against.
+  /// \return True if the maps are equal.
   bool operator==(const BBAddrMap &Other) const {
     return BBRanges == Other.BBRanges;
   }
@@ -216,6 +274,9 @@ struct PGOAnalysisMap {
       /// propeller).
       uint64_t PostLinkFreq = 0;
 
+      /// Return true if this equals \p Other.
+      /// \param Other Successor entry to compare against.
+      /// \return True if the successor entries are equal.
       bool operator==(const SuccessorEntry &Other) const {
         return std::tie(ID, Prob, PostLinkFreq) ==
                std::tie(Other.ID, Other.Prob, Other.PostLinkFreq);
@@ -230,6 +291,9 @@ struct PGOAnalysisMap {
     /// List of successors of the current block
     llvm::SmallVector<SuccessorEntry, 2> Successors;
 
+    /// Return true if this equals \p Other.
+    /// \param Other PGO basic-block entry to compare against.
+    /// \return True if the PGO entries are equal.
     bool operator==(const PGOBBEntry &Other) const {
       return std::tie(BlockFreq, PostLinkBlockFreq, Successors) ==
              std::tie(Other.BlockFreq, Other.PostLinkBlockFreq,
@@ -237,12 +301,17 @@ struct PGOAnalysisMap {
     }
   };
 
-  uint64_t FuncEntryCount;           // Prof count from IR function
-  std::vector<PGOBBEntry> BBEntries; // Extended basic block entries
+  /// Profile count for the IR function entry.
+  uint64_t FuncEntryCount;
+  /// Extended basic-block entries with PGO analysis data.
+  std::vector<PGOBBEntry> BBEntries;
 
-  // Flags to indicate if each PGO related info was enabled in this function
+  /// Feature flags indicating which PGO fields were enabled for this function.
   BBAddrMap::Features FeatEnable;
 
+  /// Return true if this equals \p Other.
+  /// \param Other PGO analysis map to compare against.
+  /// \return True if the maps are equal.
   bool operator==(const PGOAnalysisMap &Other) const {
     return std::tie(FuncEntryCount, BBEntries, FeatEnable) ==
            std::tie(Other.FuncEntryCount, Other.BBEntries, Other.FeatEnable);
@@ -250,22 +319,30 @@ struct PGOAnalysisMap {
 };
 
 /// Extracts addresses from a data stream.
-/// The base implementation reads the address directly.
-/// Subclasses can override to handle format-specific details such as relocation
-/// resolution.
+///
+/// The base implementation reads the address directly. Subclasses can override
+/// to handle format-specific details such as relocation resolution.
 class AddressExtractor {
   const DataExtractor &Data;
   unsigned AddressSize;
 
 public:
+  /// Construct an extractor over \p Data using \p AddressSize-byte addresses.
+  /// \param Data Data extractor providing the address stream.
+  /// \param AddressSize Size in bytes of each address value.
   AddressExtractor(const DataExtractor &Data, unsigned AddressSize)
       : Data(Data), AddressSize(AddressSize) {}
 
+  /// Destroy the address extractor.
   virtual ~AddressExtractor() = default;
 
+  /// Return the underlying data extractor.
+  /// \return Underlying data extractor.
   const DataExtractor &getDataExtractor() const { return Data; }
 
-  /// Extract and resolve an address at the current \p Cur position.
+  /// Extract and resolve an address at the current cursor position.
+  /// \param Cur Cursor positioned at the address to extract.
+  /// \return Extracted address, or an error on failure.
   virtual Expected<uint64_t> extractAddress(DataExtractor::Cursor &Cur) {
     uint64_t Address = Data.getUnsigned(Cur, AddressSize);
     if (!Cur)
@@ -276,9 +353,10 @@ public:
 
 /// Decodes one BB address map section payload.
 ///
-/// \p Extractor provides address extraction and the underlying DataExtractor.
-/// \p PGOAnalyses if non-null, receives the decoded PGO analysis data. On
-///   error, \p PGOAnalyses may be partially populated.
+/// \param Extractor Address extractor and underlying DataExtractor to read from.
+/// \param PGOAnalyses If non-null, receives the decoded PGO analysis data; may
+///   be partially populated on error.
+/// \return Decoded BB address maps, or an error on failure.
 LLVM_ABI Expected<std::vector<BBAddrMap>>
 decodeBBAddrMapPayload(AddressExtractor &Extractor,
                        std::vector<PGOAnalysisMap> *PGOAnalyses = nullptr);

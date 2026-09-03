@@ -146,7 +146,8 @@ struct detector<std::void_t<Op<Args...>>, Op, Args...> {
 };
 } // end namespace detail
 
-/// Detects if a given trait holds for some set of arguments 'Args'.
+/// Detects whether trait \c Op holds for the given \c Args.
+///
 /// For example, the given trait could be used to detect if a given type
 /// has a copy assignment operator:
 ///   template<class T>
@@ -155,10 +156,10 @@ struct detector<std::void_t<Op<Args...>>, Op, Args...> {
 ///   bool fooHasCopyAssign = is_detected<has_copy_assign_t, FooClass>::value;
 ///
 /// NOTE: The C++20 standard has adopted concepts and requires clauses as a
-/// superior alternative to std::is_detected.
+/// superior alternative to \c std::is_detected.
 ///
 /// This utility is placed in STLForwardCompat.h as a reminder
-/// to migrate usages of llvm::is_detected to concepts and 'requires'
+/// to migrate usages of \c llvm::is_detected to concepts and 'requires'
 /// clauses when the codebase adopts C++20.
 template <template <class...> class Op, class... Args>
 using is_detected = typename detail::detector<void, Op, Args...>::value_t;
@@ -170,6 +171,9 @@ struct identity // NOLINT(readability-identifier-naming)
   using is_transparent = void;
 
   /// Forward \p self unchanged.
+  ///
+  /// @param self Argument returned by perfect forwarding.
+  /// @return \p self, perfectly forwarded.
   template <typename T> constexpr T &&operator()(T &&self) const noexcept {
     return std::forward<T>(self);
   }
@@ -178,19 +182,31 @@ struct identity // NOLINT(readability-identifier-naming)
 /// Returns a raw pointer that represents the same address as the argument.
 ///
 /// This implementation can be removed once we move to C++20 where it's defined
-/// as std::to_address().
+/// as \c std::to_address().
 ///
-/// The std::pointer_traits<>::to_address(p) variations of these overloads has
-/// not been implemented.
+/// The \c std::pointer_traits<>::to_address(p) variations of these overloads
+/// have not been implemented.
+///
+/// @param P Fancy pointer whose address is converted.
+/// @return A raw pointer representing the same address as \p P.
 template <class Ptr> auto to_address(const Ptr &P) { return P.operator->(); }
 /// Overload for raw pointers.
+///
+/// @param P Raw pointer returned unchanged.
+/// @return \p P unchanged.
 template <class T> constexpr T *to_address(T *P) {
   static_assert(!std::is_function_v<T>);
   return P;
 }
 
-/// C++20 constexpr invoke. This uses `std::apply` (constexpr in C++17) to
-/// achieve constexpr invocation.
+/// C++20 \c constexpr \c invoke.
+///
+/// Uses \c std::apply (\c constexpr in C++17) to achieve \c constexpr
+/// invocation.
+///
+/// @param Fn Callable to invoke.
+/// @param Args Arguments forwarded to \p Fn.
+/// @return The result of invoking \p Fn with \p Args.
 template <typename FnT, typename... ArgsT>
 constexpr std::invoke_result_t<FnT, ArgsT...>
 invoke(FnT &&Fn, ArgsT &&...Args) { // NOLINT(readability-identifier-naming)
@@ -198,9 +214,15 @@ invoke(FnT &&Fn, ArgsT &&...Args) { // NOLINT(readability-identifier-naming)
                     std::forward_as_tuple(std::forward<ArgsT>(Args)...));
 }
 
-/// Check if elements in range \p First to \p Last are sorted with respect to a
-/// comparator \p C. constexpr allows use in static_assert
-/// TODO: Use std::is_sorted once upgraded to C++20 since that becomes constexpr
+/// Check whether [\p First, \p Last) is sorted under comparator \p C.
+///
+/// This is \c constexpr so it can be used in \c static_assert.
+/// TODO: Use std::is_sorted once upgraded to C++20 since that becomes constexpr.
+///
+/// @param First Beginning of the range.
+/// @param Last End of the range.
+/// @param C Comparator used to order elements.
+/// @return True if [\p First, \p Last) is sorted under \p C.
 template <typename ForwardIterator, typename Cmp = std::less<>>
 constexpr bool is_sorted_constexpr(ForwardIterator First, ForwardIterator Last,
                                    Cmp C = Cmp{}) {
@@ -222,6 +244,10 @@ constexpr bool is_sorted_constexpr(ForwardIterator First, ForwardIterator Last,
 // TODO: Remove this in favor of std::optional<T>::transform once we switch to
 // C++23.
 /// Apply \p F to the contained value of \p O if present.
+///
+/// @param O Optional value to transform.
+/// @param F Function applied to the contained value when present.
+/// @return An optional with the result of \p F, or \c std::nullopt if \p O is empty.
 template <typename Optional, typename Function,
           typename Value = typename llvm::remove_cvref_t<Optional>::value_type>
 constexpr std::optional<remove_cvref_t<std::invoke_result_t<Function, Value>>>
@@ -232,8 +258,12 @@ transformOptional(Optional &&O, Function &&F) {
   return std::nullopt;
 }
 
-/// Returns underlying integer value of an enum. Backport of C++23
-/// std::to_underlying.
+/// Returns the underlying integer value of an enum.
+///
+/// Backport of C++23 \c std::to_underlying.
+///
+/// @param E Enumeration value to convert.
+/// @return The underlying integer value of \p E.
 template <typename Enum>
 [[nodiscard]] constexpr std::underlying_type_t<Enum> to_underlying(Enum E) {
   return static_cast<std::underlying_type_t<Enum>>(E);
@@ -323,9 +353,14 @@ public:
 };
 } // end namespace detail
 
-/// C++20 bind_front. Prepends bound arguments to the callable. All bind
-/// arguments and the callable are forwarded and *stored* by value. If you would
-/// like to pass by reference, use `std::ref` or `std::cref`.
+/// C++20 \c bind_front: prepends bound arguments to the callable.
+///
+/// All bind arguments and the callable are forwarded and *stored* by value.
+/// If you would like to pass by reference, use \c std::ref or \c std::cref.
+///
+/// @param Fn The callable to bind arguments to.
+/// @param BindArgs Arguments to prepend when the returned object is called.
+/// @return A function object that prepends \p BindArgs when called.
 template <typename FnT, typename... BindArgsT>
 constexpr auto bind_front(FnT &&Fn, // NOLINT(readability-identifier-naming)
                           BindArgsT &&...BindArgs) {
@@ -337,8 +372,13 @@ constexpr auto bind_front(FnT &&Fn, // NOLINT(readability-identifier-naming)
       std::forward<BindArgsT>(BindArgs)...);
 }
 
-/// C++26 bind_front with compile-time callable. Prepends bound arguments.
-/// Bound arguments are forwarded and *stored* by value.
+/// C++26 \c bind_front with a compile-time callable.
+///
+/// Prepends bound arguments. Bound arguments are forwarded and *stored* by
+/// value.
+///
+/// @param BindArgs Arguments to prepend when the returned object is called.
+/// @return A function object that prepends \p BindArgs when called.
 template <auto ConstFn, typename... BindArgsT>
 constexpr auto
 bind_front(BindArgsT &&...BindArgs) { // NOLINT(readability-identifier-naming)
@@ -352,9 +392,14 @@ bind_front(BindArgsT &&...BindArgs) { // NOLINT(readability-identifier-naming)
       detail::ConstantFnTag{}, std::forward<BindArgsT>(BindArgs)...);
 }
 
-/// C++23 bind_back. Appends bound arguments to the callable. All bind
-/// arguments and the callable are forwarded and *stored* by value. If you would
-/// like to pass by reference, use `std::ref` or `std::cref`.
+/// C++23 \c bind_back: appends bound arguments to the callable.
+///
+/// All bind arguments and the callable are forwarded and *stored* by value.
+/// If you would like to pass by reference, use \c std::ref or \c std::cref.
+///
+/// @param Fn The callable to bind arguments to.
+/// @param BindArgs Arguments to append when the returned object is called.
+/// @return A function object that appends \p BindArgs when called.
 template <typename FnT, typename... BindArgsT>
 constexpr auto bind_back(FnT &&Fn, // NOLINT(readability-identifier-naming)
                          BindArgsT &&...BindArgs) {
@@ -366,8 +411,13 @@ constexpr auto bind_back(FnT &&Fn, // NOLINT(readability-identifier-naming)
       std::forward<BindArgsT>(BindArgs)...);
 }
 
-/// C++26 bind_back with compile-time callable. Appends bound arguments.
-/// Bound arguments are forwarded and *stored* by value.
+/// C++26 \c bind_back with a compile-time callable.
+///
+/// Appends bound arguments. Bound arguments are forwarded and *stored* by
+/// value.
+///
+/// @param BindArgs Arguments to append when the returned object is called.
+/// @return A function object that appends \p BindArgs when called.
 template <auto ConstFn, typename... BindArgsT>
 constexpr auto
 bind_back(BindArgsT &&...BindArgs) { // NOLINT(readability-identifier-naming)

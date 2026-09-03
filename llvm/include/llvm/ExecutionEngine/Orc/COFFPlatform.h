@@ -41,6 +41,20 @@ public:
 
   /// Try to create a COFFPlatform instance, adding the ORC runtime to the
   /// given JITDylib.
+  /// @param ObjLinkingLayer Object linking layer used to load the runtime and
+  ///        JIT'd objects.
+  /// @param PlatformJD JITDylib that will hold the ORC runtime and platform
+  ///        aliases.
+  /// @param OrcRuntimeArchiveBuffer Memory buffer containing the ORC runtime
+  ///        static archive.
+  /// @param LoadDynLibrary Callback used to load dependent DLLs into a
+  ///        JITDylib.
+  /// @param StaticVCRuntime Whether to bootstrap the static MSVC VC runtime.
+  /// @param VCRuntimePath Optional directory of VC runtime libraries; if null,
+  ///        search the MSVC toolchain and Windows SDK.
+  /// @param RuntimeAliases Optional alias map; if unset,
+  ///        \c standardPlatformAliases is used.
+  /// @return A COFFPlatform instance, or an error if creation fails.
   static Expected<std::unique_ptr<COFFPlatform>>
   Create(ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
          std::unique_ptr<MemoryBuffer> OrcRuntimeArchiveBuffer,
@@ -48,33 +62,75 @@ public:
          const char *VCRuntimePath = nullptr,
          std::optional<SymbolAliasMap> RuntimeAliases = std::nullopt);
 
+  /// Construct a COFFPlatform using a path to the ORC runtime archive.
+  /// @param ObjLinkingLayer Object linking layer used to load the runtime and
+  ///        JIT'd objects.
+  /// @param PlatformJD JITDylib that will hold the ORC runtime and platform
+  ///        aliases.
+  /// @param OrcRuntimePath Filesystem path to the ORC runtime static archive.
+  /// @param LoadDynLibrary Callback used to load dependent DLLs into a
+  ///        JITDylib.
+  /// @param StaticVCRuntime Whether to bootstrap the static MSVC VC runtime.
+  /// @param VCRuntimePath Optional directory of VC runtime libraries; if null,
+  ///        search the MSVC toolchain and Windows SDK.
+  /// @param RuntimeAliases Optional alias map; if unset,
+  ///        \c standardPlatformAliases is used.
+  /// @return A COFFPlatform instance, or an error if creation fails.
   static Expected<std::unique_ptr<COFFPlatform>>
   Create(ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
          const char *OrcRuntimePath, LoadDynamicLibrary LoadDynLibrary,
          bool StaticVCRuntime = false, const char *VCRuntimePath = nullptr,
          std::optional<SymbolAliasMap> RuntimeAliases = std::nullopt);
 
+  /// Returns the ExecutionSession for this platform.
+  /// @return The ExecutionSession for this platform.
   ExecutionSession &getExecutionSession() const { return ES; }
+
+  /// Returns the ObjectLinkingLayer for this platform.
+  /// @return The ObjectLinkingLayer for this platform.
   ObjectLinkingLayer &getObjectLinkingLayer() const { return ObjLinkingLayer; }
 
+  /// Install COFF platform symbols and per-JITDylib runtime support in \p JD.
+  /// @param JD JITDylib to set up for COFF execution.
+  /// @return Success, or an error if setup fails.
   Error setupJITDylib(JITDylib &JD) override;
+
+  /// Remove COFF platform state associated with \p JD.
+  /// @param JD JITDylib being torn down.
+  /// @return Success, or an error if teardown fails.
   Error teardownJITDylib(JITDylib &JD) override;
+
+  /// Record initializer symbols when a MaterializationUnit is added.
+  /// @param RT Resource tracker for the JITDylib receiving \p MU.
+  /// @param MU Materialization unit being added.
+  /// @return Success, or an error if recording initializers fails.
   Error notifyAdding(ResourceTracker &RT,
                      const MaterializationUnit &MU) override;
+
+  /// Handle removal of a ResourceTracker (not supported yet).
+  /// @param RT Resource tracker being removed.
+  /// @return Success, or an error if removal is not supported.
   Error notifyRemoving(ResourceTracker &RT) override;
 
-  /// Returns an AliasMap containing the default aliases for the COFFPlatform.
+  /// Returns the default aliases for the COFFPlatform.
+  ///
   /// This can be modified by clients when constructing the platform to add
   /// or remove aliases.
+  /// @param ES Execution session used to intern alias symbol names.
+  /// @return The default symbol alias map for COFFPlatform.
   static SymbolAliasMap standardPlatformAliases(ExecutionSession &ES);
 
   /// Returns the array of required CXX aliases.
+  /// @return The array of required CXX aliases.
   static ArrayRef<std::pair<const char *, const char *>> requiredCXXAliases();
 
   /// Returns the array of standard runtime utility aliases for COFF.
+  /// @return The array of standard runtime utility aliases for COFF.
   static ArrayRef<std::pair<const char *, const char *>>
   standardRuntimeUtilityAliases();
 
+  /// Returns the COFF section name used for SEH unwind info.
+  /// @return The COFF section name used for SEH unwind info.
   static StringRef getSEHFrameSectionName() { return ".pdata"; }
 
 private:

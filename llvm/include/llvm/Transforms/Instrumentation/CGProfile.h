@@ -16,9 +16,17 @@
 
 namespace llvm {
 class Module;
+/// Pass that builds call-graph profile counts and attaches them as module
+/// metadata.
 class CGProfilePass : public OptionalPassInfoMixin<CGProfilePass> {
 public:
+  /// Construct a call-graph profile pass.
+  /// @param InLTO Whether this pass runs in an LTO post-link pipeline.
   CGProfilePass(bool InLTO) : InLTO(InLTO) {}
+  /// Collect call-graph profile counts for \p M and emit them as module flags.
+  /// @param M Module to analyze.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:

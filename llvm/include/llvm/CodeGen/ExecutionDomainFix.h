@@ -52,26 +52,35 @@ struct DomainValue {
   /// Basic reference counting.
   unsigned Refs = 0;
 
-  /// Bitmask of available domains. For an open DomainValue, it is the still
-  /// possible domains for collapsing. For a collapsed DomainValue it is the
-  /// domains where the register is available for free.
+  /// Bitmask of available domains.
+  ///
+  /// For an open DomainValue, it is the still possible domains for collapsing.
+  /// For a collapsed DomainValue it is the domains where the register is
+  /// available for free.
   unsigned AvailableDomains;
 
-  /// Pointer to the next DomainValue in a chain.  When two DomainValues are
-  /// merged, Victim.Next is set to point to Victor, so old DomainValue
-  /// references can be updated by following the chain.
+  /// Pointer to the next DomainValue in a chain.
+  ///
+  /// When two DomainValues are merged, Victim.Next is set to point to Victor,
+  /// so old DomainValue references can be updated by following the chain.
   DomainValue *Next;
 
   /// Twiddleable instructions using or defining these registers.
   SmallVector<MachineInstr *, 8> Instrs;
 
+  /// Construct an empty DomainValue.
   DomainValue() { clear(); }
 
   /// A collapsed DomainValue has no instructions to twiddle - it simply keeps
   /// track of the domains where the registers are already available.
+  ///
+  /// \return True if this DomainValue is collapsed.
   bool isCollapsed() const { return Instrs.empty(); }
 
   /// Is domain available?
+  ///
+  /// \param domain Execution domain to query.
+  /// \return True if the domain is available.
   bool hasDomain(unsigned domain) const {
     assert(domain <
                static_cast<unsigned>(std::numeric_limits<unsigned>::digits) &&
@@ -80,6 +89,8 @@ struct DomainValue {
   }
 
   /// Mark domain as available.
+  ///
+  /// \param domain Execution domain to add.
   void addDomain(unsigned domain) {
     assert(domain <
                static_cast<unsigned>(std::numeric_limits<unsigned>::digits) &&
@@ -87,7 +98,9 @@ struct DomainValue {
     AvailableDomains |= 1u << domain;
   }
 
-  // Restrict to a single domain available.
+  /// Restrict to a single available domain.
+  ///
+  /// \param domain Execution domain to keep.
   void setSingleDomain(unsigned domain) {
     assert(domain <
                static_cast<unsigned>(std::numeric_limits<unsigned>::digits) &&
@@ -96,11 +109,16 @@ struct DomainValue {
   }
 
   /// Return bitmask of domains that are available and in mask.
+  ///
+  /// \param mask Bitmask of domains to intersect with.
+  /// \return Bitmask of domains that are both available and in \p mask.
   unsigned getCommonDomains(unsigned mask) const {
     return AvailableDomains & mask;
   }
 
   /// First domain available.
+  ///
+  /// \return Index of the first available domain.
   unsigned getFirstDomain() const {
     return llvm::countr_zero(AvailableDomains);
   }
@@ -113,6 +131,8 @@ struct DomainValue {
   }
 };
 
+/// Machine function pass that rewrites variant instructions to minimize
+/// execution domain crossings.
 class LLVM_ABI ExecutionDomainFix : public MachineFunctionPass {
   SpecificBumpPtrAllocator<DomainValue> Allocator;
   SmallVector<DomainValue *, 16> Avail;
@@ -136,17 +156,34 @@ class LLVM_ABI ExecutionDomainFix : public MachineFunctionPass {
   ReachingDefInfo *RDI = nullptr;
 
 public:
+  /// Construct a pass that rewrites the given register class.
+  ///
+  /// \param PassID Pass identification, replacement for typeid.
+  /// \param RC Register class whose execution domains are rewritten.
   ExecutionDomainFix(char &PassID, const TargetRegisterClass &RC)
       : MachineFunctionPass(PassID), RC(&RC), NumRegs(RC.getNumRegs()) {}
 
+  /// Declare required analyses and that this pass preserves all analyses.
+  ///
+  /// \param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<ReachingDefInfoWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
+  /// Rewrite variant instructions in \p MF to minimize domain crossings.
+  ///
+  /// \param MF Machine function whose execution domains are rewritten.
+  /// \return True if the machine function was modified.
   bool runOnMachineFunction(MachineFunction &MF) override;
 
+  /// Return the properties this pass requires of the machine function.
+  ///
+  /// Execution domain rewriting expects that the function contains no virtual
+  /// registers.
+  ///
+  /// \return Machine function properties required by this pass.
   MachineFunctionProperties getRequiredProperties() const override {
     return MachineFunctionProperties().setNoVRegs();
   }

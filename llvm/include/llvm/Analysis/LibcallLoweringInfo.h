@@ -37,18 +37,26 @@ public:
   /// rules on top of the module-level defaults.
   using ApplyContextRulesFn = function_ref<void(LibcallLoweringInfo &)>;
 
-  /// Construct the lowering info from the module-level \p RTLCI, seeding the
-  /// default implementation for every available libcall, then applying the
-  /// optional \p ApplyContextRules callback for the caller's context-specific
-  /// libcall rules.
+  /// Construct libcall lowering info from module-level runtime libcall info.
+  ///
+  /// Seeds the default implementation for every available libcall from the
+  /// module-level \p RTLCI, then applies the optional \p ApplyContextRules
+  /// callback for the caller's context-specific libcall rules.
+  /// @param RTLCI Module-level runtime libcall availability information.
+  /// @param ApplyContextRules Optional callback applying context-specific
+  /// rules.
   LLVM_ABI LibcallLoweringInfo(const RTLIB::RuntimeLibcallsInfo &RTLCI,
                                ApplyContextRulesFn ApplyContextRules = {});
 
+  /// Return the module-level runtime libcall information used by this lowering.
+  /// @return Module-level runtime libcall information used by this lowering.
   const RTLIB::RuntimeLibcallsInfo &getRuntimeLibcallsInfo() const {
     return RTLCI;
   }
 
   /// Get the libcall routine name for the specified libcall.
+  /// @param Call Libcall whose selected implementation name is requested.
+  /// @return Null-terminated name of the selected implementation for \p Call.
   // FIXME: This should be removed. Only LibcallImpl should have a name.
   const char *getLibcallName(RTLIB::Libcall Call) const {
     // FIXME: Return StringRef
@@ -56,16 +64,24 @@ public:
         .data();
   }
 
-  /// Return the lowering's selection of implementation call for \p Call
+  /// Return the lowering's selection of implementation call for \p Call.
+  /// @param Call Libcall whose selected implementation is requested.
+  /// @return Selected implementation for \p Call.
   RTLIB::LibcallImpl getLibcallImpl(RTLIB::Libcall Call) const {
     return LibcallImpls[Call];
   }
 
   /// Remap the default libcall routine name for the specified libcall.
+  /// @param Call Libcall whose implementation selection is updated.
+  /// @param Impl Implementation to select for \p Call.
   void setLibcallImpl(RTLIB::Libcall Call, RTLIB::LibcallImpl Impl) {
     LibcallImpls[Call] = Impl;
   }
 
+  /// Get the CallingConv that should be used for the specified libcall.
+  /// @param Call Libcall whose selected implementation calling convention is
+  /// requested.
+  /// @return Calling convention for the selected implementation of \p Call.
   // FIXME: Remove this wrapper in favor of directly using
   // getLibcallImplCallingConv
   CallingConv::ID getLibcallCallingConv(RTLIB::Libcall Call) const {
@@ -73,12 +89,17 @@ public:
   }
 
   /// Get the CallingConv that should be used for the specified libcall.
+  /// @param Call Libcall implementation whose calling convention is requested.
+  /// @return Calling convention for the specified libcall implementation.
   CallingConv::ID getLibcallImplCallingConv(RTLIB::LibcallImpl Call) const {
     return RTLCI.LibcallImplCallingConvs[Call];
   }
 
   /// Return a function impl compatible with RTLIB::MEMCPY, or
   /// RTLIB::Unsupported if fully unsupported.
+  /// @return A memcpy-compatible libcall implementation, falling back to
+  /// memmove when memcpy is unsupported, or RTLIB::Unsupported if neither is
+  /// available.
   RTLIB::LibcallImpl getMemcpyImpl() const {
     RTLIB::LibcallImpl Memcpy = getLibcallImpl(RTLIB::MEMCPY);
     if (Memcpy == RTLIB::Unsupported) {
@@ -102,25 +123,42 @@ private:
   const RTLIB::RuntimeLibcallsInfo *RTLCI = nullptr;
 
 public:
+  /// Default-construct an uninitialized module libcall lowering map.
   ModuleLibcallLoweringInfo() = default;
+  /// Construct a module libcall lowering map backed by \p RTLCI.
+  /// @param RTLCI Module-level runtime libcall availability information.
   ModuleLibcallLoweringInfo(RTLIB::RuntimeLibcallsInfo &RTLCI)
       : RTLCI(&RTLCI) {}
 
+  /// Initialize this map with module-level runtime libcall info \p RT.
+  /// @param RT Module-level runtime libcall availability information.
   void init(const RTLIB::RuntimeLibcallsInfo *RT) { RTLCI = RT; }
 
+  /// Clear the stored runtime libcall info and all cached lowerings.
   void clear() {
     RTLCI = nullptr;
     LoweringMap.clear();
   }
 
+  /// Return true if this map has been initialized with runtime libcall info.
+  /// @return True if this map has been initialized with runtime libcall info.
   operator bool() const { return RTLCI != nullptr; }
 
-  LLVM_ABI bool invalidate(Module &, const PreservedAnalyses &,
-                           ModuleAnalysisManager::Invalidator &);
+  /// Invalidate this result unless it was preserved as a stateless analysis.
+  /// @param M Module being invalidated (unused beyond the checker).
+  /// @param PA Set of preserved analyses.
+  /// @param Inv Invalidator for dependent analyses (unused).
+  /// @return True if the result should be discarded.
+  LLVM_ABI bool invalidate(Module &M, const PreservedAnalyses &PA,
+                           ModuleAnalysisManager::Invalidator &Inv);
 
   /// Return the LibcallLoweringInfo for the context identified by \p Key,
   /// creating it (via \p ApplyContextRules) on first request. \p Key should be
   /// TargetSubtargetInfo*.
+  /// @param Key Opaque context key, typically a TargetSubtargetInfo*.
+  /// @param ApplyContextRules Optional callback applying context-specific
+  /// rules when creating the lowering.
+  /// @return Libcall lowering info for the context identified by \p Key.
   template <typename KeyT>
   const LibcallLoweringInfo &getLibcallLowering(
       const KeyT *Key,
@@ -141,6 +179,7 @@ private:
   }
 };
 
+/// Analysis that provides \c ModuleLibcallLoweringInfo for a module.
 class LibcallLoweringModuleAnalysis
     : public AnalysisInfoMixin<LibcallLoweringModuleAnalysis> {
 private:
@@ -150,9 +189,14 @@ private:
   ModuleLibcallLoweringInfo LibcallLoweringMap;
 
 public:
+  /// The analysis result type; per-context libcall lowering info for a module.
   using Result = ModuleLibcallLoweringInfo;
 
-  LLVM_ABI Result run(Module &M, ModuleAnalysisManager &);
+  /// Run the libcall-lowering analysis on module \p M.
+  /// @param M Module to analyze.
+  /// @param MAM Module analysis manager providing dependencies.
+  /// @return Initialized module libcall lowering map for \p M.
+  LLVM_ABI Result run(Module &M, ModuleAnalysisManager &MAM);
 };
 
 } // end namespace llvm

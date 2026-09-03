@@ -29,6 +29,7 @@ namespace llvm {
 
 namespace object {
 
+/// ObjectFile implementation for GOFF (Generalized Object File Format) binaries.
 class LLVM_ABI GOFFObjectFile : public ObjectFile {
   friend class GOFFSymbolRef;
 
@@ -59,39 +60,99 @@ class LLVM_ABI GOFFObjectFile : public ObjectFile {
                                        const uint8_t *Record) const;
 
 public:
-  // Get the flattened data structure
+  /// Flattened logical records (record type plus continuous payload bytes).
+  ///
+  /// \return Flattened logical records for this object file.
   const SmallVector<std::pair<GOFF::RecordType, SmallVector<uint8_t>>> &
   getFlattenedData() const {
     return FlattenedData;
   }
 
+  /// Return the name of symbol \p Symbol.
+  ///
+  /// \param Symbol Symbol whose name is requested.
+  /// \return The name of \p Symbol, or an error on failure.
   Expected<StringRef> getSymbolName(SymbolRef Symbol) const;
 
+  /// Parse a GOFF object from \p Object, reporting failures via \p Err.
+  ///
+  /// \param Object Memory buffer holding the GOFF binary.
+  /// \param Err Set on parse failure; must be checked by the caller.
   GOFFObjectFile(MemoryBufferRef Object, Error &Err);
+  /// True if \p V is a GOFFObjectFile.
+  ///
+  /// \param V Binary to test.
+  /// \return True if \p V is a GOFFObjectFile.
   static inline bool classof(const Binary *V) { return V->isGOFF(); }
+  /// Iterator to the first section in this object.
+  ///
+  /// \return Iterator to the first section.
   section_iterator section_begin() const override;
+  /// Past-the-end iterator for sections in this object.
+  ///
+  /// \return Iterator one past the last section.
   section_iterator section_end() const override;
 
+  /// Number of bytes used to represent an address in this format.
+  ///
+  /// \return Number of bytes used to represent an address.
   uint8_t getBytesInAddress() const override { return 8; }
 
+  /// Human-readable name of this object file format.
+  ///
+  /// \return Human-readable name of this object file format.
   StringRef getFileFormatName() const override { return "GOFF-SystemZ"; }
 
+  /// Target architecture of this object file.
+  ///
+  /// \return Target architecture of this object file.
   Triple::ArchType getArch() const override { return Triple::systemz; }
 
+  /// Subtarget features described by this object file.
+  ///
+  /// \return Subtarget features described by this object file.
   Expected<SubtargetFeatures> getFeatures() const override { return SubtargetFeatures(); }
 
+  /// True if this is a relocatable object.
+  ///
+  /// \return True if this is a relocatable object.
   bool isRelocatableObject() const override { return true; }
 
+  /// Advance \p Symb to the next symbol in this object.
+  ///
+  /// \param Symb Opaque symbol handle to advance.
   void moveSymbolNext(DataRefImpl &Symb) const override;
+  /// Iterator to the first symbol in this object.
+  ///
+  /// \return Iterator to the first symbol.
   basic_symbol_iterator symbol_begin() const override;
+  /// Past-the-end iterator for symbols in this object.
+  ///
+  /// \return Iterator one past the last symbol.
   basic_symbol_iterator symbol_end() const override;
 
+  /// Always true; GOFF objects use 64-bit addresses.
+  ///
+  /// \return Always true.
   bool is64Bit() const override {
     return true;
   }
 
+  /// True if section \p Sec has the GOFF NoLoad loading behavior.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if section \p Sec has the GOFF NoLoad loading behavior.
   bool isSectionNoLoad(DataRefImpl Sec) const;
+  /// True if section \p Sec is read-only data with Initial loading behavior.
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return True if section \p Sec is read-only data with Initial loading
+  /// behavior.
   bool isSectionReadOnlyData(DataRefImpl Sec) const;
+  /// Always false; GOFF fill characters are applied in getSectionContents().
+  ///
+  /// \param Sec Opaque section handle.
+  /// \return Always false.
   bool isSectionZeroInit(DataRefImpl Sec) const;
 
 private:
@@ -148,24 +209,41 @@ private:
                              SmallVectorImpl<char> &Result) const override {}
 };
 
+/// SymbolRef specialized for symbols in a GOFFObjectFile.
 class GOFFSymbolRef : public SymbolRef {
 public:
+  /// Construct a GOFF symbol reference from SymbolRef \p B.
+  ///
+  /// \param B Symbol reference that must refer to a GOFFObjectFile.
   GOFFSymbolRef(const SymbolRef &B) : SymbolRef(B) {
     assert(isa<GOFFObjectFile>(SymbolRef::getObject()));
   }
 
+  /// Returns the GOFFObjectFile that owns this symbol.
+  ///
+  /// \return The GOFFObjectFile that owns this symbol.
   const GOFFObjectFile *getObject() const {
     return cast<GOFFObjectFile>(BasicSymbolRef::getObject());
   }
 
+  /// Symbol flags for this GOFF symbol.
+  ///
+  /// \return Symbol flags for this GOFF symbol, or an error on failure.
   Expected<uint32_t> getSymbolGOFFFlags() const {
     return getObject()->getSymbolFlags(getRawDataRefImpl());
   }
 
+  /// High-level SymbolRef::Type for this GOFF symbol.
+  ///
+  /// \return High-level SymbolRef::Type for this GOFF symbol, or an error on
+  /// failure.
   Expected<SymbolRef::Type> getSymbolGOFFType() const {
     return getObject()->getSymbolType(getRawDataRefImpl());
   }
 
+  /// Return the size associated with this symbol.
+  ///
+  /// \return Size associated with this symbol.
   uint64_t getSize() const {
     return getObject()->getSymbolSize(getRawDataRefImpl());
   }

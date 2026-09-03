@@ -24,13 +24,22 @@ namespace llvm {
 /// Cost Table Entry
 template <typename CostType>
 struct CostTblEntryT {
+  /// SelectionDAG opcode that this cost applies to.
   uint16_t ISD;
+  /// Machine value type of the operation.
   MVT::SimpleValueType Type;
+  /// Relative cost of the operation for \c Type.
   CostType Cost;
 };
+/// Cost table entry whose cost is a 16-bit integer.
 using CostTblEntry = CostTblEntryT<uint16_t>;
 
 /// Find in cost table.
+///
+/// \param Tbl Cost table to search.
+/// \param ISD SelectionDAG opcode to match.
+/// \param Ty Machine value type to match.
+/// \returns The matching entry, or nullptr if none is found.
 template <class CostType>
 inline const CostTblEntryT<CostType> *
 CostTableLookup(ArrayRef<CostTblEntryT<CostType>> Tbl, int ISD, MVT Ty) {
@@ -44,24 +53,42 @@ CostTableLookup(ArrayRef<CostTblEntryT<CostType>> Tbl, int ISD, MVT Ty) {
   return nullptr;
 }
 
+/// Find in a C-array cost table.
+///
+/// Wrapper to fix template argument deduction failures.
+///
+/// \param Table C-array of cost-table entries.
+/// \param ISD SelectionDAG opcode to match.
+/// \param Ty Machine value type to match.
+/// \returns The matching entry, or nullptr if none is found.
 template <size_t N, class CostType>
 inline const CostTblEntryT<CostType> *
 CostTableLookup(const CostTblEntryT<CostType> (&Table)[N], int ISD, MVT Ty) {
-  // Wrapper to fix template argument deduction failures.
   return CostTableLookup<CostType>(Table, ISD, Ty);
 }
 
 /// Type Conversion Cost Table
 template <typename CostType>
 struct TypeConversionCostTblEntryT {
+  /// SelectionDAG conversion opcode that this cost applies to.
   uint16_t ISD;
+  /// Destination machine value type of the conversion.
   MVT::SimpleValueType Dst;
+  /// Source machine value type of the conversion.
   MVT::SimpleValueType Src;
+  /// Relative cost of converting from \c Src to \c Dst.
   CostType Cost;
 };
+/// Type-conversion cost table entry whose cost is a 16-bit integer.
 using TypeConversionCostTblEntry = TypeConversionCostTblEntryT<uint16_t>;
 
 /// Find in type conversion cost table.
+///
+/// \param Tbl Type-conversion cost table to search.
+/// \param ISD SelectionDAG conversion opcode to match.
+/// \param Dst Destination machine value type to match.
+/// \param Src Source machine value type to match.
+/// \returns The matching entry, or nullptr if none is found.
 template <class CostType>
 inline const TypeConversionCostTblEntryT<CostType> *
 ConvertCostTableLookup(ArrayRef<TypeConversionCostTblEntryT<CostType>> Tbl,
@@ -77,11 +104,19 @@ ConvertCostTableLookup(ArrayRef<TypeConversionCostTblEntryT<CostType>> Tbl,
   return nullptr;
 }
 
+/// Find in a C-array type conversion cost table.
+///
+/// Wrapper to fix template argument deduction failures.
+///
+/// \param Table C-array of type-conversion cost-table entries.
+/// \param ISD SelectionDAG conversion opcode to match.
+/// \param Dst Destination machine value type to match.
+/// \param Src Source machine value type to match.
+/// \returns The matching entry, or nullptr if none is found.
 template <size_t N, class CostType>
 inline const TypeConversionCostTblEntryT<CostType> *
 ConvertCostTableLookup(const TypeConversionCostTblEntryT<CostType> (&Table)[N],
                        int ISD, MVT Dst, MVT Src) {
-  // Wrapper to fix template argument deduction failures.
   return ConvertCostTableLookup<CostType>(Table, ISD, Dst, Src);
 }
 

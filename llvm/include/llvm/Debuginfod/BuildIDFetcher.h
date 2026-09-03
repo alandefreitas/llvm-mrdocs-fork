@@ -19,14 +19,22 @@
 
 namespace llvm {
 
+/// BuildIDFetcher that also queries debuginfod servers for debug info.
 class DebuginfodFetcher : public object::BuildIDFetcher {
 public:
+  /// Construct a fetcher that searches local directories then debuginfod.
+  /// \param DebugFileDirectories Local cache directories to search before
+  ///        falling back to debuginfod.
   DebuginfodFetcher(std::vector<std::string> DebugFileDirectories)
       : BuildIDFetcher(std::move(DebugFileDirectories)) {}
+
+  /// Destroy the fetcher.
   ~DebuginfodFetcher() override = default;
 
   /// Fetches the given Build ID using debuginfod and returns a local path to
   /// the resulting file.
+  /// \param BuildID Build ID of the debug artifact to fetch.
+  /// \return Local path to the fetched debug file, or an error.
   Expected<std::string> fetch(object::BuildIDRef BuildID) const override;
 };
 

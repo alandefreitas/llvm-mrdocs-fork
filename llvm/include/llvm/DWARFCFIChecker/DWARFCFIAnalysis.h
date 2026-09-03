@@ -42,12 +42,14 @@
 
 namespace llvm {
 
-/// `DWARFCFIAnalysis` validates the DWARF Call Frame Information one machine
-/// instruction at a time. This class maintains an internal CFI state
-/// initialized with the prologue directives and updated with each instruction's
-/// associated directives. In each update, it checks if the machine
-/// instruction changes the CFI state in a way that matches the changes
-/// from the CFI directives. This checking may results in errors and warnings.
+/// Validates the DWARF Call Frame Information one machine instruction at a
+/// time.
+///
+/// This class maintains an internal CFI state initialized with the prologue
+/// directives and updated with each instruction's associated directives. In
+/// each update, it checks if the machine instruction changes the CFI state in a
+/// way that matches the changes from the CFI directives. This checking may
+/// results in errors and warnings.
 ///
 /// In current stage, the analysis is only aware of what registers the
 /// instruction modifies. If the modification is happening to a sub-register,
@@ -75,9 +77,19 @@ namespace llvm {
 /// checked, and in all other case(s), a warning is emitted.
 class DWARFCFIAnalysis {
 public:
+  /// Construct an analysis initialized from prologue CFI directives.
+  ///
+  /// \param Context Context used to emit validation errors and warnings.
+  /// \param MCII Instruction info used to inspect register writes.
+  /// \param IsEH True when the frame uses EH CFI conventions.
+  /// \param Prologue Prologue CFI directives that initialize the CFI state.
   LLVM_ABI DWARFCFIAnalysis(MCContext *Context, MCInstrInfo const &MCII,
                             bool IsEH, ArrayRef<MCCFIInstruction> Prologue);
 
+  /// Update the analysis with a machine instruction and its CFI directives.
+  ///
+  /// \param Inst Machine instruction to analyze.
+  /// \param Directives CFI directives associated with \p Inst.
   LLVM_ABI void update(const MCInst &Inst,
                        ArrayRef<MCCFIInstruction> Directives);
 

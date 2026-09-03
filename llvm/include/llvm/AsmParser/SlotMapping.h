@@ -23,6 +23,8 @@ namespace llvm {
 class GlobalValue;
 class Type;
 
+/// Slot-number mappings for unnamed metadata, global values, and types.
+///
 /// This struct contains the mappings from the slot numbers to unnamed metadata
 /// nodes, global values and types. It also contains the mapping for the named
 /// types.
@@ -30,9 +32,13 @@ class Type;
 /// textual references to the values in the module can be parsed outside of the
 /// module's source.
 struct SlotMapping {
+  /// Mapping from slot numbers to unnamed global values.
   NumberedValues<GlobalValue *> GlobalValues;
+  /// Mapping from slot numbers to unnamed metadata nodes.
   std::map<unsigned, TrackingMDNodeRef> MetadataNodes;
+  /// Mapping from type names to types.
   StringMap<Type *> NamedTypes;
+  /// Mapping from slot numbers to unnamed types.
   std::map<unsigned, Type *> Types;
 };
 

@@ -17,8 +17,17 @@
 
 namespace llvm {
 class Function;
+
+/// Pass that injects VFABI mappings from TargetLibraryInfo.
+///
+/// Populates the VFABI attribute with the scalar-to-vector mappings from the
+/// TargetLibraryInfo.
 class InjectTLIMappings : public OptionalPassInfoMixin<InjectTLIMappings> {
 public:
+  /// Run the inject-TLI-mappings pass over the function.
+  /// @param F Function whose calls may receive VFABI mappings.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

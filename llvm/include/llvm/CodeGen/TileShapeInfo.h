@@ -26,17 +26,39 @@
 
 namespace llvm {
 
+/// 2D tile shape (row and column) for AMX tile configuration.
+///
+/// Holds the machine operands that define a tile's row and column dimensions,
+/// optionally with deduced immediate values used during tile config and
+/// register allocation.
 class ShapeT {
 public:
+  /// Construct a shape from row and column machine operands.
+  ///
+  /// When \p MRI is non-null, immediately deduces immediate shape values from
+  /// the defining move-immediate instructions of \p Row and \p Col.
+  ///
+  /// \param Row Machine operand for the tile row dimension.
+  /// \param Col Machine operand for the tile column dimension.
+  /// \param MRI Optional register info used to deduce immediate shapes.
   ShapeT(MachineOperand *Row, MachineOperand *Col,
          const MachineRegisterInfo *MRI = nullptr)
       : Row(Row), Col(Col) {
     if (MRI)
       deduceImm(MRI);
   }
+  /// Construct an invalid shape with null operands and unset immediates.
   ShapeT()
       : Row(nullptr), Col(nullptr), RowImm(InvalidImmShape),
         ColImm(InvalidImmShape) {}
+  /// Return true if this shape equals \p Shape by register or immediate.
+  ///
+  /// Shapes compare equal when both have non-null row/column operands with
+  /// matching registers, or when both have valid deduced immediates that
+  /// match. Otherwise returns false.
+  ///
+  /// \param Shape Shape to compare against.
+  /// \return True if the shapes are equal by register or immediate.
   bool operator==(const ShapeT &Shape) const {
     MachineOperand *R = Shape.Row;
     MachineOperand *C = Shape.Col;
@@ -51,16 +73,42 @@ public:
     return false;
   }
 
+  /// Return true if this shape is not equal to \p Shape.
+  ///
+  /// \param Shape Shape to compare against.
+  /// \return True if the shapes are not equal.
   bool operator!=(const ShapeT &Shape) const { return !(*this == Shape); }
 
+  /// Return the machine operand for the tile row dimension.
+  ///
+  /// \return The machine operand for the tile row dimension.
   MachineOperand *getRow() const { return Row; }
+  /// Return the machine operand for the tile column dimension.
+  ///
+  /// \return The machine operand for the tile column dimension.
   MachineOperand *getCol() const { return Col; }
 
+  /// Return the deduced immediate value of the row dimension, or -1 if unset.
+  ///
+  /// \return The deduced row immediate, or -1 if unset.
   int64_t getRowImm() const { return RowImm; }
+  /// Return the deduced immediate value of the column dimension, or -1 if unset.
+  ///
+  /// \return The deduced column immediate, or -1 if unset.
   int64_t getColImm() const { return ColImm; }
 
+  /// Return true if both row and column machine operands are non-null.
+  ///
+  /// \return True if both row and column operands are non-null.
   bool isValid() { return (Row != nullptr) && (Col != nullptr); }
 
+  /// Deduce immediate row and column values from defining move-immediates.
+  ///
+  /// Walks defs of the row and column registers via \p MRI and records the
+  /// immediate from any move-immediate instruction. Implicit immediates are
+  /// treated as invalid shapes.
+  ///
+  /// \param MRI Register info used to find defining operands.
   void deduceImm(const MachineRegisterInfo *MRI) {
     // All def must be the same value, otherwise it is invalid MIs.
     // Find the immediate.

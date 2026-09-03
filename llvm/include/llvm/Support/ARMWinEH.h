@@ -15,19 +15,22 @@
 
 namespace llvm {
 namespace ARM {
+/// Windows on ARM and ARM64 exception-handling constants and helpers.
 namespace WinEH {
+/// Runtime function entry kind flags in the low two bits of UnwindData.
 enum class RuntimeFunctionFlag {
-  RFF_Unpacked,       /// unpacked entry
-  RFF_Packed,         /// packed entry
-  RFF_PackedFragment, /// packed entry representing a fragment
-  RFF_Reserved,       /// reserved
+  RFF_Unpacked,       ///< Unpacked entry; remaining bits point to .xdata.
+  RFF_Packed,         ///< Packed unwind data in the .pdata entry itself.
+  RFF_PackedFragment, ///< Packed entry representing a function fragment.
+  RFF_Reserved,       ///< Reserved flag value.
 };
 
+/// How a packed ARM runtime function returns from its epilogue.
 enum class ReturnType {
-  RT_POP,             /// return via pop {pc} (L flag must be set)
-  RT_B,               /// 16-bit branch
-  RT_BW,              /// 32-bit branch
-  RT_NoEpilogue,      /// no epilogue (fragment)
+  RT_POP,             ///< Return via pop {pc} (L flag must be set).
+  RT_B,               ///< Return via a 16-bit branch.
+  RT_BW,              ///< Return via a 32-bit branch.
+  RT_NoEpilogue,      ///< No epilogue (function fragment).
 };
 
 /// RuntimeFunction - An entry in the table of procedure data (.pdata)
@@ -103,38 +106,62 @@ enum class ReturnType {
 
 class RuntimeFunction {
 public:
+  /// Image-relative start address of the function.
   const support::ulittle32_t BeginAddress;
+  /// Packed flag and either an .xdata RVA or packed unwind bitfields.
   const support::ulittle32_t UnwindData;
 
+  /// Construct a RuntimeFunction from two consecutive little-endian words.
+  ///
+  /// \param Data Pointer to BeginAddress followed by UnwindData.
   RuntimeFunction(const support::ulittle32_t *Data)
     : BeginAddress(Data[0]), UnwindData(Data[1]) {}
 
+  /// Construct a RuntimeFunction from explicit address and unwind words.
+  ///
+  /// \param BeginAddress Image-relative start address of the function.
+  /// \param UnwindData Packed flag and unwind information word.
   RuntimeFunction(const support::ulittle32_t BeginAddress,
                   const support::ulittle32_t UnwindData)
     : BeginAddress(BeginAddress), UnwindData(UnwindData) {}
 
+  /// Return the RuntimeFunctionFlag from the low two bits of UnwindData.
+  ///
+  /// \returns The RuntimeFunctionFlag from the low two bits of UnwindData.
   RuntimeFunctionFlag Flag() const {
     return RuntimeFunctionFlag(UnwindData & 0x3);
   }
 
+  /// Return the .xdata RVA when Flag is RFF_Unpacked.
+  ///
+  /// \returns The .xdata RVA.
   uint32_t ExceptionInformationRVA() const {
     assert(Flag() == RuntimeFunctionFlag::RFF_Unpacked &&
            "unpacked form required for this operation");
     return (UnwindData & ~0x3);
   }
 
+  /// Return the packed unwind bitfields when Flag is a packed form.
+  ///
+  /// \returns The packed unwind bitfields.
   uint32_t PackedUnwindData() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return (UnwindData & ~0x3);
   }
+  /// Return the packed function length in bytes.
+  ///
+  /// \returns The packed function length in bytes.
   uint32_t FunctionLength() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return (((UnwindData & 0x00001ffc) >> 2) << 1);
   }
+  /// Return how the packed function returns from its epilogue.
+  ///
+  /// \returns How the packed function returns from its epilogue.
   ReturnType Ret() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
@@ -142,30 +169,45 @@ public:
     assert(((UnwindData & 0x00006000) || L()) && "L must be set to 1");
     return ReturnType((UnwindData & 0x00006000) >> 13);
   }
+  /// Return whether the function homes integer parameter registers r0-r3.
+  ///
+  /// \returns True if the function homes integer parameter registers r0-r3.
   bool H() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x00008000) >> 15);
   }
+  /// Return the index of the last saved non-volatile register.
+  ///
+  /// \returns The index of the last saved non-volatile register.
   uint8_t Reg() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x00070000) >> 16);
   }
+  /// Return whether saved non-volatiles are floating-point (true) or integer.
+  ///
+  /// \returns True if saved non-volatiles are floating-point; false if integer.
   bool R() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x00080000) >> 19);
   }
+  /// Return whether the function saves and restores the link register.
+  ///
+  /// \returns True if the function saves and restores the link register.
   bool L() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x00100000) >> 20);
   }
+  /// Return whether the function sets up a frame chain for fast walking.
+  ///
+  /// \returns True if the function sets up a frame chain for fast walking.
   bool C() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
@@ -176,6 +218,9 @@ public:
            "r11 must not be included in Reg; C implies r11");
     return ((UnwindData & 0x00200000) >> 21);
   }
+  /// Return the raw 10-bit Stack Adjust field from packed UnwindData.
+  ///
+  /// \returns The raw 10-bit Stack Adjust field from packed UnwindData.
   uint16_t StackAdjust() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
@@ -184,19 +229,27 @@ public:
   }
 };
 
-/// PrologueFolding - pseudo-flag derived from Stack Adjust indicating that the
-/// prologue has stack adjustment combined into the push
+/// Return whether the prologue folded stack adjustment into the push.
+///
+/// \param RF Packed ARM runtime function whose Stack Adjust field is inspected.
+/// \returns True if the prologue folded stack adjustment into the push.
 inline bool PrologueFolding(const RuntimeFunction &RF) {
   return RF.StackAdjust() >= 0x3f4 && (RF.StackAdjust() & 0x4);
 }
-/// Epilogue - pseudo-flag derived from Stack Adjust indicating that the
-/// epilogue has stack adjustment combined into the pop
+/// Return whether the epilogue folded stack adjustment into the pop.
+///
+/// \param RF Packed ARM runtime function whose Stack Adjust field is inspected.
+/// \returns True if the epilogue folded stack adjustment into the pop.
 inline bool EpilogueFolding(const RuntimeFunction &RF) {
   return RF.StackAdjust() >= 0x3f4 && (RF.StackAdjust() & 0x8);
 }
-/// StackAdjustment - calculated stack adjustment in words.  The stack
-/// adjustment should be determined via this function to account for the special
-/// handling the special encoding when the value is >= 0x3f4.
+/// Return the stack adjustment in words for a packed ARM runtime function.
+///
+/// The stack adjustment should be determined via this function to account for
+/// the special encoding when the value is >= 0x3f4.
+///
+/// \param RF Packed ARM runtime function whose Stack Adjust field is decoded.
+/// \returns The stack adjustment in words.
 inline uint16_t StackAdjustment(const RuntimeFunction &RF) {
   uint16_t Adjustment = RF.StackAdjust();
   if (Adjustment >= 0x3f4)
@@ -204,8 +257,12 @@ inline uint16_t StackAdjustment(const RuntimeFunction &RF) {
   return Adjustment;
 }
 
-/// SavedRegisterMask - Utility function to calculate the set of saved general
-/// purpose (r0-r15) and VFP (d0-d31) registers.
+/// Return bitmasks of saved general-purpose and VFP registers.
+///
+/// \param RF Packed ARM runtime function describing the saved registers.
+/// \param Prologue When true, compute the prologue save mask; otherwise the
+///        epilogue restore mask.
+/// \returns A pair of bitmasks for saved general-purpose and VFP registers.
 LLVM_ABI std::pair<uint16_t, uint32_t>
 SavedRegisterMask(const RuntimeFunction &RF, bool Prologue = true);
 
@@ -224,62 +281,98 @@ SavedRegisterMask(const RuntimeFunction &RF, bool Prologue = true);
 
 class RuntimeFunctionARM64 {
 public:
+  /// Image-relative start address of the function.
   const support::ulittle32_t BeginAddress;
+  /// Packed flag and either an .xdata RVA or packed unwind bitfields.
   const support::ulittle32_t UnwindData;
 
+  /// Construct a RuntimeFunctionARM64 from two consecutive little-endian words.
+  ///
+  /// \param Data Pointer to BeginAddress followed by UnwindData.
   RuntimeFunctionARM64(const support::ulittle32_t *Data)
       : BeginAddress(Data[0]), UnwindData(Data[1]) {}
 
+  /// Construct a RuntimeFunctionARM64 from explicit address and unwind words.
+  ///
+  /// \param BeginAddress Image-relative start address of the function.
+  /// \param UnwindData Packed flag and unwind information word.
   RuntimeFunctionARM64(const support::ulittle32_t BeginAddress,
                        const support::ulittle32_t UnwindData)
       : BeginAddress(BeginAddress), UnwindData(UnwindData) {}
 
+  /// Return the RuntimeFunctionFlag from the low two bits of UnwindData.
+  ///
+  /// \returns The RuntimeFunctionFlag from the low two bits of UnwindData.
   RuntimeFunctionFlag Flag() const {
     return RuntimeFunctionFlag(UnwindData & 0x3);
   }
 
+  /// Return the .xdata RVA when Flag is RFF_Unpacked.
+  ///
+  /// \returns The .xdata RVA.
   uint32_t ExceptionInformationRVA() const {
     assert(Flag() == RuntimeFunctionFlag::RFF_Unpacked &&
            "unpacked form required for this operation");
     return (UnwindData & ~0x3);
   }
 
+  /// Return the packed unwind bitfields when Flag is a packed form.
+  ///
+  /// \returns The packed unwind bitfields.
   uint32_t PackedUnwindData() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return (UnwindData & ~0x3);
   }
+  /// Return the packed function length in bytes.
+  ///
+  /// \returns The packed function length in bytes.
   uint32_t FunctionLength() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return (((UnwindData & 0x00001ffc) >> 2) << 2);
   }
+  /// Return the packed count of saved floating-point registers.
+  ///
+  /// \returns The packed count of saved floating-point registers.
   uint8_t RegF() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x0000e000) >> 13);
   }
+  /// Return the packed count of saved integer registers.
+  ///
+  /// \returns The packed count of saved integer registers.
   uint8_t RegI() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x000f0000) >> 16);
   }
+  /// Return whether the function homes the parameter registers.
+  ///
+  /// \returns True if the function homes the parameter registers.
   bool H() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x00100000) >> 20);
   }
+  /// Return the packed frame chain / return encoding (CR field).
+  ///
+  /// \returns The packed frame chain / return encoding (CR field).
   uint8_t CR() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
            "packed form required for this operation");
     return ((UnwindData & 0x600000) >> 21);
   }
+  /// Return the packed frame size field from UnwindData.
+  ///
+  /// \returns The packed frame size field from UnwindData.
   uint16_t FrameSize() const {
     assert((Flag() == RuntimeFunctionFlag::RFF_Packed ||
             Flag() == RuntimeFunctionFlag::RFF_PackedFragment) &&
@@ -287,6 +380,96 @@ public:
     return ((UnwindData & 0xff800000) >> 23);
   }
 };
+
+/// One epilogue scope descriptor following an ExceptionDataRecord header.
+///
+/// The epilogue scope format on ARM is:
+///
+///  3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
+///  1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
+/// +----------------+------+---+---+-------------------------------+
+/// |  Ep Start Idx  | Cond |Res|       Epilogue Start Offset       |
+/// +----------------+------+---+-----------------------------------+
+///
+/// The epilogue scope format on ARM64 is:
+///
+///  3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
+///  1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
+/// +-------------------+-------+---+-------------------------------+
+/// |  Ep Start Idx     |  Res  |   Epilogue Start Offset           |
+/// +-------------------+-------+-----------------------------------+
+///
+/// Epilogue Start Offset: 18-bit field encoding the offset of epilogue relative
+///                        to the start of the function in bytes divided by two
+/// Res : 2-bit field reserved for future expansion (must be set to 0)
+/// Condition : (ARM only) 4-bit field providing the condition under which the
+///             epilogue is executed.  Unconditional epilogues should set this
+///             field to 0xe. Epilogues must be entirely conditional or
+///             unconditional, and in Thumb-2 mode.  The epilogue begins with
+///             the first instruction after the IT opcode.
+/// Epilogue Start Index : 8-bit field indicating the byte index of the first
+///                        unwind code describing the epilogue
+struct EpilogueScope {
+  /// Raw little-endian epilogue scope word.
+  const support::ulittle32_t ES;
+
+  /// Construct an EpilogueScope from a single little-endian word.
+  ///
+  /// \param Data Packed epilogue scope descriptor.
+  EpilogueScope(const support::ulittle32_t Data) : ES(Data) {}
+  // Same for both ARM and AArch64.
+  /// Return the epilogue start offset (bytes/2 from the function start).
+  ///
+  /// \returns The epilogue start offset (bytes/2 from the function start).
+  uint32_t EpilogueStartOffset() const {
+    return (ES & 0x0003ffff);
+  }
+
+  // Different implementations for ARM and AArch64.
+  /// Return the ARM reserved field from the epilogue scope word.
+  ///
+  /// \returns The ARM reserved field from the epilogue scope word.
+  uint8_t ResARM() const {
+    return ((ES & 0x000c0000) >> 18);
+  }
+
+  /// Return the AArch64 reserved field from the epilogue scope word.
+  ///
+  /// \returns The AArch64 reserved field from the epilogue scope word.
+  uint8_t ResAArch64() const {
+    return ((ES & 0x000f0000) >> 18);
+  }
+
+  // Condition is only applicable to ARM.
+  /// Return the ARM condition code under which this epilogue runs.
+  ///
+  /// \returns The ARM condition code under which this epilogue runs.
+  uint8_t Condition() const {
+    return ((ES & 0x00f00000) >> 20);
+  }
+
+  // Different implementations for ARM and AArch64.
+  /// Return the ARM byte index of the first unwind code for this epilogue.
+  ///
+  /// \returns The ARM byte index of the first unwind code for this epilogue.
+  uint8_t EpilogueStartIndexARM() const {
+    return ((ES & 0xff000000) >> 24);
+  }
+
+  /// Return the AArch64 index of the first unwind code for this epilogue.
+  ///
+  /// \returns The AArch64 index of the first unwind code for this epilogue.
+  uint16_t EpilogueStartIndexAArch64() const {
+    return ((ES & 0xffc00000) >> 22);
+  }
+};
+
+struct ExceptionDataRecord;
+/// Return the number of header words in an exception data record.
+///
+/// \param XR Exception data record whose header layout is inspected.
+/// \returns The number of header words in the exception data record.
+inline size_t HeaderWords(const ExceptionDataRecord &XR);
 
 /// ExceptionDataRecord - An entry in the table of exception data (.xdata)
 ///
@@ -340,35 +523,8 @@ public:
 ///                          set to 0.  Provides an 8-bit extended code word
 ///                          count and 16-bits for epilogue count
 ///
-/// The epilogue scope format on ARM is:
-///
-///  3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
-///  1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
-/// +----------------+------+---+---+-------------------------------+
-/// |  Ep Start Idx  | Cond |Res|       Epilogue Start Offset       |
-/// +----------------+------+---+-----------------------------------+
-///
-/// The epilogue scope format on ARM64 is:
-///
-///  3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
-///  1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
-/// +-------------------+-------+---+-------------------------------+
-/// |  Ep Start Idx     |  Res  |   Epilogue Start Offset           |
-/// +-------------------+-------+-----------------------------------+
-///
 /// If the E bit is unset in the header, the header is followed by a series of
 /// epilogue scopes, which are sorted by their offset.
-///
-/// Epilogue Start Offset: 18-bit field encoding the offset of epilogue relative
-///                        to the start of the function in bytes divided by two
-/// Res : 2-bit field reserved for future expansion (must be set to 0)
-/// Condition : (ARM only) 4-bit field providing the condition under which the
-///             epilogue is executed.  Unconditional epilogues should set this
-///             field to 0xe. Epilogues must be entirely conditional or
-///             unconditional, and in Thumb-2 mode.  The epilogue begins with
-///             the first instruction after the IT opcode.
-/// Epilogue Start Index : 8-bit field indicating the byte index of the first
-///                        unwind code describing the epilogue
 ///
 ///  3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
 ///  1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
@@ -392,80 +548,72 @@ public:
 /// exception handler information.  This constants of one Exception Handler RVA
 /// which is the address to the exception handler, followed immediately by the
 /// variable length data associated with the exception handler.
-///
-
-struct EpilogueScope {
-  const support::ulittle32_t ES;
-
-  EpilogueScope(const support::ulittle32_t Data) : ES(Data) {}
-  // Same for both ARM and AArch64.
-  uint32_t EpilogueStartOffset() const {
-    return (ES & 0x0003ffff);
-  }
-
-  // Different implementations for ARM and AArch64.
-  uint8_t ResARM() const {
-    return ((ES & 0x000c0000) >> 18);
-  }
-
-  uint8_t ResAArch64() const {
-    return ((ES & 0x000f0000) >> 18);
-  }
-
-  // Condition is only applicable to ARM.
-  uint8_t Condition() const {
-    return ((ES & 0x00f00000) >> 20);
-  }
-
-  // Different implementations for ARM and AArch64.
-  uint8_t EpilogueStartIndexARM() const {
-    return ((ES & 0xff000000) >> 24);
-  }
-
-  uint16_t EpilogueStartIndexAArch64() const {
-    return ((ES & 0xffc00000) >> 22);
-  }
-};
-
-struct ExceptionDataRecord;
-inline size_t HeaderWords(const ExceptionDataRecord &XR);
-
 struct ExceptionDataRecord {
+  /// Pointer to the little-endian words of the .xdata record.
   const support::ulittle32_t *Data;
+  /// True when interpreting the record with the AArch64 layout.
   bool isAArch64;
 
+  /// Construct an ExceptionDataRecord over raw .xdata words.
+  ///
+  /// \param Data Pointer to the first header word of the .xdata record.
+  /// \param isAArch64 True to use the AArch64 field layout; false for ARM.
   ExceptionDataRecord(const support::ulittle32_t *Data, bool isAArch64) :
     Data(Data), isAArch64(isAArch64) {}
 
+  /// Return the raw 18-bit Function Length field from the header.
+  ///
+  /// \returns The raw 18-bit Function Length field from the header.
   uint32_t FunctionLength() const {
     return (Data[0] & 0x0003ffff);
   }
 
+  /// Return the ARM function length in bytes (FunctionLength << 1).
+  ///
+  /// \returns The ARM function length in bytes.
   uint32_t FunctionLengthInBytesARM() const {
     return FunctionLength() << 1;
   }
 
+  /// Return the AArch64 function length in bytes (FunctionLength << 2).
+  ///
+  /// \returns The AArch64 function length in bytes.
   uint32_t FunctionLengthInBytesAArch64() const {
     return FunctionLength() << 2;
   }
 
+  /// Return the .xdata structure version from the header.
+  ///
+  /// \returns The .xdata structure version from the header.
   uint8_t Vers() const {
     return (Data[0] & 0x000C0000) >> 18;
   }
 
+  /// Return whether exception handler data follows the unwind codes.
+  ///
+  /// \returns True if exception handler data follows the unwind codes.
   bool X() const {
     return ((Data[0] & 0x00100000) >> 20);
   }
 
+  /// Return whether a single epilogue is packed into the header.
+  ///
+  /// \returns True if a single epilogue is packed into the header.
   bool E() const {
     return ((Data[0] & 0x00200000) >> 21);
   }
 
+  /// Return whether this ARM record describes a function fragment.
+  ///
+  /// \returns True if this ARM record describes a function fragment.
   bool F() const {
     assert(!isAArch64 && "Fragments are only supported on ARMv7 WinEH");
     return ((Data[0] & 0x00400000) >> 22);
   }
 
+  /// Return the epilogue count or packed epilogue index from the header.
+  ///
+  /// \returns The epilogue count or packed epilogue index from the header.
   uint16_t EpilogueCount() const {
     if (HeaderWords(*this) == 1) {
       if (isAArch64)
@@ -475,6 +623,9 @@ struct ExceptionDataRecord {
     return Data[1] & 0x0000ffff;
   }
 
+  /// Return the number of 32-bit words occupied by unwind codes.
+  ///
+  /// \returns The number of 32-bit words occupied by unwind codes.
   uint8_t CodeWords() const {
     if (HeaderWords(*this) == 1) {
       if (isAArch64)
@@ -484,12 +635,18 @@ struct ExceptionDataRecord {
     return (Data[1] & 0x00ff0000) >> 16;
   }
 
+  /// Return the epilogue scope descriptors when E is unset.
+  ///
+  /// \returns The epilogue scope descriptors.
   ArrayRef<support::ulittle32_t> EpilogueScopes() const {
     assert(E() == 0 && "epilogue scopes are only present when the E bit is 0");
     size_t Offset = HeaderWords(*this);
     return ArrayRef(&Data[Offset], EpilogueCount());
   }
 
+  /// Return the unwind bytecode bytes that follow the header and scopes.
+  ///
+  /// \returns The unwind bytecode bytes that follow the header and scopes.
   ArrayRef<uint8_t> UnwindByteCode() const {
     const size_t Offset = HeaderWords(*this)
                         + (E() ? 0 :  EpilogueCount());
@@ -498,11 +655,17 @@ struct ExceptionDataRecord {
     return ArrayRef(ByteCode, CodeWords() * sizeof(uint32_t));
   }
 
+  /// Return the exception handler RVA when X is set.
+  ///
+  /// \returns The exception handler RVA.
   uint32_t ExceptionHandlerRVA() const {
     assert(X() && "Exception Handler RVA is only valid if the X bit is set");
     return Data[HeaderWords(*this) + (E() ? 0 : EpilogueCount()) + CodeWords()];
   }
 
+  /// Return the exception handler parameter word when X is set.
+  ///
+  /// \returns The exception handler parameter word.
   uint32_t ExceptionHandlerParameter() const {
     assert(X() && "Exception Handler RVA is only valid if the X bit is set");
     return Data[HeaderWords(*this) + (E() ? 0 : EpilogueCount()) + CodeWords() +

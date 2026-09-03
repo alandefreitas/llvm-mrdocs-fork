@@ -71,9 +71,14 @@ public:
   /// Construct an empty analysis that must be assigned or moved into later.
   GenericUniformityInfo() = default;
   /// Move-construct, taking ownership of the analysis implementation.
-  GenericUniformityInfo(GenericUniformityInfo &&) = default;
+  ///
+  /// \param Other Analysis to move from.
+  GenericUniformityInfo(GenericUniformityInfo &&Other) = default;
   /// Move-assign, taking ownership of the analysis implementation.
-  GenericUniformityInfo &operator=(GenericUniformityInfo &&) = default;
+  ///
+  /// \param Other Analysis to move from.
+  /// \return Reference to this analysis after the move.
+  GenericUniformityInfo &operator=(GenericUniformityInfo &&Other) = default;
 
   /// Run the uniformity analysis, filling divergence results.
   void compute() {
@@ -82,15 +87,25 @@ public:
   }
 
   /// The GPU kernel this analysis result is for
+  ///
+  /// \return Function this analysis was computed for.
   const FunctionT &getFunction() const;
 
   /// The cycle info this analysis was computed with.
+  ///
+  /// \return Cycle information used when computing this analysis.
   const CycleInfoT &getCycleInfo() const;
 
   /// Whether \p V is divergent at its definition.
+  ///
+  /// \param V Value to query at its definition.
+  /// \return True if \p V is divergent at its definition.
   bool isDivergentAtDef(ConstValueRefT V) const;
 
   /// Whether \p V is uniform/non-divergent at its definition.
+  ///
+  /// \param V Value to query at its definition.
+  /// \return True if \p V is uniform at its definition.
   bool isUniformAtDef(ConstValueRefT V) const { return !isDivergentAtDef(V); }
 
   // Whether the terminator instruction \p I is uniform/divergent, i.e. whether
@@ -102,30 +117,51 @@ public:
   // if querying whether a CondBrInst is divergent, it should not be treated as
   // a Value in LLVM IR.
   /// Return true if terminator \p I has a uniform controlling condition.
+  ///
+  /// \param I Terminator instruction to query.
+  /// \return True if \p I's controlling condition is uniform.
   bool isUniformTerminator(const InstructionT *I) const {
     return !isDivergentTerminator(I);
   };
   /// Return true if terminator \p I has a divergent controlling condition.
+  ///
+  /// \param I Terminator instruction to query.
+  /// \return True if \p I's controlling condition is divergent.
   bool isDivergentTerminator(const InstructionT *I) const;
 
   /// \brief Whether \p U is divergent at its use. Uses of a uniform value can
   /// be divergent.
+  ///
+  /// \param U Use site to query.
+  /// \return True if \p U is divergent at this use.
   bool isDivergentAtUse(const UseT &U) const;
 
   /// \brief Whether \p U is uniform/non-divergent at its use.
+  ///
+  /// \param U Use site to query.
+  /// \return True if \p U is uniform at this use.
   bool isUniformAtUse(const UseT &U) const { return !isDivergentAtUse(U); }
 
   /// Return true if block \p B's terminator is divergent.
+  ///
+  /// \param B Basic block whose terminator is queried.
+  /// \return True if \p B's terminator is divergent.
   bool hasDivergentTerminator(const BlockT &B);
 
   /// Call before erasing \p V, or a later instruction reusing its address
   /// may be misclassified as uniform.
+  ///
+  /// \param V Value about to be erased.
   void forgetValue(ConstValueRefT V);
 
   /// Print a textual dump of divergence results to \p Out.
+  ///
+  /// \param Out Stream that receives the dump.
   void print(raw_ostream &Out) const;
 
   /// Return the list of temporally divergent (value, use, cycle) tuples.
+  ///
+  /// \return Range of temporally divergent (value, use, cycle) tuples.
   iterator_range<TemporalDivergenceTuple *> getTemporalDivergenceList() const;
 
 private:

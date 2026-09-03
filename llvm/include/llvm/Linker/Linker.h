@@ -16,21 +16,27 @@
 namespace llvm {
 class Module;
 
-/// This class provides the core functionality of linking in LLVM. It keeps a
-/// pointer to the merged module so far. It doesn't take ownership of the
-/// module since it is assumed that the user of this class will want to do
+/// Provides the core functionality of linking LLVM modules.
+///
+/// Keeps a pointer to the merged module so far. It doesn't take ownership of
+/// the module since it is assumed that the user of this class will want to do
 /// something with it after the linking.
 class Linker {
   IRMover Mover;
 
 public:
+  /// Flags that control how modules are linked together.
   enum Flags {
+    /// No special linking behavior.
     None = 0,
     /// Have symbols from Src shadow those in the Dest.
     OverrideFromSrc = (1 << 0),
+    /// Link only symbols that are needed by the destination module.
     LinkOnlyNeeded = (1 << 1),
   };
 
+  /// Construct a Linker that appends into composite module \p M.
+  /// \param M Destination module that receives linked IR.
   LLVM_ABI Linker(Module &M);
 
   /// Link \p Src into the composite.
@@ -39,12 +45,24 @@ public:
   /// the new module and a list of global value names to be internalized by the
   /// callback.
   ///
-  /// Returns true on error.
+  /// \param Src Source module to link in; ownership is taken.
+  /// \param Flags Bitmask of \a Flags controlling link behavior.
+  /// \param InternalizeCallback Optional callback invoked with the composite
+  ///        module and the set of global value names to internalize.
+  /// \returns true on error.
   LLVM_ABI bool linkInModule(std::unique_ptr<Module> Src,
                              unsigned Flags = Flags::None,
                              std::function<void(Module &, const StringSet<> &)>
                                  InternalizeCallback = {});
 
+  /// Link \p Src into destination module \p Dest.
+  ///
+  /// \param Dest Destination module that receives linked IR.
+  /// \param Src Source module to link in; ownership is taken.
+  /// \param Flags Bitmask of \a Flags controlling link behavior.
+  /// \param InternalizeCallback Optional callback invoked with the composite
+  ///        module and the set of global value names to internalize.
+  /// \returns true on error.
   LLVM_ABI static bool linkModules(
       Module &Dest, std::unique_ptr<Module> Src, unsigned Flags = Flags::None,
       std::function<void(Module &, const StringSet<> &)> InternalizeCallback =

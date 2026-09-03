@@ -22,21 +22,29 @@
 
 namespace llvm {
 
+/// DWARF register number used by CFI unwinding rules.
 using DWARFRegNum = uint32_t;
 
-/// This class is used to maintain a CFI state, referred to as an unwinding row,
-/// during CFI analysis. The only way to modify the state is by updating it with
-/// a CFI directive.
+/// Maintains a CFI unwinding row during Call Frame Information analysis.
+///
+/// The only way to modify the state is by updating it with a CFI directive.
 class DWARFCFIState {
 public:
+  /// Construct a CFI state that reports issues through \p Context.
+  /// \param Context Context used to emit errors and warnings from CFI updates.
   DWARFCFIState(MCContext *Context) : Context(Context), IsInitiated(false) {};
 
+  /// Get the current unwinding row.
+  ///
+  /// \return The current unwinding row, or nullopt if none has been applied.
   LLVM_ABI std::optional<dwarf::UnwindRow> getCurrentUnwindRow() const;
 
-  /// This method updates the state by applying \p Directive to the current
-  /// state. If the directive is not supported by the checker or any error
-  /// happens while applying the CFI directive, a warning or error is reported
-  /// to the user, and the directive is ignored, leaving the state unchanged.
+  /// Apply \p Directive to the current CFI unwinding row.
+  ///
+  /// If the directive is not supported by the checker or any error happens
+  /// while applying the CFI directive, a warning or error is reported to the
+  /// user, and the directive is ignored, leaving the state unchanged.
+  /// \param Directive CFI instruction to apply to this state.
   LLVM_ABI void update(const MCCFIInstruction &Directive);
 
 private:

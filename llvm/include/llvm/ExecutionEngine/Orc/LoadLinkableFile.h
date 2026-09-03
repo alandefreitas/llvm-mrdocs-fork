@@ -26,18 +26,28 @@
 namespace llvm {
 namespace orc {
 
-enum class LinkableFileKind { Archive, RelocatableObject };
+/// Kind of linkable file loaded from a path.
+enum class LinkableFileKind {
+  /// Static archive containing object files.
+  Archive,
+  /// Relocatable object file.
+  RelocatableObject
+};
 
+/// Whether loadLinkableFile may or must load a static archive.
 enum class LoadArchives {
-  Never,   // Linkable file must not be an archive.
-  Allowed, // Linkable file is allowed to be an archive.
-  Required // Linkable file is required to be an archive.
+  /// Linkable file must not be an archive.
+  Never,
+  /// Linkable file is allowed to be an archive.
+  Allowed,
+  /// Linkable file is required to be an archive.
+  Required
 };
 
 /// Create a MemoryBuffer covering the "linkable" part of the given path.
 ///
 /// The path must contain a relocatable object file or universal binary, or
-/// (if AllowArchives is true) an archive.
+/// (if \p LA is Allowed or Required) an archive.
 ///
 /// If the path is a universal binary then it must contain a slice whose
 /// architecture matches the architecture in the triple (an error will be
@@ -55,6 +65,13 @@ enum class LoadArchives {
 ///
 /// If IdentifierOverride is provided then it will be used as the name of the
 /// resulting buffer, rather than Path.
+/// \param Path Path to the relocatable object, archive, or universal binary.
+/// \param TT Triple used to select and validate architecture and format.
+/// \param LA Whether archives are forbidden, allowed, or required.
+/// \param IdentifierOverride Optional name for the resulting buffer; defaults
+///        to Path when omitted.
+/// \return A MemoryBuffer covering the linkable content and its kind, or an
+///         error.
 LLVM_ABI Expected<std::pair<std::unique_ptr<MemoryBuffer>, LinkableFileKind>>
 loadLinkableFile(StringRef Path, const Triple &TT, LoadArchives LA,
                  std::optional<StringRef> IdentifierOverride = std::nullopt);

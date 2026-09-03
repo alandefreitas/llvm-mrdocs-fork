@@ -55,14 +55,20 @@ class DIBuilder;
 /// \param ApplyToMF A call back that will add debug information to the
 ///                  MachineFunction for a Function. If nullptr, then the
 ///                  MachineFunction (if any) will not be modified.
+/// \return True if synthetic debug info was applied; false if skipped because
+///         the module already had debug info.
 LLVM_ABI bool
 applyDebugifyMetadata(Module &M, iterator_range<Module::iterator> Functions,
                       StringRef Banner,
                       std::function<bool(DIBuilder &, Function &)> ApplyToMF);
 
-/// Strip out all of the metadata and debug info inserted by debugify. If no
-/// llvm.debugify module-level named metadata is present, this is a no-op.
-/// Returns true if any change was made.
+/// Strip out all of the metadata and debug info inserted by debugify.
+///
+/// If no llvm.debugify module-level named metadata is present, this is a
+/// no-op.
+///
+/// \param M The module to strip debugify metadata from.
+/// \return True if any change was made.
 LLVM_ABI bool stripDebugifyMetadata(Module &M);
 
 /// Collect original debug information before a pass.
@@ -72,6 +78,8 @@ LLVM_ABI bool stripDebugifyMetadata(Module &M);
 /// \param DebugInfoBeforePass DI metadata before a pass.
 /// \param Banner A prefix string to add to debug/error messages.
 /// \param NameOfWrappedPass A name of a pass to add to debug/error messages.
+/// \return True if original debug info was collected; false if the module has
+///         no debug info.
 LLVM_ABI bool
 collectDebugInfoMetadata(Module &M, iterator_range<Module::iterator> Functions,
                          DebugInfoPerPass &DebugInfoBeforePass,
@@ -84,6 +92,10 @@ collectDebugInfoMetadata(Module &M, iterator_range<Module::iterator> Functions,
 /// \param DebugInfoBeforePass DI metadata before a pass.
 /// \param Banner A prefix string to add to debug/error messages.
 /// \param NameOfWrappedPass A name of a pass to add to debug/error messages.
+/// \param OrigDIVerifyBugsReportFilePath Path to write original-DI
+///        verification bug reports to, or empty to skip writing a report.
+/// \return True if original debug info was preserved; false if bugs were found
+///         or the module has no debug info.
 LLVM_ABI bool checkDebugInfoMetadata(Module &M,
                                      iterator_range<Module::iterator> Functions,
                                      DebugInfoPerPass &DebugInfoBeforePass,
@@ -195,8 +207,13 @@ public:
 };
 
 namespace llvm {
+/// Write debugify statistics from \p Map to the file at \p Path.
+///
+/// \param Path Output file path for the exported statistics.
+/// \param Map Per-pass debugify statistics to export.
 LLVM_ABI void exportDebugifyStats(StringRef Path, const DebugifyStatsMap &Map);
 
+/// Registers NewPM callbacks that run debugify around each pass.
 class DebugifyEachInstrumentation {
   llvm::StringRef OrigDIVerifyBugsReportFilePath = "";
   DebugInfoPerPass *DebugInfoBeforePass = nullptr;
@@ -204,36 +221,75 @@ class DebugifyEachInstrumentation {
   DebugifyStatsMap *DIStatsMap = nullptr;
 
 public:
+  /// Register before/after callbacks that apply debugify around each pass.
+  ///
+  /// \param PIC Pass instrumentation callbacks to register with.
+  /// \param MAM Module analysis manager used by the registered callbacks.
   LLVM_ABI void registerCallbacks(PassInstrumentationCallbacks &PIC,
                                   ModuleAnalysisManager &MAM);
-  // Used within DebugifyMode::SyntheticDebugInfo mode.
+
+  /// Set the map used to record synthetic debugify statistics.
+  ///
+  /// Used within DebugifyMode::SyntheticDebugInfo mode.
+  ///
+  /// \param StatMap Statistics map to update as passes run.
   void setDIStatsMap(DebugifyStatsMap &StatMap) { DIStatsMap = &StatMap; }
+
+  /// Return the map of synthetic debugify statistics.
+  ///
+  /// \return Const reference to the synthetic debugify statistics map.
   const DebugifyStatsMap &getDebugifyStatsMap() const { return *DIStatsMap; }
-  // Used within DebugifyMode::OriginalDebugInfo mode.
+
+  /// Set the per-pass original debug-info snapshot used for verification.
+  ///
+  /// Used within DebugifyMode::OriginalDebugInfo mode.
+  ///
+  /// \param PerPassMap Snapshot of debug info collected before each pass.
   void setDebugInfoBeforePass(DebugInfoPerPass &PerPassMap) {
     DebugInfoBeforePass = &PerPassMap;
   }
+
+  /// Return the per-pass original debug-info snapshot.
+  ///
+  /// \return Reference to the debug-info snapshot collected before each pass.
   DebugInfoPerPass &getDebugInfoPerPass() { return *DebugInfoBeforePass; }
 
+  /// Set the path used to write original-DI verification bug reports.
+  ///
+  /// \param BugsReportFilePath Output path for verification bug reports.
   void setOrigDIVerifyBugsReportFilePath(StringRef BugsReportFilePath) {
     OrigDIVerifyBugsReportFilePath = BugsReportFilePath;
   }
+
+  /// Return the path used to write original-DI verification bug reports.
+  ///
+  /// \return Path for original-DI verification bug reports, or empty if unset.
   StringRef getOrigDIVerifyBugsReportFilePath() const {
     return OrigDIVerifyBugsReportFilePath;
   }
 
+  /// Set whether debugify tracks synthetic or original debug info.
+  ///
+  /// \param M Debugify operating mode to use.
   void setDebugifyMode(enum DebugifyMode M) { Mode = M; }
 
+  /// Return true if debugify is in synthetic debug-info mode.
+  ///
+  /// \return True when Mode is DebugifyMode::SyntheticDebugInfo.
   bool isSyntheticDebugInfo() const {
     return Mode == DebugifyMode::SyntheticDebugInfo;
   }
+
+  /// Return true if debugify is in original debug-info mode.
+  ///
+  /// \return True when Mode is DebugifyMode::OriginalDebugInfo.
   bool isOriginalDebugInfoMode() const {
     return Mode == DebugifyMode::OriginalDebugInfo;
   }
 };
 
-/// DebugifyCustomPassManager wraps each pass with the debugify passes if
-/// needed.
+/// Legacy pass manager that wraps each pass with debugify when enabled.
+///
 /// NOTE: We support legacy custom pass manager only.
 /// TODO: Add New PM support for custom pass manager.
 class DebugifyCustomPassManager : public legacy::PassManager {
@@ -243,8 +299,12 @@ class DebugifyCustomPassManager : public legacy::PassManager {
   enum DebugifyMode Mode = DebugifyMode::NoDebugify;
 
 public:
+  /// Base legacy pass manager type.
   using super = legacy::PassManager;
 
+  /// Add \p P, wrapping it with debugify passes when requested.
+  ///
+  /// \param P Pass to schedule, optionally wrapped with (-check)-debugify.
   void add(Pass *P) override {
     // Wrap each pass with (-check)-debugify passes if requested, making
     // exceptions for passes which shouldn't see -debugify instrumentation.
@@ -284,29 +344,63 @@ public:
     }
   }
 
-  // Used within DebugifyMode::SyntheticDebugInfo mode.
+  /// Set the map used to record synthetic debugify statistics.
+  ///
+  /// Used within DebugifyMode::SyntheticDebugInfo mode.
+  ///
+  /// \param StatMap Statistics map to update as passes run.
   void setDIStatsMap(DebugifyStatsMap &StatMap) { DIStatsMap = &StatMap; }
-  // Used within DebugifyMode::OriginalDebugInfo mode.
+
+  /// Set the per-pass original debug-info snapshot used for verification.
+  ///
+  /// Used within DebugifyMode::OriginalDebugInfo mode.
+  ///
+  /// \param PerPassDI Snapshot of debug info collected before each pass.
   void setDebugInfoBeforePass(DebugInfoPerPass &PerPassDI) {
     DebugInfoBeforePass = &PerPassDI;
   }
+
+  /// Set the path used to write original-DI verification bug reports.
+  ///
+  /// \param BugsReportFilePath Output path for verification bug reports.
   void setOrigDIVerifyBugsReportFilePath(StringRef BugsReportFilePath) {
     OrigDIVerifyBugsReportFilePath = BugsReportFilePath;
   }
+
+  /// Return the path used to write original-DI verification bug reports.
+  ///
+  /// \return Path for original-DI verification bug reports, or empty if unset.
   StringRef getOrigDIVerifyBugsReportFilePath() const {
     return OrigDIVerifyBugsReportFilePath;
   }
 
+  /// Set whether debugify tracks synthetic or original debug info.
+  ///
+  /// \param M Debugify operating mode to use.
   void setDebugifyMode(enum DebugifyMode M) { Mode = M; }
 
+  /// Return true if debugify is in synthetic debug-info mode.
+  ///
+  /// \return True when Mode is DebugifyMode::SyntheticDebugInfo.
   bool isSyntheticDebugInfo() const {
     return Mode == DebugifyMode::SyntheticDebugInfo;
   }
+
+  /// Return true if debugify is in original debug-info mode.
+  ///
+  /// \return True when Mode is DebugifyMode::OriginalDebugInfo.
   bool isOriginalDebugInfoMode() const {
     return Mode == DebugifyMode::OriginalDebugInfo;
   }
 
+  /// Return the map of synthetic debugify statistics.
+  ///
+  /// \return Const reference to the synthetic debugify statistics map.
   const DebugifyStatsMap &getDebugifyStatsMap() const { return *DIStatsMap; }
+
+  /// Return the per-pass original debug-info snapshot.
+  ///
+  /// \return Reference to the debug-info snapshot collected before each pass.
   DebugInfoPerPass &getDebugInfoPerPass() { return *DebugInfoBeforePass; }
 };
 } // namespace llvm

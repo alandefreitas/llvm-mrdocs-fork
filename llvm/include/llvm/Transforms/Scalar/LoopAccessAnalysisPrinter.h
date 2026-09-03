@@ -23,8 +23,16 @@ class LoopAccessInfoPrinterPass
   bool AllowPartial;
 
 public:
+  /// Construct a printer that writes LoopAccessInfo results to \p OS.
+  /// @param OS Output stream for the printed analysis.
+  /// @param AllowPartial When true, keep partial runtime checks on failure.
   explicit LoopAccessInfoPrinterPass(raw_ostream &OS, bool AllowPartial)
       : OS(OS), AllowPartial(AllowPartial) {}
+
+  /// Print LoopAccessInfo for each loop in \p F and return all analyses preserved.
+  /// @param F Function whose loops are analyzed and printed.
+  /// @param AM Function analysis manager providing LoopAccessAnalysis.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 

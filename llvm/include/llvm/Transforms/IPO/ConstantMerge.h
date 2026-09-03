@@ -28,7 +28,12 @@ class Module;
 /// A pass that merges duplicate global constants into a single constant.
 class ConstantMergePass : public OptionalPassInfoMixin<ConstantMergePass> {
 public:
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Run constant merging over the given module.
+  ///
+  /// \param M Module whose duplicate global constants are merged.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // end namespace llvm

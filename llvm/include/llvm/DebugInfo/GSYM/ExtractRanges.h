@@ -28,6 +28,8 @@ namespace gsym {
 class FileWriter;
 class GsymDataExtractor;
 
+/// Decode an AddressRange from a binary data stream.
+///
 /// AddressRange objects are encoded and decoded to be relative to a base
 /// address. This will be the FunctionInfo's start address if the AddressRange
 /// is directly contained in a FunctionInfo, or a base address of the
@@ -36,12 +38,30 @@ class GsymDataExtractor;
 /// offset and size of each range instead of full addresses. This also makes
 /// encoded addresses easy to relocate as we just need to relocate one base
 /// address.
-/// @{
+///
+/// \param Data The binary stream to read the data from.
+///
+/// \param BaseAddr The base address used to reconstruct absolute addresses.
+///
+/// \param Offset The byte offset within \a Data.
+///
+/// \returns The decoded address range.
 LLVM_ABI AddressRange decodeRange(GsymDataExtractor &Data, uint64_t BaseAddr,
                                   uint64_t &Offset);
+
+/// Encode an AddressRange into a binary stream relative to a base address.
+///
+/// The range is written as a ULEB128 offset from \a BaseAddr followed by a
+/// ULEB128 size, matching the format consumed by decodeRange.
+///
+/// \param Range The address range to encode.
+///
+/// \param O The binary stream to write the data to at the current file
+/// position.
+///
+/// \param BaseAddr The base address to subtract when encoding the range.
 LLVM_ABI void encodeRange(const AddressRange &Range, FileWriter &O,
                           uint64_t BaseAddr);
-/// @}
 
 /// Skip an address range object in the specified data a the specified
 /// offset.
@@ -51,15 +71,34 @@ LLVM_ABI void encodeRange(const AddressRange &Range, FileWriter &O,
 /// \param Offset The byte offset within \a Data.
 LLVM_ABI void skipRange(GsymDataExtractor &Data, uint64_t &Offset);
 
-/// Address ranges are decoded and encoded to be relative to a base address.
-/// See the AddressRange comment for the encode and decode methods for full
-/// details.
-/// @{
+/// Decode a collection of address ranges from a binary data stream.
+///
+/// Address ranges are decoded relative to a base address. See the
+/// documentation for decodeRange for full details on the encoding.
+///
+/// \param Ranges The collection to populate with decoded address ranges.
+///
+/// \param Data The binary stream to read the data from.
+///
+/// \param BaseAddr The base address used to reconstruct absolute addresses.
+///
+/// \param Offset The byte offset within \a Data.
 LLVM_ABI void decodeRanges(AddressRanges &Ranges, GsymDataExtractor &Data,
                            uint64_t BaseAddr, uint64_t &Offset);
+
+/// Encode a collection of address ranges into a binary stream.
+///
+/// Address ranges are encoded relative to a base address. See the
+/// documentation for encodeRange for full details on the encoding.
+///
+/// \param Ranges The address ranges to encode.
+///
+/// \param O The binary stream to write the data to at the current file
+/// position.
+///
+/// \param BaseAddr The base address to subtract when encoding each range.
 LLVM_ABI void encodeRanges(const AddressRanges &Ranges, FileWriter &O,
                            uint64_t BaseAddr);
-/// @}
 
 /// Skip an address range object in the specified data a the specified
 /// offset.
@@ -73,8 +112,22 @@ LLVM_ABI uint64_t skipRanges(GsymDataExtractor &Data, uint64_t &Offset);
 
 } // namespace gsym
 
+/// Stream a human-readable representation of \p R to \p OS.
+///
+/// \param OS Destination stream.
+///
+/// \param R Address range to print.
+///
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const AddressRange &R);
 
+/// Stream a human-readable representation of \p AR to \p OS.
+///
+/// \param OS Destination stream.
+///
+/// \param AR Address ranges to print.
+///
+/// \returns A reference to \p OS.
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const AddressRanges &AR);
 
 } // namespace llvm

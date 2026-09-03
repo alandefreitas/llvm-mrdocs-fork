@@ -18,7 +18,15 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+/// Pass that rewrites switch instructions as a sequence of branches.
+///
+/// This allows targets to get away with not implementing the switch
+/// instruction until it is convenient.
 struct LowerSwitchPass : public RequiredPassInfoMixin<LowerSwitchPass> {
+  /// Run the lower-switch pass over the function.
+  /// @param F Function whose switch instructions should be lowered.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // namespace llvm

@@ -25,11 +25,22 @@ namespace llvm {
 class Module;
 class Pass;
 
+/// Options controlling how bitcode is embedded into a module.
 struct EmbedBitcodeOptions {
+  /// Construct embed-bitcode options with ThinLTO and summary emission disabled.
   EmbedBitcodeOptions() : EmbedBitcodeOptions(false, false) {}
+
+  /// Construct embed-bitcode options with the given ThinLTO and summary flags.
+  ///
+  /// \param IsThinLTO Whether embedded bitcode should be prepared for ThinLTO.
+  /// \param EmitLTOSummary Whether an LTO module summary should be emitted.
   EmbedBitcodeOptions(bool IsThinLTO, bool EmitLTOSummary)
       : IsThinLTO(IsThinLTO), EmitLTOSummary(EmitLTOSummary) {}
+
+  /// Whether embedded bitcode should be prepared for ThinLTO.
   bool IsThinLTO;
+
+  /// Whether an LTO module summary should be emitted with the bitcode.
   bool EmitLTOSummary;
 };
 
@@ -40,12 +51,25 @@ class EmbedBitcodePass : public RequiredPassInfoMixin<EmbedBitcodePass> {
   bool EmitLTOSummary;
 
 public:
+  /// Construct an embed-bitcode pass from the given options.
+  ///
+  /// \param Opts Options controlling ThinLTO preparation and summary emission.
   EmbedBitcodePass(EmbedBitcodeOptions Opts)
       : EmbedBitcodePass(Opts.IsThinLTO, Opts.EmitLTOSummary) {}
+
+  /// Construct an embed-bitcode pass with the given ThinLTO and summary flags.
+  ///
+  /// \param IsThinLTO Whether embedded bitcode should be prepared for ThinLTO.
+  /// \param EmitLTOSummary Whether an LTO module summary should be emitted.
   EmbedBitcodePass(bool IsThinLTO, bool EmitLTOSummary)
       : IsThinLTO(IsThinLTO), EmitLTOSummary(EmitLTOSummary) {}
 
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Embed optimized bitcode for module \p M into a global variable.
+  ///
+  /// \param M Module whose optimized bitcode is embedded.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // end namespace llvm.

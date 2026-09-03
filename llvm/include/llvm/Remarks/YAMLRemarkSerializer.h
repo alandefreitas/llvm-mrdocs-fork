@@ -20,7 +20,9 @@
 namespace llvm {
 namespace remarks {
 
-/// Serialize the remarks to YAML. One remark entry looks like this:
+/// Serialize remarks to YAML.
+///
+/// One remark entry looks like this:
 /// --- !<TYPE>
 /// Pass:            <PASSNAME>
 /// Name:            <REMARKNAME>
@@ -35,24 +37,44 @@ struct LLVM_ABI YAMLRemarkSerializer : public RemarkSerializer {
   /// The YAML streamer.
   yaml::Output YAMLOutput;
 
+  /// Construct a serializer that will create its own string table.
+  /// @param OS The stream to emit remarks to.
   YAMLRemarkSerializer(raw_ostream &OS);
+  /// Construct a serializer with a pre-filled string table.
+  /// @param OS The stream to emit remarks to.
+  /// @param StrTabIn Pre-filled string table to use for emission.
   YAMLRemarkSerializer(raw_ostream &OS, StringTable StrTabIn);
 
+  /// Emit a remark to the stream in YAML.
+  /// @param Remark The remark to emit.
   void emit(const Remark &Remark) override;
+  /// Return the corresponding metadata serializer.
+  /// @param OS The stream to emit metadata to.
+  /// @param ExternalFilename Path to an external remarks file, if any.
+  /// @return A unique pointer to a YAML metadata serializer.
   std::unique_ptr<MetaSerializer>
   metaSerializer(raw_ostream &OS, StringRef ExternalFilename) override;
 
+  /// Check whether \p S is a YAMLRemarkSerializer.
+  /// @param S The serializer to test.
+  /// @return true if \p S is a YAMLRemarkSerializer.
   static bool classof(const RemarkSerializer *S) {
     return S->SerializerFormat == Format::YAML;
   }
 };
 
+/// Serializer of metadata for YAML remarks.
 struct LLVM_ABI YAMLMetaSerializer : public MetaSerializer {
+  /// Path to an external remarks file, if any.
   StringRef ExternalFilename;
 
+  /// Construct a metadata serializer that writes to \p OS.
+  /// @param OS The stream to emit metadata to.
+  /// @param ExternalFilename Path to an external remarks file, if any.
   YAMLMetaSerializer(raw_ostream &OS, StringRef ExternalFilename)
       : MetaSerializer(OS), ExternalFilename(ExternalFilename) {}
 
+  /// Emit the metadata to the stream.
   void emit() override;
 };
 

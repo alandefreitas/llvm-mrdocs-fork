@@ -104,11 +104,17 @@ public:
   using const_iterator = typename std::vector<BlockT *>::const_iterator;
 
   /// Construct an empty order bound to SSA context \p C.
+  ///
+  /// \param C SSA context used for printing while building the order.
   ModifiedPostOrder(const ContextT &C) : Context(C) {}
 
   /// True if no blocks have been appended yet.
+  ///
+  /// \return True if the order currently contains no blocks.
   bool empty() const { return Order.empty(); }
   /// Number of blocks currently in the order.
+  ///
+  /// \return Number of blocks in the modified post-order.
   size_t size() const { return Order.size(); }
 
   /// Remove all blocks from the order.
@@ -116,14 +122,23 @@ public:
   void compute(const CycleInfoT &CI);
 
   /// Return non-zero if \p BB is present in the order.
+  ///
+  /// \param BB Block to look up in the modified post-order.
+  /// \return Non-zero if \p BB is present in the order; zero otherwise.
   unsigned count(BlockT *BB) const {
     unsigned Num = GraphTraits<BlockT *>::getNumber(BB);
     return Num < POIndex.size() && POIndex[Num] != InvalidIndex;
   }
   /// Return the block at modified-post-order index \p Idx.
+  ///
+  /// \param Idx Index into the modified post-order.
+  /// \return Block at index \p Idx in the modified post-order.
   const BlockT *operator[](size_t Idx) const { return Order[Idx]; }
 
   /// Append \p BB to the order, optionally marking it as a reducible cycle header.
+  ///
+  /// \param BB Block to append.
+  /// \param IsReducibleCycleHeader True if \p BB is a reducible cycle header.
   void appendBlock(const BlockT &BB, bool IsReducibleCycleHeader = false) {
     unsigned Num = GraphTraits<const BlockT *>::getNumber(&BB);
     POIndex[Num] = Order.size();
@@ -135,6 +150,9 @@ public:
   }
 
   /// Return the modified-post-order index of \p BB.
+  ///
+  /// \param BB Block whose index is requested.
+  /// \return Modified-post-order index of \p BB.
   unsigned getIndex(const BlockT *BB) const {
     unsigned Num = GraphTraits<const BlockT *>::getNumber(BB);
     assert(Num < POIndex.size() && POIndex[Num] != InvalidIndex);
@@ -142,6 +160,9 @@ public:
   }
 
   /// True if \p BB was recorded as a reducible cycle header.
+  ///
+  /// \param BB Block to test.
+  /// \return True if \p BB is in the reducible cycle-header set.
   bool isReducibleCycleHeader(const BlockT *BB) const {
     return ReducibleCycleHeaders.contains(BB);
   }
@@ -218,8 +239,8 @@ template <typename> class DivergencePropagator;
 // phi nodes.
 //
 //       entry
-//     /      \
-//    A        \
+/*     / */ \
+/*    A */ \
 //  /   \       Y
 // B     C     /
 //  \   /  \  /
@@ -236,8 +257,8 @@ template <typename> class DivergencePropagator;
 // successor block of A.
 //
 //           entry
-//         /      \
-//        A        \
+/*         / */ \
+/*        A */ \
 //      /   \       Y
 // x = 0   x = 1   /
 //      \  /   \  /
@@ -248,8 +269,8 @@ template <typename> class DivergencePropagator;
 // Our flavor of SSA construction for x will construct the following
 //
 //            entry
-//          /      \
-//         A        \
+/*          / */ \
+/*         A */ \
 //       /   \       Y
 // x0 = 0   x1 = 1  /
 //       \   /   \ /
@@ -318,18 +339,25 @@ public:
   using DivergencePropagatorT = DivergencePropagator<ContextT>;
 
   /// Construct analysis over \p DT and \p CI for SSA context \p Context.
+  ///
+  /// \param Context SSA context used for printing and graph queries.
+  /// \param DT Dominator tree of the function.
+  /// \param CI Cycle information for the function.
   GenericSyncDependenceAnalysis(const ContextT &Context,
                                 const DominatorTreeT &DT, const CycleInfoT &CI);
 
   /// \brief Computes divergent join points and cycle exits caused by branch
-  /// divergence in \p Term.
+  /// divergence in \p DivTermBlock.
   ///
   /// This returns a pair of sets:
   /// * The set of blocks which are reachable by disjoint paths from
-  ///   \p Term.
+  ///   \p DivTermBlock.
   /// * The set also contains cycle exits if there two disjoint paths:
-  ///   one from \p Term to the cycle exit and another from \p Term to
-  ///   the cycle header.
+  ///   one from \p DivTermBlock to the cycle exit and another from
+  ///   \p DivTermBlock to the cycle header.
+  ///
+  /// \param DivTermBlock Block whose divergent terminator seeds the analysis.
+  /// \return Divergence descriptor with join blocks and divergent cycle exits.
   const DivergenceDescriptor &getJoinBlocks(const BlockT *DivTermBlock);
 
 private:
@@ -532,6 +560,9 @@ private:
                            const InstructionT &Def) const;
 };
 
+/// Destroy and free the analysis implementation pointed to by \p Impl.
+///
+/// \param Impl Owned analysis implementation to delete.
 template <typename ImplT>
 void GenericUniformityAnalysisImplDeleter<ImplT>::operator()(ImplT *Impl) {
   delete Impl;
@@ -593,11 +624,19 @@ public:
   SmallVector<const BlockT *> BlockLabels;
 
   /// Mutable reference to the label stored for block \p BB.
+  ///
+  /// \param BB Block whose label slot is returned.
+  /// \return Reference to the label pointer for \p BB.
   const BlockT *&label(const BlockT *BB) {
     return BlockLabels[GraphTraits<const BlockT *>::getNumber(BB)];
   }
 
   /// Construct a propagator seeded at divergent terminator \p DivTermBlock.
+  ///
+  /// \param CyclePOT Modified post-order used while walking blocks.
+  /// \param DT Dominator tree for the function under analysis.
+  /// \param CI Cycle information for the function under analysis.
+  /// \param DivTermBlock Divergent terminator block that seeds propagation.
   DivergencePropagator(const ModifiedPO &CyclePOT, const DominatorTreeT &DT,
                        const CycleInfoT &CI, const BlockT &DivTermBlock)
       : CyclePOT(CyclePOT), DT(DT), CI(CI), DivTermBlock(DivTermBlock),
@@ -607,6 +646,8 @@ public:
             nullptr) {}
 
   /// Print the current block labels to \p Out for debugging.
+  ///
+  /// \param Out Stream that receives the label dump.
   void printDefs(raw_ostream &Out) {
     Out << "Propagator::BlockLabels {\n";
     for (int BlockIdx = (int)CyclePOT.size() - 1; BlockIdx >= 0; --BlockIdx) {
@@ -624,6 +665,8 @@ public:
 
   /// Push definition \p PushedLabel onto \p SuccBlock.
   ///
+  /// \param SuccBlock Successor that receives the pushed definition label.
+  /// \param PushedLabel Definition label propagated along the edge.
   /// \return true if this creates a divergent join at \p SuccBlock.
   bool computeJoin(const BlockT &SuccBlock, const BlockT &PushedLabel) {
     const auto *OldLabel = label(&SuccBlock);
@@ -661,6 +704,10 @@ public:
   }
 
   /// Visit a virtual cycle-exit edge; record temporal divergence on join.
+  ///
+  /// \param ExitBlock Cycle exit reached along a diverged path.
+  /// \param Label Dominating definition label pushed to the exit.
+  /// \return True if a divergent cycle exit was recorded at \p ExitBlock.
   bool visitCycleExitEdge(const BlockT &ExitBlock, const BlockT &Label) {
     if (!computeJoin(ExitBlock, Label))
       return false;
@@ -673,6 +720,10 @@ public:
   }
 
   /// Process successor \p SuccBlock reached with definition \p Label.
+  ///
+  /// \param SuccBlock Successor reached along a diverged path.
+  /// \param Label Dominating definition label pushed to the successor.
+  /// \return True if a divergent join was recorded at \p SuccBlock.
   bool visitEdge(const BlockT &SuccBlock, const BlockT &Label) {
     if (!computeJoin(SuccBlock, Label))
       return false;
@@ -685,6 +736,9 @@ public:
   }
 
   /// Run label propagation and return the discovered divergence descriptor.
+  ///
+  /// \return Unique pointer to the divergence descriptor with join points and
+  /// cycle exits.
   std::unique_ptr<DivergenceDescriptorT> computeJoinPoints() {
     assert(DivDesc);
 
@@ -868,6 +922,8 @@ auto llvm::GenericSyncDependenceAnalysis<ContextT>::getJoinBlocks(
 }
 
 /// Mark instruction \p I divergent and enqueue it for further propagation.
+///
+/// \param I Instruction whose outputs or terminator block should be marked.
 template <typename ContextT>
 void GenericUniformityAnalysisImpl<ContextT>::markDivergent(
     const InstructionT &I) {
@@ -896,6 +952,9 @@ void GenericUniformityAnalysisImpl<ContextT>::markDivergent(
 }
 
 /// Mark value \p Val divergent; return true if its uniform status changed.
+///
+/// \param Val Value to mark divergent by removing it from UniformValues.
+/// \return True if \p Val was previously uniform and is now marked divergent.
 template <typename ContextT>
 bool GenericUniformityAnalysisImpl<ContextT>::markDivergent(
     ConstValueRefT Val) {
@@ -907,6 +966,8 @@ bool GenericUniformityAnalysisImpl<ContextT>::markDivergent(
 }
 
 /// Treat \p Instr as always uniform regardless of its operands.
+///
+/// \param Instr Instruction that should be treated as always uniform.
 template <typename ContextT>
 void GenericUniformityAnalysisImpl<ContextT>::addUniformOverride(
     const InstructionT &Instr) {
@@ -914,6 +975,8 @@ void GenericUniformityAnalysisImpl<ContextT>::addUniformOverride(
 }
 
 /// Register \p I as a candidate whose uniformity is decided by custom rules.
+///
+/// \param I Instruction that needs target-specific uniformity analysis.
 template <typename ContextT>
 void GenericUniformityAnalysisImpl<ContextT>::addCustomUniformityCandidate(
     const InstructionT *I) {
@@ -1027,6 +1090,9 @@ void GenericUniformityAnalysisImpl<ContextT>::taintAndPushPhiNodes(
 
 /// Add \p Candidate to \p Cycles if it is not already contained in \p Cycles.
 ///
+/// \param CI Cycle information used for containment checks.
+/// \param Cycles Accumulated set of outermost divergent cycles.
+/// \param Candidate Cycle to insert unless already nested in \p Cycles.
 /// \return true iff \p Candidate was added to \p Cycles.
 template <typename CycleInfoT>
 bool insertIfNotContained(const CycleInfoT &CI, SmallVector<CycleRef> &Cycles,
@@ -1043,6 +1109,13 @@ bool insertIfNotContained(const CycleInfoT &CI, SmallVector<CycleRef> &Cycles,
 /// If two paths that diverged outside an irreducible cycle join
 /// inside that cycle, then that whole cycle is assumed to be
 /// divergent. This does not apply if the cycle is reducible.
+///
+/// \param CI Cycle information for the function.
+/// \param Cycle Cycle containing \p JoinBlock to expand from.
+/// \param DivTermBlock Block of the divergent terminator outside the cycle.
+/// \param JoinBlock Block where diverged paths join inside the cycle.
+/// \return Outermost irreducible cycle made divergent by an external branch,
+/// or null if none.
 template <typename CycleInfoT, typename BlockT>
 CycleRef getExtDivCycle(const CycleInfoT &CI, CycleRef Cycle,
                         const BlockT *DivTermBlock, const BlockT *JoinBlock) {
@@ -1078,6 +1151,15 @@ CycleRef getExtDivCycle(const CycleInfoT &CI, CycleRef Cycle,
 ///
 /// This checks the "diverged entry" criterion defined in the
 /// docs/ConvergenceAnalysis.html.
+///
+/// \param CI Cycle information for the function.
+/// \param Cycle Cycle containing \p JoinBlock to expand from.
+/// \param DivTermBlock Block of the divergent terminator inside the cycle nest.
+/// \param JoinBlock Block where diverged paths join.
+/// \param DT Dominator tree used to test header domination.
+/// \param Context SSA context used for debug printing.
+/// \return Outermost cycle made divergent by an internal branch, or null if
+/// none.
 template <typename ContextT, typename CycleInfoT, typename BlockT,
           typename DominatorTreeT>
 CycleRef getIntDivCycle(const CycleInfoT &CI, CycleRef Cycle,
@@ -1117,6 +1199,15 @@ CycleRef getIntDivCycle(const CycleInfoT &CI, CycleRef Cycle,
 
 /// Return the outermost cycle made divergent by a join of paths from
 /// \p DivTermBlock through \p JoinBlock.
+///
+/// \param CI Cycle information for the function.
+/// \param Cycle Innermost cycle containing \p JoinBlock to expand from.
+/// \param DivTermBlock Block of the divergent terminator that seeded the paths.
+/// \param JoinBlock Block where diverged paths join.
+/// \param DT Dominator tree used for the internal-divergence criterion.
+/// \param Context SSA context used for debug printing.
+/// \return Outermost divergent cycle, preferring the internal criterion, or
+/// null if none.
 template <typename ContextT, typename CycleInfoT, typename BlockT,
           typename DominatorTreeT>
 CycleRef
@@ -1153,6 +1244,8 @@ bool GenericUniformityAnalysisImpl<ContextT>::isTemporalDivergent(
 }
 
 /// Propagate control divergence from divergent terminator \p Term.
+///
+/// \param Term Divergent terminator whose control effects are analyzed.
 template <typename ContextT>
 void GenericUniformityAnalysisImpl<ContextT>::analyzeControlDivergence(
     const InstructionT &Term) {
@@ -1234,6 +1327,10 @@ void GenericUniformityAnalysisImpl<ContextT>::compute() {
 }
 
 /// Record that \p Val is temporally divergent at \p User inside cycle \p C.
+///
+/// \param Val Value that becomes temporally divergent.
+/// \param User Instruction that uses \p Val outside the defining cycle.
+/// \param C Cycle that the use escapes.
 template <typename ContextT>
 void GenericUniformityAnalysisImpl<ContextT>::recordTemporalDivergence(
     ConstValueRefT Val, const InstructionT *User, CycleRef C) {
@@ -1241,6 +1338,9 @@ void GenericUniformityAnalysisImpl<ContextT>::recordTemporalDivergence(
 }
 
 /// True if \p Instr was explicitly marked always-uniform.
+///
+/// \param Instr Instruction to look up in the uniform-override set.
+/// \return True if \p Instr is in the always-uniform override set.
 template <typename ContextT>
 bool GenericUniformityAnalysisImpl<ContextT>::isAlwaysUniform(
     const InstructionT &Instr) const {
@@ -1248,9 +1348,12 @@ bool GenericUniformityAnalysisImpl<ContextT>::isAlwaysUniform(
 }
 
 /// Print divergent function arguments to \p OS; return true if any were printed.
+///
+/// \param OS Stream that receives the argument dump.
+/// \return True if any divergent arguments were printed.
 template <typename ContextT>
 bool GenericUniformityAnalysisImpl<ContextT>::printDivergentArgs(
-    raw_ostream &) const {
+    raw_ostream &OS) const {
   return false;
 }
 
@@ -1262,6 +1365,8 @@ GenericUniformityInfo<ContextT>::GenericUniformityInfo(
 }
 
 /// Print divergent values, cycles, and related analysis results to \p OS.
+///
+/// \param OS Stream that receives the dump.
 template <typename ContextT>
 void GenericUniformityAnalysisImpl<ContextT>::print(raw_ostream &OS) const {
   // When we print Value, LLVM IR instruction, we want to print extra new line.
@@ -1359,13 +1464,22 @@ GenericUniformityInfo<ContextT>::getCycleInfo() const {
 }
 
 /// Whether \p V is divergent at its definition.
+///
 /// A default-constructed instance (no analysis computed) reports everything
 /// as uniform, which is conservatively correct for non-divergent targets.
+///
+/// \param V Value to query at its definition.
+/// \return True if analysis is available and \p V is divergent at its definition.
 template <typename ContextT>
 bool GenericUniformityInfo<ContextT>::isDivergentAtDef(ConstValueRefT V) const {
   return DA && DA->isDivergent(V);
 }
 
+/// Return true if terminator \p I has a divergent controlling condition.
+///
+/// \param I Terminator instruction to query.
+/// \return True if analysis is available and \p I's controlling condition is
+/// divergent.
 template <typename ContextT>
 bool GenericUniformityInfo<ContextT>::isDivergentTerminator(
     const InstructionT *I) const {
@@ -1373,23 +1487,38 @@ bool GenericUniformityInfo<ContextT>::isDivergentTerminator(
   return DA && DA->isDivergentTerminator(*I);
 }
 
+/// Whether \p U is divergent at its use. Uses of a uniform value can
+/// be divergent.
+///
+/// \param U Use site to query for divergence.
+/// \return True if analysis is available and \p U is divergent at this use.
 template <typename ContextT>
 bool GenericUniformityInfo<ContextT>::isDivergentAtUse(const UseT &U) const {
   return DA && DA->isDivergentUse(U);
 }
 
+/// Return true if block \p B's terminator is divergent.
+///
+/// \param B Block whose terminator is queried.
+/// \return True if analysis is available and \p B's terminator is divergent.
 template <typename ContextT>
 bool GenericUniformityInfo<ContextT>::hasDivergentTerminator(const BlockT &B) {
   return DA && DA->hasDivergentTerminator(B);
 }
 
+/// Call before erasing \p V, or a later instruction reusing its address
+/// may be misclassified as uniform.
+///
+/// \param V Value whose tracked uniformity state should be dropped.
 template <typename ContextT>
 void GenericUniformityInfo<ContextT>::forgetValue(ConstValueRefT V) {
   if (DA)
     DA->forgetValue(V);
 }
 
-/// \brief T helper function for printing.
+/// Print a textual dump of divergence results to \p Out.
+///
+/// \param Out Stream that receives the dump.
 template <typename ContextT>
 void GenericUniformityInfo<ContextT>::print(raw_ostream &Out) const {
   if (!DA) {
@@ -1509,6 +1638,8 @@ void ModifiedPostOrder<ContextT>::computeCyclePO(
 }
 
 /// \brief Generically compute the modified post order.
+///
+/// \param CI Cycle information used to walk nested cycles and build the order.
 template <typename ContextT>
 void llvm::ModifiedPostOrder<ContextT>::compute(const CycleInfoT &CI) {
   SmallPtrSet<const BlockT *, 32> Finalized;

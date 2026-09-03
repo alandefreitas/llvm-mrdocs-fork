@@ -19,13 +19,16 @@
 namespace llvm {
 class raw_ostream;
 
+/// Check for bitcode output written to a console.
+///
 /// Determine if the raw_ostream provided is connected to a terminal. If so,
 /// generate a warning message to errs() advising against display of bitcode
 /// and return true. Otherwise just return false.
-/// Check for output written to a console
-LLVM_ABI bool CheckBitcodeOutputToConsole(
-    raw_ostream &stream_to_check ///< The stream to be checked
-);
+///
+/// \param stream_to_check The stream to be checked.
+/// \return True if \p stream_to_check is a terminal (and a warning was
+/// printed); false otherwise.
+LLVM_ABI bool CheckBitcodeOutputToConsole(raw_ostream &stream_to_check);
 
 } // namespace llvm
 

@@ -27,6 +27,9 @@ class NamedValuesProxy;
 /// Represents an entry in NamedValuesSchema.
 struct NamedValuesEntry {
   /// Construct an entry binding \p Name to object reference \p Ref.
+  ///
+  /// \param Name Unique name for this entry within a NamedValues node.
+  /// \param Ref CAS object referenced by this named entry.
   NamedValuesEntry(StringRef Name, ObjectRef Ref) : Name(Name), Ref(Ref) {}
 
   /// Unique name for this entry within a NamedValues node.
@@ -35,21 +38,31 @@ struct NamedValuesEntry {
   ObjectRef Ref;
 
   /// Return true if \p LHS and \p RHS have the same name and object reference.
+  ///
+  /// \param LHS Left-hand named-values entry.
+  /// \param RHS Right-hand named-values entry.
+  /// \return True if both entries share the same name and object reference.
   friend bool operator==(const NamedValuesEntry &LHS,
                          const NamedValuesEntry &RHS) {
     return LHS.Ref == RHS.Ref && LHS.Name == RHS.Name;
   }
 
   /// Ordering the entries by name. Items should have unique names.
+  ///
+  /// \param LHS Left-hand named-values entry.
+  /// \param RHS Right-hand named-values entry.
+  /// \return True if \p LHS's name sorts before \p RHS's name.
   friend bool operator<(const NamedValuesEntry &LHS,
                         const NamedValuesEntry &RHS) {
     return LHS.Name < RHS.Name;
   }
 };
 
-/// A schema for representing an array of named nodes in a CAS. The name of the
-/// nodes are stored in the root node so child node can be loaded on demand
-/// based on name and the name for all nodes need to be unique.
+/// A schema for representing an array of named nodes in a CAS.
+///
+/// The name of the nodes are stored in the root node so child node can be
+/// loaded on demand based on name and the name for all nodes need to be
+/// unique.
 class LLVM_ABI NamedValuesSchema
     : public RTTIExtends<NamedValuesSchema, NodeSchema> {
   void anchor() override;
@@ -59,36 +72,61 @@ public:
   static char ID;
 
   /// Return true if \p Node is a root NamedValues node (the schema's only node kind).
+  ///
+  /// \param Node Object proxy to test as a root NamedValues node.
+  /// \return True if \p Node is a root NamedValues node.
   bool isRootNode(const ObjectProxy &Node) const final {
     // NamedValuesSchema only has one node, thus root node.
     return isNode(Node);
   }
 
   /// Check if a proxy represents a valid node.
+  ///
+  /// \param Node Object proxy to test as a NamedValuesSchema node.
+  /// \return True if \p Node is a valid NamedValuesSchema node.
   bool isNode(const ObjectProxy &Node) const final;
 
   /// Create a NamedValuesSchema.
+  ///
+  /// \param CAS Object store that owns nodes interpreted by this schema.
+  /// \return A NamedValuesSchema for \p CAS, or an error on failure.
   static Expected<NamedValuesSchema> create(ObjectStore &CAS);
 
   /// Load NamedValuesProxy from an ObjectRef.
+  ///
+  /// \param Object CAS object reference to load as a NamedValuesProxy.
+  /// \return Loaded NamedValuesProxy for \p Object, or an error on failure.
   Expected<NamedValuesProxy> load(ObjectRef Object) const;
 
   /// Load NamedValuesProxy from an ObjectProxy.
+  ///
+  /// \param Object CAS object proxy to load as a NamedValuesProxy.
+  /// \return Loaded NamedValuesProxy for \p Object, or an error on failure.
   Expected<NamedValuesProxy> load(ObjectProxy Object) const;
 
   /// Construct a \c NamedValuesSchema CAS object with the given entries.
+  ///
+  /// \param Entries Named object references to store in the new node.
+  /// \return Proxy for the constructed NamedValues node, or an error on failure.
   Expected<NamedValuesProxy> construct(ArrayRef<NamedValuesEntry> Entries);
 
   /// A builder class for creating nodes in NamedValuesSchema.
   class Builder {
   public:
     /// Construct a builder that stores entries into \p CAS.
+    ///
+    /// \param CAS Object store that will own the built NamedValues node.
     Builder(ObjectStore &CAS) : CAS(CAS) {}
 
     /// Add an entry to the builder.
+    ///
+    /// \param Name Unique name for the entry within the node being built.
+    /// \param Ref CAS object referenced by this named entry.
     LLVM_ABI void add(StringRef Name, ObjectRef Ref);
 
     /// Build the node from added entries.
+    ///
+    /// \return Proxy for the built NamedValues node, or an error on failure.
     LLVM_ABI Expected<NamedValuesProxy> build();
 
   private:
@@ -127,21 +165,33 @@ private:
 class NamedValuesProxy : public ObjectProxy {
 public:
   /// Get the schema associated with this proxy.
+  ///
+  /// \return The NamedValuesSchema that interprets this proxy.
   const NamedValuesSchema &getSchema() const { return *Schema; }
 
   /// Iterate over entries with a callback.
+  ///
+  /// \param Callback Invoked once for each named entry; return an error to stop.
+  /// \return Success, or the first error returned by \p Callback.
   Error
   forEachEntry(function_ref<Error(const NamedValuesEntry &)> Callback) const {
     return Schema->forEachEntry(*this, Callback);
   }
 
   /// Check if the object is empty.
+  ///
+  /// \return True if this NamedValues node has no entries.
   bool empty() const { return size() == 0; }
 
   /// Get the number of entries in the CAS object.
+  ///
+  /// \return Number of named entries in this node.
   size_t size() const { return Schema->getNumEntries(*this); }
 
   /// Lookup an entry by name.
+  ///
+  /// \param Name Unique name of the entry to look up.
+  /// \return The matching entry, or \c std::nullopt if \p Name is absent.
   std::optional<NamedValuesEntry> lookup(StringRef Name) const {
     if (auto I = Schema->lookupEntry(*this, Name))
       return get(*I);
@@ -149,9 +199,15 @@ public:
   }
 
   /// Get the name of an entry by index.
+  ///
+  /// \param I Zero-based index of the entry whose name is requested.
+  /// \return Name of the entry at index \p I.
   LLVM_ABI StringRef getName(size_t I) const;
 
   /// Get an entry by index.
+  ///
+  /// \param I Zero-based index of the entry to load.
+  /// \return Named entry at index \p I.
   NamedValuesEntry get(size_t I) const { return Schema->loadEntry(*this, I); }
 
 private:

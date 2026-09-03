@@ -25,8 +25,12 @@ class LLVM_ABI ScheduleDAGMutation {
   virtual void anchor();
 
 public:
+  /// Virtual destructor.
   virtual ~ScheduleDAGMutation() = default;
 
+  /// Apply this mutation to the instruction scheduling DAG \p DAG.
+  ///
+  /// \param DAG Scheduling DAG to mutate after normal DAG building.
   virtual void apply(ScheduleDAGInstrs *DAG) = 0;
 };
 

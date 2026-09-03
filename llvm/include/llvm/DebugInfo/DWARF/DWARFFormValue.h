@@ -24,6 +24,7 @@ class DWARFDataExtractor;
 class DWARFUnit;
 class raw_ostream;
 
+/// A parsed DWARF attribute form and its extracted value.
 class DWARFFormValue {
 public:
   /// High-level classification of a DWARF form's value representation.
@@ -40,20 +41,32 @@ public:
     FC_Exprloc        ///< Expression location forms (DW_FORM_exprloc).
   };
 
+  /// Storage for the extracted form value (integer, string, or block data).
   struct ValueType {
+    /// Construct with an unsigned value of zero.
     ValueType() { uval = 0; }
+    /// Construct holding signed integer \p V.
+    ///
+    /// \param V Signed integer to store.
     ValueType(int64_t V) : sval(V) {}
+    /// Construct holding unsigned integer \p V.
+    ///
+    /// \param V Unsigned integer to store.
     ValueType(uint64_t V) : uval(V) {}
     /// Construct holding C string pointer \p V.
+    ///
+    /// \param V C string pointer to store.
     ValueType(const char *V) : cstr(V) {}
 
     union {
       uint64_t uval; ///< Unsigned integer form value.
-      int64_t sval;
+      int64_t sval;  ///< Signed integer form value.
       const char *cstr; ///< In-memory C string for string form values.
     };
+    /// Pointer into section data for block or indirect form values.
     const uint8_t *data = nullptr;
-    uint64_t SectionIndex; /// Section index for reference forms.
+    /// Section index for reference forms.
+    uint64_t SectionIndex;
   };
 
 private:
@@ -68,69 +81,189 @@ private:
 
 public:
   /// Construct a form value with form \p F and an empty value.
+  ///
+  /// \param F DWARF form to associate with this value.
   DWARFFormValue(dwarf::Form F = dwarf::Form(0)) : Form(F) {}
 
+  /// Create a form value holding signed integer \p V for form \p F.
+  ///
+  /// \param F DWARF form to associate with the value.
+  /// \param V Signed integer payload.
+  /// \returns A form value containing \p V.
   LLVM_ABI static DWARFFormValue createFromSValue(dwarf::Form F, int64_t V);
+  /// Create a form value holding unsigned integer \p V for form \p F.
+  ///
+  /// \param F DWARF form to associate with the value.
+  /// \param V Unsigned integer payload.
+  /// \returns A form value containing \p V.
   LLVM_ABI static DWARFFormValue createFromUValue(dwarf::Form F, uint64_t V);
+  /// Create a form value holding C string pointer \p V for form \p F.
+  ///
+  /// \param F DWARF form to associate with the value.
+  /// \param V C string pointer payload.
+  /// \returns A form value containing \p V.
   LLVM_ABI static DWARFFormValue createFromPValue(dwarf::Form F, const char *V);
+  /// Create a form value holding block bytes \p D for form \p F.
+  ///
+  /// \param F DWARF form to associate with the value.
+  /// \param D Block bytes to store.
+  /// \returns A form value containing \p D.
   LLVM_ABI static DWARFFormValue createFromBlockValue(dwarf::Form F,
                                                       ArrayRef<uint8_t> D);
+  /// Extract a form value of form \p F from \p Unit at \p *OffsetPtr.
+  ///
+  /// \param F DWARF form to extract.
+  /// \param Unit DWARF unit providing section and format context.
+  /// \param OffsetPtr Offset into the unit data; advanced past the value.
+  /// \returns The extracted form value.
   LLVM_ABI static DWARFFormValue
   createFromUnit(dwarf::Form F, const DWARFUnit *Unit, uint64_t *OffsetPtr);
   /// Interpret \p Val/\p Form as a sectioned address in \p U, if possible.
+  ///
+  /// \param Val Extracted value storage to interpret.
+  /// \param Form DWARF form describing \p Val.
+  /// \param U DWARF unit used to resolve section information.
+  /// \returns The sectioned address, or std::nullopt if not an address form.
   LLVM_ABI static std::optional<object::SectionedAddress>
   getAsSectionedAddress(const ValueType &Val, const dwarf::Form Form,
                         const DWARFUnit *U);
 
+  /// Return the DWARF form of this value.
+  ///
+  /// \returns The DWARF form of this value.
   dwarf::Form getForm() const { return Form; }
+  /// Return the raw unsigned payload stored for this form value.
+  ///
+  /// \returns The raw unsigned payload.
   uint64_t getRawUValue() const { return Value.uval; }
 
+  /// True if this value's form belongs to form class \p FC.
+  ///
+  /// \param FC Form class to test membership against.
+  /// \returns true if this form belongs to \p FC.
   LLVM_ABI bool isFormClass(FormClass FC) const;
+  /// Return the DWARF unit this value was extracted from, if any.
+  ///
+  /// \returns The DWARF unit, or nullptr if none was recorded.
   const DWARFUnit *getUnit() const { return U; }
+  /// Print this form value to \p OS using \p DumpOpts.
+  ///
+  /// \param OS Output stream to write to.
+  /// \param DumpOpts Options controlling dump formatting.
   LLVM_ABI void dump(raw_ostream &OS,
                      DIDumpOptions DumpOpts = DIDumpOptions()) const;
+  /// Print sectioned address \p SA to \p OS using \p DumpOpts.
+  ///
+  /// \param OS Output stream to write to.
+  /// \param DumpOpts Options controlling dump formatting.
+  /// \param SA Sectioned address to print.
   LLVM_ABI void dumpSectionedAddress(raw_ostream &OS, DIDumpOptions DumpOpts,
                                      object::SectionedAddress SA) const;
+  /// Print address \p Address to \p OS.
+  ///
+  /// \param OS Output stream to write to.
+  /// \param Address Address value to print.
   LLVM_ABI void dumpAddress(raw_ostream &OS, uint64_t Address) const;
+  /// Print \p Address using \p AddressSize bytes to \p OS.
+  ///
+  /// \param OS Output stream to write to.
+  /// \param AddressSize Number of bytes used to represent the address.
+  /// \param Address Address value to print.
   LLVM_ABI static void dumpAddress(raw_ostream &OS, uint8_t AddressSize,
                                    uint64_t Address);
+  /// Print the name of section \p SectionIndex from \p Obj to \p OS.
+  ///
+  /// \param Obj DWARF object providing section names.
+  /// \param OS Output stream to write to.
+  /// \param DumpOpts Options controlling dump formatting.
+  /// \param SectionIndex Index of the section whose name to print.
   LLVM_ABI static void dumpAddressSection(const DWARFObject &Obj,
                                           raw_ostream &OS,
                                           DIDumpOptions DumpOpts,
                                           uint64_t SectionIndex);
 
-  /// Extracts a value in \p Data at offset \p *OffsetPtr. The information
-  /// in \p FormParams is needed to interpret some forms. The optional
-  /// \p Context and \p Unit allows extracting information if the form refers
-  /// to other sections (e.g., .debug_str).
+  /// Extract a form value from \p Data at \p *OffsetPtr.
+  ///
+  /// The information in \p FormParams is needed to interpret some forms. The
+  /// optional \p Context and \p Unit allow extracting information if the form
+  /// refers to other sections (e.g., .debug_str).
+  ///
+  /// \param Data DWARF data to extract from.
+  /// \param OffsetPtr Offset into \p Data; advanced past the extracted value.
+  /// \param FormParams DWARF parameters needed to interpret some forms.
+  /// \param Context Optional context for resolving cross-section forms.
+  /// \param Unit Optional unit for resolving unit-relative forms.
+  /// \returns true on success, false on failure.
   LLVM_ABI bool extractValue(const DWARFDataExtractor &Data,
                              uint64_t *OffsetPtr, dwarf::FormParams FormParams,
                              const DWARFContext *Context = nullptr,
                              const DWARFUnit *Unit = nullptr);
 
+  /// Extract a value using form parameters and unit \p U (no separate context).
+  ///
+  /// \param Data DWARF data to extract from.
+  /// \param OffsetPtr Offset into \p Data; advanced past the extracted value.
+  /// \param FormParams DWARF parameters needed to interpret some forms.
+  /// \param U DWARF unit used as extract context.
+  /// \returns true on success, false on failure.
   bool extractValue(const DWARFDataExtractor &Data, uint64_t *OffsetPtr,
                     dwarf::FormParams FormParams, const DWARFUnit *U) {
     return extractValue(Data, OffsetPtr, FormParams, nullptr, U);
   }
 
-  /// getAsFoo functions below return the extracted value as Foo if only
-  /// DWARFFormValue has form class is suitable for representing Foo.
+  /// Return a unit-relative reference if the form is a relative ref form.
+  ///
+  /// \returns The relative reference, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsRelativeReference() const;
+  /// Return a .debug_info relative reference if the form is a ref form.
+  ///
+  /// \returns The .debug_info reference, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsDebugInfoReference() const;
+  /// Return the type-unit signature if the form is DW_FORM_ref_sig8.
+  ///
+  /// \returns The type-unit signature, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsSignatureReference() const;
+  /// Return a supplementary/alt reference if the form is ref_sup* or GNU_ref_alt.
+  ///
+  /// \returns The supplementary reference, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsSupplementaryReference() const;
   /// Return the value as an unsigned constant if the form is FC_Constant or
   /// FC_Flag (except DW_FORM_sdata).
+  ///
+  /// \returns The unsigned constant, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsUnsignedConstant() const;
+  /// Return the value as a signed constant if the form is FC_Constant.
+  ///
+  /// \returns The signed constant, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<int64_t> getAsSignedConstant() const;
+  /// Return this value as a C string if the form is a string form.
+  ///
+  /// \returns The C string on success, or an error if the form is unsuitable.
   LLVM_ABI Expected<const char *> getAsCString() const;
+  /// Return this value as an address if the form is an address form.
+  ///
+  /// \returns The address, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsAddress() const;
   /// Return this value as a sectioned address, if the form is an address.
+  ///
+  /// \returns The sectioned address, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<object::SectionedAddress>
   getAsSectionedAddress() const;
+  /// Return a section offset if the form is FC_SectionOffset.
+  ///
+  /// \returns The section offset, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsSectionOffset() const;
+  /// Return the value as a byte block if the form is FC_Block or FC_Exprloc.
+  ///
+  /// \returns The byte block, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<ArrayRef<uint8_t>> getAsBlock() const;
+  /// Return the string-table offset if the form is a string pointer form.
+  ///
+  /// \returns The string-table offset, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsCStringOffset() const;
+  /// Return the raw unsigned reference value without unit-relative adjustment.
+  ///
+  /// \returns The raw unsigned reference, or std::nullopt if the form is unsuitable.
   LLVM_ABI std::optional<uint64_t> getAsReferenceUVal() const;
   /// Correctly extract any file paths from a form value.
   ///
@@ -200,8 +333,9 @@ toString(const std::optional<DWARFFormValue> &V) {
 /// Take an optional DWARFFormValue and try to extract a string value from it.
 ///
 /// \param V and optional DWARFFormValue to attempt to extract the value from.
-/// \returns an optional value that contains a value if the form value
-/// was valid and was a string.
+/// \param Default the default value to return in case of failure.
+/// \returns the string value or Default if the V doesn't have a value or the
+/// form value's encoding wasn't a string.
 inline StringRef toStringRef(const std::optional<DWARFFormValue> &V,
                              StringRef Default = {}) {
   if (!V)
@@ -384,6 +518,11 @@ toAddress(const std::optional<DWARFFormValue> &V) {
   return std::nullopt;
 }
 
+/// Extract a sectioned address from optional form value \p V, if present.
+///
+/// \param V and optional DWARFFormValue to attempt to extract the value from.
+/// \returns an optional value that contains a value if the form value
+/// was valid and has an address form.
 inline std::optional<object::SectionedAddress>
 toSectionedAddress(const std::optional<DWARFFormValue> &V) {
   if (V)

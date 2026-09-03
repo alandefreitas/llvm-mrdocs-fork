@@ -28,14 +28,24 @@ namespace llvm {
 class MCRegisterInfo;
 class Triple;
 
+/// Target hooks that analyse machine instructions for MC clients.
+///
+/// MCTargetDescs derive from this class to supply branch evaluation, control-
+/// flow classification, dependency-breaking idioms, and related helpers beyond
+/// the static data in \c MCInstrDesc.
 class LLVM_ABI MCInstrAnalysis {
 protected:
   friend class Target;
 
+  /// Instruction info describing the target instruction set.
   const MCInstrInfo *Info;
 
 public:
+  /// Construct an analysis object backed by \p Info.
+  ///
+  /// \param Info - Instruction info for the target.
   MCInstrAnalysis(const MCInstrInfo *Info) : Info(Info) {}
+  /// Destroy the instruction analysis object.
   virtual ~MCInstrAnalysis() = default;
 
   /// Clear the internal state. See updateState for more information.
@@ -51,41 +61,84 @@ public:
   /// the analysis functions to take previous instructions into account.
   /// Whenever state becomes irrelevant (e.g., when starting to disassemble a
   /// new function), clients should call resetState to clear it.
+  ///
+  /// \param Inst - Instruction to incorporate into the analysis state.
+  /// \param STI - Subtarget information for \p Inst, or null.
+  /// \param Addr - Address of \p Inst.
   virtual void updateState(const MCInst &Inst, const MCSubtargetInfo *STI,
                            uint64_t Addr) {}
 
+  /// Return true if \p Inst is a branch instruction.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is a branch.
   virtual bool isBranch(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isBranch();
   }
 
+  /// Return true if \p Inst is a conditional branch.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is a conditional branch.
   virtual bool isConditionalBranch(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isConditionalBranch();
   }
 
+  /// Return true if \p Inst is an unconditional branch.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is an unconditional branch.
   virtual bool isUnconditionalBranch(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isUnconditionalBranch();
   }
 
+  /// Return true if \p Inst is an indirect branch.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is an indirect branch.
   virtual bool isIndirectBranch(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isIndirectBranch();
   }
 
+  /// Return true if \p Inst is a call instruction.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is a call.
   virtual bool isCall(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isCall();
   }
 
+  /// Return true if \p Inst is a return instruction.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is a return.
   virtual bool isReturn(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isReturn();
   }
 
+  /// Return true if \p Inst is a basic-block terminator.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is a terminator.
   virtual bool isTerminator(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isTerminator();
   }
 
+  /// Return true if \p Inst is a barrier that stops fall-through.
+  ///
+  /// \param Inst - Instruction to classify.
+  /// \return True if \p Inst is a barrier.
   virtual bool isBarrier(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isBarrier();
   }
 
+  /// Return true if \p Inst may affect control flow.
+  ///
+  /// Considers branches, calls, returns, and writes to the program counter.
+  ///
+  /// \param Inst - Instruction to inspect.
+  /// \param MCRI - Register info used to identify the program counter.
+  /// \return True if \p Inst may affect control flow.
   virtual bool mayAffectControlFlow(const MCInst &Inst,
                                     const MCRegisterInfo &MCRI) const {
     if (isBranch(Inst) || isCall(Inst) || isReturn(Inst) ||
@@ -118,6 +171,10 @@ public:
   /// The assumption is that the bit-width of the APInt is correctly set by
   /// the caller. The default implementation conservatively assumes that none of
   /// the writes clears the upper portion of a super-register.
+  ///
+  /// \param MRI - Register info used to interpret written registers.
+  /// \param Writes - [out] Mask of writes that clear their super-registers.
+  /// \return True if at least one write clears its super-registers.
   virtual bool clearsSuperRegisters(const MCRegisterInfo &MRI,
                                     const MCInst &Inst,
                                     APInt &Writes) const;
@@ -140,6 +197,11 @@ public:
   /// The only exception to the rule is for when Mask has all zeroes.
   /// A zero mask means: dependencies are broken for all explicit register
   /// operands.
+  ///
+  /// \param MI - Instruction to test as a zero-idiom.
+  /// \param Mask - [out] Operand mask identifying broken dependencies.
+  /// \param CPUID - Subtarget identifier selecting dependency rules.
+  /// \return True if \p MI is a dependency-breaking zero-idiom for \p CPUID.
   virtual bool isZeroIdiom(const MCInst &MI, APInt &Mask,
                            unsigned CPUID) const {
     return false;
@@ -165,6 +227,11 @@ public:
   ///
   /// The only exception is for when Mask is all zeroes. That means: explicit
   /// input operands of MI are independent.
+  ///
+  /// \param MI - Instruction to test as dependency-breaking.
+  /// \param Mask - [out] Operand mask identifying independent operands.
+  /// \param CPUID - Subtarget identifier selecting dependency rules.
+  /// \return True if \p MI is dependency-breaking for \p CPUID.
   virtual bool isDependencyBreaking(const MCInst &MI, APInt &Mask,
                                     unsigned CPUID) const {
     return isZeroIdiom(MI, Mask, CPUID);
@@ -176,6 +243,10 @@ public:
   /// register moves. For example, on most X86 subtargets, a candidate for move
   /// elimination cannot specify the same register for both source and
   /// destination.
+  ///
+  /// \param MI - Instruction to test as a move-elimination candidate.
+  /// \param CPUID - Subtarget identifier selecting move-elimination rules.
+  /// \return True if \p MI is an optimizable register-move candidate.
   virtual bool isOptimizableRegisterMove(const MCInst &MI,
                                          unsigned CPUID) const {
     return false;
@@ -183,22 +254,43 @@ public:
 
   /// Given a branch instruction try to get the address the branch
   /// targets. Return true on success, and the address in Target.
+  ///
+  /// \param Inst - Branch instruction to evaluate.
+  /// \param Addr - Address of \p Inst.
+  /// \param Size - Encoded size of \p Inst in bytes.
+  /// \param Target - [out] Resolved branch target address on success.
+  /// \return True if the branch target was successfully resolved.
   virtual bool
   evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
                  uint64_t &Target) const;
 
   /// Given an instruction tries to get the address of a memory operand. Returns
   /// the address on success.
+  ///
+  /// \param Inst - Instruction containing the memory operand.
+  /// \param STI - Subtarget information for \p Inst, or null.
+  /// \param Addr - Address of \p Inst.
+  /// \param Size - Encoded size of \p Inst in bytes.
+  /// \return Resolved memory-operand address, or \c std::nullopt on failure.
   virtual std::optional<uint64_t>
   evaluateMemoryOperandAddress(const MCInst &Inst, const MCSubtargetInfo *STI,
                                uint64_t Addr, uint64_t Size) const;
 
   /// Given an instruction with a memory operand that could require relocation,
   /// returns the offset within the instruction of that relocation.
+  ///
+  /// \param Inst - Instruction containing the relocatable memory operand.
+  /// \param Size - Encoded size of \p Inst in bytes.
+  /// \return Byte offset of the relocation within \p Inst, or \c std::nullopt.
   virtual std::optional<uint64_t>
   getMemoryOperandRelocationOffset(const MCInst &Inst, uint64_t Size) const;
 
   /// Returns (PLT virtual address, GOT virtual address) pairs for PLT entries.
+  ///
+  /// \param PltSectionVA - Virtual address of the PLT section.
+  /// \param PltContents - Raw bytes of the PLT section.
+  /// \param STI - Subtarget information used to decode PLT entries.
+  /// \return Pairs of (PLT entry VA, GOT entry VA); empty if unsupported.
   virtual std::vector<std::pair<uint64_t, uint64_t>>
   findPltEntries(uint64_t PltSectionVA, ArrayRef<uint8_t> PltContents,
                  const MCSubtargetInfo &STI) const {

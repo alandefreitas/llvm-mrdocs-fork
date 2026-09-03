@@ -19,13 +19,20 @@ namespace llvm {
 
 class Function;
 
+/// Pass that counts instructions and reports them as statistics.
 class InstCountPass : public RequiredPassInfoMixin<InstCountPass> {
   bool IsPreOptimization;
 
 public:
+  /// Construct an instruction-count pass, optionally as pre-optimization.
+  /// @param IsPreOptimization When true, record stats as pre-optimization.
   explicit InstCountPass(bool IsPreOptimization = false)
       : IsPreOptimization(IsPreOptimization) {}
 
+  /// Count instructions in \p F and preserve all analyses.
+  /// @param F Function whose instructions are counted.
+  /// @param FAM Function analysis manager (unused).
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

@@ -28,21 +28,40 @@ class Module;
 class SMDiagnostic;
 class LLVMContext;
 
-/// If the given MemoryBuffer holds a bitcode image, return a Module
-/// for it which does lazy deserialization of function bodies.  Otherwise,
-/// attempt to parse it as LLVM Assembly and return a fully populated
-/// Module. The ShouldLazyLoadMetadata flag is passed down to the bitcode
-/// reader to optionally enable lazy metadata loading. This takes ownership
-/// of \p Buffer.
+/// Create a Module from a MemoryBuffer, with lazy function-body loading for
+/// bitcode.
+///
+/// If the given MemoryBuffer holds a bitcode image, return a Module for it
+/// which does lazy deserialization of function bodies. Otherwise, attempt to
+/// parse it as LLVM Assembly and return a fully populated Module. The
+/// ShouldLazyLoadMetadata flag is passed down to the bitcode reader to
+/// optionally enable lazy metadata loading. This takes ownership of \p Buffer.
+///
+/// \param Buffer Memory buffer containing bitcode or LLVM assembly; ownership
+///               is taken.
+/// \param Err Error result info.
+/// \param Context Context in which to allocate globals info.
+/// \param ShouldLazyLoadMetadata If true, defer loading metadata for bitcode.
+/// \return A Module with lazy function-body loading for bitcode, or a fully
+///         populated Module for assembly; nullptr on error.
 LLVM_ABI std::unique_ptr<Module>
 getLazyIRModule(std::unique_ptr<MemoryBuffer> Buffer, SMDiagnostic &Err,
                 LLVMContext &Context, bool ShouldLazyLoadMetadata = false);
 
-/// If the given file holds a bitcode image, return a Module
-/// for it which does lazy deserialization of function bodies.  Otherwise,
-/// attempt to parse it as LLVM Assembly and return a fully populated
-/// Module. The ShouldLazyLoadMetadata flag is passed down to the bitcode
-/// reader to optionally enable lazy metadata loading.
+/// Create a Module from a file, with lazy function-body loading for bitcode.
+///
+/// If the given file holds a bitcode image, return a Module for it which does
+/// lazy deserialization of function bodies. Otherwise, attempt to parse it as
+/// LLVM Assembly and return a fully populated Module. The
+/// ShouldLazyLoadMetadata flag is passed down to the bitcode reader to
+/// optionally enable lazy metadata loading.
+///
+/// \param Filename Path to the file containing bitcode or LLVM assembly.
+/// \param Err Error result info.
+/// \param Context Context in which to allocate globals info.
+/// \param ShouldLazyLoadMetadata If true, defer loading metadata for bitcode.
+/// \return A Module with lazy function-body loading for bitcode, or a fully
+///         populated Module for assembly; nullptr on error.
 LLVM_ABI std::unique_ptr<Module>
 getLazyIRFileModule(StringRef Filename, SMDiagnostic &Err, LLVMContext &Context,
                     bool ShouldLazyLoadMetadata = false);
@@ -50,7 +69,13 @@ getLazyIRFileModule(StringRef Filename, SMDiagnostic &Err, LLVMContext &Context,
 /// If the given MemoryBuffer holds a bitcode image, return a Module
 /// for it.  Otherwise, attempt to parse it as LLVM Assembly and return
 /// a Module for it.
-/// \param DataLayoutCallback Override datalayout in the llvm assembly.
+///
+/// \param Buffer Memory buffer containing bitcode or LLVM assembly.
+/// \param Err Error result info.
+/// \param Context Context in which to allocate globals info.
+/// \param Callbacks Optional parser customization callbacks.
+/// \param ParserContext Optional context that records source locations.
+/// \return A Module for the buffer contents, or nullptr on error.
 LLVM_ABI std::unique_ptr<Module>
 parseIR(MemoryBufferRef Buffer, SMDiagnostic &Err, LLVMContext &Context,
         ParserCallbacks Callbacks = {},
@@ -59,7 +84,13 @@ parseIR(MemoryBufferRef Buffer, SMDiagnostic &Err, LLVMContext &Context,
 /// If the given file holds a bitcode image, return a Module for it.
 /// Otherwise, attempt to parse it as LLVM Assembly and return a Module
 /// for it.
-/// \param DataLayoutCallback Override datalayout in the llvm assembly.
+///
+/// \param Filename Path to the file containing bitcode or LLVM assembly.
+/// \param Err Error result info.
+/// \param Context Context in which to allocate globals info.
+/// \param Callbacks Optional parser customization callbacks.
+/// \param ParserContext Optional context that records source locations.
+/// \return A Module for the file contents, or nullptr on error.
 LLVM_ABI std::unique_ptr<Module>
 parseIRFile(StringRef Filename, SMDiagnostic &Err, LLVMContext &Context,
             ParserCallbacks Callbacks = {},

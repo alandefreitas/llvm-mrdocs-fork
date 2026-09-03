@@ -56,6 +56,7 @@ class PassInstrumentation;
 
 namespace {
 
+/// Detects whether \c PassT provides a loop \c run method (not loop-nest).
 template <typename PassT>
 using HasRunOnLoopT = decltype(std::declval<PassT>().run(
     std::declval<Loop &>(), std::declval<LoopAnalysisManager &>(),
@@ -67,6 +68,8 @@ using HasRunOnLoopT = decltype(std::declval<PassT>().run(
 // Explicit specialization and instantiation declarations for the pass manager.
 // See the comments on the definition of the specialization for details on how
 // it differs from the primary template.
+/// Specialized pass manager that runs a mixed pipeline of loop and loop-nest
+/// passes over a loop nest.
 template <>
 class PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
                   LPMUpdater &>
@@ -74,17 +77,23 @@ class PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
           PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
                       LPMUpdater &>> {
 public:
+  /// Construct an empty loop pass manager.
   explicit PassManager() = default;
 
   // FIXME: These are equivalent to the default move constructor/move
   // assignment. However, using = default triggers linker errors due to the
   // explicit instantiations below. Find a way to use the default and remove the
   // duplicated code here.
+  /// Move-construct a loop pass manager, transferring its pass pipeline.
+  /// @param Arg Pass manager to move from.
   PassManager(PassManager &&Arg)
       : IsLoopNestPass(std::move(Arg.IsLoopNestPass)),
         LoopPasses(std::move(Arg.LoopPasses)),
         LoopNestPasses(std::move(Arg.LoopNestPasses)) {}
 
+  /// Move-assign a loop pass manager, transferring its pass pipeline.
+  /// @param RHS Pass manager to move from.
+  /// @return A reference to this pass manager.
   PassManager &operator=(PassManager &&RHS) {
     IsLoopNestPass = std::move(RHS.IsLoopNestPass);
     LoopPasses = std::move(RHS.LoopPasses);
@@ -92,10 +101,19 @@ public:
     return *this;
   }
 
+  /// Run all contained loop and loop-nest passes over \p L.
+  /// @param L Loop to run passes over.
+  /// @param AM Loop analysis manager propagated to each pass.
+  /// @param AR Standard loop analysis results available to each pass.
+  /// @param U Updater used to revise the loop nest worklist.
+  /// @return The analyses preserved after running all passes.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);
 
+  /// Print the names of passes in this manager as a comma-separated pipeline.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
@@ -105,6 +123,8 @@ public:
   /// loop-nests instead. Also append whether \p Pass is loop-nest pass or not
   /// to the end of \var IsLoopNestPass so we can easily identify the types of
   /// passes in the pass manager later.
+  /// @param Pass Loop or loop-nest pass to append; moved into type-erased
+  /// storage.
   template <typename PassT> LLVM_ATTRIBUTE_MINSIZE void addPass(PassT &&Pass) {
     if constexpr (is_detected<HasRunOnLoopT, PassT>::value) {
       using LoopPassModelT =
@@ -121,37 +141,66 @@ public:
     }
   }
 
+  /// Returns whether this pass manager contains no passes.
+  /// @return True if this manager has no passes.
   bool isEmpty() const { return LoopPasses.empty() && LoopNestPasses.empty(); }
 
+  /// Returns the number of loop (non-nest) passes in this manager.
+  /// @return The number of loop passes.
   size_t getNumLoopPasses() const { return LoopPasses.size(); }
+  /// Returns the number of loop-nest passes in this manager.
+  /// @return The number of loop-nest passes.
   size_t getNumLoopNestPasses() const { return LoopNestPasses.size(); }
 
 protected:
+  /// Type-erased loop pass concept stored in this manager.
   using LoopPassConceptT =
       detail::PassConcept<Loop, LoopAnalysisManager,
                           LoopStandardAnalysisResults &, LPMUpdater &>;
+  /// Type-erased loop-nest pass concept stored in this manager.
   using LoopNestPassConceptT =
       detail::PassConcept<LoopNest, LoopAnalysisManager,
                           LoopStandardAnalysisResults &, LPMUpdater &>;
 
-  // BitVector that identifies whether the passes are loop passes or loop-nest
-  // passes (true for loop-nest passes).
+  /// Parallel to the pass lists: true when the corresponding pass is loop-nest.
   BitVector IsLoopNestPass;
+  /// Sequence of type-erased loop passes managed by this pass manager.
   std::vector<LoopPassConceptT::unique_ptr> LoopPasses;
+  /// Sequence of type-erased loop-nest passes managed by this pass manager.
   std::vector<LoopNestPassConceptT::unique_ptr> LoopNestPasses;
 
-  /// Run either a loop pass or a loop-nest pass. Returns `std::nullopt` if
-  /// PassInstrumentation's BeforePass returns false. Otherwise, returns the
-  /// preserved analyses of the pass.
+  /// Run a single loop or loop-nest pass with instrumentation.
+  ///
+  /// Returns `std::nullopt` if PassInstrumentation's BeforePass returns false.
+  /// Otherwise, returns the preserved analyses of the pass.
+  /// @param IR Loop or loop nest passed to the pass.
+  /// @param Pass Type-erased pass to run.
+  /// @param AM Loop analysis manager propagated to the pass.
+  /// @param AR Standard loop analysis results available to the pass.
+  /// @param U Updater used to revise the loop nest worklist.
+  /// @param PI Instrumentation callbacks run before and after the pass.
+  /// @return The pass's preserved analyses, or \c std::nullopt if skipped.
   template <typename IRUnitT, typename PassT>
   std::optional<PreservedAnalyses>
   runSinglePass(IRUnitT &IR, PassT &Pass, LoopAnalysisManager &AM,
                 LoopStandardAnalysisResults &AR, LPMUpdater &U,
                 PassInstrumentation &PI);
 
+  /// Run the pipeline when it contains at least one loop-nest pass.
+  /// @param L Loop whose nest is processed.
+  /// @param AM Loop analysis manager propagated to each pass.
+  /// @param AR Standard loop analysis results available to each pass.
+  /// @param U Updater used to revise the loop nest worklist.
+  /// @return The analyses preserved after running the pipeline.
   LLVM_ABI PreservedAnalyses
   runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
                         LoopStandardAnalysisResults &AR, LPMUpdater &U);
+  /// Run the pipeline when it contains only ordinary loop passes.
+  /// @param L Loop to run passes over.
+  /// @param AM Loop analysis manager propagated to each pass.
+  /// @param AR Standard loop analysis results available to each pass.
+  /// @param U Updater used to revise the loop nest worklist.
+  /// @return The analyses preserved after running the pipeline.
   LLVM_ABI PreservedAnalyses
   runWithoutLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
                            LoopStandardAnalysisResults &AR, LPMUpdater &U);
@@ -172,6 +221,8 @@ typedef PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
                     LPMUpdater &>
     LoopPassManager;
 
+/// A require-analysis pass specialization for loop transformations.
+///
 /// A partial specialization of the require analysis template pass to forward
 /// the extra parameters from a transformation's run method to the
 /// AnalysisManager's getResult.
@@ -181,11 +232,21 @@ struct RequireAnalysisPass<AnalysisT, Loop, LoopAnalysisManager,
     : OptionalPassInfoMixin<
           RequireAnalysisPass<AnalysisT, Loop, LoopAnalysisManager,
                               LoopStandardAnalysisResults &, LPMUpdater &>> {
+  /// Request \c AnalysisT for \p L and preserve all analyses.
+  /// @param L Loop to request the analysis for.
+  /// @param AM Loop analysis manager used to get the result.
+  /// @param AR Standard loop analysis results forwarded to \c getResult.
+  /// @param U Loop pass manager updater (unused).
+  /// @return All analyses preserved.
   PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
-                        LoopStandardAnalysisResults &AR, LPMUpdater &) {
+                        LoopStandardAnalysisResults &AR, LPMUpdater &U) {
+    (void)U;
     (void)AM.template getResult<AnalysisT>(L, AR);
     return PreservedAnalyses::all();
   }
+  /// Print this pass as \c require<AnalysisName>.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps analysis class names to pass names.
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
     auto ClassName = AnalysisT::name();
@@ -217,12 +278,15 @@ class FunctionToLoopPassAdaptor;
 /// loops will not trigger the addition of their subloops.
 class LPMUpdater {
 public:
+  /// Query whether the current loop should be skipped after nest updates.
+  ///
   /// This can be queried by loop passes which run other loop passes (like pass
   /// managers) to know whether the loop needs to be skipped due to updates to
   /// the loop nest.
   ///
   /// If this returns true, the loop object may have been deleted, so passes
   /// should take care not to touch the object.
+  /// @return True if the current loop should be skipped.
   bool skipCurrentLoop() const { return SkipCurrentLoop; }
 
   /// Loop passes should use this method to indicate they have deleted a loop
@@ -235,6 +299,8 @@ public:
   /// If this is called for the current loop, in addition to clearing any
   /// state, this routine will mark that the current loop should be skipped by
   /// the rest of the pass management infrastructure.
+  /// @param L Loop that was deleted from the nest.
+  /// @param Name Name of \p L, used when clearing analysis results.
   void markLoopAsDeleted(Loop &L, llvm::StringRef Name) {
     LAM.clear(L, Name);
     assert((&L == CurrentL || CurrentL->contains(&L)) &&
@@ -244,6 +310,8 @@ public:
       SkipCurrentLoop = true;
   }
 
+  /// Set the parent of the current loop for debug-build nest checks.
+  /// @param L Parent loop of the loop currently being processed, or null.
   void setParentLoop(Loop *L) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     ParentL = L;
@@ -256,6 +324,7 @@ public:
   /// \p NewChildLoops must contain only the immediate children. Any nested
   /// loops within them will be visited in postorder as usual for the loop pass
   /// manager.
+  /// @param NewChildLoops Immediate child loops added under the current loop.
   void addChildLoops(ArrayRef<Loop *> NewChildLoops) {
     assert(!LoopNestMode &&
            "Child loops should not be pushed in loop-nest mode.");
@@ -283,6 +352,7 @@ public:
   /// \p NewSibLoops must only contain the immediate sibling loops. Any nested
   /// loops within them will be visited in postorder as usual for the loop pass
   /// manager.
+  /// @param NewSibLoops Immediate sibling loops added beside the current loop.
   void addSiblingLoops(ArrayRef<Loop *> NewSibLoops) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS && !defined(NDEBUG)
     for (Loop *NewL : NewSibLoops)
@@ -312,12 +382,15 @@ public:
     Worklist.insert(CurrentL);
   }
 
+  /// Returns whether a loop-nest pass has modified the loop nest.
+  /// @return True if a loop-nest pass has modified the loop nest.
   bool isLoopNestChanged() const {
     return LoopNestChanged;
   }
 
   /// Loopnest passes should use this method to indicate if the
   /// loopnest has been modified.
+  /// @param Changed Whether the loop nest was modified.
   void markLoopNestChanged(bool Changed) {
     LoopNestChanged = Changed;
   }
@@ -390,10 +463,15 @@ std::optional<PreservedAnalyses> LoopPassManager::runSinglePass(
 class FunctionToLoopPassAdaptor
     : public RequiredPassInfoMixin<FunctionToLoopPassAdaptor> {
 public:
+  /// Type-erased loop pass concept used by this adaptor.
   using PassConceptT =
       detail::PassConcept<Loop, LoopAnalysisManager,
                           LoopStandardAnalysisResults &, LPMUpdater &>;
 
+  /// Construct an adaptor that runs \p Pass over loops in a function.
+  /// @param Pass Type-erased loop pass to run.
+  /// @param UseMemorySSA Whether to compute and preserve MemorySSA.
+  /// @param LoopNestMode Whether to run in loop-nest mode.
   explicit FunctionToLoopPassAdaptor(PassConceptT::unique_ptr Pass,
                                      bool UseMemorySSA = false,
                                      bool LoopNestMode = false)
@@ -404,11 +482,19 @@ public:
   }
 
   /// Runs the loop passes across every loop in the function.
+  /// @param F Function whose loops are processed.
+  /// @param AM Function analysis manager.
+  /// @return The analyses preserved after running the loop passes.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  /// Print this adaptor and its nested loop pass as a pipeline.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
 
+  /// Returns whether this adaptor runs in loop-nest mode.
+  /// @return True if this adaptor runs in loop-nest mode.
   bool isLoopNestMode() const { return LoopNestMode; }
 
 private:
@@ -427,6 +513,9 @@ private:
 ///
 /// If \p Pass is a loop-nest pass, \p Pass will first be wrapped into a
 /// \c LoopPassManager and the returned adaptor will be in loop-nest mode.
+/// @param Pass Loop or loop-nest pass to wrap in the adaptor.
+/// @param UseMemorySSA Whether the adaptor should enable MemorySSA.
+/// @return A function-to-loop adaptor wrapping \p Pass.
 template <typename LoopPassT>
 inline FunctionToLoopPassAdaptor
 createFunctionToLoopPassAdaptor(LoopPassT &&Pass, bool UseMemorySSA = false) {
@@ -449,6 +538,9 @@ createFunctionToLoopPassAdaptor(LoopPassT &&Pass, bool UseMemorySSA = false) {
 
 /// If \p Pass is an instance of \c LoopPassManager, the returned adaptor will
 /// be in loop-nest mode if the pass manager contains only loop-nest passes.
+/// @param LPM Loop pass manager to wrap in the adaptor.
+/// @param UseMemorySSA Whether the adaptor should enable MemorySSA.
+/// @return A function-to-loop adaptor wrapping \p LPM.
 template <>
 inline FunctionToLoopPassAdaptor
 createFunctionToLoopPassAdaptor<LoopPassManager>(LoopPassManager &&LPM,
@@ -469,11 +561,21 @@ class PrintLoopPass : public RequiredPassInfoMixin<PrintLoopPass> {
   std::string Banner;
 
 public:
+  /// Construct a print pass that writes to \c dbgs() with an empty banner.
   LLVM_ABI PrintLoopPass();
+  /// Construct a print pass that writes to \p OS with an optional \p Banner.
+  /// @param OS Stream to write the loop IR to.
+  /// @param Banner Optional banner printed before the loop IR.
   LLVM_ABI PrintLoopPass(raw_ostream &OS, const std::string &Banner = "");
 
-  LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &,
-                                 LoopStandardAnalysisResults &, LPMUpdater &);
+  /// Print the loop as textual IR and preserve all analyses.
+  /// @param L Loop whose IR is printed.
+  /// @param AM Loop analysis manager (unused).
+  /// @param AR Standard loop analysis results (unused).
+  /// @param U Loop pass manager updater (unused).
+  /// @return All analyses preserved.
+  LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
+                                 LoopStandardAnalysisResults &AR, LPMUpdater &U);
 };
 }
 

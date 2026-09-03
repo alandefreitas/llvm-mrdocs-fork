@@ -21,15 +21,19 @@ namespace llvm
 {
   namespace sys
   {
-    /// SmartMutex - A mutex with a compile time constant parameter that
-    /// indicates whether this mutex should become a no-op when we're not
-    /// running in multithreaded mode.
+    /// Mutex that optionally becomes a no-op outside multithreaded mode.
+    ///
+    /// The compile-time constant parameter indicates whether this mutex should
+    /// become a no-op when we're not running in multithreaded mode.
     template<bool mt_only>
     class SmartMutex {
       std::recursive_mutex impl;
       unsigned acquired = 0;
 
     public:
+      /// Acquire the mutex, or track acquisition in single-threaded mode.
+      ///
+      /// @return Always true.
       bool lock() {
         if (!mt_only || llvm_is_multithreaded()) {
           impl.lock();
@@ -42,6 +46,9 @@ namespace llvm
         return true;
       }
 
+      /// Release the mutex previously acquired by \c lock().
+      ///
+      /// @return Always true.
       bool unlock() {
         if (!mt_only || llvm_is_multithreaded()) {
           impl.unlock();
@@ -55,6 +62,9 @@ namespace llvm
         return true;
       }
 
+      /// Attempt to acquire the mutex without blocking.
+      ///
+      /// @return True if the mutex was acquired.
       bool try_lock() {
         if (!mt_only || llvm_is_multithreaded())
           return impl.try_lock();
@@ -65,9 +75,11 @@ namespace llvm
     /// Mutex - A standard, always enforced mutex.
     using Mutex = SmartMutex<false>;
 
+    /// RAII lock guard for \c SmartMutex.
     template <bool mt_only>
     using SmartScopedLock = std::lock_guard<SmartMutex<mt_only>>;
 
+    /// RAII lock guard for \c Mutex.
     using ScopedLock = SmartScopedLock<false>;
   }
 }

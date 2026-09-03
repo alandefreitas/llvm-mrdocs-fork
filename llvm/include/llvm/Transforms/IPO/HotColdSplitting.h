@@ -33,14 +33,28 @@ class CodeExtractorAnalysisCache;
 /// A 0-sized SmallVector is slightly cheaper to move than a std::vector.
 using BlockSequence = SmallVector<BasicBlock *, 0>;
 
+/// Outlines cold regions of functions into separate cold functions.
 class HotColdSplitting {
 public:
+  /// Construct a hot/cold splitting transformation.
+  ///
+  /// \param ProfSI Profile summary used to identify cold code.
+  /// \param GBFI Callback that returns block frequency info for a function.
+  /// \param GTTI Callback that returns target transform info for a function.
+  /// \param GORE Callback that returns an optimization remark emitter for a
+  /// function.
+  /// \param LAC Callback that looks up the assumption cache for a function.
   HotColdSplitting(ProfileSummaryInfo *ProfSI,
                    function_ref<BlockFrequencyInfo *(Function &)> GBFI,
                    function_ref<TargetTransformInfo &(Function &)> GTTI,
                    std::function<OptimizationRemarkEmitter &(Function &)> *GORE,
                    function_ref<AssumptionCache *(Function &)> LAC)
       : PSI(ProfSI), GetBFI(GBFI), GetTTI(GTTI), GetORE(GORE), LookupAC(LAC) {}
+
+  /// Outline cold regions in functions of the given module.
+  ///
+  /// \param M Module whose functions are scanned for cold regions to outline.
+  /// \return True if the module was modified.
   LLVM_ABI bool run(Module &M);
 
 private:
@@ -67,6 +81,11 @@ private:
 class HotColdSplittingPass
     : public OptionalPassInfoMixin<HotColdSplittingPass> {
 public:
+  /// Run hot/cold splitting over the given module.
+  ///
+  /// \param M Module whose cold regions may be outlined.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

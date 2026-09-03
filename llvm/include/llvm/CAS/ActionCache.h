@@ -32,13 +32,22 @@ class ObjectProxy;
 class CacheKey {
 public:
   /// Return the serialized key bytes used for cache lookup.
+  ///
+  /// \returns The key as a \c StringRef over the owned byte buffer.
   StringRef getKey() const { return Key; }
 
   /// Build a cache key from the hash of \p ID.
+  ///
+  /// \param ID CAS identifier whose hash forms the key.
   LLVM_ABI CacheKey(const CASID &ID);
   /// Build a cache key from the hash of \p Proxy's object.
+  ///
+  /// \param Proxy Object proxy whose hash forms the key.
   LLVM_ABI CacheKey(const ObjectProxy &Proxy);
   /// Build a cache key from \p Ref resolved in \p CAS.
+  ///
+  /// \param CAS Object store used to resolve \p Ref.
+  /// \param Ref Object reference whose hash forms the key.
   LLVM_ABI CacheKey(const ObjectStore &CAS, const ObjectRef &Ref);
 
 private:
@@ -56,9 +65,11 @@ class LLVM_ABI ActionCache {
 public:
   /// Get a previously computed result for \p ActionKey.
   ///
+  /// \param ActionKey Key describing the action to look up.
   /// \param CanBeDistributed is a hint to the underlying implementation that if
   /// it is true, the lookup is profitable to be done on a distributed caching
   /// level, not just locally. The implementation is free to ignore this flag.
+  /// \returns The cached \c CASID, \c std::nullopt if missing, or an error.
   Expected<std::optional<CASID>> get(const CacheKey &ActionKey,
                                      bool CanBeDistributed = false) const {
     return getImpl(arrayRefFromStringRef(ActionKey.getKey()), CanBeDistributed);
@@ -66,10 +77,13 @@ public:
 
   /// Cache \p Result for the \p ActionKey computation.
   ///
+  /// \param ActionKey Key describing the action whose result is being cached.
+  /// \param Result CAS identifier of the computed result.
   /// \param CanBeDistributed is a hint to the underlying implementation that if
   /// it is true, the association is profitable to be done on a distributed
   /// caching level, not just locally. The implementation is free to ignore this
   /// flag.
+  /// \returns Success, or an error on cache poisoning or failure.
   Error put(const CacheKey &ActionKey, const CASID &Result,
             bool CanBeDistributed = false) {
     assert(Result.getContext().getHashSchemaIdentifier() ==
@@ -80,6 +94,8 @@ public:
   }
 
   /// Validate the ActionCache contents.
+  ///
+  /// \returns Success, or an error if validation fails.
   virtual Error validate() const = 0;
 
   /// Destroy the action cache.
@@ -87,17 +103,34 @@ public:
 
 protected:
   /// Implementation detail for \p get.
+  ///
+  /// \param ResolvedKey Serialized action key bytes.
+  /// \param CanBeDistributed Hint that the lookup is profitable to do on a
+  /// distributed caching level, not just locally. The implementation is free to
+  /// ignore this flag.
+  /// \returns The cached \c CASID, \c std::nullopt if missing, or an error.
   virtual Expected<std::optional<CASID>>
   getImpl(ArrayRef<uint8_t> ResolvedKey, bool CanBeDistributed) const = 0;
 
   /// Implementation detail for \p put.
+  ///
+  /// \param ResolvedKey Serialized action key bytes.
+  /// \param Result CAS identifier of the computed result to store.
+  /// \param CanBeDistributed Hint that the association is profitable to store
+  /// on a distributed caching level, not just locally. The implementation is
+  /// free to ignore this flag.
+  /// \returns Success, or an error on cache poisoning or failure.
   virtual Error putImpl(ArrayRef<uint8_t> ResolvedKey, const CASID &Result,
                         bool CanBeDistributed) = 0;
 
   /// Construct an action cache bound to \p Context.
+  ///
+  /// \param Context CAS context that owns identifiers stored in this cache.
   ActionCache(const CASContext &Context) : Context(Context) {}
 
   /// Return the CAS context that owns identifiers stored in this cache.
+  ///
+  /// \returns The \c CASContext bound to this cache.
   const CASContext &getContext() const { return Context; }
 
 private:
@@ -105,9 +138,14 @@ private:
 };
 
 /// Create an action cache in memory.
+///
+/// \returns An owned in-memory \c ActionCache.
 LLVM_ABI std::unique_ptr<ActionCache> createInMemoryActionCache();
 
 /// Create an action cache on disk.
+///
+/// \param Path Directory for the on-disk action cache.
+/// \returns An owned on-disk \c ActionCache, or an error on failure.
 LLVM_ABI Expected<std::unique_ptr<ActionCache>>
 createOnDiskActionCache(StringRef Path);
 

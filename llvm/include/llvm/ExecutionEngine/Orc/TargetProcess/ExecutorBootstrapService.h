@@ -22,12 +22,20 @@
 namespace llvm {
 namespace orc {
 
+/// Base interface for services that contribute bootstrap symbols.
 class LLVM_ABI ExecutorBootstrapService {
 public:
+  /// Destroy an ExecutorBootstrapService.
   virtual ~ExecutorBootstrapService();
 
+  /// Add this service's bootstrap symbols to \p BootstrapSymbols.
+  /// \param BootstrapSymbols Map of bootstrap symbol names to executor
+  ///        addresses to update.
   virtual void
   addBootstrapSymbols(StringMap<ExecutorAddr> &BootstrapSymbols) = 0;
+
+  /// Shut down this service and release any associated resources.
+  /// \return Success, or an error if shutdown fails.
   virtual Error shutdown() = 0;
 };
 

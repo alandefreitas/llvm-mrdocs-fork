@@ -23,7 +23,12 @@ class Module;
 /// Pass to remove unused function declarations.
 class PartialInlinerPass : public OptionalPassInfoMixin<PartialInlinerPass> {
 public:
-  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  /// Run partial inlining over the given module.
+  ///
+  /// \param M Module whose functions may be partially inlined.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // end namespace llvm

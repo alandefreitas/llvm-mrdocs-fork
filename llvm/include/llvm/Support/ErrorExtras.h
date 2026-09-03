@@ -16,6 +16,14 @@ namespace llvm {
 
 // LLVM formatv versions of llvm::createStringError
 
+/// Create a StringError from error code \p EC and formatv-style \p Fmt.
+///
+/// Like \c createStringError, but formats the message with \c formatv.
+///
+/// \param EC Error code stored in the StringError.
+/// \param Fmt Formatv-style format string for the message.
+/// \param Vals Format arguments for \p Fmt.
+/// \return A StringError with code \p EC and the formatv-formatted message.
 template <typename... Ts>
 inline Error createStringErrorV(std::error_code EC, char const *Fmt,
                                 Ts &&...Vals) {
@@ -23,6 +31,11 @@ inline Error createStringErrorV(std::error_code EC, char const *Fmt,
                                  EC, true);
 }
 
+/// Create a StringError with an inconvertible error code and formatv-style \p Fmt.
+///
+/// \param Fmt Formatv-style format string for the message.
+/// \param Vals Format arguments for \p Fmt.
+/// \return A StringError with an inconvertible error code and the formatv-formatted message.
 template <typename... Ts>
 inline Error createStringErrorV(char const *Fmt, Ts &&...Vals) {
   return createStringErrorV(llvm::inconvertibleErrorCode(), Fmt,

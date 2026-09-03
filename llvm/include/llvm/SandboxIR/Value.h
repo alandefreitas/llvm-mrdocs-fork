@@ -50,31 +50,63 @@ class UserUseIterator {
   friend class Value; // For constructor
 
 public:
+  /// Signed distance between iterators.
   using difference_type = std::ptrdiff_t;
+  /// Use type referred to by this iterator.
   using value_type = sandboxir::Use;
+  /// Pointer to a Use.
   using pointer = value_type *;
+  /// Reference to a Use.
   using reference = value_type &;
+  /// Input-iterator traversal category.
   using iterator_category = std::input_iterator_tag;
 
+  /// Construct a singular (empty) iterator.
   UserUseIterator() = default;
+  /// Dereference to the current Use edge.
+  /// \Returns The current Use edge.
   value_type operator*() const { return Use; }
+  /// Advance to the next Use edge.
+  /// \Returns This iterator after advancing.
   LLVM_ABI UserUseIterator &operator++();
+  /// Return true if this iterator and \p Other refer to the same Use.
+  /// \param Other Iterator to compare against.
+  /// \Returns True if both iterators refer to the same Use.
   bool operator==(const UserUseIterator &Other) const {
     return Use == Other.Use;
   }
+  /// Return true if this iterator and \p Other refer to different Uses.
+  /// \param Other Iterator to compare against.
+  /// \Returns True if the iterators refer to different Uses.
   bool operator!=(const UserUseIterator &Other) const {
     return !(*this == Other);
   }
+  /// Return the current Use edge.
+  /// \Returns The current Use edge.
   const sandboxir::Use &getUse() const { return Use; }
 };
 
 /// A SandboxIR Value has users. This is the base class.
 class Value {
 public:
+  /// Identifies the concrete SandboxIR Value subclass.
   enum class ClassID : unsigned {
+/// Expand to a ClassID enumerator for a Value subclass.
+/// \param ID Enumerator name for the ClassID.
+/// \param CLASS SandboxIR Value subclass type.
 #define DEF_VALUE(ID, CLASS) ID,
+/// Expand to a ClassID enumerator for a User subclass.
+/// \param ID Enumerator name for the ClassID.
+/// \param CLASS SandboxIR User subclass type.
 #define DEF_USER(ID, CLASS) ID,
+/// Expand to a ClassID enumerator for a Constant subclass.
+/// \param ID Enumerator name for the ClassID.
+/// \param CLASS SandboxIR Constant subclass type.
 #define DEF_CONST(ID, CLASS) ID,
+/// Expand to a ClassID enumerator for an Instruction subclass.
+/// \param ID Enumerator name for the ClassID.
+/// \param OPC Opcode list for the instruction.
+/// \param CLASS SandboxIR Instruction subclass type.
 #define DEF_INSTR(ID, OPC, CLASS) ID,
 #define DEF_DISABLE_AUTO_UNDEF // ValuesDefFilesList.def includes multiple .def
 #include "llvm/SandboxIR/ValuesDefFilesList.def"
@@ -85,6 +117,9 @@ public:
   };
 
 protected:
+  /// Return the string name of subclass identifier \p ID.
+  /// \param ID Subclass identifier to stringify.
+  /// \Returns The string name of \p ID.
   static const char *getSubclassIDStr(ClassID ID) {
     switch (ID) {
 #define DEF_VALUE(ID, CLASS)                                                   \
@@ -115,7 +150,8 @@ protected:
   /// A unique ID used for forming the name (used for debugging).
   unsigned UID;
 #endif
-  /// The LLVM Value that corresponds to this SandboxIR Value.
+  /// Corresponding LLVM IR Value for this SandboxIR Value.
+  ///
   /// NOTE: Some sandboxir Instructions, like Packs, may include more than one
   /// value and in these cases `Val` points to the last instruction in program
   /// order.
@@ -199,69 +235,118 @@ protected:
 
   /// All values point to the context.
   Context &Ctx;
-  // This is used by eraseFromParent().
+  /// Clear the underlying LLVM Value pointer.
+  ///
+  /// This is used by eraseFromParent().
   void clearValue() { Val = nullptr; }
+  /// Helper that maps LLVM operand-user iterators to SandboxIR types.
   template <typename ItTy, typename SBTy> friend class LLVMOpUserItToSBTy;
 
+  /// Construct a Value of subclass \p SubclassID wrapping LLVM Value \p Val.
+  /// \param SubclassID Concrete subclass identifier.
+  /// \param Val Underlying LLVM IR value.
+  /// \param Ctx SandboxIR context that owns this value.
   LLVM_ABI Value(ClassID SubclassID, llvm::Value *Val, Context &Ctx);
   /// Disable copies.
-  Value(const Value &) = delete;
-  Value &operator=(const Value &) = delete;
+  /// \param Other Unused copy source.
+  Value(const Value &Other) = delete;
+  /// Disable copy assignment.
+  /// \param Other Unused copy source.
+  Value &operator=(const Value &Other) = delete;
 
 public:
+  /// Destroy this Value.
   virtual ~Value() = default;
+  /// Return the subclass identifier for this Value.
+  /// \Returns The subclass identifier for this Value.
   ClassID getSubclassID() const { return SubclassID; }
 
+  /// Iterator over Use edges from this Value's users.
   using use_iterator = UserUseIterator;
+  /// Const iterator over Use edges from this Value's users.
   using const_use_iterator = UserUseIterator;
 
+  /// Return an iterator to the first Use of this Value.
+  /// \Returns An iterator to the first Use of this Value.
   LLVM_ABI use_iterator use_begin();
+  /// Return a const iterator to the first Use of this Value.
+  /// \Returns A const iterator to the first Use of this Value.
   const_use_iterator use_begin() const {
     return const_cast<Value *>(this)->use_begin();
   }
+  /// Return an iterator past the last Use of this Value.
+  /// \Returns An iterator past the last Use of this Value.
   use_iterator use_end() { return use_iterator(Use(nullptr, nullptr, Ctx)); }
+  /// Return a const iterator past the last Use of this Value.
+  /// \Returns A const iterator past the last Use of this Value.
   const_use_iterator use_end() const {
     return const_cast<Value *>(this)->use_end();
   }
 
+  /// Return a range over the Use edges of this Value.
+  /// \Returns A range over the Use edges of this Value.
   iterator_range<use_iterator> uses() {
     return make_range<use_iterator>(use_begin(), use_end());
   }
+  /// Return a const range over the Use edges of this Value.
+  /// \Returns A const range over the Use edges of this Value.
   iterator_range<const_use_iterator> uses() const {
     return make_range<const_use_iterator>(use_begin(), use_end());
   }
 
   /// Helper for mapped_iterator.
   struct UseToUser {
+    /// Map a Use edge to its User.
+    /// \param Use Use edge whose User is returned.
+    /// \Returns The User of \p Use.
     User *operator()(const Use &Use) const { return &*Use.getUser(); }
   };
 
+  /// Iterator over Users of this Value.
   using user_iterator = mapped_iterator<sandboxir::UserUseIterator, UseToUser>;
+  /// Const iterator over Users of this Value.
   using const_user_iterator = user_iterator;
 
+  /// Return an iterator to the first User of this Value.
+  /// \Returns An iterator to the first User of this Value.
   LLVM_ABI user_iterator user_begin();
+  /// Return an iterator past the last User of this Value.
+  /// \Returns An iterator past the last User of this Value.
   user_iterator user_end() {
     return user_iterator(Use(nullptr, nullptr, Ctx), UseToUser());
   }
+  /// Return a const iterator to the first User of this Value.
+  /// \Returns A const iterator to the first User of this Value.
   const_user_iterator user_begin() const {
     return const_cast<Value *>(this)->user_begin();
   }
+  /// Return a const iterator past the last User of this Value.
+  /// \Returns A const iterator past the last User of this Value.
   const_user_iterator user_end() const {
     return const_cast<Value *>(this)->user_end();
   }
 
+  /// Return a range over the Users of this Value.
+  /// \Returns A range over the Users of this Value.
   iterator_range<user_iterator> users() {
     return make_range<user_iterator>(user_begin(), user_end());
   }
+  /// Return a const range over the Users of this Value.
+  /// \Returns A const range over the Users of this Value.
   iterator_range<const_user_iterator> users() const {
     return make_range<const_user_iterator>(user_begin(), user_end());
   }
+  /// Return the number of user edges (not necessarily to unique users).
+  ///
   /// \Returns the number of user edges (not necessarily to unique users).
   /// WARNING: This is a linear-time operation.
   LLVM_ABI unsigned getNumUses() const;
   /// Return true if this value has N uses or more.
   ///
-  /// This is logically equivalent to getNumUses() >= N. WARNING: This can be expensive, as it is linear to the number of users.
+  /// This is logically equivalent to getNumUses() >= N. WARNING: This can be
+  /// expensive, as it is linear to the number of users.
+  /// \param Num Minimum number of uses to check for.
+  /// \Returns True if this value has at least \p Num uses.
   bool hasNUsesOrMore(unsigned Num) const {
     unsigned Cnt = 0;
     for (auto It = use_begin(), ItE = use_end(); It != ItE; ++It) {
@@ -271,6 +356,8 @@ public:
     return false;
   }
   /// Return true if this Value has exactly N uses.
+  /// \param Num Exact number of uses to check for.
+  /// \Returns True if this Value has exactly \p Num uses.
   bool hasNUses(unsigned Num) const {
     unsigned Cnt = 0;
     for (auto It = use_begin(), ItE = use_end(); It != ItE; ++It) {
@@ -280,15 +367,26 @@ public:
     return Cnt == Num;
   }
 
+  /// Return the SandboxIR type of this Value.
+  /// \Returns The SandboxIR type of this Value.
   LLVM_ABI Type *getType() const;
 
+  /// Return the SandboxIR context that owns this Value.
+  /// \Returns The SandboxIR context that owns this Value.
   Context &getContext() const { return Ctx; }
 
+  /// Replace uses of this Value with \p OtherV when \p ShouldReplace is true.
+  /// \param OtherV Replacement value.
+  /// \param ShouldReplace Predicate selecting which uses to replace.
   LLVM_ABI void
   replaceUsesWithIf(Value *OtherV,
                     llvm::function_ref<bool(const Use &)> ShouldReplace);
+  /// Replace all uses of this Value with \p Other.
+  /// \param Other Replacement value.
   LLVM_ABI void replaceAllUsesWith(Value *Other);
 
+  /// Return the LLVM IR name of the bottom-most LLVM value.
+  ///
   /// \Returns the LLVM IR name of the bottom-most LLVM value.
   StringRef getName() const { return Val->getName(); }
 
@@ -296,36 +394,64 @@ public:
   /// Should crash if there is something wrong with the instruction.
   virtual void verify() const = 0;
   /// Returns the unique id in the form 'SB<number>.' like 'SB1.'
+  /// \Returns The unique id string in the form 'SB<number>.'.
   std::string getUid() const;
+  /// Dump the common header used by Value dumps to \p OS.
+  /// \param OS Output stream.
   virtual void dumpCommonHeader(raw_ostream &OS) const;
+  /// Dump the common footer used by Value dumps to \p OS.
+  /// \param OS Output stream.
   void dumpCommonFooter(raw_ostream &OS) const;
+  /// Dump the common prefix used by Value dumps to \p OS.
+  /// \param OS Output stream.
   void dumpCommonPrefix(raw_ostream &OS) const;
+  /// Dump the common suffix used by Value dumps to \p OS.
+  /// \param OS Output stream.
   void dumpCommonSuffix(raw_ostream &OS) const;
+  /// Print this Value as an operand to \p OS.
+  /// \param OS Output stream.
   void printAsOperandCommon(raw_ostream &OS) const;
+  /// Stream-print SandboxIR Value \p V to \p OS.
+  /// \param OS Output stream.
+  /// \param V Value to print.
+  /// \Returns \p OS after printing \p V.
   friend raw_ostream &operator<<(raw_ostream &OS, const sandboxir::Value &V) {
     V.dumpOS(OS);
     return OS;
   }
+  /// Dump this Value to \p OS.
+  /// \param OS Output stream.
   virtual void dumpOS(raw_ostream &OS) const = 0;
+  /// Dump this Value to dbgs().
   LLVM_DUMP_METHOD void dump() const;
 #endif
 };
 
+/// Opaque SandboxIR wrapper for LLVM values without a dedicated subclass.
 class OpaqueValue : public Value {
 protected:
+  /// Construct an OpaqueValue wrapping LLVM Value \p V.
+  /// \param V Underlying LLVM IR value.
+  /// \param Ctx SandboxIR context that owns this value.
   OpaqueValue(llvm::Value *V, Context &Ctx)
       : Value(ClassID::OpaqueValue, V, Ctx) {}
   friend class Context; // For constructor.
 
 public:
+  /// For isa/dyn_cast.
+  /// \param From Value to test for OpaqueValue.
+  /// \Returns True if \p From is an OpaqueValue.
   static bool classof(const Value *From) {
     return From->getSubclassID() == ClassID::OpaqueValue;
   }
 #ifndef NDEBUG
+  /// Verify that this wraps metadata or inline assembly.
   void verify() const override {
     assert((isa<llvm::MetadataAsValue>(Val) || isa<llvm::InlineAsm>(Val)) &&
            "Expected Metadata or InlineAssembly!");
   }
+  /// Dump this OpaqueValue to \p OS.
+  /// \param OS Output stream.
   void dumpOS(raw_ostream &OS) const override {
     dumpCommonPrefix(OS);
     dumpCommonSuffix(OS);

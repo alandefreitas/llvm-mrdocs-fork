@@ -14,6 +14,7 @@
 #include "llvm/Support/RISCVAttributes.h"
 
 namespace llvm {
+/// Parser for RISCV ELF build attributes.
 class LLVM_ABI RISCVAttributeParser : public ELFCompactAttrParser {
   struct DisplayHandler {
     RISCVAttrs::AttrType attribute;
@@ -28,9 +29,13 @@ class LLVM_ABI RISCVAttributeParser : public ELFCompactAttrParser {
   Error atomicAbi(unsigned tag);
 
 public:
+  /// Construct a parser that prints attribute details to \p sw.
+  ///
+  /// \param sw Printer used for attribute comments, or null to suppress output.
   RISCVAttributeParser(ScopedPrinter *sw)
       : ELFCompactAttrParser(sw, RISCVAttrs::getRISCVAttributeTags(), "riscv") {
   }
+  /// Construct a parser that does not print attribute details.
   RISCVAttributeParser()
       : ELFCompactAttrParser(RISCVAttrs::getRISCVAttributeTags(), "riscv") {}
 };

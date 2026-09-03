@@ -26,6 +26,12 @@ namespace llvm {
 class Value;
 class CondBrInst;
 
+/// Cache of branch conditions that affect values, for use by ValueTracking.
+///
+/// Unlike AssumptionCache, this class does not perform any automatic analysis
+/// or invalidation. The caller is responsible for registering all relevant
+/// branches (and re-registering them if they change), and for removing
+/// invalidated values from the cache.
 class DomConditionCache {
 private:
   /// A map of values about which a branch might be providing information.
@@ -34,12 +40,16 @@ private:
 
 public:
   /// Add a branch condition to the cache.
+  /// @param BI Conditional branch whose condition may affect values.
   LLVM_ABI void registerBranch(CondBrInst *BI);
 
   /// Remove a value from the cache, e.g. because it will be erased.
+  /// @param V Value to remove from the affected-values map.
   void removeValue(Value *V) { AffectedValues.erase(V); }
 
   /// Access the list of branches which affect this value.
+  /// @param V Value whose affecting branch conditions are requested.
+  /// @return Array of conditional branches that affect \p V, or empty if none.
   ArrayRef<CondBrInst *> conditionsFor(const Value *V) const {
     auto AVI = AffectedValues.find_as(const_cast<Value *>(V));
     if (AVI == AffectedValues.end())

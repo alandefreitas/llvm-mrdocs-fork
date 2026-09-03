@@ -58,12 +58,25 @@ namespace llvm {
 
 class Function;
 
+/// A pass that eliminates tail recursion by converting it into a loop.
+///
+/// Transforms self-recursive calls followed by a return into a branch back to
+/// the function entry. Also marks eligible calls for codegen tail-call
+/// elimination when callees do not access the caller stack frame.
 class TailCallElimPass : public OptionalPassInfoMixin<TailCallElimPass> {
   const bool UpdateFunctionEntryCount;
 
 public:
+  /// Construct a TailCallElim pass.
+  /// @param UpdateFunctionEntryCount When true, update the function's entry
+  /// count after eliminating tail recursion.
   TailCallElimPass(bool UpdateFunctionEntryCount = true)
       : UpdateFunctionEntryCount(UpdateFunctionEntryCount) {}
+
+  /// Run tail call elimination over the function.
+  /// @param F Function to eliminate tail recursion from.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 }

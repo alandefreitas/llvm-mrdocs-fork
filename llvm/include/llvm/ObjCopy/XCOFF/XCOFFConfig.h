@@ -12,7 +12,7 @@
 namespace llvm {
 namespace objcopy {
 
-// XCOFF specific configuration for copying/stripping a single file.
+/// XCOFF-specific configuration for copying or stripping a single file.
 struct XCOFFConfig {};
 
 } // namespace objcopy

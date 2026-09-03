@@ -62,20 +62,43 @@ class Use {
 #undef DEF_INSTR
 
 public:
+  /// Implicitly convert this Use to the referenced Value.
+  /// \return The Value this Use refers to.
   operator Value *() const { return get(); }
+  /// Return the Value this Use refers to.
+  /// \return The Value this Use refers to.
   LLVM_ABI Value *get() const;
+  /// Set the Value this Use refers to.
+  /// \param V New value for this use.
   LLVM_ABI void set(Value *V);
+  /// Return the User that owns this Use.
+  /// \return The User that owns this Use.
   class User *getUser() const { return Usr; }
+  /// Return the operand number of this Use in its User.
+  /// \return The operand index of this Use in its User.
   LLVM_ABI unsigned getOperandNo() const;
+  /// Swap this Use with \p OtherUse.
+  /// \param OtherUse Use to swap with.
   LLVM_ABI void swap(Use &OtherUse);
+  /// Return the SandboxIR context that owns this Use.
+  /// \return The SandboxIR context that owns this Use.
   Context *getContext() const { return Ctx; }
+  /// Return true if this Use and \p Other refer to the same use-def edge.
+  /// \param Other Use to compare against.
+  /// \return True if both Uses refer to the same use-def edge.
   bool operator==(const Use &Other) const {
     assert(Ctx == Other.Ctx && "Contexts differ!");
     return LLVMUse == Other.LLVMUse && Usr == Other.Usr;
   }
+  /// Return true if this Use and \p Other refer to different use-def edges.
+  /// \param Other Use to compare against.
+  /// \return True if the Uses refer to different use-def edges.
   bool operator!=(const Use &Other) const { return !(*this == Other); }
 #ifndef NDEBUG
+  /// Dump this Use to \p OS.
+  /// \param OS Output stream.
   LLVM_ABI void dumpOS(raw_ostream &OS) const;
+  /// Dump this Use to dbgs().
   void dump() const;
 #endif // NDEBUG
 };

@@ -16,10 +16,15 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
+/// Base class for format adapters that wrap a value of type \c T.
 template <typename T> class FormatAdapter {
 protected:
+  /// Construct an adapter that owns \p Item.
+  ///
+  /// \param Item Value to wrap for formatting.
   explicit FormatAdapter(T &&Item) : Item(std::forward<T>(Item)) {}
 
+  /// Wrapped value to format.
   T Item;
 };
 
@@ -82,6 +87,13 @@ public:
 } // namespace detail
 } // namespace support
 
+/// Format \p Item aligned within a field of width \p Amount.
+///
+/// \param Item Value to format.
+/// \param Where Alignment of the value within the field.
+/// \param Amount Field width in characters.
+/// \param Fill Pad character for unused space in the field.
+/// \return An adapter that formats \p Item aligned within the field.
 template <typename T>
 support::detail::AlignAdapter<T> fmt_align(T &&Item, AlignStyle Where,
                                            size_t Amount, char Fill = ' ') {
@@ -89,19 +101,35 @@ support::detail::AlignAdapter<T> fmt_align(T &&Item, AlignStyle Where,
                                           Fill);
 }
 
+/// Format \p Item with \p Left spaces before and \p Right spaces after.
+///
+/// \param Item Value to format.
+/// \param Left Number of spaces to indent before the value.
+/// \param Right Number of spaces to indent after the value.
+/// \return An adapter that formats \p Item with the requested padding.
 template <typename T>
 support::detail::PadAdapter<T> fmt_pad(T &&Item, size_t Left, size_t Right) {
   return support::detail::PadAdapter<T>(std::forward<T>(Item), Left, Right);
 }
 
+/// Format \p Item repeated \p Count times.
+///
+/// \param Item Value to format.
+/// \param Count Number of times to format \p Item.
+/// \return An adapter that formats \p Item \p Count times.
 template <typename T>
 support::detail::RepeatAdapter<T> fmt_repeat(T &&Item, size_t Count) {
   return support::detail::RepeatAdapter<T>(std::forward<T>(Item), Count);
 }
 
-// llvm::Error values must be consumed before being destroyed.
-// Wrapping an error in fmt_consume explicitly indicates that the formatv_object
-// should take ownership and consume it.
+/// Wrap an Error so formatv takes ownership and consumes it.
+///
+/// llvm::Error values must be consumed before being destroyed. Wrapping an
+/// error in fmt_consume explicitly indicates that the formatv_object should
+/// take ownership and consume it.
+///
+/// \param Item Error to format and consume.
+/// \return An adapter that formats and consumes \p Item.
 inline support::detail::ErrorAdapter fmt_consume(Error &&Item) {
   return support::detail::ErrorAdapter(std::move(Item));
 }

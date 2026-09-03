@@ -22,7 +22,13 @@ namespace llvm {
 
 class Function;
 
+/// Pass that replaces dynamic coroutine frame allocation with alloca.
 struct CoroElidePass : RequiredPassInfoMixin<CoroElidePass> {
+  /// Elide frame allocation and replace resume/destroy with direct calls.
+  ///
+  /// \param F The function to process.
+  /// \param AM The function analysis manager.
+  /// \return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 } // end namespace llvm

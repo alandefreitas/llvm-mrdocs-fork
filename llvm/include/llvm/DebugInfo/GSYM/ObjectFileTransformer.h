@@ -23,6 +23,11 @@ namespace gsym {
 class GsymCreator;
 class OutputAggregator;
 
+/// Transforms object file data into GSYM function information.
+///
+/// Extracts the UUID and function symbols from an object file and populates
+/// a GsymCreator with FunctionInfo objects. Creating a separate class to
+/// transform this data allows this class to be unit tested.
 class ObjectFileTransformer {
 public:
   /// Extract any object file data that is needed by the GsymCreator.
@@ -32,8 +37,7 @@ public:
   ///
   /// \param Obj The object file that contains the DWARF debug info.
   ///
-  /// \param Log The stream to log warnings and non fatal issues to. If NULL,
-  ///            don't log.
+  /// \param Output The aggregator to log warnings and non fatal issues to.
   ///
   /// \param Gsym The GSYM creator to populate with the function information
   /// from the debug info.

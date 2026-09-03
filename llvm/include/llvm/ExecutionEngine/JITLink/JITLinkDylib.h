@@ -25,15 +25,20 @@ class JITLinkMemoryManager;
 /// Represents a JITDylib as seen by JITLink.
 class LLVM_ABI JITLinkDylib {
 public:
+  /// Construct a JITLinkDylib with the given name.
+  /// \param Name Name for this JITLinkDylib.
   JITLinkDylib(std::string Name) : Name(std::move(Name)) {}
 
+  /// Destroy this JITLinkDylib and notify registered memory managers.
   ~JITLinkDylib();
 
   /// Get the name for this JITLinkDylib.
+  /// \return The name of this JITLinkDylib.
   const std::string &getName() const { return Name; }
 
   /// Register a JITLinkMemoryManager to be notified when this JITLinkDylib
   /// is destroyed.
+  /// \param MemMgr Memory manager to notify on destruction.
   void notifyOnDestruction(JITLinkMemoryManager &MemMgr) {
     ToNotifyOnDestruction.push_back(&MemMgr);
   }

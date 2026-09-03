@@ -47,11 +47,13 @@ template <bool B, typename Range> auto reverse_if(Range &&R) {
 }
 } // namespace detail
 
-// GraphDiff defines a CFG snapshot: given a set of Update<NodePtr>, provides
-// a getChildren method to get a Node's children based on the additional updates
-// in the snapshot. The current diff treats the CFG as a graph rather than a
-// multigraph. Added edges are pruned to be unique, and deleted edges will
-// remove all existing edges between two blocks.
+/// CFG snapshot that overlays insert/delete edge updates on a graph.
+///
+/// Given a set of Update<NodePtr>, provides a getChildren method to get a
+/// Node's children based on the additional updates in the snapshot. The
+/// current diff treats the CFG as a graph rather than a multigraph. Added
+/// edges are pruned to be unique, and deleted edges will remove all existing
+/// edges between two blocks.
 template <typename NodePtr, bool InverseGraph = false> class GraphDiff {
   struct DeletesInserts {
     SmallVector<NodePtr, 2> DI[2];
@@ -89,7 +91,13 @@ template <typename NodePtr, bool InverseGraph = false> class GraphDiff {
   }
 
 public:
+  /// Construct an empty CFG snapshot with no edge updates.
   GraphDiff() : UpdatedAreReverseApplied(false) {}
+  /// Construct a CFG snapshot from \p Updates, optionally reverse-applied.
+  ///
+  /// \param Updates Edge insert/delete updates that define the snapshot.
+  /// \param ReverseApplyUpdates If true, treat deletes as inserts and inserts
+  ///        as deletes when returning children.
   GraphDiff(ArrayRef<cfg::Update<NodePtr>> Updates,
             bool ReverseApplyUpdates = false) {
     cfg::LegalizeUpdates<NodePtr>(Updates, LegalizedUpdates, InverseGraph);
@@ -102,12 +110,21 @@ public:
     UpdatedAreReverseApplied = ReverseApplyUpdates;
   }
 
+  /// Return a range over the legalized edge updates in this snapshot.
+  ///
+  /// \returns A range covering the legalized edge updates.
   auto getLegalizedUpdates() const {
     return make_range(LegalizedUpdates.begin(), LegalizedUpdates.end());
   }
 
+  /// Return the number of legalized edge updates in this snapshot.
+  ///
+  /// \returns The number of legalized edge updates.
   unsigned getNumLegalizedUpdates() const { return LegalizedUpdates.size(); }
 
+  /// Pop and return the next legalized update for incremental DomTree updates.
+  ///
+  /// \returns The next legalized edge update, removed from the snapshot.
   cfg::Update<NodePtr> popUpdateForIncrementalUpdates() {
     assert(!LegalizedUpdates.empty() && "No updates to apply!");
     auto U = LegalizedUpdates.pop_back_val();
@@ -129,7 +146,14 @@ public:
     return U;
   }
 
+  /// Small vector type used to return a node's children in the snapshot.
   using VectRet = SmallVector<NodePtr, 8>;
+  /// Return the children of \p N as seen through this CFG snapshot.
+  ///
+  /// \tparam InverseEdge If true, walk predecessors instead of successors.
+  /// \param N Node whose children (or predecessors) to collect.
+  /// \returns The children (or predecessors) of \p N after applying the
+  ///          snapshot's edge inserts and deletes.
   template <bool InverseEdge> VectRet getChildren(NodePtr N) const {
     using DirectedNodeT =
         std::conditional_t<InverseEdge, Inverse<NodePtr>, NodePtr>;
@@ -152,6 +176,9 @@ public:
     return Res;
   }
 
+  /// Print this CFG snapshot's edge insert/delete maps to \p OS.
+  ///
+  /// \param OS Stream to write to.
   void print(raw_ostream &OS) const {
     OS << "===== GraphDiff: CFG edge changes to create a CFG snapshot. \n"
           "===== (Note: notion of children/inverse_children depends on "
@@ -164,6 +191,7 @@ public:
   }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump this CFG snapshot to the debug stream.
   LLVM_DUMP_METHOD void dump() const { print(dbgs()); }
 #endif
 };

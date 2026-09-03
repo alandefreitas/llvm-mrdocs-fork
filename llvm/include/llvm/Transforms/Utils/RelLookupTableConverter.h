@@ -57,12 +57,20 @@ namespace llvm {
 
 class Module;
 
-// Pass that converts lookup tables to relative lookup tables.
+/// Pass that converts lookup tables to relative lookup tables.
+///
+/// Rewrites absolute pointer lookup tables into relative-offset tables so they
+/// are PIC-friendly, loading entries via \c llvm.load.relative.
 class RelLookupTableConverterPass
     : public OptionalPassInfoMixin<RelLookupTableConverterPass> {
 public:
+  /// Construct a RelLookupTableConverter pass.
   RelLookupTableConverterPass() = default;
 
+  /// Run the relative-lookup-table converter pass over the module.
+  /// @param M Module whose lookup tables may be converted.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -25,16 +25,25 @@ namespace llvm {
 /// individual optimizations at compile time.
 class OptPassGate {
 public:
+  /// Virtual destructor.
   virtual ~OptPassGate() = default;
 
+  /// Decide whether the named pass should run over the given IR unit.
+  ///
   /// IRDescription is a textual description of the IR unit the pass is running
   /// over.
+  /// \param PassName Name of the pass being considered.
+  /// \param IRDescription Textual description of the IR unit the pass runs
+  /// over.
+  /// \return True if the pass should run.
   virtual bool shouldRunPass(StringRef PassName,
                              StringRef IRDescription) const {
     return true;
   }
 
   /// isEnabled() should return true before calling shouldRunPass().
+  /// \return True if the pass gate is active and shouldRunPass() should be
+  /// consulted.
   virtual bool isEnabled() const { return false; }
 
   /// Reset the pass gate to its initial configuration, before any command line
@@ -42,6 +51,9 @@ public:
   virtual void reset() {}
 };
 
+/// Disable passes and optimizations at compile time for bisecting and
+/// debugging.
+///
 /// This class implements a mechanism to disable passes and individual
 /// optimizations at compile time based on two command line options
 /// (-opt-bisect and -opt-disable) in order to perform a bisecting
@@ -49,13 +61,15 @@ public:
 /// passes or combinations thereof.
 class LLVM_ABI OptBisect : public OptPassGate {
 public:
-  /// Default constructor. Initializes the state to "disabled". The bisection
-  /// will be enabled by the cl::opt call-back when the command line option
-  /// is processed.
-  /// Clients should not instantiate this class directly.  All access should go
-  /// through LLVMContext.
+  /// Construct an OptBisect instance in the disabled state.
+  ///
+  /// Initializes the state to "disabled". The bisection will be enabled by the
+  /// cl::opt call-back when the command line option is processed. Clients
+  /// should not instantiate this class directly. All access should go through
+  /// LLVMContext.
   OptBisect() = default;
 
+  /// Destroy an OptBisect instance.
   ~OptBisect() override = default;
 
   /// Checks the bisect intervals to determine if the specified pass should run.
@@ -68,20 +82,27 @@ public:
   /// Most passes should not call this routine directly. Instead, it is called
   /// through helper routines provided by the base classes of the pass. For
   /// instance, function passes should call FunctionPass::skipFunction().
+  /// \param PassName Name of the pass being considered.
+  /// \param IRDescription Textual description of the IR unit the pass runs
+  /// over.
+  /// \return True if the pass should run.
   bool shouldRunPass(StringRef PassName,
                      StringRef IRDescription) const override;
 
   /// isEnabled() should return true before calling shouldRunPass().
+  /// \return True if bisection intervals or disabled passes are configured.
   bool isEnabled() const override {
     return !BisectIntervals.empty() || !DisabledPasses.empty();
   }
 
+  /// Reset the pass gate by clearing intervals and disabled passes.
   void reset() override {
     clearIntervals();
     DisabledPasses.clear();
   }
 
   /// Set intervals directly from an IntervalList.
+  /// \param Intervals Inclusive intervals of pass numbers that should run.
   void setIntervals(IntegerInclusiveIntervalUtils::IntervalList Intervals) {
     BisectIntervals = std::move(Intervals);
   }
@@ -94,6 +115,7 @@ public:
 
   /// Parses the command line argument to extract the names of the passes
   /// to be disabled. Multiple pass names can be provided with comma separation.
+  /// \param Pass Name of a pass to disable.
   void setDisabled(StringRef Pass) { DisabledPasses.insert(Pass); }
 
 private:
@@ -105,6 +127,7 @@ private:
 
 /// Singleton instance of the OptPassGate class, so multiple pass managers don't
 /// need to coordinate their uses of OptBisect and OptDisable.
+/// \return A reference to the global OptPassGate singleton.
 LLVM_ABI OptPassGate &getGlobalPassGate();
 
 } // end namespace llvm

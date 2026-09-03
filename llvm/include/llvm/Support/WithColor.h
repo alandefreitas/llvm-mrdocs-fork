@@ -17,13 +17,14 @@ namespace llvm {
 class Error;
 class StringRef;
 
-/// Command-line option parsing utilities.
 namespace cl {
 /// Command-line option category grouping related flags.
 class OptionCategory;
 }
 
 /// Return the command-line option category for color-related flags.
+///
+/// \return The OptionCategory for color-related command-line flags.
 LLVM_ABI extern cl::OptionCategory &getColorCategory();
 
 /// Symbolic highlight roles used when coloring diagnostic and dump output.
@@ -92,12 +93,17 @@ public:
   LLVM_ABI ~WithColor();
 
   /// Return the underlying output stream.
+  ///
+  /// \return The underlying output stream.
   raw_ostream &get() { return OS; }
   /// Convert to the underlying output stream.
+  ///
+  /// \return The underlying output stream.
   operator raw_ostream &() { return OS; }
   /// Write \p O to the colored stream and return this wrapper.
   ///
   /// \param O Value inserted into the stream.
+  /// \return This colored stream wrapper.
   template <typename T> WithColor &operator<<(T &O) {
     OS << O;
     return *this;
@@ -105,34 +111,65 @@ public:
   /// Write \p O to the colored stream and return this wrapper.
   ///
   /// \param O Value inserted into the stream.
+  /// \return This colored stream wrapper.
   template <typename T> WithColor &operator<<(const T &O) {
     OS << O;
     return *this;
   }
 
   /// Convenience method for printing "error: " to stderr.
+  ///
+  /// \return stderr with the error severity prefix applied.
   LLVM_ABI static raw_ostream &error();
   /// Convenience method for printing "warning: " to stderr.
+  ///
+  /// \return stderr with the warning severity prefix applied.
   LLVM_ABI static raw_ostream &warning();
   /// Convenience method for printing "note: " to stderr.
+  ///
+  /// \return stderr with the note severity prefix applied.
   LLVM_ABI static raw_ostream &note();
   /// Convenience method for printing "remark: " to stderr.
+  ///
+  /// \return stderr with the remark severity prefix applied.
   LLVM_ABI static raw_ostream &remark();
 
   /// Convenience method for printing "error: " to the given stream.
+  ///
+  /// \param OS The output stream.
+  /// \param Prefix Optional tool or context name printed before the severity.
+  /// \param DisableColors When true, force colors off for this message.
+  /// \return \p OS with the error severity prefix applied.
   LLVM_ABI static raw_ostream &error(raw_ostream &OS, StringRef Prefix = "",
                                      bool DisableColors = false);
   /// Convenience method for printing "warning: " to the given stream.
+  ///
+  /// \param OS The output stream.
+  /// \param Prefix Optional tool or context name printed before the severity.
+  /// \param DisableColors When true, force colors off for this message.
+  /// \return \p OS with the warning severity prefix applied.
   LLVM_ABI static raw_ostream &warning(raw_ostream &OS, StringRef Prefix = "",
                                        bool DisableColors = false);
   /// Convenience method for printing "note: " to the given stream.
+  ///
+  /// \param OS The output stream.
+  /// \param Prefix Optional tool or context name printed before the severity.
+  /// \param DisableColors When true, force colors off for this message.
+  /// \return \p OS with the note severity prefix applied.
   LLVM_ABI static raw_ostream &note(raw_ostream &OS, StringRef Prefix = "",
                                     bool DisableColors = false);
   /// Convenience method for printing "remark: " to the given stream.
+  ///
+  /// \param OS The output stream.
+  /// \param Prefix Optional tool or context name printed before the severity.
+  /// \param DisableColors When true, force colors off for this message.
+  /// \return \p OS with the remark severity prefix applied.
   LLVM_ABI static raw_ostream &remark(raw_ostream &OS, StringRef Prefix = "",
                                       bool DisableColors = false);
 
   /// Determine whether colors are displayed.
+  ///
+  /// \return True if colors will be displayed on the stream.
   LLVM_ABI bool colorsEnabled();
 
   /// Change the color of text that will be output from this point forward.
@@ -142,25 +179,36 @@ public:
   /// @param BG If true, change the background, default: change foreground
   ///
   /// FIXME: If Color == SAVEDCOLOR, Bold == false is currently ignored.
+  /// \return This colored stream wrapper.
   LLVM_ABI WithColor &changeColor(raw_ostream::Colors Color, bool Bold = false,
                                   bool BG = false);
 
   /// Reset the colors to terminal defaults. Call this when you are done
   /// outputting colored text, or before program exit.
+  ///
+  /// \return This colored stream wrapper.
   LLVM_ABI WithColor &resetColor();
 
   /// Implement default handling for Error.
   /// Print "error: " to stderr.
+  ///
+  /// \param Err Error whose messages are printed as errors.
   LLVM_ABI static void defaultErrorHandler(Error Err);
 
   /// Implement default handling for Warning.
   /// Print "warning: " to stderr.
+  ///
+  /// \param Warning Error whose messages are printed as warnings.
   LLVM_ABI static void defaultWarningHandler(Error Warning);
 
   /// Retrieve the default color auto detection function.
+  ///
+  /// \return The default predicate used for color auto-detection.
   LLVM_ABI static AutoDetectFunctionType defaultAutoDetectFunction();
 
   /// Change the global auto detection function.
+  ///
+  /// \param NewAutoDetectFunction Predicate used to decide color auto-enable.
   LLVM_ABI static void
   setAutoDetectFunction(AutoDetectFunctionType NewAutoDetectFunction);
 

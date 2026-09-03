@@ -24,8 +24,10 @@ namespace llvm {
 
 template <class NodeT> class DomTreeNodeBase;
 
+/// Dominator tree node for a MachineBasicBlock.
 using MachineDomTreeNode = DomTreeNodeBase<MachineBasicBlock>;
 
+/// Extension of LiveRangeCalc for computing and modifying LiveIntervals.
 class LiveIntervalCalc : public LiveRangeCalc {
   /// Extend the live range of @p LR to reach all uses of Reg.
   ///
@@ -41,17 +43,24 @@ class LiveIntervalCalc : public LiveRangeCalc {
                              LiveInterval *LI = nullptr);
 
 public:
+  /// Constructs an uninitialized LiveIntervalCalc.
   LiveIntervalCalc() = default;
 
   /// createDeadDefs - Create a dead def in LI for every def operand of Reg.
   /// Each instruction defining Reg gets a new VNInfo with a corresponding
   /// minimal live range.
+  ///
+  /// \param LR Live range that receives a dead def for each definition of Reg.
+  /// \param Reg Register whose defining operands get dead defs.
   LLVM_ABI void createDeadDefs(LiveRange &LR, Register Reg);
 
   /// Extend the live range of @p LR to reach all uses of Reg.
   ///
   /// All uses must be jointly dominated by existing liveness.  PHI-defs are
   /// inserted as needed to preserve SSA form.
+  ///
+  /// \param LR Live range to extend to all uses of PhysReg.
+  /// \param PhysReg Physical register whose uses the live range should cover.
   void extendToUses(LiveRange &LR, MCRegister PhysReg) {
     extendToUses(LR, PhysReg, LaneBitmask::getAll());
   }
@@ -59,11 +68,18 @@ public:
   /// Calculates liveness for the register specified in live interval @p LI.
   /// Creates subregister live ranges as needed if subreg liveness tracking is
   /// enabled.
+  ///
+  /// \param LI Live interval for the register whose liveness is calculated.
+  /// \param TrackSubRegs If true, create subregister live ranges as needed.
   LLVM_ABI void calculate(LiveInterval &LI, bool TrackSubRegs);
 
+  /// Construct the main live range of \p LI from its SubRanges.
+  ///
   /// For live interval \p LI with correct SubRanges construct matching
   /// information for the main live range. Expects the main live range to not
   /// have any segments or value numbers.
+  ///
+  /// \param LI Live interval whose main range is built from its subranges.
   LLVM_ABI void constructMainRangeFromSubranges(LiveInterval &LI);
 };
 

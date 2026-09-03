@@ -78,6 +78,7 @@ namespace llvm {
     };
   }
 
+  /// Exception-handling model selected for code generation.
   enum class ExceptionHandling : int {
     None,     ///< No exception support
     DwarfCFI, ///< DWARF-like instruction based exceptions
@@ -100,6 +101,10 @@ namespace llvm {
   };
 
   /// Returns the IR floating-point type name for a LongDoubleFormat.
+  ///
+  /// \param Format Long-double format to convert.
+  /// \return The IR floating-point type name for \p Format, or an empty
+  ///         string if \p Format is unrecognized.
   inline StringRef getLongDoubleFormatName(LongDoubleFormat Format) {
     switch (Format) {
     case LongDoubleFormat::IEEEsingle:
@@ -118,6 +123,10 @@ namespace llvm {
 
   /// Parses an IR floating-point type name into a LongDoubleFormat, returning
   /// std::nullopt if it does not name a supported long double format.
+  ///
+  /// \param Name IR type name such as "float", "double", or "fp128".
+  /// \return The matching LongDoubleFormat, or std::nullopt if \p Name is not
+  ///         a supported long double format.
   inline std::optional<LongDoubleFormat> parseLongDoubleFormat(StringRef Name) {
     if (Name == "float")
       return LongDoubleFormat::IEEEsingle;
@@ -134,6 +143,7 @@ namespace llvm {
 
   /// Floating-point ABI selection.
   namespace FloatABI {
+  /// Floating-point ABI type.
   enum ABIType {
     Default, ///< Target-specific default (soft or hard).
     Soft,    ///< Soft-float ABI.
@@ -142,6 +152,9 @@ namespace llvm {
 
   /// Parse the string spelling used by the "float-abi" IR module flag into an
   /// ABIType.
+  ///
+  /// \param S Module-flag spelling ("soft" or "hard").
+  /// \return Soft or Hard when \p S matches, otherwise std::nullopt.
   inline std::optional<ABIType> parseABIType(StringRef S) {
     if (S == "soft")
       return Soft;
@@ -152,6 +165,9 @@ namespace llvm {
 
   /// Returns the string spelling used by the "float-abi" IR module flag for a
   /// Soft or Hard ABIType. Default has no spelling.
+  ///
+  /// \param ABI Floating-point ABI type to convert.
+  /// \return "soft" or "hard" for Soft/Hard, or an empty string for Default.
   inline StringRef getABITypeName(ABIType ABI) {
     switch (ABI) {
     case Soft:
@@ -187,6 +203,9 @@ namespace llvm {
   /// Get the \c Level identified by the integer \p OL.
   ///
   /// Returns std::nullopt if \p OL is invalid.
+  ///
+  /// \param OL Integer optimization level (0 through 3).
+  /// \return The matching CodeGenOptLevel, or std::nullopt if \p OL is invalid.
   inline std::optional<CodeGenOptLevel> getLevel(int OL) {
     if (OL < 0 || OL > 3)
       return std::nullopt;
@@ -195,6 +214,10 @@ namespace llvm {
   /// Parse \p C as a single digit integer and get matching \c CodeGenLevel.
   ///
   /// Returns std::nullopt if the input is not a valid optimization level.
+  ///
+  /// \param C Digit character naming an optimization level ('0' through '3').
+  /// \return The matching CodeGenOptLevel, or std::nullopt if \p C is not a
+  ///         valid optimization-level digit.
   inline std::optional<CodeGenOptLevel> parseLevel(char C) {
     if (C < '0')
       return std::nullopt;
@@ -238,6 +261,7 @@ namespace llvm {
   };
   } // namespace ZeroCallUsedRegs
 
+  /// Kind of unwind table to emit for a function.
   enum class UWTableKind {
     None = 0,  ///< No unwind table requested
     Sync = 1,  ///< "Synchronous" unwind tables

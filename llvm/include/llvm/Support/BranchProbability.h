@@ -25,10 +25,10 @@ namespace llvm {
 
 class raw_ostream;
 
-// This class represents Branch Probability as a non-negative fraction that is
-// no greater than 1. It uses a fixed-point-like implementation, in which the
-// denominator is always a constant value (here we use 1<<31 for maximum
-// precision).
+/// Branch probability as a non-negative fraction no greater than one.
+///
+/// Uses a fixed-point-like representation whose denominator is always the
+/// constant value \c 1<<31 for maximum precision.
 class BranchProbability {
   // Numerator
   uint32_t N;
@@ -42,7 +42,12 @@ class BranchProbability {
   explicit constexpr BranchProbability(uint32_t n) : N(n) {}
 
 public:
+  /// Construct an unknown branch probability.
   constexpr BranchProbability() : N(UnknownN) {}
+  /// Construct a branch probability from \p Numerator / \p Denominator.
+  ///
+  /// \param Numerator Non-negative numerator; must not exceed \p Denominator.
+  /// \param Denominator Positive denominator of the probability fraction.
   constexpr BranchProbability(uint32_t Numerator, uint32_t Denominator)
       : N(Numerator) {
     assert(Denominator > 0 && "Denominator cannot be 0!");
@@ -55,47 +60,100 @@ public:
     }
   }
 
+  /// Return true if this probability is zero (never taken).
+  ///
+  /// \return True if this probability is zero.
   bool isZero() const { return N == 0; }
+  /// Return true if this probability is one (always taken).
+  ///
+  /// \return True if this probability is one.
   bool isOne() const { return N == D; }
+  /// Return true if this probability is unknown.
+  ///
+  /// \return True if this probability is unknown.
   bool isUnknown() const { return N == UnknownN; }
 
+  /// Return a probability representing zero (never taken).
+  ///
+  /// \return A probability of zero.
   static constexpr BranchProbability getZero() { return BranchProbability(0); }
+  /// Return a probability representing one (always taken).
+  ///
+  /// \return A probability of one.
   static constexpr BranchProbability getOne() { return BranchProbability(D); }
+  /// Return an unknown branch probability.
+  ///
+  /// \return An unknown branch probability.
   static constexpr BranchProbability getUnknown() {
     return BranchProbability(UnknownN);
   }
-  // Create a BranchProbability object with the given numerator and 1<<31
-  // as denominator.
+  /// Create a probability from the raw fixed-point numerator \p N.
+  ///
+  /// The denominator is the constant \c 1<<31.
+  ///
+  /// \param N Raw numerator in the fixed-point representation.
+  /// \return A probability with the given raw numerator.
   static constexpr BranchProbability getRaw(uint32_t N) {
     return BranchProbability(N);
   }
-  // Create a BranchProbability object from 64-bit integers.
+  /// Create a probability from 64-bit \p Numerator and \p Denominator.
+  ///
+  /// \param Numerator Non-negative numerator of the probability fraction.
+  /// \param Denominator Positive denominator of the probability fraction.
+  /// \return The corresponding branch probability.
   LLVM_ABI static BranchProbability getBranchProbability(uint64_t Numerator,
                                                          uint64_t Denominator);
-  // Create a BranchProbability from a double, which must be from 0 to 1.
+  /// Create a probability from a double in the closed range [0, 1].
+  ///
+  /// \param Prob Probability as a floating-point value from 0 to 1 inclusive.
+  /// \return The corresponding branch probability.
   LLVM_ABI static BranchProbability getBranchProbability(double Prob);
 
-  // Normalize given probabilties so that the sum of them becomes approximate
-  // one.
+  /// Normalize probabilities in [\p Begin, \p End) so they sum to about one.
+  ///
+  /// \param Begin Iterator to the first probability to normalize.
+  /// \param End Iterator one past the last probability to normalize.
   template <class ProbabilityIter>
   static void normalizeProbabilities(ProbabilityIter Begin,
                                      ProbabilityIter End);
 
+  /// Normalize probabilities in \p R so they sum to about one.
+  ///
+  /// Unknown entries get defaults; totals beyond the representable range are
+  /// rebalanced.
+  ///
+  /// \param R Container of probabilities to normalize in place.
   template <class ProbabilityContainer>
   static void normalizeProbabilities(ProbabilityContainer &&R) {
     normalizeProbabilities(adl_begin(R), adl_end(R));
   }
 
+  /// Return the fixed-point numerator of this probability.
+  ///
+  /// \return The fixed-point numerator.
   uint32_t getNumerator() const { return N; }
+  /// Return the fixed denominator used by all branch probabilities (\c 1 << 31).
+  ///
+  /// \return The fixed denominator (\c 1 << 31).
   static uint32_t getDenominator() { return D; }
+  /// Return this probability as a floating-point value in [0, 1].
+  ///
+  /// \return This probability as a value in [0, 1].
   double toDouble() const { return static_cast<double>(N) / D; }
 
-  // Return (1 - Probability).
+  /// Return the complementary probability (1 minus this probability).
+  ///
+  /// \return The complementary probability.
   BranchProbability getCompl() const { return BranchProbability(D - N); }
 
+  /// Print this probability to \p OS.
+  ///
+  /// \param OS Stream to write to.
+  /// \return \p OS after writing.
   LLVM_ABI raw_ostream &print(raw_ostream &OS) const;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump this probability to the debug stream.
   LLVM_DUMP_METHOD void dump() const;
 #endif
 
@@ -104,6 +162,7 @@ public:
   /// Scales \c Num.  Guarantees full precision.  Returns the floor of the
   /// result.
   ///
+  /// \param Num Integer value to scale by this probability.
   /// \return \c Num times \c this.
   LLVM_ABI uint64_t scale(uint64_t Num) const;
 
@@ -112,12 +171,20 @@ public:
   /// Scales \c Num by the inverse of \c this.  Guarantees full precision.
   /// Returns the floor of the result.
   ///
+  /// \param Num Integer value to scale by the inverse of this probability.
   /// \return \c Num divided by \c this.
   LLVM_ABI uint64_t scaleByInverse(uint64_t Num) const;
 
   /// Compute pow(Probability, N).
+  ///
+  /// \param N Non-negative exponent.
+  /// \return This probability raised to the power \p N.
   LLVM_ABI BranchProbability pow(unsigned N) const;
 
+  /// Add \p RHS to this probability, saturating at one.
+  ///
+  /// \param RHS Probability to add.
+  /// \return A reference to this probability.
   BranchProbability &operator+=(BranchProbability RHS) {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -126,6 +193,10 @@ public:
     return *this;
   }
 
+  /// Subtract \p RHS from this probability, saturating at zero.
+  ///
+  /// \param RHS Probability to subtract.
+  /// \return A reference to this probability.
   BranchProbability &operator-=(BranchProbability RHS) {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -134,6 +205,10 @@ public:
     return *this;
   }
 
+  /// Multiply this probability by \p RHS.
+  ///
+  /// \param RHS Probability to multiply by.
+  /// \return A reference to this probability.
   BranchProbability &operator*=(BranchProbability RHS) {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -141,6 +216,10 @@ public:
     return *this;
   }
 
+  /// Multiply this probability by integer \p RHS, saturating at certainty.
+  ///
+  /// \param RHS Integer scale factor to multiply by.
+  /// \return A reference to this probability.
   BranchProbability &operator*=(uint32_t RHS) {
     assert(N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -148,6 +227,10 @@ public:
     return *this;
   }
 
+  /// Divide this probability by \p RHS.
+  ///
+  /// \param RHS Probability to divide by.
+  /// \return A reference to this probability.
   BranchProbability &operator/=(BranchProbability RHS) {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -155,6 +238,10 @@ public:
     return *this;
   }
 
+  /// Divide the probability numerator by \p RHS, leaving the denominator fixed.
+  ///
+  /// \param RHS Positive integer divisor.
+  /// \return A reference to this probability.
   BranchProbability &operator/=(uint32_t RHS) {
     assert(N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -163,63 +250,111 @@ public:
     return *this;
   }
 
+  /// Add two branch probabilities, saturating at one.
+  ///
+  /// \param RHS Probability to add.
+  /// \return The sum of this probability and \p RHS.
   BranchProbability operator+(BranchProbability RHS) const {
     BranchProbability Prob(*this);
     Prob += RHS;
     return Prob;
   }
 
+  /// Subtract \p RHS from this probability, saturating at zero.
+  ///
+  /// \param RHS Probability to subtract.
+  /// \return The difference of this probability and \p RHS.
   BranchProbability operator-(BranchProbability RHS) const {
     BranchProbability Prob(*this);
     Prob -= RHS;
     return Prob;
   }
 
+  /// Multiply this probability by \p RHS.
+  ///
+  /// \param RHS Probability to multiply by.
+  /// \return The product of this probability and \p RHS.
   BranchProbability operator*(BranchProbability RHS) const {
     BranchProbability Prob(*this);
     Prob *= RHS;
     return Prob;
   }
 
+  /// Multiply this probability by the integer scale \p RHS.
+  ///
+  /// \param RHS Integer scale factor to multiply by.
+  /// \return This probability scaled by \p RHS.
   BranchProbability operator*(uint32_t RHS) const {
     BranchProbability Prob(*this);
     Prob *= RHS;
     return Prob;
   }
 
+  /// Divide this probability by \p RHS.
+  ///
+  /// \param RHS Probability to divide by.
+  /// \return The quotient of this probability and \p RHS.
   BranchProbability operator/(BranchProbability RHS) const {
     BranchProbability Prob(*this);
     Prob /= RHS;
     return Prob;
   }
 
+  /// Divide this probability by the integer scale \p RHS.
+  ///
+  /// \param RHS Positive integer divisor.
+  /// \return This probability divided by \p RHS.
   BranchProbability operator/(uint32_t RHS) const {
     BranchProbability Prob(*this);
     Prob /= RHS;
     return Prob;
   }
 
+  /// Return true if this probability equals \p RHS.
+  ///
+  /// \param RHS Probability to compare against.
+  /// \return True if the probabilities are equal.
   bool operator==(BranchProbability RHS) const { return N == RHS.N; }
+  /// Return true if this probability differs from \p RHS.
+  ///
+  /// \param RHS Probability to compare against.
+  /// \return True if the probabilities differ.
   bool operator!=(BranchProbability RHS) const { return !(*this == RHS); }
 
+  /// Return true if this probability is strictly less than \p RHS.
+  ///
+  /// \param RHS Probability to compare against.
+  /// \return True if this probability is strictly less than \p RHS.
   bool operator<(BranchProbability RHS) const {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in comparisons.");
     return N < RHS.N;
   }
 
+  /// Return true if this probability is greater than \p RHS.
+  ///
+  /// \param RHS Probability to compare against.
+  /// \return True if this probability is greater than \p RHS.
   bool operator>(BranchProbability RHS) const {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in comparisons.");
     return RHS < *this;
   }
 
+  /// Return true if this probability is less than or equal to \p RHS.
+  ///
+  /// \param RHS Probability to compare against.
+  /// \return True if this probability is less than or equal to \p RHS.
   bool operator<=(BranchProbability RHS) const {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in comparisons.");
     return !(RHS < *this);
   }
 
+  /// Return true if this probability is greater than or equal to \p RHS.
+  ///
+  /// \param RHS Probability to compare against.
+  /// \return True if this probability is greater than or equal to \p RHS.
   bool operator>=(BranchProbability RHS) const {
     assert(N != UnknownN && RHS.N != UnknownN &&
            "Unknown probability cannot participate in comparisons.");
@@ -227,6 +362,11 @@ public:
   }
 };
 
+/// Write \p Prob to \p OS.
+///
+/// \param OS Stream to write to.
+/// \param Prob Branch probability to print.
+/// \return \p OS after writing.
 inline raw_ostream &operator<<(raw_ostream &OS, BranchProbability Prob) {
   return Prob.print(OS);
 }

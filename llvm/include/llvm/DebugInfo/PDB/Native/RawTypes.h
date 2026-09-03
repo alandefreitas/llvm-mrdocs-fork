@@ -15,10 +15,15 @@
 
 namespace llvm {
 namespace pdb {
-// This struct is defined as "SO" in langapi/include/pdb.h.
+/// Section and offset pair identifying a location in an image.
+///
+/// This struct is defined as "SO" in langapi/include/pdb.h.
 struct SectionOffset {
+  /// Byte offset within the section.
   support::ulittle32_t Off;
+  /// Section index.
   support::ulittle16_t Isect;
+  /// Padding to 8-byte alignment.
   char Padding[2];
 };
 
@@ -26,98 +31,148 @@ struct SectionOffset {
 /// Based on GSIHashHdr in
 /// https://github.com/Microsoft/microsoft-pdb/blob/master/PDB/dbi/gsi.h
 struct GSIHashHeader {
+  /// Magic values identifying a valid GSI hash header.
   enum : unsigned {
+    /// Expected signature value written in \c VerSignature.
     HdrSignature = ~0U,
+    /// Expected version value written in \c VerHdr.
     HdrVersion = 0xeffe0000 + 19990810,
   };
+  /// Hash table signature; should equal \c HdrSignature.
   support::ulittle32_t VerSignature;
+  /// Hash table version; should equal \c HdrVersion.
   support::ulittle32_t VerHdr;
+  /// Size in bytes of the hash records that follow.
   support::ulittle32_t HrSize;
+  /// Number of hash buckets.
   support::ulittle32_t NumBuckets;
 };
 
-// This is HRFile.
+/// Hash record locating a symbol in the symbol record stream.
+///
+/// This is HRFile.
 struct PSHashRecord {
-  support::ulittle32_t Off; // Offset in the symbol record stream
+  /// Offset in the symbol record stream.
+  support::ulittle32_t Off;
+  /// Reference count for this hash record.
   support::ulittle32_t CRef;
 };
 
-// This struct is defined as `SC` in include/dbicommon.h
+/// Section contribution describing one module's contribution to a section.
+///
+/// This struct is defined as `SC` in include/dbicommon.h
 struct SectionContrib {
+  /// Section index of the contribution.
   support::ulittle16_t ISect;
+  /// Padding to 4-byte alignment.
   char Padding[2];
+  /// Offset of the contribution within the section.
   support::little32_t Off;
+  /// Size in bytes of the contribution.
   support::little32_t Size;
+  /// Section characteristics flags.
   support::ulittle32_t Characteristics;
+  /// Module index that owns this contribution.
   support::ulittle16_t Imod;
+  /// Padding to 4-byte alignment.
   char Padding2[2];
+  /// CRC of the contribution data.
   support::ulittle32_t DataCrc;
+  /// CRC of the contribution relocations.
   support::ulittle32_t RelocCrc;
 };
 
-// This struct is defined as `SC2` in include/dbicommon.h
+/// Extended section contribution that also records the COFF section index.
+///
+/// This struct is defined as `SC2` in include/dbicommon.h
 struct SectionContrib2 {
   // To guarantee SectionContrib2 is standard layout, we cannot use inheritance.
+  /// Base section contribution fields.
   SectionContrib Base;
+  /// COFF section index of this contribution.
   support::ulittle32_t ISectCoff;
 };
 
-// This corresponds to the `OMFSegMap` structure.
+/// Header for the OMF segment map table.
+///
+/// This corresponds to the `OMFSegMap` structure.
 struct SecMapHeader {
-  support::ulittle16_t SecCount;    // Number of segment descriptors in table
-  support::ulittle16_t SecCountLog; // Number of logical segment descriptors
+  /// Number of segment descriptors in the table.
+  support::ulittle16_t SecCount;
+  /// Number of logical segment descriptors.
+  support::ulittle16_t SecCountLog;
 };
 
-// This corresponds to the `OMFSegMapDesc` structure.  The definition is not
-// present in the reference implementation, but the layout is derived from
-// code that accesses the fields.
+/// One OMF segment map descriptor entry.
+///
+/// This corresponds to the `OMFSegMapDesc` structure.  The definition is not
+/// present in the reference implementation, but the layout is derived from
+/// code that accesses the fields.
 struct SecMapEntry {
-  support::ulittle16_t Flags; // Descriptor flags.  See OMFSegDescFlags
-  support::ulittle16_t Ovl;   // Logical overlay number.
-  support::ulittle16_t Group; // Group index into descriptor array.
+  /// Descriptor flags. See \c OMFSegDescFlags.
+  support::ulittle16_t Flags;
+  /// Logical overlay number.
+  support::ulittle16_t Ovl;
+  /// Group index into the descriptor array.
+  support::ulittle16_t Group;
+  /// Frame value for the segment (selector or absolute address).
   support::ulittle16_t Frame;
-  support::ulittle16_t SecName;       // Byte index of the segment or group name
-                                      // in the sstSegName table, or 0xFFFF.
-  support::ulittle16_t ClassName;     // Byte index of the class name in the
-                                      // sstSegName table, or 0xFFFF.
-  support::ulittle32_t Offset;        // Byte offset of the logical segment
-                                      // within the specified physical segment.
-                                      // If group is set in flags, offset is the
-                                      // offset of the group.
-  support::ulittle32_t SecByteLength; // Byte count of the segment or group.
+  /// Byte index of the segment or group name in the sstSegName table, or
+  /// 0xFFFF.
+  support::ulittle16_t SecName;
+  /// Byte index of the class name in the sstSegName table, or 0xFFFF.
+  support::ulittle16_t ClassName;
+  /// Byte offset of the logical segment within the specified physical segment.
+  ///
+  /// If group is set in flags, offset is the offset of the group.
+  support::ulittle32_t Offset;
+  /// Byte count of the segment or group.
+  support::ulittle32_t SecByteLength;
 };
 
+/// Bit masks for flags stored in the DBI stream header.
+///
 /// Some of the values are stored in bitfields.  Since this needs to be portable
 /// across compilers and architectures (big / little endian in particular) we
 /// can't use the actual structures below, but must instead do the shifting
 /// and masking ourselves.  The struct definitions are provided for reference.
 struct DbiFlags {
-  ///  uint16_t IncrementalLinking : 1; // True if linked incrementally
-  ///  uint16_t IsStripped : 1;         // True if private symbols were
-  ///  stripped.
-  ///  uint16_t HasCTypes : 1;          // True if linked with /debug:ctypes.
-  ///  uint16_t Reserved : 13;
+  //  uint16_t IncrementalLinking : 1; // True if linked incrementally
+  //  uint16_t IsStripped : 1;         // True if private symbols were stripped.
+  //  uint16_t HasCTypes : 1;          // True if linked with /debug:ctypes.
+  //  uint16_t Reserved : 13;
+  /// Mask for the incremental linking flag bit.
   static const uint16_t FlagIncrementalMask = 0x0001;
+  /// Mask for the private-symbols-stripped flag bit.
   static const uint16_t FlagStrippedMask = 0x0002;
+  /// Mask for the /debug:ctypes present flag bit.
   static const uint16_t FlagHasCTypesMask = 0x0004;
 };
 
+/// Bit masks and shifts for the DBI stream build number field.
 struct DbiBuildNo {
   ///  uint16_t MinorVersion : 8;
   ///  uint16_t MajorVersion : 7;
   ///  uint16_t NewVersionFormat : 1;
+  /// Mask for the minor build version bits.
   static const uint16_t BuildMinorMask = 0x00FF;
+  /// Bit shift for the minor build version field.
   static const uint16_t BuildMinorShift = 0;
 
+  /// Mask for the major build version bits.
   static const uint16_t BuildMajorMask = 0x7F00;
+  /// Bit shift for the major build version field.
   static const uint16_t BuildMajorShift = 8;
 
+  /// Mask for the new-version-format flag bit.
   static const uint16_t NewVersionFormatMask = 0x8000;
 };
 
 /// The fixed size header that appears at the beginning of the DBI Stream.
 struct DbiStreamHeader {
+  /// Signature identifying the DBI stream layout version.
   support::little32_t VersionSignature;
+  /// DBI stream format version (see \c PdbRaw_DbiVer).
   support::ulittle32_t VersionHeader;
 
   /// How "old" is this DBI Stream. Should match the age of the PDB InfoStream.
@@ -182,9 +237,11 @@ struct FileInfoSubstreamHeader {
   /// substream.
   support::ulittle16_t NumModules;
 
-  /// Total # of source files. This value is not accurate because PDB actually
-  /// supports more than 64k source files, so we ignore it and compute the value
-  /// from other stream fields.
+  /// Total number of source files across all modules.
+  ///
+  /// This value is not accurate because PDB actually supports more than 64k
+  /// source files, so we ignore it and compute the value from other stream
+  /// fields.
   support::ulittle16_t NumSourceFiles;
 
   /// Following this header the File Info Substream is laid out as follows:
@@ -196,24 +253,29 @@ struct FileInfoSubstreamHeader {
   /// it is computed by summing the `ModFileCounts` array.
 };
 
+/// Bit masks and shifts for per-module info flags.
 struct ModInfoFlags {
-  ///  uint16_t fWritten : 1;   // True if DbiModuleDescriptor is dirty
-  ///  uint16_t fECEnabled : 1; // Is EC symbolic info present?  (What is EC?)
-  ///  uint16_t unused : 6;     // Reserved
-  ///  uint16_t iTSM : 8;       // Type Server Index for this module
+  //  uint16_t fWritten : 1;   // True if DbiModuleDescriptor is dirty
+  //  uint16_t fECEnabled : 1; // Is EC symbolic info present?  (What is EC?)
+  //  uint16_t unused : 6;     // Reserved
+  //  uint16_t iTSM : 8;       // Type Server Index for this module
+  /// Mask for the EC symbolic info present flag bit.
   static const uint16_t HasECFlagMask = 0x2;
 
+  /// Mask for the type server index field.
   static const uint16_t TypeServerIndexMask = 0xFF00;
+  /// Bit shift for the type server index field.
   static const uint16_t TypeServerIndexShift = 8;
 };
 
 /// The header preceding each entry in the Module Info substream of the DBI
 /// stream.  Corresponds to the type MODI in the reference implementation.
 struct ModuleInfoHeader {
-  /// Currently opened module. This field is a pointer in the reference
-  /// implementation, but that won't work on 64-bit systems, and anyway it
-  /// doesn't make sense to read a pointer from a file. For now it is unused,
-  /// so just ignore it.
+  /// Currently opened module handle; unused when reading from a file.
+  ///
+  /// This field is a pointer in the reference implementation, but that won't
+  /// work on 64-bit systems, and anyway it doesn't make sense to read a
+  /// pointer from a file. For now it is unused, so just ignore it.
   support::ulittle32_t Mod;
 
   /// First section contribution of this module.
@@ -240,6 +302,8 @@ struct ModuleInfoHeader {
   /// Padding so the next field is 4-byte aligned.
   char Padding1[2];
 
+  /// Unused DBI name-buffer offset slot reserved for a runtime pointer.
+  ///
   /// Array of [0..NumFiles) DBI name buffer offsets.  In the reference
   /// implementation this field is a pointer.  But since you can't portably
   /// serialize a pointer, on 64-bit platforms they copy all the values except
@@ -259,86 +323,138 @@ struct ModuleInfoHeader {
   /// char ObjFileName[];
 };
 
-// This is PSGSIHDR struct defined in
-// https://github.com/Microsoft/microsoft-pdb/blob/master/PDB/dbi/gsi.h
+/// Header of the publics stream (PSGSIHDR).
+///
+/// This is PSGSIHDR struct defined in
+/// https://github.com/Microsoft/microsoft-pdb/blob/master/PDB/dbi/gsi.h
 struct PublicsStreamHeader {
+  /// Size in bytes of the symbol hash substream.
   support::ulittle32_t SymHash;
+  /// Size in bytes of the address map substream.
   support::ulittle32_t AddrMap;
+  /// Number of thunk entries.
   support::ulittle32_t NumThunks;
+  /// Size in bytes of each thunk.
   support::ulittle32_t SizeOfThunk;
+  /// Section index of the thunk table.
   support::ulittle16_t ISectThunkTable;
+  /// Padding to 4-byte alignment.
   char Padding[2];
+  /// Offset of the thunk table within its section.
   support::ulittle32_t OffThunkTable;
+  /// Number of sections described by the publics stream.
   support::ulittle32_t NumSections;
 };
 
-// The header preceding the global TPI stream.
-// This corresponds to `HDR` in PDB/dbi/tpi.h.
+/// Header preceding the global TPI (or IPI) stream.
+///
+/// This corresponds to `HDR` in PDB/dbi/tpi.h.
 struct TpiStreamHeader {
+  /// Offset and length of an embedded buffer within the TPI hash stream.
   struct EmbeddedBuf {
+    /// Offset of the buffer within the hash stream.
     support::little32_t Off;
+    /// Length in bytes of the buffer.
     support::ulittle32_t Length;
   };
 
+  /// TPI stream format version (see \c PdbRaw_TpiVer).
   support::ulittle32_t Version;
+  /// Size in bytes of this header.
   support::ulittle32_t HeaderSize;
+  /// First type index covered by this stream.
   support::ulittle32_t TypeIndexBegin;
+  /// One past the last type index covered by this stream.
   support::ulittle32_t TypeIndexEnd;
+  /// Total size in bytes of the type records that follow.
   support::ulittle32_t TypeRecordBytes;
 
   // The following members correspond to `TpiHash` in PDB/dbi/tpi.h.
+  /// Stream index of the primary TPI hash stream.
   support::ulittle16_t HashStreamIndex;
+  /// Stream index of the auxiliary TPI hash stream.
   support::ulittle16_t HashAuxStreamIndex;
+  /// Size in bytes of each hash key.
   support::ulittle32_t HashKeySize;
+  /// Number of hash buckets.
   support::ulittle32_t NumHashBuckets;
 
+  /// Buffer of hash values within the hash stream.
   EmbeddedBuf HashValueBuffer;
+  /// Buffer of type-index offsets within the hash stream.
   EmbeddedBuf IndexOffsetBuffer;
+  /// Buffer of hash adjustments within the hash stream.
   EmbeddedBuf HashAdjBuffer;
 };
 
+/// Minimum supported number of TPI hash buckets.
 const uint32_t MinTpiHashBuckets = 0x1000;
+/// Maximum supported number of TPI hash buckets.
 const uint32_t MaxTpiHashBuckets = 0x40000;
 
 /// The header preceding the global PDB Stream (Stream 1)
 struct InfoStreamHeader {
+  /// PDB implementation version (see \c PdbRaw_ImplVer).
   support::ulittle32_t Version;
+  /// Signature used to identify the PDB (often a timestamp).
   support::ulittle32_t Signature;
+  /// Age of the PDB; incremented on each write.
   support::ulittle32_t Age;
+  /// Unique GUID identifying this PDB.
   codeview::GUID Guid;
 };
 
 /// The header preceding the /names stream.
 struct PDBStringTableHeader {
-  support::ulittle32_t Signature;   // PDBStringTableSignature
-  support::ulittle32_t HashVersion; // 1 or 2
-  support::ulittle32_t ByteSize;    // Number of bytes of names buffer.
+  /// String table signature; should equal \c PDBStringTableSignature.
+  support::ulittle32_t Signature;
+  /// Hash algorithm version (1 or 2).
+  support::ulittle32_t HashVersion;
+  /// Number of bytes of names buffer.
+  support::ulittle32_t ByteSize;
 };
 
+/// Expected signature value for \c PDBStringTableHeader::Signature.
 const uint32_t PDBStringTableSignature = 0xEFFEEFFE;
 
 /// The header preceding the /src/headerblock stream.
 struct SrcHeaderBlockHeader {
-  support::ulittle32_t Version; // PdbRaw_SrcHeaderBlockVer enumeration.
-  support::ulittle32_t Size;    // Size of entire stream.
-  uint64_t FileTime;            // Time stamp (Windows FILETIME format).
-  support::ulittle32_t Age;     // Age
-  uint8_t Padding[44];          // Pad to 64 bytes.
+  /// Stream format version (\c PdbRaw_SrcHeaderBlockVer).
+  support::ulittle32_t Version;
+  /// Size of entire stream.
+  support::ulittle32_t Size;
+  /// Time stamp (Windows FILETIME format).
+  uint64_t FileTime;
+  /// Age of the source header block.
+  support::ulittle32_t Age;
+  /// Pad to 64 bytes.
+  uint8_t Padding[44];
 };
 static_assert(sizeof(SrcHeaderBlockHeader) == 64, "Incorrect struct size!");
 
 /// A single file record entry within the /src/headerblock stream.
 struct SrcHeaderBlockEntry {
-  support::ulittle32_t Size;     // Record Length.
-  support::ulittle32_t Version;  // PdbRaw_SrcHeaderBlockVer enumeration.
-  support::ulittle32_t CRC;      // CRC of the original file contents.
-  support::ulittle32_t FileSize; // Size of original source file.
-  support::ulittle32_t FileNI;   // String table index of file name.
-  support::ulittle32_t ObjNI;    // String table index of object name.
-  support::ulittle32_t VFileNI;  // String table index of virtual file name.
-  uint8_t Compression;           // PDB_SourceCompression enumeration.
-  uint8_t IsVirtual;             // Is this a virtual file (injected)?
-  short Padding;                 // Pad to 4 bytes.
+  /// Record length in bytes.
+  support::ulittle32_t Size;
+  /// Record format version (\c PdbRaw_SrcHeaderBlockVer).
+  support::ulittle32_t Version;
+  /// CRC of the original file contents.
+  support::ulittle32_t CRC;
+  /// Size of original source file.
+  support::ulittle32_t FileSize;
+  /// String table index of file name.
+  support::ulittle32_t FileNI;
+  /// String table index of object name.
+  support::ulittle32_t ObjNI;
+  /// String table index of virtual file name.
+  support::ulittle32_t VFileNI;
+  /// Compression kind (\c PDB_SourceCompression).
+  uint8_t Compression;
+  /// Non-zero if this is a virtual (injected) file.
+  uint8_t IsVirtual;
+  /// Pad to 4 bytes.
+  short Padding;
+  /// Reserved bytes; must be zero.
   char Reserved[8];
 };
 static_assert(sizeof(SrcHeaderBlockEntry) == 40, "Incorrect struct size!");

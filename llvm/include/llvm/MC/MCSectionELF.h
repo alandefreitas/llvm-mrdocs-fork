@@ -70,25 +70,50 @@ private:
   }
 
 public:
+  /// Return the ELF section type (sh_type).
+  /// @return The ELF section type (sh_type).
   unsigned getType() const { return Type; }
+  /// Return the ELF section flags (sh_flags).
+  /// @return The ELF section flags (sh_flags).
   unsigned getFlags() const { return Flags; }
+  /// Return the size of each fixed-size entry, or 0 if not applicable.
+  /// @return The size of each fixed-size entry, or 0 if not applicable.
   unsigned getEntrySize() const { return EntrySize; }
+  /// Set the ELF section flags (sh_flags).
+  /// @param F New section flags value.
   void setFlags(unsigned F) { Flags = F; }
+  /// Return the section group signature symbol, or null if none.
+  /// @return The section group signature symbol, or null if none.
   const MCSymbolELF *getGroup() const { return Group.getPointer(); }
+  /// Return true if this section belongs to a GRP_COMDAT group.
+  /// @return True if this section belongs to a GRP_COMDAT group.
   bool isComdat() const { return Group.getInt(); }
 
+  /// Return true if this section was created with a unique ID.
+  /// @return True if this section was created with a unique ID.
   bool isUnique() const { return UniqueID != NonUniqueID; }
+  /// Return the unique ID assigned to this section.
+  /// @return The unique ID assigned to this section.
   unsigned getUniqueID() const { return UniqueID; }
 
+  /// Return the section that LinkedToSym is defined in (SHF_LINK_ORDER).
+  /// @return The section where the linked-to symbol is defined.
   const MCSection *getLinkedToSection() const {
     return &LinkedToSym->getSection();
   }
+  /// Return the SHF_LINK_ORDER linked-to symbol, or null if none.
+  /// @return The linked-to symbol, or null if none.
   const MCSymbol *getLinkedToSymbol() const { return LinkedToSym; }
 
+  /// Set the start and end file offsets used by ELFWriter.
+  /// @param Start Start offset in the output file.
+  /// @param End End offset in the output file.
   void setOffsets(uint64_t Start, uint64_t End) {
     StartOffset = Start;
     EndOffset = End;
   }
+  /// Return the start and end file offsets used by ELFWriter.
+  /// @return A pair of the start and end file offsets.
   std::pair<uint64_t, uint64_t> getOffsets() const {
     return std::make_pair(StartOffset, EndOffset);
   }

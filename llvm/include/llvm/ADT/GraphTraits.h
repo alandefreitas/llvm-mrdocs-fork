@@ -125,12 +125,15 @@ struct Inverse {
   inline Inverse(const GraphType &G) : Graph(G) {}
 };
 
-// Provide a partial specialization of GraphTraits so that the inverse of an
-// inverse falls back to the original graph.
+/// GraphTraits for a double-inverted graph, same as for the original type.
+///
+/// Partial specialization so that the inverse of an inverse falls back to the
+/// original graph.
 template <class T> struct GraphTraits<Inverse<Inverse<T>>> : GraphTraits<T> {};
 
 /// Return a range over all nodes of graph \p G.
 /// @param G Graph to iterate.
+/// @return Iterator range over the nodes of \p G.
 template <class GraphType>
 iterator_range<typename GraphTraits<GraphType>::nodes_iterator>
 nodes(const GraphType &G) {
@@ -139,6 +142,7 @@ nodes(const GraphType &G) {
 }
 /// Return a range over all nodes of \p G in inverse graph order.
 /// @param G Graph to iterate.
+/// @return Iterator range over the nodes of \p G in inverse order.
 template <class GraphType>
 iterator_range<typename GraphTraits<Inverse<GraphType>>::nodes_iterator>
 inverse_nodes(const GraphType &G) {
@@ -148,6 +152,7 @@ inverse_nodes(const GraphType &G) {
 
 /// Return a range over the children of node \p G.
 /// @param G Node whose children are requested.
+/// @return Iterator range over the child nodes of \p G.
 template <class GraphType>
 iterator_range<typename GraphTraits<GraphType>::ChildIteratorType>
 children(const typename GraphTraits<GraphType>::NodeRef &G) {
@@ -157,6 +162,7 @@ children(const typename GraphTraits<GraphType>::NodeRef &G) {
 
 /// Return a range over the inverse-order children of node \p G.
 /// @param G Node whose inverse children are requested.
+/// @return Iterator range over the inverse-order children of \p G.
 template <class GraphType>
 iterator_range<typename GraphTraits<Inverse<GraphType>>::ChildIteratorType>
 inverse_children(const typename GraphTraits<GraphType>::NodeRef &G) {
@@ -166,6 +172,7 @@ inverse_children(const typename GraphTraits<GraphType>::NodeRef &G) {
 
 /// Return a range over the outgoing child edges of node \p G.
 /// @param G Node whose outgoing edges are requested.
+/// @return Iterator range over the outgoing child edges of \p G.
 template <class GraphType>
 iterator_range<typename GraphTraits<GraphType>::ChildEdgeIteratorType>
 children_edges(const typename GraphTraits<GraphType>::NodeRef &G) {

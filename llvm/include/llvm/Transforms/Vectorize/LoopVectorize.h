@@ -79,9 +79,12 @@ class ScalarEvolution;
 class TargetLibraryInfo;
 class TargetTransformInfo;
 
+/// Command-line option that enables automatic loop interleaving.
 LLVM_ABI extern cl::opt<bool> EnableLoopInterleaving;
+/// Command-line option that enables automatic loop vectorization.
 LLVM_ABI extern cl::opt<bool> EnableLoopVectorization;
 
+/// Options that control when loop interleaving and vectorization may run.
 struct LoopVectorizeOptions {
   /// If false, consider all loops for interleaving.
   /// If true, only loops that explicitly request interleaving are considered.
@@ -91,6 +94,9 @@ struct LoopVectorizeOptions {
   /// If true, only loops that explicitly request vectorization are considered.
   bool VectorizeOnlyWhenForced;
 
+  /// Construct options that allow both interleaving and vectorization by
+  /// default.
+  ///
   /// The current defaults when creating the pass with no arguments are:
   /// EnableLoopInterleaving = true and EnableLoopVectorization = true. This
   /// means that interleaving default is consistent with the cl::opt flag, while
@@ -102,16 +108,28 @@ struct LoopVectorizeOptions {
   /// VectorizeOnlyWhenForced(!EnableLoopVectorization).
   LoopVectorizeOptions()
       : InterleaveOnlyWhenForced(false), VectorizeOnlyWhenForced(false) {}
+  /// Construct options with explicit interleave and vectorize force flags.
+  ///
+  /// @param InterleaveOnlyWhenForced If true, only interleaved loops that
+  /// explicitly request it are considered.
+  /// @param VectorizeOnlyWhenForced If true, only vectorized loops that
+  /// explicitly request it are considered.
   LoopVectorizeOptions(bool InterleaveOnlyWhenForced,
                        bool VectorizeOnlyWhenForced)
       : InterleaveOnlyWhenForced(InterleaveOnlyWhenForced),
         VectorizeOnlyWhenForced(VectorizeOnlyWhenForced) {}
 
+  /// Set whether interleaving runs only when forced by a pragma or option.
+  /// @param Value If true, only forced interleaving is considered.
+  /// @return A reference to this options object for chaining.
   LoopVectorizeOptions &setInterleaveOnlyWhenForced(bool Value) {
     InterleaveOnlyWhenForced = Value;
     return *this;
   }
 
+  /// Set whether vectorization runs only when forced by a pragma or option.
+  /// @param Value If true, only forced vectorization is considered.
+  /// @return A reference to this options object for chaining.
   LoopVectorizeOptions &setVectorizeOnlyWhenForced(bool Value) {
     VectorizeOnlyWhenForced = Value;
     return *this;
@@ -120,9 +138,14 @@ struct LoopVectorizeOptions {
 
 /// Storage for information about made changes.
 struct LoopVectorizeResult {
+  /// Whether the pass made any IR change.
   bool MadeAnyChange;
+  /// Whether the pass made a change that affects the CFG.
   bool MadeCFGChange;
 
+  /// Construct a result recording whether any change and CFG change occurred.
+  /// @param MadeAnyChange True if any IR change was made.
+  /// @param MadeCFGChange True if a CFG-affecting change was made.
   LoopVectorizeResult(bool MadeAnyChange, bool MadeCFGChange)
       : MadeAnyChange(MadeAnyChange), MadeCFGChange(MadeCFGChange) {}
 };
@@ -139,30 +162,57 @@ private:
   bool VectorizeOnlyWhenForced;
 
 public:
+  /// Construct a loop vectorize pass with the given options.
+  /// @param Opts Options controlling forced interleaving and vectorization.
   LLVM_ABI LoopVectorizePass(LoopVectorizeOptions Opts = {});
 
+  /// Scalar evolution analysis used while vectorizing loops.
   ScalarEvolution *SE;
+  /// Loop info for the function being vectorized.
   LoopInfo *LI;
+  /// Target transform info used for cost modeling and legality.
   TargetTransformInfo *TTI;
+  /// Dominator tree for the function being vectorized.
   DominatorTree *DT;
+  /// Lazy accessor for block frequency information.
   std::function<BlockFrequencyInfo &()> GetBFI;
+  /// Target library info used when recognizing library calls.
   TargetLibraryInfo *TLI;
+  /// Demanded-bits analysis used during vectorization.
   DemandedBits *DB;
+  /// Assumption cache for the function being vectorized.
   AssumptionCache *AC;
+  /// Manager providing loop access info for memory dependence checks.
   LoopAccessInfoManager *LAIs;
+  /// Optimization remark emitter for vectorization diagnostics.
   OptimizationRemarkEmitter *ORE;
+  /// Profile summary info used for hotness-based decisions.
   ProfileSummaryInfo *PSI;
+  /// Alias analysis results used during vectorization.
   AAResults *AA;
+  /// Function analysis manager, when available under the new pass manager.
   FunctionAnalysisManager *FAM = nullptr;
 
+  /// Run loop vectorization over the function.
+  /// @param F Function whose loops may be vectorized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  /// Print this pass's pipeline representation to \p OS.
+  /// @param OS Stream to write the pipeline string to.
+  /// @param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
 
-  // Shim for old PM.
+  /// Run loop vectorization as a shim for the legacy pass manager.
+  /// @param F Function whose loops may be vectorized.
+  /// @return Whether any change and any CFG change were made.
   LLVM_ABI LoopVectorizeResult runImpl(Function &F);
 
+  /// Attempt to vectorize a single loop.
+  /// @param L Loop to consider for vectorization.
+  /// @return True if the loop was modified.
   LLVM_ABI bool processLoop(Loop *L);
 };
 
@@ -171,6 +221,7 @@ public:
 struct ShouldRunExtraVectorPasses
     : public ShouldRunExtraPasses<ShouldRunExtraVectorPasses>,
       public AnalysisInfoMixin<ShouldRunExtraVectorPasses> {
+  /// Analysis key used to identify ShouldRunExtraVectorPasses.
   LLVM_ABI static AnalysisKey Key;
 };
 } // end namespace llvm

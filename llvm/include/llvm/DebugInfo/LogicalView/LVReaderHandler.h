@@ -29,19 +29,24 @@
 namespace llvm {
 namespace logicalview {
 
+/// Ordered collection of owned logical-view readers.
 using LVReaders = std::vector<std::unique_ptr<LVReader>>;
+/// Command-line argument strings naming input binary files.
 using ArgVector = std::vector<std::string>;
+/// Variant handle selecting which binary input form to read.
 using InputHandle =
     std::variant<StringRef *, MemoryBufferRef *, object::ObjectFile *,
                  object::IRObjectFile *, pdb::PDBFile *>;
 
-// This class performs the following tasks:
-// - Creates a logical reader for every binary file in the command line,
-//   that parses the debug information and creates a high level logical
-//   view representation containing scopes, symbols, types and lines.
-// - Prints and compares the logical views.
-//
-// The supported binary formats are: ELF, Mach-O and CodeView.
+/// Creates logical readers for input binaries and prints or compares views.
+///
+/// This class performs the following tasks:
+/// - Creates a logical reader for every binary file in the command line,
+///   that parses the debug information and creates a high level logical
+///   view representation containing scopes, symbols, types and lines.
+/// - Prints and compares the logical views.
+///
+/// The supported binary formats are: ELF, Mach-O and CodeView.
 class LVReaderHandler {
   ArgVector &Objects;
   ScopedPrinter &W;
@@ -71,20 +76,38 @@ class LVReaderHandler {
                      StringRef FileFormatName, StringRef ExePath = {});
 
 public:
+  /// Default construction is deleted; input objects and options are required.
   LVReaderHandler() = delete;
+  /// Construct a handler for \p Objects using \p W and \p ReaderOptions.
+  /// \param Objects Command-line paths of binaries to process.
+  /// \param W Printer whose stream receives handler output.
+  /// \param ReaderOptions Logical-view options applied to created readers.
   LVReaderHandler(ArgVector &Objects, ScopedPrinter &W,
                   LVOptions &ReaderOptions)
       : Objects(Objects), W(W), OS(W.getOStream()) {
     setOptions(&ReaderOptions);
   }
-  LVReaderHandler(const LVReaderHandler &) = delete;
-  LVReaderHandler &operator=(const LVReaderHandler &) = delete;
+  /// Copy construction is not allowed.
+  /// \param Other Unused source reader handler.
+  LVReaderHandler(const LVReaderHandler &Other) = delete;
+  /// Copy assignment is not allowed.
+  /// \param Other Unused source reader handler.
+  LVReaderHandler &operator=(const LVReaderHandler &Other) = delete;
 
+  /// Create readers for \p Filename and append them to \p Readers.
+  /// \param Filename Path of the binary file to read.
+  /// \param Readers Collection that receives the created readers.
+  /// \returns Success or an error describing why reader creation failed.
   Error createReader(StringRef Filename, LVReaders &Readers) {
     return handleFile(Readers, Filename);
   }
+  /// Create readers for all configured objects, then print or compare them.
+  /// \returns Success or an error describing why processing failed.
   LLVM_ABI Error process();
 
+  /// Create a logical reader for the binary at \p Pathname.
+  /// \param Pathname Path of the binary file to read.
+  /// \returns The created reader, or an error if creation failed.
   Expected<std::unique_ptr<LVReader>> createReader(StringRef Pathname) {
     LVReaders Readers;
     if (Error Err = createReader(Pathname, Readers))
@@ -92,9 +115,12 @@ public:
     return std::move(Readers[0]);
   }
 
+  /// Print handler state to \p OS.
+  /// \param OS Stream that receives the printed handler output.
   LLVM_ABI void print(raw_ostream &OS) const;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Dump handler state to the debug stream.
   void dump() const { print(dbgs()); }
 #endif
 };

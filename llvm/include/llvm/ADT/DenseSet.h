@@ -282,6 +282,7 @@ class DenseSet : public detail::DenseSet<ValueT, ValueInfoT> {
   using BaseT = detail::DenseSet<ValueT, ValueInfoT>;
 
 public:
+  /// Inherit constructors from \c BaseT.
   using BaseT::BaseT;
 };
 
@@ -294,6 +295,7 @@ class SmallDenseSet
   using BaseT = detail::SmallDenseSet<ValueT, InlineBuckets, ValueInfoT>;
 
 public:
+  /// Inherit constructors from \c BaseT.
   using BaseT::BaseT;
 };
 

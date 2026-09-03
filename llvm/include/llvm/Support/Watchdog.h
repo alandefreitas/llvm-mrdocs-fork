@@ -18,13 +18,17 @@
 namespace llvm {
   namespace sys {
 
-    /// This class provides an abstraction for a timeout around an operation
-    /// that must complete in a given amount of time. Failure to complete before
-    /// the timeout is an unrecoverable situation and no mechanisms to attempt
-    /// to handle it are provided.
+    /// Abstraction for a timeout around an operation that must complete in time.
+    ///
+    /// Failure to complete before the timeout is an unrecoverable situation and
+    /// no mechanisms to attempt to handle it are provided.
     class Watchdog {
     public:
+      /// Start a watchdog that expires after \p seconds.
+      ///
+      /// \param seconds Timeout in seconds before the watchdog fires.
       LLVM_ABI Watchdog(unsigned int seconds);
+      /// Cancel the watchdog if the timeout has not yet fired.
       LLVM_ABI ~Watchdog();
 
     private:

@@ -18,18 +18,25 @@
 
 namespace llvm::sandboxir {
 
+/// A Region pass that de-duplicates packs by reusing existing pack patterns.
+///
 /// This pass aims at de-duplicating packs, i.e., try to reuse already existing
-/// pack patterns instead of keeping both.
-/// This is useful because even though the duplicates will most probably be
-/// optimized away by future passes, their added cost can make vectorization
-/// more conservative than it should be.
+/// pack patterns instead of keeping both. This is useful because even though
+/// the duplicates will most probably be optimized away by future passes, their
+/// added cost can make vectorization more conservative than it should be.
 class LLVM_ABI PackReuse final : public RegionPass {
   bool Change = false;
 
 public:
+  /// Construct a PackReuse pass.
+  /// \param AuxArg Unused; must be empty.
   PackReuse(StringRef AuxArg) : RegionPass("pack-reuse") {
     assert(AuxArg.empty() && "This pass ignores aux arg!");
   }
+  /// Run pack de-duplication on the given region.
+  /// \param Rgn The region to process.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the IR was modified.
   bool runOnRegion(Region &Rgn, const Analyses &A) final;
 };
 

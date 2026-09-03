@@ -27,6 +27,15 @@ class TypeCollection;
 /// Dumper for CodeView symbol streams found in COFF object files and PDB files.
 class CVSymbolDumper {
 public:
+  /// Construct a dumper for CodeView symbol records.
+  ///
+  /// \param W Printer used to emit the dumped symbol output.
+  /// \param Types Type collection used to resolve type indices in symbols.
+  /// \param Container Whether the symbols come from an object file or a PDB.
+  /// \param ObjDelegate Delegate for object-file-specific symbol dump hooks.
+  /// \param CPU Initial compilation CPU type used until an S_COMPILE* record
+  ///        updates it.
+  /// \param PrintRecordBytes If true, also print the raw bytes of each record.
   CVSymbolDumper(ScopedPrinter &W, TypeCollection &Types,
                  CodeViewContainer Container,
                  std::unique_ptr<SymbolDumpDelegate> ObjDelegate, CPUType CPU,
@@ -35,16 +44,26 @@ public:
         ObjDelegate(std::move(ObjDelegate)), CompilationCPUType(CPU),
         PrintRecordBytes(PrintRecordBytes) {}
 
-  /// Dumps one type record.  Returns false if there was a type parsing error,
-  /// and true otherwise.  This should be called in order, since the dumper
-  /// maintains state about previous records which are necessary for cross
-  /// type references.
+  /// Dump one CodeView symbol record.
+  ///
+  /// Returns false if there was a type parsing error, and true otherwise. This
+  /// should be called in order, since the dumper maintains state about previous
+  /// records which are necessary for cross type references.
+  ///
+  /// \param Record Symbol record to dump.
+  /// \returns Success, or an Error if the record cannot be dumped.
   LLVM_ABI Error dump(CVRecord<SymbolKind> &Record);
 
   /// Dumps the type records in Data. Returns false if there was a type stream
   /// parse error, and true otherwise.
+  ///
+  /// \param Symbols Array of symbol records to dump.
+  /// \returns Success, or an Error if the symbol stream cannot be parsed.
   LLVM_ABI Error dump(const CVSymbolArray &Symbols);
 
+  /// Return the compilation CPU type observed while dumping symbols.
+  ///
+  /// \returns The compilation CPU type observed while dumping.
   CPUType getCompilationCPUType() const { return CompilationCPUType; }
 
 private:

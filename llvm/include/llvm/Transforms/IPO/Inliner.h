@@ -35,15 +35,34 @@ namespace llvm {
 /// passes be composed to achieve the same end result.
 class InlinerPass : public OptionalPassInfoMixin<InlinerPass> {
 public:
+  /// Construct an inliner pass.
+  ///
+  /// \param OnlyMandatory If true, only process always-inline / never-inline
+  /// decisions and skip cost-model heuristics.
+  /// \param LTOPhase Thin/full LTO phase in which this pass runs.
   InlinerPass(bool OnlyMandatory = false,
               ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None)
       : OnlyMandatory(OnlyMandatory), LTOPhase(LTOPhase) {}
+  /// Move-construct an inliner pass.
+  ///
+  /// \param Arg Pass instance to move from.
   InlinerPass(InlinerPass &&Arg) = default;
 
+  /// Run the inliner over SCC \p C.
+  ///
+  /// \param C The SCC whose call sites are considered for inlining.
+  /// \param AM The CGSCC analysis manager.
+  /// \param CG The lazy call graph.
+  /// \param UR The CGSCC update result.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &C,
                                  CGSCCAnalysisManager &AM, LazyCallGraph &CG,
                                  CGSCCUpdateResult &UR);
 
+  /// Print this pass's pipeline representation to \p OS.
+  ///
+  /// \param OS Stream to write the pipeline string to.
+  /// \param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);
@@ -56,37 +75,66 @@ private:
   const ThinOrFullLTOPhase LTOPhase;
 };
 
-/// Module pass, wrapping the inliner pass. This works in conjunction with the
-/// InlineAdvisorAnalysis to facilitate inlining decisions taking into account
-/// module-wide state, that need to keep track of inter-inliner pass runs, for
-/// a given module. An InlineAdvisor is configured and kept alive for the
-/// duration of the ModuleInlinerWrapperPass::run.
+/// Module pass wrapping the inliner with a module-wide advisor.
+///
+/// This works in conjunction with the InlineAdvisorAnalysis to facilitate
+/// inlining decisions taking into account module-wide state, that need to keep
+/// track of inter-inliner pass runs, for a given module. An InlineAdvisor is
+/// configured and kept alive for the duration of the
+/// ModuleInlinerWrapperPass::run.
 class ModuleInlinerWrapperPass
     : public OptionalPassInfoMixin<ModuleInlinerWrapperPass> {
 public:
+  /// Construct a module inliner wrapper pass.
+  ///
+  /// \param Params Inline cost-model parameters for the advisor.
+  /// \param MandatoryFirst If true, run a mandatory-only inliner before the
+  /// full inliner.
+  /// \param IC Pipeline context identifying the inline driver and LTO phase.
+  /// \param Mode How the InlineAdvisor makes inlining decisions.
+  /// \param MaxDevirtIterations Maximum times to repeat the SCC pipeline after
+  /// detecting newly-devirtualized calls; zero disables the repeater.
   LLVM_ABI ModuleInlinerWrapperPass(
       InlineParams Params = getInlineParams(), bool MandatoryFirst = true,
       InlineContext IC = {},
       InliningAdvisorMode Mode = InliningAdvisorMode::Default,
       unsigned MaxDevirtIterations = 0);
+  /// Move-construct a module inliner wrapper pass.
+  ///
+  /// \param Arg Pass instance to move from.
   ModuleInlinerWrapperPass(ModuleInlinerWrapperPass &&Arg) = default;
 
-  LLVM_ABI PreservedAnalyses run(Module &, ModuleAnalysisManager &);
+  /// Run the wrapped inliner pipeline over the given module.
+  ///
+  /// \param M Module whose call graph is processed for inlining.
+  /// \param AM Module analysis manager providing analyses for the pass.
+  /// \return The set of analyses preserved by this pass.
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
   /// Allow adding more CGSCC passes, besides inlining. This should be called
   /// before run is called, as part of pass pipeline building.
+  ///
+  /// \return The CGSCC pass manager owned by this wrapper.
   CGSCCPassManager &getPM() { return PM; }
 
   /// Add a module pass that runs before the CGSCC passes.
+  ///
+  /// \param Pass Module pass to add; moved into the early module pipeline.
   template <class T> void addModulePass(T Pass) {
     MPM.addPass(std::move(Pass));
   }
 
   /// Add a module pass that runs after the CGSCC passes.
+  ///
+  /// \param Pass Module pass to add; moved into the late module pipeline.
   template <class T> void addLateModulePass(T Pass) {
     AfterCGMPM.addPass(std::move(Pass));
   }
 
+  /// Print this pass's pipeline representation to \p OS.
+  ///
+  /// \param OS Stream to write the pipeline string to.
+  /// \param MapClassName2PassName Maps class names to pass names.
   LLVM_ABI void
   printPipeline(raw_ostream &OS,
                 function_ref<StringRef(StringRef)> MapClassName2PassName);

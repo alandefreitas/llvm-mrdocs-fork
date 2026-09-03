@@ -66,23 +66,41 @@ using LookupPrepareFn = unique_function<LookupApplyFn(
 /// The prepare functions are only used during this call -- they are asked for
 /// their symbols up front, and only their applicators are retained -- so a
 /// braced list or other temporary is safe here.
+/// @param OnApplied Callback invoked after every applicator runs, or with an
+///        error if the lookup failed.
+/// @param ES Execution session that performs the lookup.
+/// @param K Kind of lookup being performed.
+/// @param SearchOrder JITDylibs to search, with per-dylib lookup flags.
+/// @param PrepareFns Prepare functions that contribute symbols and applicators.
 LLVM_ABI void lookupAndApply(unique_function<void(Error)> OnApplied,
                              ExecutionSession &ES, LookupKind K,
                              const JITDylibSearchOrder &SearchOrder,
                              ArrayRef<LookupPrepareFn> PrepareFns);
 
 /// Blocking version of lookupAndApply above.
+/// @param ES Execution session that performs the lookup.
+/// @param K Kind of lookup being performed.
+/// @param SearchOrder JITDylibs to search, with per-dylib lookup flags.
+/// @param PrepareFns Prepare functions that contribute symbols and applicators.
+/// @return Success, or an error if the lookup failed.
 LLVM_ABI Error lookupAndApply(ExecutionSession &ES, LookupKind K,
                               const JITDylibSearchOrder &SearchOrder,
                               ArrayRef<LookupPrepareFn> PrepareFns);
 
 /// lookupAndApply with a static lookup in the given JITDylib.
+/// @param OnApplied Callback invoked after every applicator runs, or with an
+///        error if the lookup failed.
+/// @param JD JITDylib to search with a static lookup.
+/// @param PrepareFns Prepare functions that contribute symbols and applicators.
 LLVM_ABI void lookupAndApply(unique_function<void(Error)> OnApplied,
                              JITDylib &JD,
                              ArrayRef<LookupPrepareFn> PrepareFns);
 
 /// lookupAndApply with a static lookup in the given JITDylib. Blocking
 /// version.
+/// @param JD JITDylib to search with a static lookup.
+/// @param PrepareFns Prepare functions that contribute symbols and applicators.
+/// @return Success, or an error if the lookup failed.
 LLVM_ABI Error lookupAndApply(JITDylib &JD,
                               ArrayRef<LookupPrepareFn> PrepareFns);
 
@@ -93,6 +111,11 @@ LLVM_ABI Error lookupAndApply(JITDylib &JD,
 /// Name must remain valid until the lookupAndApply call it is passed to has
 /// collected its symbols: it is interned up front, and only the interned name
 /// is retained.
+/// @param Name Symbol name to look up and record.
+/// @param A Destination updated with the resolved address, or null if a weak
+///          reference is not found.
+/// @param LF Lookup flags for the contributed symbol.
+/// @return A prepare function that records the resolved address into *A.
 inline LookupPrepareFn
 recordAddr(StringRef Name, ExecutorAddr *A,
            SymbolLookupFlags LF = SymbolLookupFlags::RequiredSymbol) {

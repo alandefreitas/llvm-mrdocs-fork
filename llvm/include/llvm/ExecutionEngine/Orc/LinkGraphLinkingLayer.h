@@ -34,6 +34,7 @@ class LinkGraphLinkingLayerTests;
 namespace llvm {
 
 namespace jitlink {
+/// Interface for registering and deregistering eh-frame sections.
 class EHFrameRegistrar;
 } // namespace jitlink
 
@@ -54,35 +55,70 @@ public:
   /// configured.
   class LLVM_ABI Plugin {
   public:
+    /// Destroy the plugin.
     virtual ~Plugin();
+
+    /// Modify the JITLink pass configuration for a materialization.
+    /// @param MR Materialization responsibility for the graph being linked.
+    /// @param G Link graph whose pass configuration may be modified.
+    /// @param Config Pass configuration to update.
     virtual void modifyPassConfig(MaterializationResponsibility &MR,
                                   jitlink::LinkGraph &G,
                                   jitlink::PassConfiguration &Config) {}
 
-    // Deprecated. Don't use this in new code. There will be a proper mechanism
-    // for capturing object buffers.
+    /// Notify this plugin that a LinkGraph is being materialized.
+    ///
+    /// Deprecated. Don't use this in new code. There will be a proper mechanism
+    /// for capturing object buffers.
+    /// @param MR Materialization responsibility for the graph.
+    /// @param G Link graph being materialized.
+    /// @param Ctx JITLink context for the link.
+    /// @param InputObject Buffer holding the input object, if any.
     virtual void notifyMaterializing(MaterializationResponsibility &MR,
                                      jitlink::LinkGraph &G,
                                      jitlink::JITLinkContext &Ctx,
                                      MemoryBufferRef InputObject) {}
 
+    /// Notify this plugin that materialization completed successfully.
+    /// @param MR Materialization responsibility for the emitted graph.
+    /// @return Success, or an error if post-emit handling fails.
     virtual Error notifyEmitted(MaterializationResponsibility &MR) {
       return Error::success();
     }
+
+    /// Notify this plugin that materialization failed.
+    /// @param MR Materialization responsibility for the failed graph.
+    /// @return Success, or an error if failure handling fails.
     virtual Error notifyFailed(MaterializationResponsibility &MR) = 0;
+
+    /// Notify this plugin that resources under \p K are being removed.
+    /// @param JD JITDylib whose resources are being removed.
+    /// @param K Key identifying the resources to remove.
+    /// @return Success, or an error if resource removal fails.
     virtual Error notifyRemovingResources(JITDylib &JD, ResourceKey K) = 0;
+
+    /// Notify this plugin that resources are transferring from \p SrcKey to
+    /// \p DstKey.
+    /// @param JD JITDylib whose resources are being transferred.
+    /// @param DstKey Destination resource key.
+    /// @param SrcKey Source resource key.
     virtual void notifyTransferringResources(JITDylib &JD, ResourceKey DstKey,
                                              ResourceKey SrcKey) = 0;
   };
 
   /// Construct a LinkGraphLinkingLayer.
+  /// @param ES Execution session this layer is attached to.
+  /// @param MemMgr Memory manager used for JITLink allocations.
   LinkGraphLinkingLayer(ExecutionSession &ES,
                         jitlink::JITLinkMemoryManager &MemMgr);
 
-  /// Construct an LinkGraphLinkingLayer. Takes ownership of the given
-  /// JITLinkMemoryManager. This method is a temporary hack to simplify
-  /// co-existence with RTDyldObjectLinkingLayer (which also owns its
-  /// allocators).
+  /// Construct a LinkGraphLinkingLayer that owns its memory manager.
+  ///
+  /// Takes ownership of the given JITLinkMemoryManager. This method is a
+  /// temporary hack to simplify co-existence with RTDyldObjectLinkingLayer
+  /// (which also owns its allocators).
+  /// @param ES Execution session this layer is attached to.
+  /// @param MemMgr Memory manager to take ownership of.
   LinkGraphLinkingLayer(ExecutionSession &ES,
                         std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr);
 
@@ -90,16 +126,21 @@ public:
   ~LinkGraphLinkingLayer() override;
 
   /// Add a plugin.
+  /// @param P Plugin to add to this layer.
+  /// @return Reference to this layer.
   LinkGraphLinkingLayer &addPlugin(std::shared_ptr<Plugin> P) {
     std::lock_guard<std::mutex> Lock(LayerMutex);
     Plugins.push_back(std::move(P));
     return *this;
   }
 
-  /// Remove a plugin. This remove applies only to subsequent links (links
-  /// already underway will continue to use the plugin), and does not of itself
-  /// destroy the plugin -- destruction will happen once all shared pointers
-  /// (including those held by in-progress links) are destroyed.
+  /// Remove a plugin from this layer.
+  ///
+  /// This remove applies only to subsequent links (links already underway will
+  /// continue to use the plugin), and does not of itself destroy the plugin --
+  /// destruction will happen once all shared pointers (including those held by
+  /// in-progress links) are destroyed.
+  /// @param P Plugin to remove.
   void removePlugin(Plugin &P) {
     std::lock_guard<std::mutex> Lock(LayerMutex);
     auto I = llvm::find_if(Plugins, [&](const std::shared_ptr<Plugin> &Elem) {
@@ -110,9 +151,13 @@ public:
   }
 
   /// Emit a LinkGraph.
+  /// @param R Materialization responsibility for the symbols being emitted.
+  /// @param G Link graph to emit.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             std::unique_ptr<jitlink::LinkGraph> G) override;
 
+  /// Override LinkGraph symbol flags with MaterializationResponsibility flags.
+  ///
   /// Instructs this LinkgraphLinkingLayer instance to override the symbol flags
   /// found in the LinkGraph with the flags supplied by the
   /// MaterializationResponsibility instance. This is a workaround to support
@@ -121,12 +166,17 @@ public:
   ///
   /// FIXME: We should be able to remove this if/when COFF properly tracks
   /// exported symbols.
+  /// @param OverrideObjectFlags Whether to override object flags from the
+  ///        responsibility.
+  /// @return Reference to this layer.
   LinkGraphLinkingLayer &
   setOverrideObjectFlagsWithResponsibilityFlags(bool OverrideObjectFlags) {
     this->OverrideObjectFlags = OverrideObjectFlags;
     return *this;
   }
 
+  /// Claim responsibility for object symbols missing from the responsibility.
+  ///
   /// If set, this LinkGraphLinkingLayer instance will claim responsibility
   /// for any symbols provided by a given object file that were not already in
   /// the MaterializationResponsibility instance. Setting this flag allows
@@ -138,6 +188,9 @@ public:
   /// deterministically). If this option is set, clashes for the additional
   /// symbols may not be detected until late, and detection may depend on
   /// the flow of control through JIT'd code. Use with care.
+  /// @param AutoClaimObjectSymbols Whether to auto-claim missing object
+  ///        symbols.
+  /// @return Reference to this layer.
   LinkGraphLinkingLayer &
   setAutoClaimResponsibilityForObjectSymbols(bool AutoClaimObjectSymbols) {
     this->AutoClaimObjectSymbols = AutoClaimObjectSymbols;
@@ -148,10 +201,14 @@ protected:
   /// Emit a LinkGraph with the given backing buffer.
   ///
   /// This overload is intended for use by ObjectLinkingLayer.
+  /// @param R Materialization responsibility for the symbols being emitted.
+  /// @param G Link graph to emit.
+  /// @param ObjBuf Object buffer backing \p G, if ownership should be tracked.
   void emit(std::unique_ptr<MaterializationResponsibility> R,
             std::unique_ptr<jitlink::LinkGraph> G,
             std::unique_ptr<MemoryBuffer> ObjBuf);
 
+  /// Optional callback that receives ownership of object buffers after linking.
   std::function<void(std::unique_ptr<MemoryBuffer>)> ReturnObjectBuffer;
 
 private:

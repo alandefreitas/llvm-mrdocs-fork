@@ -38,15 +38,15 @@ enum class HashFunctionMode {
 
 namespace llvm {
 
-// A vector of locations (the pair of (instruction, operand) indices) reachable
-// from a parameter.
+/// Locations (instruction, operand index pairs) reachable from a parameter.
 using ParamLocs = SmallVector<IndexPair, 4>;
-// A vector of parameters
+/// Vector of parameter location lists for a stable function merge.
 using ParamLocsVecTy = SmallVector<ParamLocs, 8>;
 
-/// GlobalMergeFunc is a ModulePass that implements a function merging mechanism
-/// using stable function hashes. It identifies and merges functions with
-/// matching hashes across modules to optimize binary size.
+/// Module pass that merges functions using stable function hashes.
+///
+/// Identifies and merges functions with matching hashes across modules to
+/// optimize binary size.
 class GlobalMergeFunc {
   HashFunctionMode MergerMode = HashFunctionMode::Local;
 
@@ -55,34 +55,55 @@ class GlobalMergeFunc {
   const ModuleSummaryIndex *Index;
 
 public:
-  /// The suffix used to identify the merged function that parameterizes
-  /// the constant values. Note that the original function, without this suffix,
-  /// becomes a thunk supplying contexts to the merged function via parameters.
+  /// Suffix identifying the merged function that parameterizes constant values.
+  ///
+  /// The original function, without this suffix, becomes a thunk supplying
+  /// contexts to the merged function via parameters.
   static constexpr char MergingInstanceSuffix[] = ".Tgm";
 
+  /// Construct a global merge function pass.
+  /// \param Index Optional module summary index used during merging.
   GlobalMergeFunc(const ModuleSummaryIndex *Index) : Index(Index) {};
 
+  /// Initialize the merger mode from module \p M and any available summary.
+  /// \param M Module used to decide local vs. hash-building/using modes.
   LLVM_ABI void initializeMergerMode(const Module &M);
 
+  /// Run analysis and merging on module \p M.
+  /// \param M Module to analyze and transform.
+  /// \returns true if the module was modified.
   LLVM_ABI bool run(Module &M);
 
   /// Analyze module to create stable function into LocalFunctionMap.
+  /// \param M Module whose functions are analyzed for stable hashes.
   LLVM_ABI void analyze(Module &M);
 
   /// Emit LocalFunctionMap into __llvm_merge section.
+  /// \param M Module that receives the emitted function map.
   LLVM_ABI void emitFunctionMap(Module &M);
 
   /// Merge functions in the module using the given function map.
+  /// \param M Module whose functions are merged.
+  /// \param FunctionMap Stable function map describing merge candidates.
+  /// \returns true if the module was modified.
   LLVM_ABI bool merge(Module &M, const StableFunctionMap *FunctionMap);
 };
 
 /// Global function merging pass for new pass manager.
 struct GlobalMergeFuncPass : public OptionalPassInfoMixin<GlobalMergeFuncPass> {
+  /// Optional summary used when importing merge information across modules.
   const ModuleSummaryIndex *ImportSummary = nullptr;
+  /// Construct a pass that does not use an import summary.
   GlobalMergeFuncPass() = default;
+  /// Construct a pass that uses \p ImportSummary for cross-module merging.
+  /// \param ImportSummary Module summary index providing import information.
   GlobalMergeFuncPass(const ModuleSummaryIndex *ImportSummary)
       : ImportSummary(ImportSummary) {}
-  LLVM_ABI PreservedAnalyses run(Module &M, AnalysisManager<Module> &);
+  /// Run global function merging on module \p M.
+  /// \param M Module to transform.
+  /// \param AM Module analysis manager providing required analyses.
+  /// \returns The analyses preserved after merging.
+  LLVM_ABI PreservedAnalyses run(Module &M, AnalysisManager<Module> &AM);
 };
 
 } // end namespace llvm

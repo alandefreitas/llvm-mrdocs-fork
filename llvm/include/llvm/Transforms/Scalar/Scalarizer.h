@@ -26,10 +26,8 @@ namespace llvm {
 class Function;
 class FunctionPass;
 
+/// Options controlling how the Scalarizer pass splits vector operations.
 struct ScalarizerPassOptions {
-  /// Instruct the scalarizer pass to attempt to keep values of a minimum number
-  /// of bits.
-
   /// Split vectors larger than this size into fragments, where each fragment is
   /// either a vector no larger than this size or a scalar.
   ///
@@ -48,23 +46,40 @@ struct ScalarizerPassOptions {
   bool ScalarizeLoadStore = false;
 };
 
+/// Pass that converts vector operations into scalar or smaller-vector forms.
 class ScalarizerPass : public OptionalPassInfoMixin<ScalarizerPass> {
   ScalarizerPassOptions Options;
 
 public:
+  /// Construct a Scalarizer pass with default options.
   ScalarizerPass() = default;
+  /// Construct a Scalarizer pass with the given options.
+  /// @param Options Scalarizer options to use for this pass instance.
   ScalarizerPass(const ScalarizerPassOptions &Options) : Options(Options) {}
 
+  /// Run the Scalarizer pass over the function.
+  /// @param F Function whose vector operations may be scalarized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
+  /// Set whether to scalarize insertelement/extractelement with a variable
+  /// index.
+  /// @param Value True to allow scalarizing variable-index insert/extract.
   void setScalarizeVariableInsertExtract(bool Value) {
     Options.ScalarizeVariableInsertExtract = Value;
   }
+  /// Set whether to scalarize vector loads and stores.
+  /// @param Value True to allow scalarizing loads and stores.
   void setScalarizeLoadStore(bool Value) { Options.ScalarizeLoadStore = Value; }
+  /// Set the minimum fragment bit width used when splitting vectors.
+  /// @param Value Minimum bits per fragment; zero requests full scalarization.
   void setScalarizeMinBits(unsigned Value) { Options.ScalarizeMinBits = Value; }
 };
 
-/// Create a legacy pass manager instance of the Scalarizer pass
+/// Create a legacy pass manager instance of the Scalarizer pass.
+/// @param Options Scalarizer options for the created pass instance.
+/// @return A new legacy FunctionPass that runs the Scalarizer.
 LLVM_ABI FunctionPass *createScalarizerPass(
     const ScalarizerPassOptions &Options = ScalarizerPassOptions());
 }

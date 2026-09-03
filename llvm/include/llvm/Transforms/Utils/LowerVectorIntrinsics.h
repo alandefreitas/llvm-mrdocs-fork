@@ -23,6 +23,10 @@ class Module;
 
 /// Lower \p CI as a loop. \p CI is a unary intrinsic with a vector argument and
 /// is deleted and replaced with a loop.
+///
+/// \param M The module containing the call.
+/// \param CI The unary vector intrinsic call to lower.
+/// \return True if the intrinsic was lowered.
 LLVM_ABI bool lowerUnaryVectorIntrinsicAsLoop(Module &M, CallInst *CI);
 
 } // namespace llvm

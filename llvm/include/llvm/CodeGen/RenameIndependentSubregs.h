@@ -13,9 +13,19 @@
 
 namespace llvm {
 
+/// New PM pass that renames independently used subregisters.
+///
+/// Detects subregister lanes in a virtual register that are used
+/// independently of other lanes and splits them into separate virtual
+/// registers.
 class RenameIndependentSubregsPass
     : public RequiredPassInfoMixin<RenameIndependentSubregsPass> {
 public:
+  /// Rename independently used subregisters in \p MF.
+  /// \param MF Machine function whose independent subregisters are renamed.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after renaming independent
+  ///         subregisters.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

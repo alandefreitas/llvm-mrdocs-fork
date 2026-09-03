@@ -13,8 +13,13 @@
 
 namespace llvm {
 
+/// New PM pass that optimizes machine instruction PHIs.
 class OptimizePHIsPass : public OptionalPassInfoMixin<OptimizePHIsPass> {
 public:
+  /// Optimize PHI instructions in \p MF.
+  /// \param MF Machine function whose PHIs are optimized.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after optimizing PHIs.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

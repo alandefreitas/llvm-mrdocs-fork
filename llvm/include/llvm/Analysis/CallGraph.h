@@ -87,28 +87,54 @@ class CallGraph {
   std::unique_ptr<CallGraphNode> CallsExternalNode;
 
 public:
+  /// Construct a call graph for module \p M.
+  /// @param M Module whose call graph is built.
   LLVM_ABI explicit CallGraph(Module &M);
+  /// Move-construct a call graph from \p Arg.
+  /// @param Arg Call graph to move from.
   LLVM_ABI CallGraph(CallGraph &&Arg);
+  /// Destroy the call graph and its nodes.
   LLVM_ABI ~CallGraph();
 
+  /// Print the call graph to \p OS.
+  /// @param OS Output stream.
   LLVM_ABI void print(raw_ostream &OS) const;
+  /// Dump the call graph to stderr for debugging.
   LLVM_ABI void dump() const;
 
+  /// Mutable iterator over function-to-node map entries.
   using iterator = FunctionMapTy::iterator;
+  /// Const iterator over function-to-node map entries.
   using const_iterator = FunctionMapTy::const_iterator;
 
   /// Returns the module the call graph corresponds to.
+  /// @return The module associated with this call graph.
   Module &getModule() const { return M; }
 
-  LLVM_ABI bool invalidate(Module &, const PreservedAnalyses &PA,
-                           ModuleAnalysisManager::Invalidator &);
+  /// Invalidate cached analyses when the module changes.
+  /// @param M Module being invalidated.
+  /// @param PA Set of analyses preserved by the transform.
+  /// @param Inv Invalidator for resolving analysis dependencies.
+  /// @return True if this analysis result should be invalidated.
+  LLVM_ABI bool invalidate(Module &M, const PreservedAnalyses &PA,
+                           ModuleAnalysisManager::Invalidator &Inv);
 
+  /// Return an iterator to the first function map entry.
+  /// @return Iterator to the first function-to-node map entry.
   inline iterator begin() { return FunctionMap.begin(); }
+  /// Return an iterator past the last function map entry.
+  /// @return Iterator past the last function-to-node map entry.
   inline iterator end() { return FunctionMap.end(); }
+  /// Return a const iterator to the first function map entry.
+  /// @return Const iterator to the first function-to-node map entry.
   inline const_iterator begin() const { return FunctionMap.begin(); }
+  /// Return a const iterator past the last function map entry.
+  /// @return Const iterator past the last function-to-node map entry.
   inline const_iterator end() const { return FunctionMap.end(); }
 
   /// Returns the call graph node for the provided function.
+  /// @param F Function whose call graph node is requested.
+  /// @return Const pointer to the call graph node for \p F.
   inline const CallGraphNode *operator[](const Function *F) const {
     const_iterator I = FunctionMap.find(F);
     assert(I != FunctionMap.end() && "Function not in callgraph!");
@@ -116,6 +142,8 @@ public:
   }
 
   /// Returns the call graph node for the provided function.
+  /// @param F Function whose call graph node is requested.
+  /// @return Pointer to the call graph node for \p F.
   inline CallGraphNode *operator[](const Function *F) {
     const_iterator I = FunctionMap.find(F);
     assert(I != FunctionMap.end() && "Function not in callgraph!");
@@ -124,8 +152,11 @@ public:
 
   /// Returns the \c CallGraphNode which is used to represent
   /// undetermined calls into the callgraph.
+  /// @return The external-calling node for undetermined callers.
   CallGraphNode *getExternalCallingNode() const { return ExternalCallingNode; }
 
+  /// Return the node representing calls that leave this module.
+  /// @return The node that represents calls leaving this module.
   CallGraphNode *getCallsExternalNode() const {
     return CallsExternalNode.get();
   }
@@ -141,17 +172,23 @@ public:
   /// destroyed.  This is only valid if the function does not call any other
   /// functions (ie, there are no edges in it's CGN).  The easiest way to do
   /// this is to dropAllReferences before calling this.
+  /// @param CGN Call graph node whose function is unlinked and returned.
+  /// @return The function that was unlinked from the module.
   LLVM_ABI Function *removeFunctionFromModule(CallGraphNode *CGN);
 
   /// Similar to operator[], but this will insert a new CallGraphNode for
   /// \c F if one does not already exist.
+  /// @param F Function to look up or insert into the call graph.
+  /// @return The existing or newly inserted call graph node for \p F.
   LLVM_ABI CallGraphNode *getOrInsertFunction(const Function *F);
 
   /// Populate \p CGN based on the calls inside the associated function.
+  /// @param CGN Call graph node to populate from its function body.
   LLVM_ABI void populateCallGraphNode(CallGraphNode *CGN);
 
   /// Add a function to the call graph, and link the node to all of the
   /// functions that it calls.
+  /// @param F Function to add and connect in the call graph.
   LLVM_ABI void addToCallGraph(Function *F);
 };
 
@@ -161,49 +198,76 @@ public:
 /// "null" nodes used to represent theoretical entries in the call graph.
 class CallGraphNode {
 public:
-  /// A pair of the calling instruction (a call or invoke)
-  /// and the call graph node being called.
-  /// Call graph node may have two types of call records which represent an edge
-  /// in the call graph - reference or a call edge. Reference edges are not
-  /// associated with any call instruction and are created with the first field
-  /// set to `None`, while real call edges have instruction address in this
-  /// field. Therefore, all real call edges are expected to have a value in the
-  /// first field and it is not supposed to be `nullptr`.
-  /// Reference edges, for example, are used for connecting broker function
-  /// caller to the callback function for callback call sites.
+  /// A call-site edge from this node to a callee.
+  ///
+  /// A pair of the calling instruction (a call or invoke) and the call graph
+  /// node being called. Call graph node may have two types of call records
+  /// which represent an edge in the call graph - reference or a call edge.
+  /// Reference edges are not associated with any call instruction and are
+  /// created with the first field set to `None`, while real call edges have
+  /// instruction address in this field. Therefore, all real call edges are
+  /// expected to have a value in the first field and it is not supposed to be
+  /// `nullptr`. Reference edges, for example, are used for connecting broker
+  /// function caller to the callback function for callback call sites.
   using CallRecord = std::pair<std::optional<WeakTrackingVH>, CallGraphNode *>;
 
 public:
+  /// Vector of call records representing outgoing edges from this node.
   using CalledFunctionsVector = std::vector<CallRecord>;
 
   /// Creates a node for the specified function.
+  /// @param CG Owning call graph.
+  /// @param F Function represented by this node, or null for a special node.
   inline CallGraphNode(CallGraph *CG, Function *F) : CG(CG), F(F) {}
 
-  CallGraphNode(const CallGraphNode &) = delete;
-  CallGraphNode &operator=(const CallGraphNode &) = delete;
+  /// Deleted copy constructor; nodes are owned by the call graph.
+  /// @param Other Unused; copy construction is deleted.
+  CallGraphNode(const CallGraphNode &Other) = delete;
+  /// Deleted copy assignment; nodes are owned by the call graph.
+  /// @param Other Unused; copy assignment is deleted.
+  CallGraphNode &operator=(const CallGraphNode &Other) = delete;
 
+  /// Destroy this node; asserts that no references remain.
   ~CallGraphNode() {
     assert(NumReferences == 0 && "Node deleted while references remain");
   }
 
+  /// Mutable iterator over outgoing call records.
   using iterator = std::vector<CallRecord>::iterator;
+  /// Const iterator over outgoing call records.
   using const_iterator = std::vector<CallRecord>::const_iterator;
 
   /// Returns the function that this call graph node represents.
+  /// @return The function for this node, or null for a special node.
   Function *getFunction() const { return F; }
 
+  /// Return an iterator to the first called-function record.
+  /// @return Iterator to the first outgoing call record.
   inline iterator begin() { return CalledFunctions.begin(); }
+  /// Return an iterator past the last called-function record.
+  /// @return Iterator past the last outgoing call record.
   inline iterator end() { return CalledFunctions.end(); }
+  /// Return a const iterator to the first called-function record.
+  /// @return Const iterator to the first outgoing call record.
   inline const_iterator begin() const { return CalledFunctions.begin(); }
+  /// Return a const iterator past the last called-function record.
+  /// @return Const iterator past the last outgoing call record.
   inline const_iterator end() const { return CalledFunctions.end(); }
+  /// Return true if this node has no outgoing call edges.
+  /// @return True if this node has no outgoing call edges.
   inline bool empty() const { return CalledFunctions.empty(); }
+  /// Return the number of outgoing call edges.
+  /// @return The number of outgoing call edges from this node.
   inline unsigned size() const { return (unsigned)CalledFunctions.size(); }
 
   /// Returns the number of other CallGraphNodes in this CallGraph that
   /// reference this node in their callee list.
+  /// @return The number of incoming references to this node.
   unsigned getNumReferences() const { return NumReferences; }
 
   /// Returns the i'th called function.
+  /// @param i Zero-based index into the called-functions list.
+  /// @return The callee call graph node at index \p i.
   CallGraphNode *operator[](unsigned i) const {
     assert(i < CalledFunctions.size() && "Invalid index");
     return CalledFunctions[i].second;
@@ -211,6 +275,8 @@ public:
 
   /// Print out this call graph node.
   LLVM_ABI void dump() const;
+  /// Print this call graph node to \p OS.
+  /// @param OS Output stream.
   LLVM_ABI void print(raw_ostream &OS) const;
 
   //===---------------------------------------------------------------------
@@ -228,6 +294,7 @@ public:
   }
 
   /// Moves all the callee information from N to this node.
+  /// @param N Node whose called-function list is stolen.
   void stealCalledFunctionsFrom(CallGraphNode *N) {
     assert(CalledFunctions.empty() &&
            "Cannot steal callsite information if I already have some");
@@ -235,6 +302,8 @@ public:
   }
 
   /// Adds a function to the list of functions called by this one.
+  /// @param Call Call instruction for the edge, or null for a reference edge.
+  /// @param M Callee call graph node.
   void addCalledFunction(CallBase *Call, CallGraphNode *M) {
     CalledFunctions.emplace_back(Call ? std::optional<WeakTrackingVH>(Call)
                                       : std::optional<WeakTrackingVH>(),
@@ -242,6 +311,8 @@ public:
     M->AddRef();
   }
 
+  /// Remove the call edge at iterator \p I.
+  /// @param I Iterator identifying the call record to remove.
   void removeCallEdge(iterator I) {
     I->second->DropRef();
     *I = CalledFunctions.back();
@@ -250,12 +321,16 @@ public:
 
   /// Removes one edge associated with a null callsite from this node to
   /// the specified callee function.
+  /// @param Callee Callee node for the abstract edge to remove.
   LLVM_ABI void removeOneAbstractEdgeTo(CallGraphNode *Callee);
 
   /// Replaces the edge in the node for the specified call site with a
   /// new one.
   ///
   /// Note that this method takes linear time, so it should be used sparingly.
+  /// @param Call Existing call site whose edge is replaced.
+  /// @param NewCall Replacement call instruction for the edge.
+  /// @param NewNode Replacement callee call graph node.
   LLVM_ABI void replaceCallEdge(CallBase &Call, CallBase &NewCall,
                                 CallGraphNode *NewNode);
 
@@ -295,7 +370,10 @@ public:
   /// Compute the \c CallGraph for the module \c M.
   ///
   /// The real work here is done in the \c CallGraph constructor.
-  CallGraph run(Module &M, ModuleAnalysisManager &) { return CallGraph(M); }
+  /// @param M Module whose call graph is computed.
+  /// @param AM Module analysis manager (unused).
+  /// @return The call graph computed for \p M.
+  CallGraph run(Module &M, ModuleAnalysisManager &AM) { return CallGraph(M); }
 };
 
 /// Printer pass for the \c CallGraphAnalysis results.
@@ -304,8 +382,14 @@ class CallGraphPrinterPass
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes to \p OS.
+  /// @param OS Output stream for the call graph.
   explicit CallGraphPrinterPass(raw_ostream &OS) : OS(OS) {}
 
+  /// Print the call graph for module \p M.
+  /// @param M Module whose call graph is printed.
+  /// @param AM Module analysis manager providing the call graph.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
@@ -315,8 +399,14 @@ class CallGraphSCCsPrinterPass
   raw_ostream &OS;
 
 public:
+  /// Construct an SCC printer that writes to \p OS.
+  /// @param OS Output stream for the SCC summary.
   explicit CallGraphSCCsPrinterPass(raw_ostream &OS) : OS(OS) {}
 
+  /// Print the call-graph SCCs for module \p M.
+  /// @param M Module whose call-graph SCCs are printed.
+  /// @param AM Module analysis manager providing the call graph.
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
@@ -331,41 +421,65 @@ class LLVM_ABI CallGraphWrapperPass : public ModulePass {
   std::unique_ptr<CallGraph> G;
 
 public:
-  static char ID; // Class identification, replacement for typeinfo
+  /// Pass identification, replacement for typeinfo.
+  static char ID;
 
+  /// Construct an empty call graph wrapper pass.
   CallGraphWrapperPass();
+  /// Destroy the wrapper and its owned call graph.
   ~CallGraphWrapperPass() override;
 
   /// The internal \c CallGraph around which the rest of this interface
   /// is wrapped.
+  /// @return Const reference to the wrapped call graph.
   const CallGraph &getCallGraph() const { return *G; }
+  /// Return a mutable reference to the wrapped call graph.
+  /// @return Mutable reference to the wrapped call graph.
   CallGraph &getCallGraph() { return *G; }
 
+  /// Mutable iterator over function-to-node map entries.
   using iterator = CallGraph::iterator;
+  /// Const iterator over function-to-node map entries.
   using const_iterator = CallGraph::const_iterator;
 
   /// Returns the module the call graph corresponds to.
+  /// @return The module associated with the wrapped call graph.
   Module &getModule() const { return G->getModule(); }
 
+  /// Return an iterator to the first function map entry.
+  /// @return Iterator to the first function-to-node map entry.
   inline iterator begin() { return G->begin(); }
+  /// Return an iterator past the last function map entry.
+  /// @return Iterator past the last function-to-node map entry.
   inline iterator end() { return G->end(); }
+  /// Return a const iterator to the first function map entry.
+  /// @return Const iterator to the first function-to-node map entry.
   inline const_iterator begin() const { return G->begin(); }
+  /// Return a const iterator past the last function map entry.
+  /// @return Const iterator past the last function-to-node map entry.
   inline const_iterator end() const { return G->end(); }
 
   /// Returns the call graph node for the provided function.
+  /// @param F Function whose call graph node is requested.
+  /// @return Const pointer to the call graph node for \p F.
   inline const CallGraphNode *operator[](const Function *F) const {
     return (*G)[F];
   }
 
   /// Returns the call graph node for the provided function.
+  /// @param F Function whose call graph node is requested.
+  /// @return Pointer to the call graph node for \p F.
   inline CallGraphNode *operator[](const Function *F) { return (*G)[F]; }
 
   /// Returns the \c CallGraphNode which is used to represent
   /// undetermined calls into the callgraph.
+  /// @return The external-calling node for undetermined callers.
   CallGraphNode *getExternalCallingNode() const {
     return G->getExternalCallingNode();
   }
 
+  /// Return the node representing calls that leave this module.
+  /// @return The node that represents calls leaving this module.
   CallGraphNode *getCallsExternalNode() const {
     return G->getCallsExternalNode();
   }
@@ -381,12 +495,16 @@ public:
   /// destroyed.  This is only valid if the function does not call any other
   /// functions (ie, there are no edges in it's CGN).  The easiest way to do
   /// this is to dropAllReferences before calling this.
+  /// @param CGN Call graph node whose function is unlinked and returned.
+  /// @return The function that was unlinked from the module.
   Function *removeFunctionFromModule(CallGraphNode *CGN) {
     return G->removeFunctionFromModule(CGN);
   }
 
   /// Similar to operator[], but this will insert a new CallGraphNode for
   /// \c F if one does not already exist.
+  /// @param F Function to look up or insert into the call graph.
+  /// @return The existing or newly inserted call graph node for \p F.
   CallGraphNode *getOrInsertFunction(const Function *F) {
     return G->getOrInsertFunction(F);
   }
@@ -395,11 +513,21 @@ public:
   // Implementation of the ModulePass interface needed here.
   //
 
+  /// Report analysis dependencies; this pass requires no prior analyses.
+  /// @param AU Analysis usage object to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override;
+  /// Build the call graph for module \p M.
+  /// @param M Module to analyze.
+  /// @return False; this analysis does not modify the module.
   bool runOnModule(Module &M) override;
+  /// Release the owned call graph to free memory.
   void releaseMemory() override;
 
-  void print(raw_ostream &o, const Module *) const override;
+  /// Print the internal call graph state to \p o.
+  /// @param o Output stream.
+  /// @param M Optional module context; unused by this pass.
+  void print(raw_ostream &o, const Module *M) const override;
+  /// Dump the wrapped call graph to stderr for debugging.
   void dump() const;
 };
 
@@ -410,101 +538,172 @@ public:
 
 // Provide graph traits for traversing call graphs using standard graph
 // traversals.
+/// GraphTraits specialization for mutable CallGraphNode pointers.
 template <> struct GraphTraits<CallGraphNode *> {
+  /// Graph node type for a CallGraphNode.
   using NodeRef = CallGraphNode *;
+  /// Call-record pair used when mapping child iterators.
   using CGNPairTy = CallGraphNode::CallRecord;
 
+  /// Return \p CGN as the graph entry node.
+  /// @param CGN Call graph node used as the entry.
+  /// @return \p CGN as the entry node for graph algorithms.
   static NodeRef getEntryNode(CallGraphNode *CGN) { return CGN; }
+  /// Return the callee node from call-record pair \p P.
+  /// @param P Call record whose callee is extracted.
+  /// @return The callee call graph node from \p P.
   static CallGraphNode *CGNGetValue(CGNPairTy P) { return P.second; }
 
+  /// Iterator over child CallGraphNode pointers.
   using ChildIteratorType =
       mapped_iterator<CallGraphNode::iterator, decltype(&CGNGetValue)>;
 
+  /// Return the begin iterator over callees of \p N.
+  /// @param N Parent call graph node.
+  /// @return Begin iterator over the callees of \p N.
   static ChildIteratorType child_begin(NodeRef N) {
     return ChildIteratorType(N->begin(), &CGNGetValue);
   }
 
+  /// Return the end iterator over callees of \p N.
+  /// @param N Parent call graph node.
+  /// @return End iterator over the callees of \p N.
   static ChildIteratorType child_end(NodeRef N) {
     return ChildIteratorType(N->end(), &CGNGetValue);
   }
 };
 
+/// GraphTraits specialization for const CallGraphNode pointers.
 template <> struct GraphTraits<const CallGraphNode *> {
+  /// Graph node type for a const CallGraphNode.
   using NodeRef = const CallGraphNode *;
+  /// Call-record pair used when mapping child iterators.
   using CGNPairTy = CallGraphNode::CallRecord;
+  /// Reference type for an outgoing call-graph edge.
   using EdgeRef = const CallGraphNode::CallRecord &;
 
+  /// Return \p CGN as the graph entry node.
+  /// @param CGN Call graph node used as the entry.
+  /// @return \p CGN as the entry node for graph algorithms.
   static NodeRef getEntryNode(const CallGraphNode *CGN) { return CGN; }
+  /// Return the callee node from call-record pair \p P.
+  /// @param P Call record whose callee is extracted.
+  /// @return The callee call graph node from \p P.
   static const CallGraphNode *CGNGetValue(CGNPairTy P) { return P.second; }
 
+  /// Iterator over child const CallGraphNode pointers.
   using ChildIteratorType =
       mapped_iterator<CallGraphNode::const_iterator, decltype(&CGNGetValue)>;
+  /// Iterator over outgoing call-record edges.
   using ChildEdgeIteratorType = CallGraphNode::const_iterator;
 
+  /// Return the begin iterator over callees of \p N.
+  /// @param N Parent call graph node.
+  /// @return Begin iterator over the callees of \p N.
   static ChildIteratorType child_begin(NodeRef N) {
     return ChildIteratorType(N->begin(), &CGNGetValue);
   }
 
+  /// Return the end iterator over callees of \p N.
+  /// @param N Parent call graph node.
+  /// @return End iterator over the callees of \p N.
   static ChildIteratorType child_end(NodeRef N) {
     return ChildIteratorType(N->end(), &CGNGetValue);
   }
 
+  /// Return the begin iterator over outgoing edges of \p N.
+  /// @param N Parent call graph node.
+  /// @return Begin iterator over the outgoing edges of \p N.
   static ChildEdgeIteratorType child_edge_begin(NodeRef N) {
     return N->begin();
   }
+  /// Return the end iterator over outgoing edges of \p N.
+  /// @param N Parent call graph node.
+  /// @return End iterator over the outgoing edges of \p N.
   static ChildEdgeIteratorType child_edge_end(NodeRef N) { return N->end(); }
 
+  /// Return the destination node of edge \p E.
+  /// @param E Call-record edge whose callee is the destination.
+  /// @return The destination call graph node of \p E.
   static NodeRef edge_dest(EdgeRef E) { return E.second; }
 };
 
+/// GraphTraits specialization treating a CallGraph as a graph of nodes.
 template <>
 struct GraphTraits<CallGraph *> : public GraphTraits<CallGraphNode *> {
+  /// Function-map entry type used when iterating all nodes.
   using PairTy =
       std::pair<const Function *const, std::unique_ptr<CallGraphNode>>;
 
+  /// Return the external-calling node as the graph entry.
+  /// @param CGN Call graph whose external-calling node is the entry.
+  /// @return The external-calling node of \p CGN.
   static NodeRef getEntryNode(CallGraph *CGN) {
     return CGN->getExternalCallingNode(); // Start at the external node!
   }
 
+  /// Return the CallGraphNode stored in map entry \p P.
+  /// @param P Function-map entry whose node is extracted.
+  /// @return The call graph node stored in \p P.
   static CallGraphNode *CGGetValuePtr(const PairTy &P) {
     return P.second.get();
   }
 
-  // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
+  /// Iterator over all CallGraphNode pointers in the graph.
   using nodes_iterator =
       mapped_iterator<CallGraph::iterator, decltype(&CGGetValuePtr)>;
 
+  /// Return the begin iterator over all nodes in \p CG.
+  /// @param CG Call graph whose nodes are iterated.
+  /// @return Begin iterator over all nodes in \p CG.
   static nodes_iterator nodes_begin(CallGraph *CG) {
     return nodes_iterator(CG->begin(), &CGGetValuePtr);
   }
 
+  /// Return the end iterator over all nodes in \p CG.
+  /// @param CG Call graph whose nodes are iterated.
+  /// @return End iterator over all nodes in \p CG.
   static nodes_iterator nodes_end(CallGraph *CG) {
     return nodes_iterator(CG->end(), &CGGetValuePtr);
   }
 };
 
+/// GraphTraits specialization treating a const CallGraph as a graph of nodes.
 template <>
 struct GraphTraits<const CallGraph *> : public GraphTraits<
                                             const CallGraphNode *> {
+  /// Function-map entry type used when iterating all nodes.
   using PairTy =
       std::pair<const Function *const, std::unique_ptr<CallGraphNode>>;
 
+  /// Return the external-calling node as the graph entry.
+  /// @param CGN Call graph whose external-calling node is the entry.
+  /// @return The external-calling node of \p CGN.
   static NodeRef getEntryNode(const CallGraph *CGN) {
     return CGN->getExternalCallingNode(); // Start at the external node!
   }
 
+  /// Return the CallGraphNode stored in map entry \p P.
+  /// @param P Function-map entry whose node is extracted.
+  /// @return The call graph node stored in \p P.
   static const CallGraphNode *CGGetValuePtr(const PairTy &P) {
     return P.second.get();
   }
 
-  // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
+  /// Iterator over all const CallGraphNode pointers in the graph.
   using nodes_iterator =
       mapped_iterator<CallGraph::const_iterator, decltype(&CGGetValuePtr)>;
 
+  /// Return the begin iterator over all nodes in \p CG.
+  /// @param CG Call graph whose nodes are iterated.
+  /// @return Begin iterator over all nodes in \p CG.
   static nodes_iterator nodes_begin(const CallGraph *CG) {
     return nodes_iterator(CG->begin(), &CGGetValuePtr);
   }
 
+  /// Return the end iterator over all nodes in \p CG.
+  /// @param CG Call graph whose nodes are iterated.
+  /// @return End iterator over all nodes in \p CG.
   static nodes_iterator nodes_end(const CallGraph *CG) {
     return nodes_iterator(CG->end(), &CGGetValuePtr);
   }

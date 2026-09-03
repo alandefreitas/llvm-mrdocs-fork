@@ -32,15 +32,30 @@ class Value;
 /// MIRFormater - Interface to format MIR operand based on target
 class MIRFormatter {
 public:
+  /// Callback type used to report MIR parsing errors.
+  ///
+  /// \param Loc Iterator pointing at the location of the error in the source.
+  /// \param Msg Human-readable error message.
+  /// \returns true if the error is fatal and parsing should stop.
   typedef function_ref<bool(StringRef::iterator Loc, const Twine &)>
       ErrorCallbackType;
 
+  /// Construct a default MIR formatter.
   MIRFormatter() = default;
+  /// Destroy a MIR formatter.
   virtual ~MIRFormatter() = default;
 
+  /// Print a machine operand immediate with a target-specific mnemonic.
+  ///
   /// Implement target specific printing for machine operand immediate value, so
   /// that we can have more meaningful mnemonic than a 64-bit integer. Passing
   /// std::nullopt to OpIdx means the index is unknown.
+  ///
+  /// \param OS Output stream that receives the printed immediate.
+  /// \param MI Machine instruction that owns the immediate operand.
+  /// \param OpIdx Optional index of the operand within \p MI; std::nullopt when
+  ///              the index is unknown.
+  /// \param Imm Immediate value to print.
   virtual void printImm(raw_ostream &OS, const MachineInstr &MI,
                         std::optional<unsigned> OpIdx, int64_t Imm) const {
     OS << Imm;
@@ -48,6 +63,13 @@ public:
 
   /// Implement target specific parsing of immediate mnemonics. The mnemonic is
   /// dot separated strings.
+  ///
+  /// \param OpCode Opcode of the instruction that owns the immediate.
+  /// \param OpIdx Index of the immediate operand within the instruction.
+  /// \param Src Immediate mnemonic text to parse.
+  /// \param Imm Filled with the parsed immediate value on success.
+  /// \param ErrorCallback Invoked to report parse errors.
+  /// \returns true on success, false if parsing fails.
   virtual bool parseImmMnemonic(const unsigned OpCode, const unsigned OpIdx,
                                 StringRef Src, int64_t &Imm,
                                 ErrorCallbackType ErrorCallback) const {
@@ -57,6 +79,10 @@ public:
   /// Implement target specific printing of target custom pseudo source value.
   /// Default implementation is not necessarily the correct MIR serialization
   /// format.
+  ///
+  /// \param OS Output stream that receives the printed pseudo source value.
+  /// \param MST Module slot tracker used when printing IR references.
+  /// \param PSV Custom pseudo source value to print.
   virtual void
   printCustomPseudoSourceValue(raw_ostream &OS, ModuleSlotTracker &MST,
                                const PseudoSourceValue &PSV) const {
@@ -64,6 +90,13 @@ public:
   }
 
   /// Implement target specific parsing of target custom pseudo source value.
+  ///
+  /// \param Src Text of the custom pseudo source value to parse.
+  /// \param MF Machine function that owns the resulting pseudo source value.
+  /// \param PFS Per-function MIR parsing state used during resolution.
+  /// \param PSV Filled with the parsed custom pseudo source value on success.
+  /// \param ErrorCallback Invoked to report parse errors.
+  /// \returns true on success, false if parsing fails.
   virtual bool parseCustomPseudoSourceValue(
       StringRef Src, MachineFunction &MF, PerFunctionMIParsingState &PFS,
       const PseudoSourceValue *&PSV, ErrorCallbackType ErrorCallback) const {
@@ -71,15 +104,28 @@ public:
         "target did not implement parsing MIR custom pseudo source value");
   }
 
-  /// Helper functions to print IR value as MIR serialization format which will
-  /// be useful for target specific printer, e.g. for printing IR value in
+  /// Print an IR value in MIR serialization format.
+  ///
+  /// Helper for target-specific printers, e.g. when printing an IR value in a
   /// custom pseudo source value.
+  ///
+  /// \param OS Output stream that receives the printed IR value.
+  /// \param V IR value to print.
+  /// \param MST Module slot tracker used to print named and numbered values.
   LLVM_ABI static void printIRValue(raw_ostream &OS, const Value &V,
                                     ModuleSlotTracker &MST);
 
-  /// Helper functions to parse IR value from MIR serialization format which
-  /// will be useful for target specific parser, e.g. for parsing IR value for
+  /// Parse an IR value from MIR serialization format.
+  ///
+  /// Helper for target-specific parsers, e.g. when parsing an IR value for a
   /// custom pseudo source value.
+  ///
+  /// \param Src Text of the IR value to parse.
+  /// \param MF Machine function that owns the value context.
+  /// \param PFS Per-function MIR parsing state used during resolution.
+  /// \param V Filled with the parsed IR value on success.
+  /// \param ErrorCallback Invoked to report parse errors.
+  /// \returns true on success, false if parsing fails.
   LLVM_ABI static bool parseIRValue(StringRef Src, MachineFunction &MF,
                                     PerFunctionMIParsingState &PFS,
                                     const Value *&V,

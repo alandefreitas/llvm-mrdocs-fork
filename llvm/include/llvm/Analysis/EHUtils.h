@@ -14,6 +14,8 @@
 namespace llvm {
 
 /// Compute a list of blocks that are only reachable via EH paths.
+/// @param F Function whose CFG is analyzed.
+/// @param EHBlocks Output set of blocks reachable only via EH paths.
 template <typename FunctionT, typename BlockT>
 static void computeEHOnlyBlocks(FunctionT &F, DenseSet<BlockT *> &EHBlocks) {
   // A block can be unknown if its not reachable from anywhere

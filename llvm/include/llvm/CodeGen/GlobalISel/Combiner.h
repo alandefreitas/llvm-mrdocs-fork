@@ -54,26 +54,55 @@ private:
   static bool tryDCE(MachineInstr &MI, MachineRegisterInfo &MRI);
 
 public:
+  /// Construct a combiner for the given machine function.
+  ///
   /// If CSEInfo is not null, then the Combiner will use CSEInfo as the observer
   /// and also create a CSEMIRBuilder. Pass nullptr if CSE is not needed.
+  ///
+  /// \param MF - Function whose instructions will be combined.
+  /// \param CInfo - Combiner options for this pass.
+  /// \param VT - Optional value-tracking analysis.
+  /// \param CSEInfo - Optional CSE info; pass nullptr if CSE is not needed.
   Combiner(MachineFunction &MF, const CombinerInfo &CInfo,
            GISelValueTracking *VT, GISelCSEInfo *CSEInfo = nullptr);
+  /// Destroy this combiner and its owned observers and builder.
   ~Combiner() override;
 
+  /// Try all generated combiner rules on \p I.
+  ///
+  /// \param I - Instruction to combine.
+  /// \return true if \p I changed.
   virtual bool tryCombineAll(MachineInstr &I) const = 0;
 
+  /// Combine instructions in the current machine function.
+  ///
+  /// Iterates until a fixed point is reached, or until CInfo.MaxIterations
+  /// if that limit is non-zero.
+  ///
+  /// \return true if the function changed.
   bool combineMachineInstrs();
 
 protected:
+  /// Return whether opcode \p Opc may match a combiner rule.
+  ///
+  /// \param Opc - Opcode to test.
+  /// \return true if \p Opc should be considered for combining.
   virtual bool canMatchOpcode(unsigned Opc) const { return true; }
 
+  /// Combiner options for this pass.
   const CombinerInfo &CInfo;
+  /// Observer notified when instructions or registers change.
   GISelChangeObserver &Observer;
+  /// Machine IR builder used to emit replacement instructions.
   MachineIRBuilder &B;
+  /// Function whose instructions are being combined.
   MachineFunction &MF;
+  /// Register info for the function being combined.
   MachineRegisterInfo &MRI;
+  /// Optional value-tracking analysis used by known-bits combines.
   GISelValueTracking *VT;
 
+  /// Optional CSE info used when common-subexpression elimination is enabled.
   GISelCSEInfo *CSEInfo;
 };
 

@@ -22,7 +22,16 @@ class IVUsersPrinterPass : public RequiredPassInfoMixin<IVUsersPrinterPass> {
   raw_ostream &OS;
 
 public:
+  /// Construct a printer that writes IVUsers results to \p OS.
+  /// @param OS Output stream for the printed analysis.
   explicit IVUsersPrinterPass(raw_ostream &OS) : OS(OS) {}
+
+  /// Print the IVUsers for loop \p L and return all analyses preserved.
+  /// @param L Loop whose induction-variable users are printed.
+  /// @param AM Loop analysis manager providing IVUsers.
+  /// @param AR Standard loop analysis results.
+  /// @param U Loop pass manager updater (unused by the printer).
+  /// @return Preserved analyses; this pass preserves all.
   LLVM_ABI PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                                  LoopStandardAnalysisResults &AR,
                                  LPMUpdater &U);

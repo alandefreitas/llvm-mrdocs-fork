@@ -191,8 +191,9 @@ namespace llvm {
 //===----------------------------------------------------------------------===//
 //---                          IntervalData                               ----//
 //===----------------------------------------------------------------------===//
-/// An interval data composed by a \a Left and \a Right points and an
-/// associated \a Value.
+/// Interval with closed endpoints and an associated value.
+///
+/// Composed by a \a Left and \a Right points and an associated \a Value.
 /// \a PointT corresponds to the interval endpoints type.
 /// \a ValueT corresponds to the interval value type.
 template <typename PointT, typename ValueT> class IntervalData {
@@ -221,22 +222,31 @@ public:
   /// Destroy the interval data.
   virtual ~IntervalData() = default;
   /// Return the left endpoint of the closed interval.
+  /// @return The left endpoint.
   PointType left() const { return Left; }
   /// Return the right endpoint of the closed interval.
+  /// @return The right endpoint.
   PointType right() const { return Right; }
   /// Return the value associated with this interval.
+  /// @return The associated payload value.
   ValueType value() const { return Value; }
 
   /// Return true if \a Point is inside the left bound of closed interval \a
   /// [Left;Right]. This is Left <= Point for closed intervals.
+  /// @param Point Point to test against the left endpoint.
+  /// @return True if \p Point is on or to the right of the left endpoint.
   bool left(const PointType &Point) const { return left() <= Point; }
 
   /// Return true if \a Point is inside the right bound of closed interval \a
   /// [Left;Right]. This is Point <= Right for closed intervals.
+  /// @param Point Point to test against the right endpoint.
+  /// @return True if \p Point is on or to the left of the right endpoint.
   bool right(const PointType &Point) const { return Point <= right(); }
 
   /// Return true when \a Point is contained in interval \a [Left;Right].
   /// This is Left <= Point <= Right for closed intervals.
+  /// @param Point Point to test for containment.
+  /// @return True if \p Point lies within the closed interval.
   bool contains(const PointType &Point) const {
     return left(Point) && right(Point);
   }
@@ -599,25 +609,34 @@ public:
     }
 
     /// Advance to the next overlapping interval (post-increment).
+    /// @param Unused Ignored post-increment discriminator.
     /// @return Copy of the iterator before advancing.
-    find_iterator operator++(int) {
+    find_iterator operator++(int Unused) {
       find_iterator Iter(*this);
       nextInterval();
       return Iter;
     }
 
   /// Access the current overlapping interval through a pointer.
+    /// @return Pointer to the current overlapping interval.
     const DataType *operator->() const { return current(); }
     /// Return a const reference to the current overlapping interval.
+    /// @return Const reference to the current overlapping interval.
     const DataType &operator*() const { return *(current()); }
 
-    /// Comparison operators.
+    /// Return true when \p LHS and \p RHS refer to the same position.
+    /// @param LHS Left-hand iterator.
+    /// @param RHS Right-hand iterator.
+    /// @return True if the iterators refer to the same position.
     friend bool operator==(const find_iterator &LHS, const find_iterator &RHS) {
       return (!LHS.Node && !RHS.Node && !LHS.Index && !RHS.Index) ||
              (LHS.Point == RHS.Point && LHS.Node == RHS.Node &&
               LHS.Index == RHS.Index);
     }
     /// Return true when \p LHS and \p RHS do not refer to the same position.
+    /// @param LHS Left-hand iterator.
+    /// @param RHS Right-hand iterator.
+    /// @return True if the iterators are not at the same position.
     friend bool operator!=(const find_iterator &LHS, const find_iterator &RHS) {
       return !(LHS == RHS);
     }
@@ -637,6 +656,7 @@ public:
   ~IntervalTree() { clear(); }
 
   /// Return true when no intervals are mapped.
+  /// @return True if the tree has not been built or has no intervals.
   bool empty() const { return Root == nullptr; }
 
   /// Remove all entries.
@@ -650,6 +670,9 @@ public:
   }
 
   /// Add a mapping of [Left;Right] to \a Value.
+  /// @param Left Left endpoint of the closed interval.
+  /// @param Right Right endpoint of the closed interval.
+  /// @param Value Associated payload for the interval.
   void insert(PointType Left, PointType Right, ValueType Value) {
     assert(empty() && "Invalid insertion. Interval tree already constructed.");
     Intervals.emplace_back(Left, Right, Value);
@@ -657,6 +680,8 @@ public:
 
   /// Return all the intervals in their natural tree location, that
   /// contain the given point.
+  /// @param Point Query point to test for interval containment.
+  /// @return References to intervals that contain \p Point.
   IntervalReferences getContaining(PointType Point) const {
     assert(!empty() && "Interval tree it is not constructed.");
     IntervalReferences IntervalSet;
@@ -665,9 +690,12 @@ public:
     return IntervalSet;
   }
 
-  /// Sort the given intervals using the following sort options:
+  /// Sort overlapping intervals in ascending or descending order by span.
+  ///
   /// Ascending: return the intervals with the smallest at the front.
   /// Descending: return the intervals with the biggest at the front.
+  /// @param IntervalSet Intervals to reorder in place.
+  /// @param Sort Ascending or Descending ordering.
   static void sortIntervals(IntervalReferences &IntervalSet, Sorting Sort) {
     std::stable_sort(IntervalSet.begin(), IntervalSet.end(),
                      [Sort](const DataType *RHS, const DataType *LHS) {
@@ -682,6 +710,8 @@ public:
   /// Print the interval tree.
   /// When \a HexFormat is true, the interval tree interval ranges and
   /// associated values are printed in hexadecimal format.
+  /// @param OS Output stream to write to.
+  /// @param HexFormat Print ranges and values in hexadecimal when true.
   void print(raw_ostream &OS, bool HexFormat = true) {
     printTree(OS, 0, Root, HexFormat);
   }
@@ -721,6 +751,8 @@ public:
   /// Iterator to start a find operation; it returns find_end() if the
   /// tree has not been built.
   /// There is no support to iterate over all the elements of the tree.
+  /// @param Point Query point to test for interval containment.
+  /// @return Iterator over intervals containing \p Point, or find_end().
   find_iterator find(PointType Point) const {
     return empty()
                ? find_end()
@@ -728,6 +760,7 @@ public:
   }
 
   /// Iterator to end find operation.
+  /// @return Past-the-end iterator for find queries.
   find_iterator find_end() const { return End; }
 };
 

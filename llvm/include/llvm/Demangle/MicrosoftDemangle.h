@@ -18,14 +18,18 @@
 #include <utility>
 
 namespace llvm {
+/// Microsoft Visual C++ name-mangling demangler.
 namespace ms_demangle {
-// This memory allocator is extremely fast, but it doesn't call dtors
-// for allocated objects. That means you can't use STL containers
-// (such as std::vector) with this allocator. But it pays off --
-// the demangler is 3x faster with this allocator compared to one with
-// STL containers.
+/// Default bump-allocation block size used by ArenaAllocator.
 constexpr size_t AllocUnit = 4096;
 
+/// Fast bump-pointer arena used while demangling Microsoft symbols.
+///
+/// This memory allocator is extremely fast, but it doesn't call dtors
+/// for allocated objects. That means you can't use STL containers
+/// (such as std::vector) with this allocator. But it pays off --
+/// the demangler is 3x faster with this allocator compared to one with
+/// STL containers.
 class ArenaAllocator {
   struct AllocatorNode {
     uint8_t *Buf = nullptr;
@@ -44,8 +48,10 @@ class ArenaAllocator {
   }
 
 public:
+  /// Construct an arena with an initial AllocUnit-sized block.
   ArenaAllocator() { addNode(AllocUnit); }
 
+  /// Free every arena block owned by this allocator.
   ~ArenaAllocator() {
     while (Head) {
       assert(Head->Buf);
@@ -56,10 +62,16 @@ public:
     }
   }
 
-  // Delete the copy constructor and the copy assignment operator.
-  ArenaAllocator(const ArenaAllocator &) = delete;
-  ArenaAllocator &operator=(const ArenaAllocator &) = delete;
+  /// Copy construction is deleted.
+  /// \param Other Unused; copy construction is deleted.
+  ArenaAllocator(const ArenaAllocator &Other) = delete;
+  /// Copy assignment is deleted.
+  /// \param Other Unused; copy assignment is deleted.
+  ArenaAllocator &operator=(const ArenaAllocator &Other) = delete;
 
+  /// Allocate \p Size bytes without alignment guarantees.
+  /// \param Size Number of bytes to reserve from the arena.
+  /// \returns Pointer to the reserved buffer.
   char *allocUnalignedBuffer(size_t Size) {
     assert(Head && Head->Buf);
 
@@ -74,6 +86,9 @@ public:
     return reinterpret_cast<char *>(Head->Buf);
   }
 
+  /// Allocate and default-construct an array of \p Count objects of type \p T.
+  /// \param Count Number of array elements to allocate.
+  /// \returns Pointer to the first constructed element.
   template <typename T, typename... Args> T *allocArray(size_t Count) {
     size_t Size = Count * sizeof(T);
     assert(Head && Head->Buf);
@@ -93,6 +108,9 @@ public:
     return new (Head->Buf) T[Count]();
   }
 
+  /// Allocate and construct a single object of type \p T in the arena.
+  /// \param ConstructorArgs Arguments forwarded to \p T's constructor.
+  /// \returns Pointer to the constructed object.
   template <typename T, typename... Args> T *alloc(Args &&... ConstructorArgs) {
     constexpr size_t Size = sizeof(T);
     assert(Head && Head->Buf);
@@ -117,48 +135,86 @@ private:
   AllocatorNode *Head = nullptr;
 };
 
+/// Storage for Microsoft mangling name and function-parameter back-references.
 struct BackrefContext {
+  /// Maximum number of back-references stored in each table.
   static constexpr size_t Max = 10;
 
+  /// Function parameter types eligible for `@` digit back-references.
   TypeNode *FunctionParams[Max];
+  /// Number of entries currently stored in FunctionParams.
   size_t FunctionParamCount = 0;
 
-  // The first 10 BackReferences in a mangled name can be back-referenced by
-  // special name @[0-9]. This is a storage for the first 10 BackReferences.
+  /// Named identifiers recorded for `@` digit back-references.
+  ///
+  /// The first 10 BackReferences in a mangled name can be back-referenced by
+  /// special name @[0-9]. This is a storage for the first 10 BackReferences.
   NamedIdentifierNode *Names[Max];
+  /// Number of entries currently stored in Names.
   size_t NamesCount = 0;
 };
 
-enum class QualifierMangleMode { Drop, Mangle, Result };
-
-enum NameBackrefBehavior : uint8_t {
-  NBB_None = 0,          // don't save any names as backrefs.
-  NBB_Template = 1 << 0, // save template instanations.
-  NBB_Simple = 1 << 1,   // save simple names.
+/// How CV-qualifiers are handled when demangling a type.
+enum class QualifierMangleMode {
+  /// Discard qualifiers from the mangled encoding.
+  Drop,
+  /// Decode and attach qualifiers from the mangled encoding.
+  Mangle,
+  /// Treat the encoding as a function result type's qualifiers.
+  Result
 };
 
-enum class FunctionIdentifierCodeGroup { Basic, Under, DoubleUnder };
+/// Which identifier names should be recorded for later back-references.
+enum NameBackrefBehavior : uint8_t {
+  /// Don't save any names as backrefs.
+  NBB_None = 0,
+  /// Save template instantiations.
+  NBB_Template = 1 << 0,
+  /// Save simple names.
+  NBB_Simple = 1 << 1,
+};
 
-// Demangler class takes the main role in demangling symbols.
-// It has a set of functions to parse mangled symbols into Type instances.
-// It also has a set of functions to convert Type instances to strings.
+/// Prefix group for Microsoft special function-identifier codes.
+enum class FunctionIdentifierCodeGroup {
+  /// Codes introduced with a single letter (no underscore prefix).
+  Basic,
+  /// Codes introduced with a single underscore.
+  Under,
+  /// Codes introduced with a double underscore.
+  DoubleUnder
+};
+
+/// Parser that demangles Microsoft mangled symbols into AST nodes.
+///
+/// It has a set of functions to parse mangled symbols into Type instances.
+/// It also has a set of functions to convert Type instances to strings.
 class Demangler {
   friend std::optional<size_t>
   llvm::getArm64ECInsertionPointInMangledName(std::string_view MangledName);
 
 public:
+  /// Construct an empty demangler ready to parse a mangled name.
   Demangler() = default;
+  /// Destroy the demangler and release arena-allocated AST nodes.
   virtual ~Demangler() = default;
 
-  // You are supposed to call parse() first and then check if error is true.  If
-  // it is false, call output() to write the formatted name to the given stream.
+  /// Parse a Microsoft mangled symbol into an AST.
+  ///
+  /// Call this first, then check if Error is true. If it is false, call
+  /// output() to write the formatted name to the given stream.
+  /// \param MangledName Mangled input; advanced past the consumed prefix.
+  /// \returns Root symbol node, or an incomplete/null result when Error is set.
   DEMANGLE_ABI SymbolNode *parse(std::string_view &MangledName);
 
+  /// Parse a mangled unique name for a tag type.
+  /// \param MangledName Mangled input; advanced past the consumed prefix.
+  /// \returns Tag type node describing the unique name, or null on error.
   DEMANGLE_ABI TagTypeNode *parseTagUniqueName(std::string_view &MangledName);
 
-  // True if an error occurred.
+  /// True if an error occurred during the last parse.
   bool Error = false;
 
+  /// Print the current name and function-parameter back-reference tables.
   DEMANGLE_ABI void dumpBackReferences();
 
 private:

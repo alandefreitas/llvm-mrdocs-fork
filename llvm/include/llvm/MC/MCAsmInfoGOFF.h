@@ -18,11 +18,15 @@
 #include "llvm/MC/MCAsmInfo.h"
 
 namespace llvm {
+/// Target-specific assembly properties for GOFF (z/OS) based targets.
 class LLVM_ABI MCAsmInfoGOFF : public MCAsmInfo {
   void printSwitchToSection(const MCSection &, uint32_t, const Triple &,
                             raw_ostream &) const final;
 
 protected:
+  /// Construct GOFF assembly info from target options.
+  ///
+  /// \param Options - Target options used to configure asm emission.
   MCAsmInfoGOFF(const MCTargetOptions &Options);
 };
 } // end namespace llvm

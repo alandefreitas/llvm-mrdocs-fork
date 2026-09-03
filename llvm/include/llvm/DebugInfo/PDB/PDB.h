@@ -20,9 +20,26 @@ namespace pdb {
 
 class IPDBSession;
 
+/// Create a PDB session by loading debug data from a PDB file.
+///
+/// \param Type The PDB reader implementation to use.
+/// \param Path Path to the PDB file.
+/// \param Session On success, set to the newly created session.
+///
+/// \returns Success, or an error if the PDB could not be loaded.
 LLVM_ABI Error loadDataForPDB(PDB_ReaderType Type, StringRef Path,
                               std::unique_ptr<IPDBSession> &Session);
 
+/// Create a PDB session by loading debug data for an executable.
+///
+/// Locates the PDB associated with the executable (via the native reader) or
+/// opens it through DIA, then creates a session over that PDB.
+///
+/// \param Type The PDB reader implementation to use.
+/// \param Path Path to the executable image.
+/// \param Session On success, set to the newly created session.
+///
+/// \returns Success, or an error if the PDB could not be found or loaded.
 LLVM_ABI Error loadDataForEXE(PDB_ReaderType Type, StringRef Path,
                               std::unique_ptr<IPDBSession> &Session);
 

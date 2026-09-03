@@ -15,24 +15,42 @@
 
 namespace llvm {
 
+/// CRTP base for new-PM machine-function tail-duplication passes.
+///
+/// Duplicates basic blocks ending in unconditional branches into the tails of
+/// their predecessors.
+///
+/// \tparam DerivedT Concrete pass type that inherits from this base.
+/// \tparam PreRegAlloc True to run before register allocation; false after.
 template <typename DerivedT, bool PreRegAlloc>
 class TailDuplicatePassBase : public OptionalPassInfoMixin<DerivedT> {
 private:
   std::unique_ptr<MBFIWrapper> MBFIW;
 
 public:
+  /// Duplicate eligible block tails in \p MF.
+  /// \param MF Machine function whose tails are duplicated.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after tail duplication.
   PreservedAnalyses run(MachineFunction &MF,
                         MachineFunctionAnalysisManager &MFAM);
 };
 
+/// New PM pass that performs early (pre-regalloc) tail duplication.
 class EarlyTailDuplicatePass
     : public TailDuplicatePassBase<EarlyTailDuplicatePass, true> {
 public:
+  /// Return the properties this pass clears on the machine function.
+  ///
+  /// Early tail duplication may introduce PHI instructions, so the NoPHIs
+  /// property is cleared.
+  /// \return The machine function properties cleared by this pass.
   MachineFunctionProperties getClearedProperties() const {
     return MachineFunctionProperties().setNoPHIs();
   }
 };
 
+/// New PM pass that performs late (post-regalloc) tail duplication.
 class TailDuplicatePass
     : public TailDuplicatePassBase<TailDuplicatePass, false> {};
 

@@ -26,20 +26,25 @@ public:
   /// @param Data        Section content.
   /// @param IsLE        Flag determines if Data is in little endian form.
   /// @param Is64Bit     Flag determines if object is 64 bit.
+  /// @return A Decompressor on success, or an error if creation failed.
   LLVM_ABI static Expected<Decompressor> create(StringRef Name, StringRef Data,
                                                 bool IsLE, bool Is64Bit);
 
   /// Resize the buffer and uncompress section data into it.
   /// @param Out         Destination buffer.
+  /// @return Success, or an error if decompression failed.
   template <class T> Error resizeAndDecompress(T &Out) {
     Out.resize(DecompressedSize);
     return decompress({(uint8_t *)Out.data(), (size_t)DecompressedSize});
   }
 
   /// Uncompress section data to raw buffer provided.
+  /// @param Output      Destination buffer.
+  /// @return Success, or an error if decompression failed.
   LLVM_ABI Error decompress(MutableArrayRef<uint8_t> Output);
 
   /// Return memory buffer size required for decompression.
+  /// @return The size in bytes required for the decompressed data.
   uint64_t getDecompressedSize() { return DecompressedSize; }
 
 private:

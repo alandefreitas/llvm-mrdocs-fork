@@ -25,6 +25,10 @@ struct SimplifyQuery;
 LLVM_ABI KnownBits computeKnownBits(const Value *V, const SimplifyQuery &Q,
                                     unsigned Depth);
 
+/// Pointer wrapper that lazily caches KnownBits for the pointed-to value.
+///
+/// Stores a pointer to any type along with the KnownBits information for it
+/// that is computed lazily (if required).
 template <typename Arg> class WithCache {
   static_assert(std::is_pointer_v<Arg>, "WithCache requires a pointer type!");
 
@@ -50,22 +54,43 @@ template <typename Arg> class WithCache {
   }
 
 public:
+  /// Construct a cache wrapping \p Pointer without known bits.
+  /// @param Pointer Value pointer to wrap; KnownBits are computed on demand.
   WithCache(PointerType Pointer) : Pointer(Pointer, false) {}
+
+  /// Construct a cache wrapping \p Pointer with precomputed known bits.
+  /// @param Pointer Value pointer to wrap.
+  /// @param Known Precomputed KnownBits for the value.
   WithCache(PointerType Pointer, const KnownBits &Known)
       : Pointer(Pointer, true), Known(Known) {}
 
+  /// Return the wrapped pointer.
+  /// @return The wrapped pointer.
   [[nodiscard]] PointerType getValue() const { return Pointer.getPointer(); }
 
+  /// Return known bits for the value, computing them lazily if needed.
+  /// @param Q Query used to compute KnownBits when they are not yet cached.
+  /// @return Cached KnownBits for the value.
   [[nodiscard]] const KnownBits &getKnownBits(const SimplifyQuery &Q) const {
     if (!hasKnownBits())
       calculateKnownBits(Q);
     return Known;
   }
 
+  /// Return true if KnownBits have already been computed or provided.
+  /// @return True if KnownBits have already been computed or provided.
   [[nodiscard]] bool hasKnownBits() const { return Pointer.getInt(); }
 
+  /// Convert to the wrapped pointer type.
+  /// @return The wrapped pointer.
   operator PointerType() const { return Pointer.getPointer(); }
+
+  /// Access members of the pointed-to value.
+  /// @return The wrapped pointer.
   PointerType operator->() const { return Pointer.getPointer(); }
+
+  /// Dereference the wrapped pointer.
+  /// @return A reference to the pointed-to value.
   ReferenceType operator*() const { return *Pointer.getPointer(); }
 };
 } // namespace llvm

@@ -23,12 +23,17 @@ namespace objcopy {
 struct CommonConfig;
 struct XCOFFConfig;
 
+/// XCOFF-specific object-file copying and stripping operations.
 namespace xcoff {
 /// Apply the transformations described by \p Config and \p XCOFFConfig
 /// to \p In and writes the result into \p Out.
+/// \param Config Common objcopy configuration options.
+/// \param XCOFFConfig XCOFF-specific configuration options.
+/// \param In Input XCOFF object file to transform.
+/// \param Out Output stream to write the transformed binary to.
 /// \returns any Error encountered whilst performing the operation.
 LLVM_ABI Error executeObjcopyOnBinary(const CommonConfig &Config,
-                                      const XCOFFConfig &,
+                                      const XCOFFConfig &XCOFFConfig,
                                       object::XCOFFObjectFile &In,
                                       raw_ostream &Out);
 

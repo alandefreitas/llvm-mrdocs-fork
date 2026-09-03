@@ -28,10 +28,32 @@ class Archive;
 
 namespace orc {
 
+/// Scans archive members for COFF import files and records their library names.
+///
+/// For use with StaticLibraryDefinitionGenerator::VisitMembersFunction.
+/// Import-file members are recorded and treated as not loadable; other members
+/// are reported as loadable.
 class COFFImportFileScanner {
 public:
+  /// Construct a scanner that records imported dynamic library names into the
+  /// given set.
+  /// @param ImportedDynamicLibraries Set to insert COFF import library names
+  /// into.
   COFFImportFileScanner(std::set<std::string> &ImportedDynamicLibraries)
       : ImportedDynamicLibraries(ImportedDynamicLibraries) {}
+
+  /// Visit an archive member, recording COFF import files and reporting whether
+  /// the member is loadable.
+  ///
+  /// If the member is a COFF import file, its file name is inserted into
+  /// ImportedDynamicLibraries and the function returns false (not loadable).
+  /// Otherwise returns true (loadable), or false if the member could not be
+  /// parsed as a binary.
+  /// @param A Archive containing the member.
+  /// @param MemberBuf Buffer covering the archive member bytes.
+  /// @param Index Index of the member within the archive.
+  /// @return True if the member is loadable; false if it is a COFF import file
+  /// or could not be parsed as a binary.
   LLVM_ABI Expected<bool>
   operator()(object::Archive &A, MemoryBufferRef MemberBuf, size_t Index) const;
 

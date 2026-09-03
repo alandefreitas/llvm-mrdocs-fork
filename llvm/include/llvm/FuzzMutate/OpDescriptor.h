@@ -26,11 +26,21 @@
 
 namespace llvm {
 class Instruction;
+
+/// Tools for describing IR-fuzzer operations that can be built and mutated.
 namespace fuzzerop {
 
+/// Helpers that build interesting constants for fuzzer operands.
 /// @{
+
 /// Populate a small list of potentially interesting constants of a given type.
+/// \param T Type of constants to generate.
+/// \param Cs Output vector that receives the generated constants.
 LLVM_ABI void makeConstantsWithType(Type *T, std::vector<Constant *> &Cs);
+
+/// Return a small list of potentially interesting constants of a given type.
+/// \param T Type of constants to generate.
+/// \return Potentially interesting constants of type \p T.
 LLVM_ABI std::vector<Constant *> makeConstantsWithType(Type *T);
 /// @}
 
@@ -58,8 +68,18 @@ private:
 
 public:
   /// Create a fully general source predicate.
+  /// \param Pred Predicate that decides whether a candidate value is suitable.
+  /// \param Make Generator that produces suitable constant operands.
   SourcePred(PredT Pred, MakeT Make) : Pred(Pred), Make(Make) {}
-  SourcePred(PredT Pred, std::nullopt_t) : Pred(Pred) {
+
+  /// Create a source predicate with a default constant generator.
+  ///
+  /// The second argument is \c std::nullopt; the default generator walks the
+  /// fuzzer's base types, keeps those that pass \p Pred, and fills them via
+  /// \c makeConstantsWithType.
+  /// \param Pred Predicate that decides whether a candidate value is suitable.
+  /// \param None Tag selecting the default constant generator.
+  SourcePred(PredT Pred, std::nullopt_t None) : Pred(Pred) {
     Make = [Pred](ArrayRef<Value *> Cur, ArrayRef<Type *> BaseTypes) {
       // Default filter just calls Pred on each of the base types.
       std::vector<Constant *> Result;
@@ -74,12 +94,18 @@ public:
     };
   }
 
-  /// Returns true if \c New is compatible for the argument after \c Cur
+  /// Returns true if \c New is compatible for the argument after \c Cur.
+  /// \param Cur Already selected operands for the operation.
+  /// \param New Candidate value for the next operand.
+  /// \return True if \p New is suitable for the next operand.
   bool matches(ArrayRef<Value *> Cur, const Value *New) {
     return Pred(Cur, New);
   }
 
   /// Generates a list of potential values for the argument after \c Cur.
+  /// \param Cur Already selected operands for the operation.
+  /// \param BaseTypes Valid base types available to the fuzzer.
+  /// \return Constants that could be used for the next operand.
   std::vector<Constant *> generate(ArrayRef<Value *> Cur,
                                    ArrayRef<Type *> BaseTypes) {
     return Make(Cur, BaseTypes);
@@ -88,8 +114,11 @@ public:
 
 /// A description of some operation we can build while fuzzing IR.
 struct OpDescriptor {
+  /// Relative weight used when sampling this operation.
   unsigned Weight;
+  /// Predicates describing each source operand in order.
   SmallVector<SourcePred, 2> SourcePreds;
+  /// Builds the operation from selected operands at an insertion point.
   std::function<Value *(ArrayRef<Value *>, BasicBlock::iterator)> BuilderFunc;
 };
 

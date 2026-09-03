@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+/// Verifier for static convergence-control token rules in LLVM IR.
 using ConvergenceVerifier = GenericConvergenceVerifier<SSAContext>;
 
 } // namespace llvm

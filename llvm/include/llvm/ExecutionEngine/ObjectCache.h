@@ -18,23 +18,32 @@ class MemoryBuffer;
 class MemoryBufferRef;
 class Module;
 
-/// This is the base ObjectCache type which can be provided to an
-/// ExecutionEngine for the purpose of avoiding compilation for Modules that
-/// have already been compiled and an object file is available.
+/// Base object-file cache for an ExecutionEngine.
+///
+/// This type can be provided to an ExecutionEngine for the purpose of avoiding
+/// compilation for Modules that have already been compiled and an object file
+/// is available.
 class LLVM_ABI ObjectCache {
   virtual void anchor();
 
 public:
+  /// Construct an empty ObjectCache.
   ObjectCache() = default;
 
+  /// Destroy the ObjectCache.
   virtual ~ObjectCache() = default;
 
   /// notifyObjectCompiled - Provides a pointer to compiled code for Module M.
+  /// \param M Module that was compiled.
+  /// \param Obj Compiled object code for \p M.
   virtual void notifyObjectCompiled(const Module *M, MemoryBufferRef Obj) = 0;
 
   /// Returns a pointer to a newly allocated MemoryBuffer that contains the
   /// object which corresponds with Module M, or 0 if an object is not
   /// available.
+  /// \param M Module whose cached object should be retrieved.
+  /// \return Newly allocated MemoryBuffer with the cached object, or nullptr
+  /// if none is available.
   virtual std::unique_ptr<MemoryBuffer> getObject(const Module* M) = 0;
 };
 

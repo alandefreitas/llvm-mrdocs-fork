@@ -40,54 +40,96 @@ class line_iterator {
   StringRef CurrentLine;
 
 public:
+  /// Forward iterator category.
   using iterator_category = std::forward_iterator_tag;
+  /// Type of line yielded by this iterator.
   using value_type = StringRef;
+  /// Signed distance between iterators.
   using difference_type = std::ptrdiff_t;
+  /// Pointer to a line value.
   using pointer = value_type *;
+  /// Reference to a line value.
   using reference = value_type &;
 
   /// Default construct an "end" iterator.
   line_iterator() = default;
 
   /// Construct a new iterator around an unowned memory buffer.
+  ///
+  /// \param Buffer Unowned memory buffer to read lines from.
+  /// \param SkipBlanks If true, blank lines are skipped.
+  /// \param CommentMarker Character that starts a comment line, or \c '\0'
+  /// to disable comment stripping.
   LLVM_ABI explicit line_iterator(const MemoryBufferRef &Buffer,
                                   bool SkipBlanks = true,
                                   char CommentMarker = '\0');
 
   /// Construct a new iterator around some memory buffer.
+  ///
+  /// \param Buffer Memory buffer to read lines from.
+  /// \param SkipBlanks If true, blank lines are skipped.
+  /// \param CommentMarker Character that starts a comment line, or \c '\0'
+  /// to disable comment stripping.
   LLVM_ABI explicit line_iterator(const MemoryBuffer &Buffer,
                                   bool SkipBlanks = true,
                                   char CommentMarker = '\0');
 
   /// Return true if we've reached EOF or are an "end" iterator.
+  ///
+  /// \returns \c true if at EOF or this is an end iterator.
   bool is_at_eof() const { return !Buffer; }
 
   /// Return true if we're an "end" iterator or have reached EOF.
+  ///
+  /// \returns \c true if this is an end iterator or at EOF.
   bool is_at_end() const { return is_at_eof(); }
 
   /// Return the current line number. May return any number at EOF.
+  ///
+  /// \returns The one-based line number of the current line.
   int64_t line_number() const { return LineNumber; }
 
   /// Advance to the next (non-empty, non-comment) line.
+  ///
+  /// \returns A reference to this iterator.
   line_iterator &operator++() {
     advance();
     return *this;
   }
-  line_iterator operator++(int) {
+  /// Advance to the next line and return the previous iterator position.
+  ///
+  /// \param Unused Dummy parameter distinguishing post-increment.
+  /// \returns A copy of the iterator before advancing.
+  line_iterator operator++(int Unused) {
     line_iterator tmp(*this);
     advance();
     return tmp;
   }
 
   /// Get the current line as a \c StringRef.
+  ///
+  /// \returns The current line text.
   StringRef operator*() const { return CurrentLine; }
+  /// Return a pointer to the current line.
+  ///
+  /// \returns A pointer to the current line \c StringRef.
   const StringRef *operator->() const { return &CurrentLine; }
 
+  /// Return true if \p LHS and \p RHS refer to the same line position.
+  ///
+  /// \param LHS Left-hand iterator.
+  /// \param RHS Right-hand iterator.
+  /// \returns \c true if the iterators are equal.
   friend bool operator==(const line_iterator &LHS, const line_iterator &RHS) {
     return LHS.Buffer == RHS.Buffer &&
            LHS.CurrentLine.begin() == RHS.CurrentLine.begin();
   }
 
+  /// Return true if \p LHS and \p RHS refer to different line positions.
+  ///
+  /// \param LHS Left-hand iterator.
+  /// \param RHS Right-hand iterator.
+  /// \returns \c true if the iterators are not equal.
   friend bool operator!=(const line_iterator &LHS, const line_iterator &RHS) {
     return !(LHS == RHS);
   }

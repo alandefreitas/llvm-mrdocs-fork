@@ -49,6 +49,8 @@ class Twine;
 
 /// Returns true if LLVM is compiled with support for multi-threading, and
 /// false otherwise.
+///
+/// \return True when LLVM was built with multi-threading enabled.
 constexpr bool llvm_is_multithreaded() { return LLVM_ENABLE_THREADS; }
 
 #if LLVM_THREADING_USE_STD_CALL_ONCE
@@ -83,6 +85,7 @@ using once_flag = std::once_flag;
   ///
   /// \param flag Flag used for tracking whether or not this has run.
   /// \param F Function to call once.
+  /// \param ArgList Arguments forwarded to \p F.
   template <typename Function, typename... Args>
   void call_once(once_flag &flag, Function &&F, Args &&... ArgList) {
 #if LLVM_THREADING_USE_STD_CALL_ONCE
@@ -130,30 +133,43 @@ using once_flag = std::once_flag;
 
     /// Retrieves the max available threads for the current strategy. This
     /// accounts for affinity masks and takes advantage of all CPU sockets.
+    ///
+    /// \return Maximum worker thread count under this strategy.
     LLVM_ABI unsigned compute_thread_count() const;
 
-    /// Assign the current thread to an ideal hardware CPU or NUMA node. In a
-    /// multi-socket system, this ensures threads are assigned to all CPU
-    /// sockets. \p ThreadPoolNum represents a number bounded by [0,
-    /// compute_thread_count()).
+    /// Assign the current thread to an ideal hardware CPU or NUMA node.
+    ///
+    /// In a multi-socket system, this ensures threads are assigned to all CPU
+    /// sockets.
+    ///
+    /// \param ThreadPoolNum Worker index in [0, compute_thread_count()).
     LLVM_ABI void apply_thread_strategy(unsigned ThreadPoolNum) const;
 
     /// Finds the CPU socket where a thread should go. Returns 'std::nullopt' if
     /// the thread shall remain on the actual CPU socket.
+    ///
+    /// \param ThreadPoolNum Worker index in [0, compute_thread_count()).
+    /// \return Target CPU socket index, or nullopt to keep the current socket.
     LLVM_ABI std::optional<unsigned>
     compute_cpu_socket(unsigned ThreadPoolNum) const;
 
-    /// If true, the thread pool will attempt to coordinate with a GNU Make
-    /// jobserver, acquiring a job slot before processing a task. If no
-    /// jobserver is found in the environment, this is ignored.
+    /// When true, coordinate with a GNU Make jobserver if one is present.
+    ///
+    /// The pool acquires a job slot before processing a task. If no jobserver
+    /// is found in the environment, this is ignored.
     bool UseJobserver = false;
   };
 
   /// Build a strategy from a number of threads as a string provided in \p Num.
+  ///
   /// When Num is above the max number of threads specified by the \p Default
   /// strategy, we attempt to equally allocate the threads on all CPU sockets.
   /// "0" or an empty string will return the \p Default strategy.
   /// "all" for using all hardware threads.
+  ///
+  /// \param Num Thread count as a string, or "0", empty, or "all".
+  /// \param Default Strategy used when \p Num is empty, "0", or omitted.
+  /// \return Parsed strategy, \p Default for empty/"0", or nullopt if invalid.
   LLVM_ABI std::optional<ThreadPoolStrategy>
   get_threadpool_strategy(StringRef Num, ThreadPoolStrategy Default = {});
 
@@ -162,6 +178,9 @@ using once_flag = std::once_flag;
   /// Use for memory-heavy work where hardware_concurrency() is too aggressive.
   /// Avoid for I/O-bound work. Falls back to hardware_concurrency() when
   /// physical core count is unknown, and returns 1 when threads are disabled.
+  ///
+  /// \param ThreadCount Suggested thread bound; 0 means use all physical cores.
+  /// \return Strategy that prefers physical cores up to \p ThreadCount.
   inline ThreadPoolStrategy
   heavyweight_hardware_concurrency(unsigned ThreadCount = 0) {
     ThreadPoolStrategy S;
@@ -173,6 +192,9 @@ using once_flag = std::once_flag;
   /// Parse \p Num into a heavyweight_hardware_concurrency strategy.
   ///
   /// If \p Num is invalid, returns one thread per hardware core.
+  ///
+  /// \param Num Thread-count string as accepted by get_threadpool_strategy.
+  /// \return Parsed heavyweight strategy, or one thread per core if invalid.
   inline ThreadPoolStrategy heavyweight_hardware_concurrency(StringRef Num) {
     std::optional<ThreadPoolStrategy> S =
         get_threadpool_strategy(Num, heavyweight_hardware_concurrency());
@@ -184,6 +206,9 @@ using once_flag = std::once_flag;
   /// Use all available hardware threads, honoring affinity masks.
   ///
   /// Returns 1 when LLVM is configured with LLVM_ENABLE_THREADS=OFF.
+  ///
+  /// \param ThreadCount Suggested thread bound; 0 means use all available.
+  /// \return Strategy that uses hardware threads up to \p ThreadCount.
   inline ThreadPoolStrategy hardware_concurrency(unsigned ThreadCount = 0) {
     ThreadPoolStrategy S;
     S.ThreadsRequested = ThreadCount;
@@ -193,6 +218,9 @@ using once_flag = std::once_flag;
   /// Parse \p Num into a hardware_concurrency strategy.
   ///
   /// If \p Num is invalid, returns one thread per hardware core.
+  ///
+  /// \param Num Thread-count string as accepted by get_threadpool_strategy.
+  /// \return Parsed strategy, or one thread per hardware core if invalid.
   inline ThreadPoolStrategy hardware_concurrency(StringRef Num) {
     std::optional<ThreadPoolStrategy> S =
         get_threadpool_strategy(Num, hardware_concurrency());
@@ -202,6 +230,9 @@ using once_flag = std::once_flag;
   }
 
   /// Limit threads to about \p TaskCount so small jobs avoid oversubscription.
+  ///
+  /// \param TaskCount Approximate number of tasks; 0 means no extra limit.
+  /// \return Strategy capped near \p TaskCount worker threads.
   inline ThreadPoolStrategy optimal_concurrency(unsigned TaskCount = 0) {
     ThreadPoolStrategy S;
     S.Limit = true;
@@ -212,6 +243,8 @@ using once_flag = std::once_flag;
   /// Coordinate with a GNU Make jobserver when one is present.
   ///
   /// Falls back to hardware_concurrency() if no jobserver is detected.
+  ///
+  /// \return Strategy that acquires jobserver slots when available.
   inline ThreadPoolStrategy jobserver_concurrency() {
     ThreadPoolStrategy S;
     S.UseJobserver = true;
@@ -222,42 +255,62 @@ using once_flag = std::once_flag;
   }
 
   /// Return the current thread id, as used in various OS system calls.
+  ///
   /// Note that not all platforms guarantee that the value returned will be
   /// unique across the entire system, so portable code should not assume
   /// this.
+  ///
+  /// \return OS-level identifier for the calling thread.
   LLVM_ABI uint64_t get_threadid();
 
   /// Get the maximum length of a thread name on this platform.
   /// A value of 0 means there is no limit.
+  ///
+  /// \return Maximum thread name length in characters, or 0 if unlimited.
   LLVM_ABI uint32_t get_max_thread_name_length();
 
-  /// Set the name of the current thread.  Setting a thread's name can
-  /// be helpful for enabling useful diagnostics under a debugger or when
-  /// logging.  The level of support for setting a thread's name varies
-  /// wildly across operating systems, and we only make a best effort to
-  /// perform the operation on supported platforms.  No indication of success
-  /// or failure is returned.
+  /// Set the name of the current thread.
+  ///
+  /// Setting a thread's name can be helpful for enabling useful diagnostics
+  /// under a debugger or when logging. The level of support for setting a
+  /// thread's name varies wildly across operating systems, and we only make a
+  /// best effort to perform the operation on supported platforms. No
+  /// indication of success or failure is returned.
+  ///
+  /// \param Name Diagnostic name to assign to the calling thread.
   LLVM_ABI void set_thread_name(const Twine &Name);
 
-  /// Get the name of the current thread.  The level of support for
-  /// getting a thread's name varies wildly across operating systems, and it
-  /// is not even guaranteed that if you can successfully set a thread's name
-  /// that you can later get it back.  This function is intended for diagnostic
-  /// purposes, and as with setting a thread's name no indication of whether
-  /// the operation succeeded or failed is returned.
+  /// Get the name of the current thread.
+  ///
+  /// The level of support for getting a thread's name varies wildly across
+  /// operating systems, and it is not even guaranteed that if you can
+  /// successfully set a thread's name that you can later get it back. This
+  /// function is intended for diagnostic purposes, and as with setting a
+  /// thread's name no indication of whether the operation succeeded or failed
+  /// is returned.
+  ///
+  /// \param Name Buffer that receives the thread name on success.
   LLVM_ABI void get_thread_name(SmallVectorImpl<char> &Name);
 
-  /// Returns a mask that represents on which hardware thread, core, CPU, NUMA
-  /// group, the calling thread can be executed. On Windows, threads cannot
-  /// cross CPU sockets boundaries.
+  /// Return a mask of hardware units the calling thread may run on.
+  ///
+  /// The mask covers hardware threads, cores, CPUs, and NUMA groups. On
+  /// Windows, threads cannot cross CPU socket boundaries.
+  ///
+  /// \return Bit mask of hardware units available to the calling thread.
   LLVM_ABI llvm::BitVector get_thread_affinity_mask();
 
   /// Returns how many physical CPUs or NUMA groups the system has.
+  ///
+  /// \return Number of physical CPUs or NUMA groups.
   LLVM_ABI unsigned get_cpus();
 
-  /// Returns how many physical cores (as opposed to logical cores returned from
-  /// thread::hardware_concurrency(), which includes hyperthreads).
-  /// Returns -1 if unknown for the current host system.
+  /// Return the number of physical cores on the host, or -1 if unknown.
+  ///
+  /// Unlike logical cores from thread::hardware_concurrency(), this count
+  /// excludes hyperthreads.
+  ///
+  /// \return Physical core count, or -1 when the count cannot be determined.
   LLVM_ABI int get_physical_cores();
 
   /// Scheduling priority hint for \c set_thread_priority.

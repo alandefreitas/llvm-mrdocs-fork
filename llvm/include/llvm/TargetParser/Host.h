@@ -32,20 +32,26 @@ namespace sys {
 ///   CPU_TYPE-VENDOR-OPERATING_SYSTEM
 /// or
 ///   CPU_TYPE-VENDOR-KERNEL-OPERATING_SYSTEM
+///
+/// \return The default target triple string.
 LLVM_ABI std::string getDefaultTargetTriple();
 
 /// getProcessTriple() - Return an appropriate target triple for generating
 /// code to be loaded into the current process, e.g. when using the JIT.
+///
+/// \return The target triple for the current process.
 LLVM_ABI std::string getProcessTriple();
 
-/// getHostCPUName - Get the LLVM name for the host CPU. The particular format
-/// of the name is target dependent, and suitable for passing as -mcpu to the
-/// target which matches the host.
+/// getHostCPUName - Get the LLVM name for the host CPU.
+///
+/// The particular format of the name is target dependent, and suitable for
+/// passing as -mcpu to the target which matches the host.
 ///
 /// \return - The host CPU name, or empty if the CPU could not be determined.
 LLVM_ABI StringRef getHostCPUName();
 
 /// getHostCPUFeatures - Get the LLVM names for the host CPU features.
+///
 /// The particular format of the names are target dependent, and suitable for
 /// passing as -mattr to the target which matches the host.
 ///
@@ -58,6 +64,8 @@ LLVM_ABI StringMap<bool, MallocAllocator> getHostCPUFeatures();
 
 /// This is a function compatible with cl::AddExtraVersionPrinter, which adds
 /// info about the current target triple and detected CPU.
+///
+/// \param OS Stream that receives the target triple and detected CPU info.
 LLVM_ABI void printDefaultTargetAndDetectedCPU(raw_ostream &OS);
 
 namespace detail {

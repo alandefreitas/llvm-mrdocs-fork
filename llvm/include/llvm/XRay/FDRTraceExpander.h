@@ -19,6 +19,10 @@
 
 namespace llvm::xray {
 
+/// RecordVisitor that reconstitutes XRayRecord instances from FDR mode records.
+///
+/// Processes a sequence of FDR mode records in arrival order and emits complete
+/// XRayRecord instances through a type-erased callback.
 class LLVM_ABI TraceExpander : public RecordVisitor {
   // Type-erased callback for handling individual XRayRecord instances.
   function_ref<void(const XRayRecord &)> C;
@@ -34,24 +38,66 @@ class LLVM_ABI TraceExpander : public RecordVisitor {
   void resetCurrentRecord();
 
 public:
+  /// Construct a TraceExpander that invokes \p F for each expanded record.
+  /// \param F Callback invoked with each reconstituted XRayRecord.
+  /// \param L FDR log version used when interpreting records.
   explicit TraceExpander(function_ref<void(const XRayRecord &)> F, uint16_t L)
       : C(std::move(F)), LogVersion(L) {}
 
-  Error visit(BufferExtents &) override;
-  Error visit(WallclockRecord &) override;
-  Error visit(NewCPUIDRecord &) override;
-  Error visit(TSCWrapRecord &) override;
-  Error visit(CustomEventRecord &) override;
-  Error visit(CallArgRecord &) override;
-  Error visit(PIDRecord &) override;
-  Error visit(NewBufferRecord &) override;
-  Error visit(EndBufferRecord &) override;
-  Error visit(FunctionRecord &) override;
-  Error visit(CustomEventRecordV5 &) override;
-  Error visit(TypedEventRecord &) override;
+  /// Expand a buffer-extents record into the current reconstituted state.
+  /// \param R Buffer extents record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(BufferExtents &R) override;
+  /// Expand a wall-clock record into the current reconstituted state.
+  /// \param R Wall-clock record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(WallclockRecord &R) override;
+  /// Expand a new-CPU-ID record into the current reconstituted state.
+  /// \param R New CPU ID record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(NewCPUIDRecord &R) override;
+  /// Expand a TSC-wrap record into the current reconstituted state.
+  /// \param R TSC wrap record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(TSCWrapRecord &R) override;
+  /// Expand a custom-event record into an XRayRecord.
+  /// \param R Custom event record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(CustomEventRecord &R) override;
+  /// Expand a call-argument record into the current reconstituted state.
+  /// \param R Call argument record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(CallArgRecord &R) override;
+  /// Expand a PID record into the current reconstituted state.
+  /// \param R PID record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(PIDRecord &R) override;
+  /// Expand a new-buffer record into the current reconstituted state.
+  /// \param R New buffer record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(NewBufferRecord &R) override;
+  /// Expand an end-of-buffer record into the current reconstituted state.
+  /// \param R End-of-buffer record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(EndBufferRecord &R) override;
+  /// Expand a function record into an XRayRecord.
+  /// \param R Function record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(FunctionRecord &R) override;
+  /// Expand a v5 custom-event record into an XRayRecord.
+  /// \param R V5 custom event record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(CustomEventRecordV5 &R) override;
+  /// Expand a typed-event record into an XRayRecord.
+  /// \param R Typed event record being visited.
+  /// \return Success, or an error if expansion failed.
+  Error visit(TypedEventRecord &R) override;
 
-  // Must be called after all the records have been processed, to handle the
-  // most recent record generated.
+  /// Flush any partially built record after all FDR records have been visited.
+  ///
+  /// Must be called after all the records have been processed, to handle the
+  /// most recent record generated.
+  /// \return Success, or an error if flushing the final record failed.
   Error flush();
 };
 

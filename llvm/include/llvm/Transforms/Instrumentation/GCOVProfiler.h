@@ -21,10 +21,17 @@ namespace llvm {
 /// The gcov-style instrumentation pass
 class GCOVProfilerPass : public OptionalPassInfoMixin<GCOVProfilerPass> {
 public:
+  /// Construct a GCOV-style instrumentation pass.
+  /// @param Options Options controlling GCOV note/data emission and filters.
+  /// @param VFS File system used to write .gcno note files.
   GCOVProfilerPass(
       const GCOVOptions &Options = GCOVOptions::getDefault(),
       IntrusiveRefCntPtr<vfs::FileSystem> VFS = vfs::getRealFileSystem())
       : GCOVOpts(Options), VFS(std::move(VFS)) {}
+  /// Instrument \p M with GCOV-style edge counters and emit .gcno notes.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:

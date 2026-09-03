@@ -83,21 +83,31 @@ public:
   hash_code() = default;
 
   /// Form a hash code directly from a numerical value.
+  /// @param value Numerical hash value to wrap.
   constexpr hash_code(size_t value) : value(value) {}
 
   /// Convert the hash code to its numerical value for use.
+  /// @return The wrapped numerical hash value.
   /*explicit*/ constexpr operator size_t() const { return value; }
 
   /// Compare two hash codes for equality.
+  /// @param lhs Left-hand hash code.
+  /// @param rhs Right-hand hash code.
+  /// @return True if both hash codes wrap the same value.
   friend constexpr bool operator==(const hash_code &lhs, const hash_code &rhs) {
     return lhs.value == rhs.value;
   }
   /// Compare two hash codes for inequality.
+  /// @param lhs Left-hand hash code.
+  /// @param rhs Right-hand hash code.
+  /// @return True if the hash codes wrap different values.
   friend constexpr bool operator!=(const hash_code &lhs, const hash_code &rhs) {
     return lhs.value != rhs.value;
   }
 
   /// Allow a hash_code to be directly run through hash_value.
+  /// @param code Hash code whose numerical value to return.
+  /// @return The numerical value wrapped by \p code.
   friend constexpr size_t hash_value(const hash_code &code) {
     return code.value;
   }
@@ -110,27 +120,39 @@ public:
 /// contrast to hash_combine which may produce different hash_codes for
 /// differing argument types even if they would implicit promote to a common
 /// type without changing the value.
+/// @param value Integer or enumeration value to hash.
+/// @return A hash_code for \p value.
 template <typename T>
 std::enable_if_t<is_integral_or_enum<T>::value, hash_code> hash_value(T value);
 
 /// Compute a hash_code for a pointer's address.
 ///
 /// N.B.: This hashes the *address*. Not the value and not the type.
+/// @param ptr Pointer whose address is hashed.
+/// @return A hash_code for the address of \p ptr.
 template <typename T> hash_code hash_value(const T *ptr);
 
 /// Compute a hash_code for a pair of objects.
+/// @param arg Pair whose members are hashed together.
+/// @return A hash_code combining both members of \p arg.
 template <typename T, typename U>
 hash_code hash_value(const std::pair<T, U> &arg);
 
 /// Compute a hash_code for a tuple.
+/// @param arg Tuple whose elements are hashed together.
+/// @return A hash_code combining all elements of \p arg.
 template <typename... Ts>
 hash_code hash_value(const std::tuple<Ts...> &arg);
 
 /// Compute a hash_code for a standard string.
+/// @param arg String whose characters are hashed as a range.
+/// @return A hash_code for the characters of \p arg.
 template <typename T>
 hash_code hash_value(const std::basic_string<T> &arg);
 
-/// Compute a hash_code for a standard string.
+/// Compute a hash_code for an optional value.
+/// @param arg Optional whose engaged state and value are hashed.
+/// @return A hash_code for the engaged state and value of \p arg.
 template <typename T> hash_code hash_value(const std::optional<T> &arg);
 
 // All of the implementation details of actually computing the various hash
@@ -284,6 +306,9 @@ inline void store_hashable_data(char *buf, size_t &off, const T &arg) {
 /// 'hash_combine(a, b, c, ...)', but can run over arbitrary sized sequences
 /// and is significantly faster given pointers and types which can be hashed as
 /// a sequence of bytes.
+/// @param first Beginning of the value sequence.
+/// @param last End of the value sequence.
+/// @return A hash_code combining the values in [\p first, \p last).
 template <typename InputIteratorT>
 hash_code hash_combine_range(InputIteratorT first, InputIteratorT last) {
   return ::llvm::hashing::detail::hash_combine_range_impl(first, last);
@@ -291,6 +316,8 @@ hash_code hash_combine_range(InputIteratorT first, InputIteratorT last) {
 
 // A wrapper for hash_combine_range above.
 /// Compute a hash_code for the elements of \p R.
+/// @param R Range whose elements are hashed in order.
+/// @return A hash_code combining the elements of \p R.
 template <typename RangeT> hash_code hash_combine_range(RangeT &&R) {
   return hash_combine_range(adl_begin(R), adl_end(R));
 }
@@ -306,6 +333,8 @@ template <typename RangeT> hash_code hash_combine_range(RangeT &&R) {
 /// The result is suitable for returning from a user's hash_value
 /// *implementation* for their user-defined type. Consumers of a type should
 /// *not* call this routine, they should instead call 'hash_value'.
+/// @param args Values to combine into one hash code.
+/// @return A hash_code combining all of \p args.
 template <typename... Ts> hash_code hash_combine(const Ts &...args) {
   constexpr size_t Total = hashing::detail::total_hashable_size<Ts...>();
   // Round up so `data()` is non-null when Total == 0; combine_bytes won't
@@ -374,10 +403,18 @@ template <typename T> hash_code hash_value(const std::optional<T> &arg) {
   return arg ? hash_combine(true, *arg) : hash_value(false);
 }
 
+/// DenseMapInfo specialization for hash_code keys.
 template <> struct DenseMapInfo<hash_code, void> {
+  /// Compute a DenseMap hash for \p val.
+  /// @param val Hash code to convert into a DenseMap hash.
+  /// @return An unsigned DenseMap hash derived from \p val.
   static constexpr unsigned getHashValue(hash_code val) {
     return static_cast<unsigned>(size_t(val));
   }
+  /// Return true if \p LHS and \p RHS are equal hash codes.
+  /// @param LHS Left-hand hash code.
+  /// @param RHS Right-hand hash code.
+  /// @return True if \p LHS and \p RHS are equal.
   static constexpr bool isEqual(hash_code LHS, hash_code RHS) {
     return LHS == RHS;
   }

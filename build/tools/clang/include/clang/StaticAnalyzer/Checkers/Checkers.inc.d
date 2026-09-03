@@ -1,1 +1,0 @@
-Checkers.inc: /Users/alandefreitas/Documents/Code/C++/mrdocs/local/demo-forks/llvm-clone/clang/include/clang/StaticAnalyzer/Checkers/Checkers.td /Users/alandefreitas/Documents/Code/C++/mrdocs/local/demo-forks/llvm-clone/clang/include/clang/StaticAnalyzer/Checkers/CheckerBase.td

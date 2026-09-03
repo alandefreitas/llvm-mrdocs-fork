@@ -28,13 +28,19 @@ class raw_ostream;
 
 /// CurStreamTypeType - A type for CurStreamType
 enum CurStreamTypeType {
+  /// Unrecognized or missing bitstream signature.
   UnknownBitstream,
+  /// LLVM IR bitcode.
   LLVMIRBitstream,
+  /// Clang serialized AST bitstream.
   ClangSerializedASTBitstream,
+  /// Clang serialized diagnostics bitstream.
   ClangSerializedDiagnosticsBitstream,
+  /// LLVM remarks bitstream.
   LLVMBitstreamRemarks
 };
 
+/// Options for dumping bitstream contents while analyzing bitcode.
 struct BCDumpOptions {
   /// The stream.
   raw_ostream &OS;
@@ -47,9 +53,13 @@ struct BCDumpOptions {
   /// Print BLOCKINFO block details.
   bool DumpBlockinfo = false;
 
+  /// Construct dump options that write to \p OS.
+  ///
+  /// \param OS Stream that receives dump output.
   BCDumpOptions(raw_ostream &OS) : OS(OS) {}
 };
 
+/// Analyzer that dumps and collects statistics from bitcode streams.
 class BitcodeAnalyzer {
   BitstreamCursor Stream;
   BitstreamBlockInfo BlockInfo;
@@ -84,13 +94,29 @@ class BitcodeAnalyzer {
   std::map<unsigned, PerBlockIDStats> BlockIDStats;
 
 public:
+  /// Construct an analyzer over bitcode bytes, with optional BLOCKINFO.
+  ///
+  /// \param Buffer Bitcode or bitstream bytes to analyze.
+  /// \param BlockInfoBuffer Optional bitstream that supplies BLOCKINFO
+  ///        abbreviations and names for the main stream.
   LLVM_ABI
   BitcodeAnalyzer(StringRef Buffer,
                   std::optional<StringRef> BlockInfoBuffer = std::nullopt);
   /// Analyze the bitcode file.
+  ///
+  /// \param O If set, dump bitstream contents to this options' stream while
+  ///        analyzing; otherwise collect statistics without dumping.
+  /// \param CheckHash Optional string-table bytes used to verify
+  ///        MODULE_CODE_HASH.
+  /// \returns Error::success() if analysis completed, otherwise an Error
+  ///          describing the failure.
   LLVM_ABI Error analyze(std::optional<BCDumpOptions> O = std::nullopt,
                          std::optional<StringRef> CheckHash = std::nullopt);
   /// Print stats about the bitcode file.
+  ///
+  /// \param O Options whose stream (and histogram flag) receive the
+  ///        statistics.
+  /// \param Filename Optional input path included in the summary header.
   LLVM_ABI void printStats(BCDumpOptions O,
                            std::optional<StringRef> Filename = std::nullopt);
 

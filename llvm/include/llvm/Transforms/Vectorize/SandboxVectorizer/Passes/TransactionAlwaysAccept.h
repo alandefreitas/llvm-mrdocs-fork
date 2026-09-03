@@ -18,11 +18,20 @@
 
 namespace llvm::sandboxir {
 
+/// A Region pass that always accepts the transaction without checking its cost.
+///
+/// This is mainly used as a final pass in lit tests.
 class TransactionAlwaysAccept : public RegionPass {
 public:
+  /// Construct a TransactionAlwaysAccept pass.
+  /// \param AuxArg Unused; must be empty.
   TransactionAlwaysAccept(StringRef AuxArg) : RegionPass("tr-accept") {
     assert(AuxArg.empty() && "This pass ignores aux arg!");
   }
+  /// Accept the transaction for the given region without checking its cost.
+  /// \param Rgn The region to process.
+  /// \param A Analyses available to the pass.
+  /// \returns True if the IR was modified.
   bool runOnRegion(Region &Rgn, const Analyses &A) final {
     auto &Tracker = Rgn.getContext().getTracker();
     bool HasChanges = !Tracker.empty();

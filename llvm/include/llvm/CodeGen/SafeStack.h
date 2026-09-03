@@ -15,11 +15,21 @@ namespace llvm {
 
 class TargetMachine;
 
+/// New PM pass that splits the stack into a safe stack and an unsafe stack.
+///
+/// The safe stack is left for the LLVM backend; the unsafe stack is allocated
+/// and managed through the runtime support library.
 class SafeStackPass : public RequiredPassInfoMixin<SafeStackPass> {
   const TargetMachine *TM;
 
 public:
+  /// Construct a SafeStack pass for target machine \p TM_.
+  /// \param TM_ Target machine used when placing unsafe stack objects.
   explicit SafeStackPass(const TargetMachine &TM_) : TM(&TM_) {}
+  /// Split the stack of \p F into safe and unsafe regions when requested.
+  /// \param F Function to transform.
+  /// \param FAM Function analysis manager providing required analyses.
+  /// \return The set of analyses preserved by this pass.
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 

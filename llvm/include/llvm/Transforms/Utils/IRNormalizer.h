@@ -5,6 +5,7 @@
 
 namespace llvm {
 
+/// Options controlling how IRNormalizerPass rewrites a function.
 struct IRNormalizerOptions {
   /// Preserves original instruction order.
   bool PreserveOrder = false;
@@ -25,9 +26,15 @@ private:
   const IRNormalizerOptions Options;
 
 public:
+  /// Construct an IR normalizer pass with the given options.
+  /// @param Options Controls ordering, renaming, folding, and operand reorder.
   IRNormalizerPass(IRNormalizerOptions Options = IRNormalizerOptions())
       : Options(Options) {}
 
+  /// Run the IR normalizer pass over the function.
+  /// @param F Function whose IR should be normalized.
+  /// @param AM Function analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Function &F,
                                  FunctionAnalysisManager &AM) const;
 };

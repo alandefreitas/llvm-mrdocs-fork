@@ -27,9 +27,17 @@ namespace llvm {
 /// This assumes that 'GraphT' is 'AnalysisT::Result *', and pass it through
 template <typename Result, typename GraphT = Result *>
 struct DefaultAnalysisGraphTraits {
+  /// Extract a graph pointer from an analysis result.
+  /// @param R Analysis result to wrap as a graph.
+  /// @return Pointer to \p R used as the graph.
   static GraphT getGraph(Result R) { return &R; }
 };
 
+/// Open a Graphviz viewer for a function's analysis graph.
+/// @param F Function the graph belongs to.
+/// @param Graph Graph extracted from the analysis result.
+/// @param Name Base name for the viewer window.
+/// @param IsSimple True to render simplified node labels.
 template <typename GraphT>
 void viewGraphForFunction(Function &F, GraphT Graph, StringRef Name,
                           bool IsSimple) {
@@ -39,6 +47,7 @@ void viewGraphForFunction(Function &F, GraphT Graph, StringRef Name,
             GraphName + " for '" + F.getName() + "' function");
 }
 
+/// Pass mixin that displays an analysis graph for a function in a viewer.
 template <typename AnalysisT, bool IsSimple,
           typename GraphT = typename AnalysisT::Result *,
           typename AnalysisGraphTraitsT =
@@ -46,6 +55,8 @@ template <typename AnalysisT, bool IsSimple,
 struct DOTGraphTraitsViewer
     : RequiredPassInfoMixin<DOTGraphTraitsViewer<AnalysisT, IsSimple, GraphT,
                                                  AnalysisGraphTraitsT>> {
+  /// Construct a viewer pass with the given graph name.
+  /// @param GraphName Name used when displaying the graph.
   DOTGraphTraitsViewer(StringRef GraphName) : Name(GraphName) {}
 
   /// Return true if this function should be processed.
@@ -53,12 +64,18 @@ struct DOTGraphTraitsViewer
   /// An implementation of this class my override this function to indicate that
   /// only certain functions should be viewed.
   ///
+  /// @param F Function under consideration.
   /// @param Result The current analysis result for this function.
+  /// @return True if this function should be processed.
   virtual bool processFunction(Function &F,
                                const typename AnalysisT::Result &Result) {
     return true;
   }
 
+  /// Display the analysis graph for \p F in a Graphviz viewer.
+  /// @param F Function whose analysis graph is viewed.
+  /// @param FAM Function analysis manager providing AnalysisT.
+  /// @return Preserved analyses; this pass preserves all.
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
     auto &Result = FAM.getResult<AnalysisT>(F);
     if (!processFunction(F, Result))
@@ -98,6 +115,11 @@ static inline void shortenFileName(std::string &FN, unsigned char len = 250) {
   }
 }
 
+/// Write an analysis graph for a function to a DOT file.
+/// @param F Function the graph belongs to.
+/// @param Graph Graph extracted from the analysis result.
+/// @param Name Base name used to build the output filename.
+/// @param IsSimple True to render simplified node labels.
 template <typename GraphT>
 void printGraphForFunction(Function &F, GraphT Graph, StringRef Name,
                            bool IsSimple) {
@@ -119,6 +141,7 @@ void printGraphForFunction(Function &F, GraphT Graph, StringRef Name,
   errs() << "\n";
 }
 
+/// Pass mixin that writes an analysis graph for a function to a DOT file.
 template <typename AnalysisT, bool IsSimple,
           typename GraphT = typename AnalysisT::Result *,
           typename AnalysisGraphTraitsT =
@@ -126,6 +149,8 @@ template <typename AnalysisT, bool IsSimple,
 struct DOTGraphTraitsPrinter
     : RequiredPassInfoMixin<DOTGraphTraitsPrinter<AnalysisT, IsSimple, GraphT,
                                                   AnalysisGraphTraitsT>> {
+  /// Construct a printer pass with the given graph name.
+  /// @param GraphName Name used when naming the DOT output file.
   DOTGraphTraitsPrinter(StringRef GraphName) : Name(GraphName) {}
 
   /// Return true if this function should be processed.
@@ -133,12 +158,18 @@ struct DOTGraphTraitsPrinter
   /// An implementation of this class my override this function to indicate that
   /// only certain functions should be viewed.
   ///
+  /// @param F Function under consideration.
   /// @param Result The current analysis result for this function.
+  /// @return True if this function should be processed.
   virtual bool processFunction(Function &F,
                                const typename AnalysisT::Result &Result) {
     return true;
   }
 
+  /// Write the analysis graph for \p F to a DOT file.
+  /// @param F Function whose analysis graph is printed.
+  /// @param FAM Function analysis manager providing AnalysisT.
+  /// @return Preserved analyses; this pass preserves all.
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
     auto &Result = FAM.getResult<AnalysisT>(F);
     if (!processFunction(F, Result))
@@ -172,14 +203,21 @@ private:
 /// This assumes that 'GraphT' is 'AnalysisT *' and so just passes it through.
 template <typename AnalysisT, typename GraphT = AnalysisT *>
 struct LegacyDefaultAnalysisGraphTraits {
+  /// Extract a graph pointer from a legacy analysis pass.
+  /// @param A Analysis pass instance to wrap as a graph.
+  /// @return Pointer to \p A used as the graph.
   static GraphT getGraph(AnalysisT *A) { return A; }
 };
 
+/// Legacy function pass that displays an analysis graph in a viewer.
 template <typename AnalysisT, bool IsSimple, typename GraphT = AnalysisT *,
           typename AnalysisGraphTraitsT =
               LegacyDefaultAnalysisGraphTraits<AnalysisT, GraphT>>
 class DOTGraphTraitsViewerWrapperPass : public FunctionPass {
 public:
+  /// Construct a legacy viewer pass with the given graph name and ID.
+  /// @param GraphName Name used when displaying the graph.
+  /// @param ID Pass identifier assigned by LLVM.
   DOTGraphTraitsViewerWrapperPass(StringRef GraphName, char &ID)
       : FunctionPass(ID), Name(GraphName) {}
 
@@ -188,11 +226,16 @@ public:
   /// An implementation of this class my override this function to indicate that
   /// only certain functions should be viewed.
   ///
+  /// @param F Function under consideration.
   /// @param Analysis The current analysis result for this function.
+  /// @return True if this function should be processed.
   virtual bool processFunction(Function &F, AnalysisT &Analysis) {
     return true;
   }
 
+  /// Display the analysis graph for \p F in a Graphviz viewer.
+  /// @param F Function whose analysis graph is viewed.
+  /// @return False; this pass does not modify the function.
   bool runOnFunction(Function &F) override {
     auto &Analysis = getAnalysis<AnalysisT>();
 
@@ -205,6 +248,8 @@ public:
     return false;
   }
 
+  /// Declare that this pass requires AnalysisT and preserves all analyses.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<AnalysisT>();
@@ -214,11 +259,15 @@ private:
   std::string Name;
 };
 
+/// Legacy function pass that writes an analysis graph to a DOT file.
 template <typename AnalysisT, bool IsSimple, typename GraphT = AnalysisT *,
           typename AnalysisGraphTraitsT =
               LegacyDefaultAnalysisGraphTraits<AnalysisT, GraphT>>
 class DOTGraphTraitsPrinterWrapperPass : public FunctionPass {
 public:
+  /// Construct a legacy printer pass with the given graph name and ID.
+  /// @param GraphName Name used when naming the DOT output file.
+  /// @param ID Pass identifier assigned by LLVM.
   DOTGraphTraitsPrinterWrapperPass(StringRef GraphName, char &ID)
       : FunctionPass(ID), Name(GraphName) {}
 
@@ -227,11 +276,16 @@ public:
   /// An implementation of this class my override this function to indicate that
   /// only certain functions should be printed.
   ///
+  /// @param F Function under consideration.
   /// @param Analysis The current analysis result for this function.
+  /// @return True if this function should be processed.
   virtual bool processFunction(Function &F, AnalysisT &Analysis) {
     return true;
   }
 
+  /// Write the analysis graph for \p F to a DOT file.
+  /// @param F Function whose analysis graph is printed.
+  /// @return False; this pass does not modify the function.
   bool runOnFunction(Function &F) override {
     auto &Analysis = getAnalysis<AnalysisT>();
 
@@ -244,6 +298,8 @@ public:
     return false;
   }
 
+  /// Declare that this pass requires AnalysisT and preserves all analyses.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<AnalysisT>();
@@ -253,14 +309,21 @@ private:
   std::string Name;
 };
 
+/// Legacy module pass that displays an analysis graph in a viewer.
 template <typename AnalysisT, bool IsSimple, typename GraphT = AnalysisT *,
           typename AnalysisGraphTraitsT =
               LegacyDefaultAnalysisGraphTraits<AnalysisT, GraphT>>
 class DOTGraphTraitsModuleViewerWrapperPass : public ModulePass {
 public:
+  /// Construct a legacy module viewer pass with the given graph name and ID.
+  /// @param GraphName Name used when displaying the graph.
+  /// @param ID Pass identifier assigned by LLVM.
   DOTGraphTraitsModuleViewerWrapperPass(StringRef GraphName, char &ID)
       : ModulePass(ID), Name(GraphName) {}
 
+  /// Display the module analysis graph in a Graphviz viewer.
+  /// @param M Module whose analysis graph is viewed.
+  /// @return False; this pass does not modify the module.
   bool runOnModule(Module &M) override {
     GraphT Graph = AnalysisGraphTraitsT::getGraph(&getAnalysis<AnalysisT>());
     std::string Title = DOTGraphTraits<GraphT>::getGraphName(Graph);
@@ -270,6 +333,8 @@ public:
     return false;
   }
 
+  /// Declare that this pass requires AnalysisT and preserves all analyses.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<AnalysisT>();
@@ -279,14 +344,21 @@ private:
   std::string Name;
 };
 
+/// Legacy module pass that writes an analysis graph to a DOT file.
 template <typename AnalysisT, bool IsSimple, typename GraphT = AnalysisT *,
           typename AnalysisGraphTraitsT =
               LegacyDefaultAnalysisGraphTraits<AnalysisT, GraphT>>
 class DOTGraphTraitsModulePrinterWrapperPass : public ModulePass {
 public:
+  /// Construct a legacy module printer pass with the given graph name and ID.
+  /// @param GraphName Name used when naming the DOT output file.
+  /// @param ID Pass identifier assigned by LLVM.
   DOTGraphTraitsModulePrinterWrapperPass(StringRef GraphName, char &ID)
       : ModulePass(ID), Name(GraphName) {}
 
+  /// Write the module analysis graph to a DOT file.
+  /// @param M Module whose analysis graph is printed.
+  /// @return False; this pass does not modify the module.
   bool runOnModule(Module &M) override {
     GraphT Graph = AnalysisGraphTraitsT::getGraph(&getAnalysis<AnalysisT>());
     shortenFileName(Name);
@@ -307,6 +379,8 @@ public:
     return false;
   }
 
+  /// Declare that this pass requires AnalysisT and preserves all analyses.
+  /// @param AU Analysis usage to update.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<AnalysisT>();
@@ -316,6 +390,11 @@ private:
   std::string Name;
 };
 
+/// Write a function analysis graph to a DOT file with a custom name prefix.
+/// @param F Function the graph belongs to.
+/// @param Graph Graph to serialize.
+/// @param FileNamePrefix Prefix used to build the output filename.
+/// @param IsSimple True to render simplified node labels.
 template <typename GraphT>
 void WriteDOTGraphToFile(Function &F, GraphT &&Graph,
                          std::string FileNamePrefix, bool IsSimple) {

@@ -20,6 +20,15 @@
 
 namespace llvm::orc {
 
+/// Add default bootstrap values for JIT execution in the host process.
+///
+/// Registers EH-frame and GDB JIT-loader allocation-action symbols in
+/// \p BootstrapSymbols. On Darwin, may also set the
+/// "darwin-use-ehframes-only" entry in \p BootstrapMap when dynamic unwind
+/// APIs are unavailable.
+/// @param BootstrapMap Map of named bootstrap values to update.
+/// @param BootstrapSymbols Map of bootstrap symbol names to executor
+///        addresses to update.
 LLVM_ABI void addDefaultBootstrapValuesForHostProcess(
     StringMap<std::vector<char>> &BootstrapMap,
     StringMap<ExecutorAddr> &BootstrapSymbols);

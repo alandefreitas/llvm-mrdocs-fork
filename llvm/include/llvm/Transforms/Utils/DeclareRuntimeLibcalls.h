@@ -12,9 +12,16 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+
+/// Pass that inserts declarations for all runtime library calls known for the
+/// target.
 class DeclareRuntimeLibcallsPass
     : public OptionalPassInfoMixin<DeclareRuntimeLibcallsPass> {
 public:
+  /// Run the declare-runtime-libcalls pass over the module.
+  /// @param M Module into which runtime libcall declarations are inserted.
+  /// @param MAM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 

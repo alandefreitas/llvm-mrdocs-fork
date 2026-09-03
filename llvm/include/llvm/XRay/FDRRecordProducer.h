@@ -16,14 +16,18 @@
 
 namespace llvm::xray {
 
+/// Abstract source of successive FDR records.
 class RecordProducer {
 public:
   /// All producer implementations must yield either an Error or a non-nullptr
   /// unique_ptr<Record>.
+  /// \return The next record, or an Error on failure.
   virtual Expected<std::unique_ptr<Record>> produce() = 0;
+  /// Destroy a record producer.
   virtual ~RecordProducer() = default;
 };
 
+/// RecordProducer that loads FDR records from a file-backed DataExtractor.
 class LLVM_ABI FileBasedRecordProducer : public RecordProducer {
   const XRayFileHeader &Header;
   DataExtractor &E;
@@ -35,12 +39,17 @@ class LLVM_ABI FileBasedRecordProducer : public RecordProducer {
   Expected<std::unique_ptr<Record>> findNextBufferExtent();
 
 public:
+  /// Construct a producer over header \p FH, extractor \p DE, and offset \p OP.
+  /// \param FH Parsed XRay file header describing the log.
+  /// \param DE Data extractor positioned over the FDR log bytes.
+  /// \param OP Byte offset into \p DE that advances as records are produced.
   FileBasedRecordProducer(const XRayFileHeader &FH, DataExtractor &DE,
                           uint64_t &OP)
       : Header(FH), E(DE), OffsetPtr(OP) {}
 
   /// This producer encapsulates the logic for loading a File-backed
   /// RecordProducer hidden behind a DataExtractor.
+  /// \return The next FDR record from the extractor, or an Error on failure.
   Expected<std::unique_ptr<Record>> produce() override;
 };
 

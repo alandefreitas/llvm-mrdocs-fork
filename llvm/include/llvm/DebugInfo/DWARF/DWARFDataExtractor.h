@@ -25,16 +25,26 @@ class DWARFDataExtractor : public DWARFDataExtractorBase<DWARFDataExtractor> {
   const DWARFSection *Section = nullptr;
 
 public:
+  /// Inherit base DWARFDataExtractorBase constructors.
   using DWARFDataExtractorBase::DWARFDataExtractorBase;
 
   /// Constructor for the normal case of extracting data from a DWARF section.
   /// The DWARFSection's lifetime must be at least as long as the extractor's.
+  ///
+  /// \param Obj Object file that owns the section and its relocation map.
+  /// \param Section DWARF section whose data will be extracted.
+  /// \param IsLittleEndian True if the section data is little-endian.
+  /// \param AddressSize Size in bytes of an address in this section.
   DWARFDataExtractor(const DWARFObject &Obj, const DWARFSection &Section,
                      bool IsLittleEndian, uint8_t AddressSize)
       : DWARFDataExtractorBase(Section.Data, IsLittleEndian, AddressSize),
         Obj(&Obj), Section(&Section) {}
 
-  /// Truncating constructor
+  /// Truncating constructor that copies \p Other but limits data to \p Length.
+  ///
+  /// \param Other Extractor to copy object, section, endianness, and address
+  ///        size from.
+  /// \param Length Maximum number of bytes of data to retain from \p Other.
   DWARFDataExtractor(const DWARFDataExtractor &Other, size_t Length)
       : DWARFDataExtractorBase(Other.getData().substr(0, Length),
                                Other.isLittleEndian(), Other.getAddressSize()),
@@ -42,6 +52,13 @@ public:
 
   /// Extracts a value and applies a relocation to the result if
   /// one exists for the given offset.
+  ///
+  /// \param Size Number of bytes to extract.
+  /// \param Off Offset into the data; advanced past the value on success.
+  /// \param SecNdx If non-null, set to the section index of the relocated
+  ///        value, or UndefSection when no relocation applies.
+  /// \param Err Optional error out-parameter.
+  /// \return The extracted value, with any applicable relocation applied.
   uint64_t getRelocatedValueImpl(uint32_t Size, uint64_t *Off, uint64_t *SecNdx,
                                  Error *Err) const {
     if (SecNdx)

@@ -26,23 +26,38 @@ class DeclContext;
 /// linked address.
 using RangesTy = AddressRangesMap;
 
-// This structure keeps patch for the attribute and, optionally,
-// the value of relocation which should be applied. Currently,
-// only location attribute needs to have relocation: either to the
-// function ranges if location attribute is of type 'loclist',
-// either to the operand of DW_OP_addr/DW_OP_addrx if location attribute
-// is of type 'exprloc'.
-// ASSUMPTION: Location attributes of 'loclist' type containing 'exprloc'
-//             with address expression operands are not supported yet.
+/// Location of a DIE attribute value that may need patching after linking.
+///
+/// This structure keeps a patch for the attribute and, optionally, the value
+/// of a relocation which should be applied. Currently, only location
+/// attributes need a relocation: either to the function ranges if the location
+/// attribute is of type 'loclist', or to the operand of DW_OP_addr/DW_OP_addrx
+/// if the location attribute is of type 'exprloc'.
+///
+/// ASSUMPTION: Location attributes of 'loclist' type containing 'exprloc'
+/// with address expression operands are not supported yet.
 struct PatchLocation {
+  /// Iterator pointing at the DIE attribute value to patch.
   DIE::value_iterator I;
+
+  /// Optional relocation adjustment applied when patching this attribute.
   int64_t RelocAdjustment = 0;
 
+  /// Construct an empty patch location.
   PatchLocation() = default;
+
+  /// Construct a patch location for the attribute value at \p I.
+  /// \param I Iterator pointing at the DIE attribute value to patch.
   PatchLocation(DIE::value_iterator I) : I(I) {}
+
+  /// Construct a patch location with a relocation adjustment.
+  /// \param I Iterator pointing at the DIE attribute value to patch.
+  /// \param Reloc Relocation adjustment applied when patching this attribute.
   PatchLocation(DIE::value_iterator I, int64_t Reloc)
       : I(I), RelocAdjustment(Reloc) {}
 
+  /// Replace the integer attribute value at this patch location.
+  /// \param New New integer value to store in the attribute.
   void set(uint64_t New) const {
     assert(I);
     const auto &Old = *I;
@@ -50,14 +65,21 @@ struct PatchLocation {
     *I = DIEValue(Old.getAttribute(), Old.getForm(), DIEInteger(New));
   }
 
+  /// Return the current integer attribute value at this patch location.
+  /// \returns The current integer attribute value at this patch location.
   uint64_t get() const {
     assert(I);
     return I->getDIEInteger().getValue();
   }
 };
 
+/// Patch locations for range-list attributes in a compile unit.
 using RngListAttributesTy = SmallVector<PatchLocation>;
+
+/// Patch locations for location-list attributes in a compile unit.
 using LocListAttributesTy = SmallVector<PatchLocation>;
+
+/// Patch locations for DW_AT_LLVM_stmt_sequence attributes in a compile unit.
 using StmtSeqListAttributesTy = SmallVector<PatchLocation>;
 
 /// Stores all information relating to a compile unit, be it in its original
@@ -103,10 +125,16 @@ public:
     bool HasLocationExpressionAddr : 1;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+    /// Dump this DIE info to the debug stream.
     LLVM_DUMP_METHOD void dump();
 #endif // if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   };
 
+  /// Construct a compile unit wrapper around \p OrigUnit.
+  /// \param OrigUnit Original DWARF unit from the input object.
+  /// \param ID Unique identifier assigned to this compile unit.
+  /// \param CanUseODR Whether ODR uniquing is allowed for this unit's language.
+  /// \param ClangModuleName Name of the Clang module, or empty if not a module.
   CompileUnit(DWARFUnit &OrigUnit, unsigned ID, bool CanUseODR,
               StringRef ClangModuleName)
       : OrigUnit(OrigUnit), ID(ID), ClangModuleName(ClangModuleName) {
@@ -127,10 +155,15 @@ public:
       HasODR = false;
   }
 
+  /// Return the original DWARF unit from the input object.
+  /// \returns The original DWARF unit from the input object.
   DWARFUnit &getOrigUnit() const { return OrigUnit; }
 
+  /// Return the unique identifier assigned to this compile unit.
+  /// \returns The unique identifier assigned to this compile unit.
   unsigned getUniqueID() const { return ID; }
 
+  /// Create the output DIE unit that will hold the cloned DIE tree.
   void createOutputDIE() {
     NewUnit.emplace(OrigUnit.getUnitDIE().getTag());
 
@@ -139,56 +172,107 @@ public:
     NewUnit->setDebugSectionOffset(StartOffset);
   }
 
+  /// Return the root DIE of the cloned output unit, or nullptr if none exists.
+  /// \returns The root DIE of the cloned output unit, or nullptr if none exists.
   DIE *getOutputUnitDIE() const {
     if (NewUnit)
       return &const_cast<BasicDIEUnit &>(*NewUnit).getUnitDie();
     return nullptr;
   }
 
+  /// Return the DWARF tag of this compile unit.
+  /// \returns The DWARF tag of this compile unit.
   dwarf::Tag getTag() const { return OrigUnit.getUnitDIE().getTag(); }
 
+  /// Return whether this unit is subject to the ODR rule.
+  /// \returns true if this unit is subject to the ODR rule.
   bool hasODR() const { return HasODR; }
+
+  /// Return whether this unit comes from a Clang module.
+  /// \returns true if this unit comes from a Clang module.
   bool isClangModule() const { return !ClangModuleName.empty(); }
+
+  /// Return the DW_AT_language of this compile unit.
+  /// \returns The DW_AT_language of this compile unit.
   LLVM_ABI uint16_t getLanguage();
+
   /// Return the DW_AT_LLVM_sysroot of the compile unit or an empty StringRef.
+  /// \returns The DW_AT_LLVM_sysroot of the compile unit, or an empty StringRef.
   LLVM_ABI StringRef getSysRoot();
 
+  /// Return the Clang module name, or an empty string if this is not a module.
+  /// \returns The Clang module name, or an empty string if this is not a module.
   const std::string &getClangModuleName() const { return ClangModuleName; }
 
+  /// Return mutable DIE info for the DIE at index \p Idx.
+  /// \param Idx Index of the DIE in the original unit.
+  /// \returns Mutable DIE info for the DIE at index \p Idx.
   DIEInfo &getInfo(unsigned Idx) { return Info[Idx]; }
+
+  /// Return DIE info for the DIE at index \p Idx.
+  /// \param Idx Index of the DIE in the original unit.
+  /// \returns DIE info for the DIE at index \p Idx.
   const DIEInfo &getInfo(unsigned Idx) const { return Info[Idx]; }
 
+  /// Return mutable DIE info for \p Die.
+  /// \param Die DIE whose info should be returned.
+  /// \returns Mutable DIE info for \p Die.
   DIEInfo &getInfo(const DWARFDie &Die) {
     unsigned Idx = getOrigUnit().getDIEIndex(Die);
     return Info[Idx];
   }
 
+  /// Return the start offset of this unit in the output .debug_info section.
+  /// \returns The start offset of this unit in the output .debug_info section.
   uint64_t getStartOffset() const { return StartOffset; }
+
+  /// Return the end offset of this unit in the output .debug_info section.
+  /// \returns The end offset of this unit in the output .debug_info section.
   uint64_t getNextUnitOffset() const { return NextUnitOffset; }
+
+  /// Set the start offset of this unit in the output .debug_info section.
+  /// \param DebugInfoSize Absolute offset where this unit begins.
   void setStartOffset(uint64_t DebugInfoSize) {
     StartOffset = DebugInfoSize;
     if (NewUnit)
       NewUnit->setDebugSectionOffset(DebugInfoSize);
   }
 
+  /// Return the low PC of this unit, if known.
+  /// \returns The low PC of this unit, or std::nullopt if unknown.
   std::optional<uint64_t> getLowPc() const { return LowPc; }
+
+  /// Return the high PC of this unit.
+  /// \returns The high PC of this unit.
   uint64_t getHighPc() const { return HighPc; }
+
+  /// Return whether a label was recorded at address \p Addr.
+  /// \param Addr Address to look up among recorded labels.
+  /// \returns true if a label was recorded at \p Addr.
   bool hasLabelAt(uint64_t Addr) const { return Labels.count(Addr); }
 
+  /// Return the relocated PC ranges of functions in this unit.
+  /// \returns The relocated PC ranges of functions in this unit.
   const RangesTy &getFunctionRanges() const { return Ranges; }
 
+  /// Return the range-list attributes that still need patching.
+  /// \returns The range-list attributes that still need patching.
   const RngListAttributesTy &getRangesAttributes() { return RangeAttributes; }
 
+  /// Return the unit-level DW_AT_ranges patch location, if any.
+  /// \returns The unit-level DW_AT_ranges patch location, or std::nullopt.
   std::optional<PatchLocation> getUnitRangesAttribute() const {
     return UnitRangeAttribute;
   }
 
+  /// Return the location-list attributes that still need patching.
+  /// \returns The location-list attributes that still need patching.
   const LocListAttributesTy &getLocationAttributes() const {
     return LocationAttributes;
   }
 
-  // Provide access to the list of DW_AT_LLVM_stmt_sequence attributes that may
-  // need to be patched.
+  /// Return the DW_AT_LLVM_stmt_sequence attributes that may need patching.
+  /// \returns The DW_AT_LLVM_stmt_sequence attributes that may need patching.
   const StmtSeqListAttributesTy &getStmtSeqListAttributes() const {
     return StmtSeqListAttributes;
   }
@@ -201,12 +285,20 @@ public:
   /// Compute the end offset for this unit. Must be called after the CU's DIEs
   /// have been cloned.  \returns the next unit offset (which is also the
   /// current debug_info section size).
+  /// \param DwarfVersion DWARF version of the output unit.
   LLVM_ABI uint64_t computeNextUnitOffset(uint16_t DwarfVersion);
 
+  /// Record a forward DIE reference that must be patched later.
+  ///
   /// Keep track of a forward reference to DIE \p Die in \p RefUnit by \p
   /// Attr. The attribute should be fixed up later to point to the absolute
   /// offset of \p Die in the debug_info section or to the canonical offset of
   /// \p Ctxt if it is non-null.
+  /// \param Die DIE being referenced.
+  /// \param RefUnit Compile unit that owns \p Die.
+  /// \param Ctxt Optional declaration context whose canonical offset may be
+  /// used.
+  /// \param Attr Attribute location that will receive the fixed-up offset.
   LLVM_ABI void noteForwardReference(DIE *Die, const CompileUnit *RefUnit,
                                      DeclContext *Ctxt, PatchLocation Attr);
 
@@ -215,44 +307,65 @@ public:
 
   /// Add the low_pc of a label that is relocated by applying
   /// offset \p PCOffset.
+  /// \param LabelLowPc Original low_pc of the label.
+  /// \param PcOffset Offset applied to obtain the linked address.
   LLVM_ABI void addLabelLowPc(uint64_t LabelLowPc, int64_t PcOffset);
 
   /// Add a function range [\p LowPC, \p HighPC) that is relocated by applying
   /// offset \p PCOffset.
+  /// \param LowPC Inclusive start of the function range.
+  /// \param HighPC Exclusive end of the function range.
+  /// \param PCOffset Offset applied to obtain the linked addresses.
   LLVM_ABI void addFunctionRange(uint64_t LowPC, uint64_t HighPC,
                                  int64_t PCOffset);
 
   /// Keep track of a DW_AT_range attribute that we will need to patch up later.
+  /// \param Die DIE that owns the range attribute.
+  /// \param Attr Patch location of the range attribute value.
   LLVM_ABI void noteRangeAttribute(const DIE &Die, PatchLocation Attr);
 
   /// Keep track of a location attribute pointing to a location list in the
   /// debug_loc section.
+  /// \param Attr Patch location of the location attribute value.
   LLVM_ABI void noteLocationAttribute(PatchLocation Attr);
 
-  // Record that the given DW_AT_LLVM_stmt_sequence attribute may need to be
-  // patched later.
+  /// Record that a DW_AT_LLVM_stmt_sequence attribute may need to be patched.
+  /// \param Attr Patch location of the stmt_sequence attribute value.
   LLVM_ABI void noteStmtSeqListAttribute(PatchLocation Attr);
 
   /// Add a name accelerator entry for \a Die with \a Name.
+  /// \param Die DIE described by the accelerator entry.
+  /// \param Name Name stored in the accelerator table.
   LLVM_ABI void addNamespaceAccelerator(const DIE *Die,
                                         DwarfStringPoolEntryRef Name);
 
   /// Add a name accelerator entry for \a Die with \a Name.
+  /// \param Die DIE described by the accelerator entry.
+  /// \param Name Name stored in the accelerator table.
+  /// \param SkipPubnamesSection If true, emit only in apple_* sections.
   LLVM_ABI void addNameAccelerator(const DIE *Die, DwarfStringPoolEntryRef Name,
                                    bool SkipPubnamesSection = false);
 
   /// Add various accelerator entries for \p Die with \p Name which is stored
   /// in the string table at \p Offset. \p Name must be an Objective-C
   /// selector.
+  /// \param Die DIE described by the accelerator entry.
+  /// \param Name Objective-C selector name stored in the accelerator table.
+  /// \param SkipPubnamesSection If true, emit only in apple_* sections.
   LLVM_ABI void addObjCAccelerator(const DIE *Die, DwarfStringPoolEntryRef Name,
                                    bool SkipPubnamesSection = false);
 
   /// Add a type accelerator entry for \p Die with \p Name which is stored in
   /// the string table at \p Offset.
+  /// \param Die DIE described by the accelerator entry.
+  /// \param Name Type name stored in the accelerator table.
+  /// \param ObjcClassImplementation Whether this is an ObjC class implementation.
+  /// \param QualifiedNameHash Hash of the fully qualified type name.
   LLVM_ABI void addTypeAccelerator(const DIE *Die, DwarfStringPoolEntryRef Name,
                                    bool ObjcClassImplementation,
                                    uint32_t QualifiedNameHash);
 
+  /// Accelerator-table entry describing a name, type, namespace, or ObjC DIE.
   struct AccelInfo {
     /// Name of the entry.
     DwarfStringPoolEntryRef Name;
@@ -269,10 +382,20 @@ public:
     /// Is this an ObjC class implementation?
     bool ObjcClassImplementation;
 
+    /// Construct an accelerator entry for \p Die with \p Name.
+    /// \param Name Name stored in the accelerator table.
+    /// \param Die DIE described by this entry.
+    /// \param SkipPubSection If true, emit only in apple_* sections.
     AccelInfo(DwarfStringPoolEntryRef Name, const DIE *Die,
               bool SkipPubSection = false)
         : Name(Name), Die(Die), SkipPubSection(SkipPubSection) {}
 
+    /// Construct a typed accelerator entry with a qualified-name hash.
+    /// \param Name Name stored in the accelerator table.
+    /// \param Die DIE described by this entry.
+    /// \param QualifiedNameHash Hash of the fully qualified type name.
+    /// \param ObjCClassIsImplementation Whether this is an ObjC class
+    /// implementation.
     AccelInfo(DwarfStringPoolEntryRef Name, const DIE *Die,
               uint32_t QualifiedNameHash, bool ObjCClassIsImplementation)
         : Name(Name), Die(Die), QualifiedNameHash(QualifiedNameHash),
@@ -280,12 +403,28 @@ public:
           ObjcClassImplementation(ObjCClassIsImplementation) {}
   };
 
+  /// Return the public-names accelerator entries for this unit.
+  /// \returns The public-names accelerator entries for this unit.
   const std::vector<AccelInfo> &getPubnames() const { return Pubnames; }
+
+  /// Return the public-types accelerator entries for this unit.
+  /// \returns The public-types accelerator entries for this unit.
   const std::vector<AccelInfo> &getPubtypes() const { return Pubtypes; }
+
+  /// Return the namespace accelerator entries for this unit.
+  /// \returns The namespace accelerator entries for this unit.
   const std::vector<AccelInfo> &getNamespaces() const { return Namespaces; }
+
+  /// Return the Objective-C accelerator entries for this unit.
+  /// \returns The Objective-C accelerator entries for this unit.
   const std::vector<AccelInfo> &getObjC() const { return ObjC; }
 
+  /// Return the MCSymbol marking the beginning of this unit's output.
+  /// \returns The MCSymbol marking the beginning of this unit's output.
   MCSymbol *getLabelBegin() { return LabelBegin; }
+
+  /// Set the MCSymbol marking the beginning of this unit's output.
+  /// \param S Symbol to use as the unit begin label.
   void setLabelBegin(MCSymbol *S) { LabelBegin = S; }
 
 private:

@@ -19,16 +19,19 @@
 namespace llvm {
 namespace jitlink {
 
-/// A CRTP base for tables that are built on demand, e.g. Global Offset Tables
-/// and Procedure Linkage Tables.
-/// The getEntyrForTarget function returns the table entry corresponding to the
+/// A CRTP base for tables built on demand, such as GOT and PLT.
+///
+/// The getEntryForTarget function returns the table entry corresponding to the
 /// given target, calling down to the implementation class to build an entry if
 /// one does not already exist.
 template <typename TableManagerImplT> class TableManager {
 public:
-  /// Return the constructed entry
+  /// Return the constructed entry.
   ///
-  /// Use parameter G to construct the entry for target symbol
+  /// Constructs an entry for the target symbol when one does not already exist.
+  /// \param G Link graph used to construct a new entry if needed.
+  /// \param Target Target symbol to look up or create an entry for.
+  /// \return The table entry symbol for \p Target.
   Symbol &getEntryForTarget(LinkGraph &G, Symbol &Target) {
     assert(Target.hasName() && "Edge cannot point to anonymous target");
 
@@ -56,8 +59,12 @@ public:
   ///
   /// Objects may include pre-existing table entries (e.g. for GOTs).
   /// This method can be used to register those entries so that they will not
-  /// be duplicated by createEntry  the first time that getEntryForTarget is
+  /// be duplicated by createEntry the first time that getEntryForTarget is
   /// called.
+  /// \param Target Target symbol associated with the pre-existing entry.
+  /// \param Entry Pre-existing table entry symbol to register.
+  /// \return True if the entry was newly registered, false if one already
+  /// existed for \p Target.
   bool registerPreExistingEntry(Symbol &Target, Symbol &Entry) {
     assert(Target.hasName() && "Edge cannot point to anonymous target");
     auto Res = Entries.insert({

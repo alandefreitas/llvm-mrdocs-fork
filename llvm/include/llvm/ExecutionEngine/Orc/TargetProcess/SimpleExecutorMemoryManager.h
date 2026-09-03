@@ -32,14 +32,31 @@ namespace rt_bootstrap {
 /// Simple page-based allocator.
 class LLVM_ABI SimpleExecutorMemoryManager : public ExecutorBootstrapService {
 public:
+  /// Destroys the simple executor memory manager.
   ~SimpleExecutorMemoryManager() override;
 
+  /// Reserves address space in this process.
+  /// \param Size Number of bytes to reserve.
+  /// \return Base address of the reserved range, or an error.
   Expected<ExecutorAddr> reserve(uint64_t Size);
+  /// Copies content, applies protections, and runs finalization actions.
+  /// \param FR Finalize request describing segments and actions to apply.
+  /// \return Allocation key identifying the initialized region, or an error.
   Expected<ExecutorAddr> initialize(tpctypes::FinalizeRequest &FR);
+  /// Runs previously registered deallocation actions.
+  /// \param InitKeys Allocation keys previously returned by initialize.
+  /// \return Success, or an error if deinitialization fails.
   Error deinitialize(const std::vector<ExecutorAddr> &InitKeys);
+  /// Releases address space acquired through reserve.
+  /// \param Bases Base addresses of ranges previously returned by reserve.
+  /// \return Success, or an error if release fails.
   Error release(const std::vector<ExecutorAddr> &Bases);
 
+  /// Shuts down this service and releases any remaining reservations.
+  /// \return Success, or an error if shutdown fails.
   Error shutdown() override;
+  /// Adds this service's bootstrap symbols to \p M.
+  /// \param M Map of bootstrap symbol names to executor addresses to update.
   void addBootstrapSymbols(StringMap<ExecutorAddr> &M) override;
 
 private:

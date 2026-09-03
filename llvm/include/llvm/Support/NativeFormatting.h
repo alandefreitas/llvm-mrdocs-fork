@@ -43,36 +43,88 @@ enum class HexPrintStyle {
   PrefixLower
 };
 
-/// Return the default digit precision for float formatting style \p Style.
+/// Return the default digit precision for a float formatting style.
+///
+/// \param Style Float formatting style whose default precision is requested.
+/// \return Default digit precision for \p Style.
 LLVM_ABI size_t getDefaultPrecision(FloatStyle Style);
 
-/// Return true if hex style \p S includes a radix prefix.
+/// Return true if a hex print style includes a radix prefix.
+///
+/// \param S Hex print style to query.
+/// \return True if \p S includes a 0x radix prefix.
 LLVM_ABI bool isPrefixedHexStyle(HexPrintStyle S);
 
-/// Write unsigned int \p N to \p S using \p Style and at least \p MinDigits.
+/// Write an unsigned int to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param MinDigits Minimum number of digits to emit (zero-padded if needed).
+/// \param Style Integer formatting style.
+/// \param NonNegativePlus If true, prefix a '+' for non-negative values.
 LLVM_ABI void write_integer(raw_ostream &S, unsigned int N, size_t MinDigits,
                             IntegerStyle Style, bool NonNegativePlus = false);
-/// Write signed int \p N to \p S using \p Style and at least \p MinDigits.
+/// Write a signed int to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param MinDigits Minimum number of digits to emit (zero-padded if needed).
+/// \param Style Integer formatting style.
+/// \param NonNegativePlus If true, prefix a '+' for non-negative values.
 LLVM_ABI void write_integer(raw_ostream &S, int N, size_t MinDigits,
                             IntegerStyle Style, bool NonNegativePlus = false);
-/// Write unsigned long \p N to \p S using \p Style and at least \p MinDigits.
+/// Write an unsigned long to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param MinDigits Minimum number of digits to emit (zero-padded if needed).
+/// \param Style Integer formatting style.
+/// \param NonNegativePlus If true, prefix a '+' for non-negative values.
 LLVM_ABI void write_integer(raw_ostream &S, unsigned long N, size_t MinDigits,
                             IntegerStyle Style, bool NonNegativePlus = false);
-/// Write signed long \p N to \p S using \p Style and at least \p MinDigits.
+/// Write a signed long to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param MinDigits Minimum number of digits to emit (zero-padded if needed).
+/// \param Style Integer formatting style.
+/// \param NonNegativePlus If true, prefix a '+' for non-negative values.
 LLVM_ABI void write_integer(raw_ostream &S, long N, size_t MinDigits,
                             IntegerStyle Style, bool NonNegativePlus = false);
-/// Write unsigned long long \p N to \p S using \p Style and at least \p MinDigits.
+/// Write an unsigned long long to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param MinDigits Minimum number of digits to emit (zero-padded if needed).
+/// \param Style Integer formatting style.
+/// \param NonNegativePlus If true, prefix a '+' for non-negative values.
 LLVM_ABI void write_integer(raw_ostream &S, unsigned long long N,
                             size_t MinDigits, IntegerStyle Style,
                             bool NonNegativePlus = false);
-/// Write signed long long \p N to \p S using \p Style and at least \p MinDigits.
+/// Write a signed long long to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param MinDigits Minimum number of digits to emit (zero-padded if needed).
+/// \param Style Integer formatting style.
+/// \param NonNegativePlus If true, prefix a '+' for non-negative values.
 LLVM_ABI void write_integer(raw_ostream &S, long long N, size_t MinDigits,
                             IntegerStyle Style, bool NonNegativePlus = false);
 
-/// Write hex value \p N to \p S using \p Style and optional field \p Width.
+/// Write a hexadecimal value to a stream.
+///
+/// \param S Destination stream.
+/// \param N Value to write.
+/// \param Style Hexadecimal formatting style.
+/// \param Width Optional minimum field width; zero-pads when set.
 LLVM_ABI void write_hex(raw_ostream &S, uint64_t N, HexPrintStyle Style,
                         std::optional<size_t> Width = std::nullopt);
-/// Write floating-point \p D to \p S using \p Style and optional \p Precision.
+/// Write a floating-point value to a stream.
+///
+/// \param S Destination stream.
+/// \param D Value to write.
+/// \param Style Floating-point formatting style.
+/// \param Precision Optional digit precision; defaults per \p Style when unset.
 LLVM_ABI void write_double(raw_ostream &S, double D, FloatStyle Style,
                            std::optional<size_t> Precision = std::nullopt);
 }

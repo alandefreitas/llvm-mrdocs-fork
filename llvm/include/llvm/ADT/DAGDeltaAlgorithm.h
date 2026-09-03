@@ -67,15 +67,25 @@ public:
   /// minimization algorithm guarantees that for each tested changed set S,
   /// \f$ x \in S \f$ implies \f$ y \in S \f$. It is an error to have cyclic
   /// dependencies.
+  ///
+  /// \return The smallest change set that still satisfies the predicate and
+  /// the input dependencies.
   changeset_ty Run(const changeset_ty &Changes,
                    const std::vector<edge_ty> &Dependencies);
 
   /// Callback used when the search state changes.
+  ///
+  /// \param Changes The current candidate change set under consideration.
+  /// \param Sets The current partition of \p Changes into subsets.
+  /// \param Required The changes that must remain due to dependencies.
   virtual void UpdatedSearchState(const changeset_ty &Changes,
                                   const changesetlist_ty &Sets,
                                   const changeset_ty &Required) {}
 
   /// Execute a single test predicate on the change set \p S.
+  ///
+  /// \param S The change set to test against the predicate.
+  /// \return True if the predicate holds for \p S.
   virtual bool ExecuteOneTest(const changeset_ty &S) = 0;
 };
 

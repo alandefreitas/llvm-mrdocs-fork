@@ -21,6 +21,7 @@ namespace llvm::sandboxir {
 
 class SBVecContext;
 
+/// A SandboxIR instruction that packs scalar values into a vector.
 class PackInst final : public Instruction {
   Use getOperandUseInternal(unsigned OperandIdx, bool Verify) const final {
     llvm_unreachable("Unimplemented");
@@ -38,19 +39,29 @@ class PackInst final : public Instruction {
       : Instruction(ClassID::Pack, Opcode::Pack, LLVMInstrs[0], Ctx) {}
 
 public:
+  /// Create a PackInst that packs \p PackOps into a vector.
+  /// \param PackOps Values to pack into a vector.
+  /// \param InsertBefore Insertion position for the new instruction.
+  /// \param Ctx SandboxVectorizer context that owns the instruction.
+  /// @return The newly created PackInst.
   LLVM_ABI static Value *create(ArrayRef<Value *> PackOps,
                                 InsertPosition InsertBefore, SBVecContext &Ctx);
 
   /// For isa/dyn_cast.
+  /// \param From Value to test for PackInst.
+  /// @return True if \p From is a PackInst.
   LLVM_ABI static bool classof(const Value *From);
 };
 
+/// SandboxIR context specialized for the SandboxVectorizer.
 class SBVecContext : public Context {
   // Pack
   PackInst *createPackInst(ArrayRef<llvm::Instruction *> PackInstrs);
   friend class PackInst; // For createPackInst()
 
 public:
+  /// Construct an SBVecContext using \p LLVMCtx.
+  /// \param LLVMCtx Underlying LLVM context.
   SBVecContext(llvm::LLVMContext &LLVMCtx) : Context(LLVMCtx) {}
 };
 

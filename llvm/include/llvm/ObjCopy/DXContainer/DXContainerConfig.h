@@ -12,9 +12,10 @@
 namespace llvm {
 namespace objcopy {
 
-// DXContainer specific configuration for copying/stripping a single file. This
-// is defined, following convention elsewhere, as the return type of
-// `getDXContainerConfig`, which reports an error for an unsupported option.
+/// DXContainer-specific configuration for copying or stripping a single file.
+///
+/// This is defined, following convention elsewhere, as the return type of
+/// `getDXContainerConfig`, which reports an error for an unsupported option.
 struct DXContainerConfig {};
 
 } // namespace objcopy

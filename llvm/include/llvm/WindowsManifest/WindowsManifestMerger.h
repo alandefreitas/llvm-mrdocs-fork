@@ -33,29 +33,50 @@ namespace llvm {
 class MemoryBuffer;
 class MemoryBufferRef;
 
+/// Utilities for merging Microsoft Windows application .manifest XML files.
 namespace windows_manifest {
 
+/// Return true if Windows manifest merging is available (libxml2 was built in).
+///
+/// \returns True when libxml2 support was compiled in; otherwise false.
 LLVM_ABI bool isAvailable();
 
+/// Error describing a failure while merging Windows .manifest files.
 class LLVM_ABI WindowsManifestError
     : public ErrorInfo<WindowsManifestError, ECError> {
 public:
+  /// RTTI identifier used by ErrorInfo::classID.
   static char ID;
+  /// Construct an error with human-readable message \p Msg.
+  ///
+  /// \param Msg Description of the merge or parse failure.
   WindowsManifestError(const Twine &Msg);
+  /// Write this error's message to \p OS.
+  ///
+  /// \param OS Stream to receive the message.
   void log(raw_ostream &OS) const override;
 
 private:
   std::string Msg;
 };
 
+/// Merges multiple Microsoft Windows .manifest XML documents into one.
 class WindowsManifestMerger {
 public:
+  /// Construct an empty merger with no input manifests.
   LLVM_ABI WindowsManifestMerger();
+  /// Destroy the merger and release any merged document state.
   LLVM_ABI ~WindowsManifestMerger();
+  /// Merge \p Manifest into the combined result using mt.exe-compatible rules.
+  ///
+  /// \param Manifest Buffer holding one .manifest XML document to merge in.
+  /// \returns Success, or a WindowsManifestError on parse or merge failure.
   LLVM_ABI Error merge(MemoryBufferRef Manifest);
 
-  // Returns vector containing merged xml manifest, or uninitialized vector for
-  // empty manifest.
+  /// Return the merged .manifest as a memory buffer, or nullptr if empty.
+  ///
+  /// \returns Owned buffer of the merged XML, or nullptr when no manifests
+  /// were merged.
   LLVM_ABI std::unique_ptr<MemoryBuffer> getMergedManifest();
 
 private:

@@ -13,9 +13,16 @@
 
 namespace llvm {
 
+/// New PM pass that performs early if-conversion on SSA form.
+///
+/// Converts diamond control flow by inserting cmov instructions.
 class EarlyIfConverterPass
     : public OptionalPassInfoMixin<EarlyIfConverterPass> {
 public:
+  /// Perform early if-conversion on \p MF.
+  /// \param MF Machine function whose diamonds are if-converted.
+  /// \param MFAM Machine function analysis manager providing required analyses.
+  /// \return The set of analyses preserved after early if-conversion.
   LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
                                  MachineFunctionAnalysisManager &MFAM);
 };

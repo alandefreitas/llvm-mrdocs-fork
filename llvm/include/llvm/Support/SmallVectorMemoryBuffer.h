@@ -30,6 +30,9 @@ namespace llvm {
 class LLVM_ABI SmallVectorMemoryBuffer : public MemoryBuffer {
 public:
   /// Construct a SmallVectorMemoryBuffer from the given SmallVector r-value.
+  ///
+  /// \param SV Buffer contents taken by move.
+  /// \param RequiresNullTerminator Whether the buffer must be null-terminated.
   SmallVectorMemoryBuffer(SmallVectorImpl<char> &&SV,
                           bool RequiresNullTerminator = true)
       : SmallVectorMemoryBuffer(std::move(SV), "<in-memory object>",
@@ -37,6 +40,10 @@ public:
 
   /// Construct a named SmallVectorMemoryBuffer from the given SmallVector
   /// r-value and StringRef.
+  ///
+  /// \param SV Buffer contents taken by move.
+  /// \param Name Identifier for this buffer (typically a descriptive label).
+  /// \param RequiresNullTerminator Whether the buffer must be null-terminated.
   SmallVectorMemoryBuffer(SmallVectorImpl<char> &&SV, StringRef Name,
                           bool RequiresNullTerminator = true)
       : SV(std::move(SV)), BufferName(std::string(Name)) {
@@ -47,11 +54,19 @@ public:
     init(this->SV.begin(), this->SV.end(), false);
   }
 
-  // Key function.
+  /// Destroy this SmallVectorMemoryBuffer.
+  ///
+  /// Key function for the vtable.
   ~SmallVectorMemoryBuffer() override;
 
+  /// Return the identifier for this buffer (the name given at construction).
+  ///
+  /// \return The buffer name as a StringRef.
   StringRef getBufferIdentifier() const override { return BufferName; }
 
+  /// Return that this buffer is backed by heap-allocated (malloc) memory.
+  ///
+  /// \return MemoryBuffer_Malloc.
   BufferKind getBufferKind() const override { return MemoryBuffer_Malloc; }
 
 private:

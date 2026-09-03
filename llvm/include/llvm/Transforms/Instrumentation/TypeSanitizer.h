@@ -21,7 +21,16 @@ class Function;
 class FunctionPass;
 class Module;
 
+/// A module pass for tysan instrumentation.
+///
+/// Instruments the code in a module to find type-based aliasing violations.
+/// This pass inserts calls to runtime library functions. If the functions
+/// aren't declared yet, the pass inserts the declarations.
 struct TypeSanitizerPass : public RequiredPassInfoMixin<TypeSanitizerPass> {
+  /// Run TypeSanitizer instrumentation over the module.
+  /// @param M Module to instrument.
+  /// @param AM Module analysis manager providing analyses for the pass.
+  /// @return The set of analyses preserved after running this pass.
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

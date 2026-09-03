@@ -30,6 +30,7 @@ class Function;
 class LLVMContext;
 class MemoryBuffer;
 class Module;
+/// Private implementation details of \c MIRParser.
 class MIRParserImpl;
 class MachineModuleInfo;
 class SMDiagnostic;
@@ -38,6 +39,11 @@ class StringRef;
 template <typename IRUnitT, typename... ExtraArgTs> class AnalysisManager;
 using ModuleAnalysisManager = AnalysisManager<Module>;
 
+/// Callback that may override the data layout of a parsed MIR module.
+///
+/// The first argument is the target triple. The second is the data layout
+/// string from the input, or a default. That input layout is used if the
+/// callback returns std::nullopt.
 typedef llvm::function_ref<std::optional<std::string>(StringRef, StringRef)>
     DataLayoutCallbackTy;
 
@@ -47,13 +53,21 @@ class MIRParser {
   std::unique_ptr<MIRParserImpl> Impl;
 
 public:
+  /// Constructs a MIR parser that owns the given implementation.
+  ///
+  /// \param Impl - Private parser implementation that owns the MIR buffer.
   LLVM_ABI MIRParser(std::unique_ptr<MIRParserImpl> Impl);
-  MIRParser(const MIRParser &) = delete;
+  /// Deleted copy constructor; MIRParser is not copyable.
+  ///
+  /// \param Other Unused; copy construction is deleted.
+  MIRParser(const MIRParser &Other) = delete;
+  /// Destroys the MIR parser and its implementation.
   LLVM_ABI ~MIRParser();
 
   /// Parses the optional LLVM IR module in the MIR file.
   ///
   /// A new, empty module is created if the LLVM IR isn't present.
+  /// \param DataLayoutCallback - Optional override for the module data layout.
   /// \returns nullptr if a parsing error occurred.
   LLVM_ABI std::unique_ptr<Module>
   parseIRModule(DataLayoutCallbackTy DataLayoutCallback =
@@ -62,15 +76,21 @@ public:
   /// Parses MachineFunctions in the MIR file and add them to the given
   /// MachineModuleInfo \p MMI.
   ///
+  /// \param M - The LLVM IR module that owns the machine functions.
+  /// \param MMI - Machine module info that receives the parsed functions.
   /// \returns true if an error occurred.
   LLVM_ABI bool parseMachineFunctions(Module &M, MachineModuleInfo &MMI);
 
-  /// Parses MachineFunctions in the MIR file and add them as the result
-  /// of MachineFunctionAnalysis in ModulePassManager \p MAM.
+  /// Parses MachineFunctions into MachineFunctionAnalysis results in \p MAM.
+  ///
+  /// Machine functions from the MIR file are added as the result of
+  /// MachineFunctionAnalysis in ModulePassManager \p MAM.
   /// User should register at least MachineFunctionAnalysis,
   /// MachineModuleAnalysis, FunctionAnalysisManagerModuleProxy and
   /// PassInstrumentationAnalysis in \p MAM before parsing MIR.
   ///
+  /// \param M - The LLVM IR module that owns the machine functions.
+  /// \param MAM - Module analysis manager that holds MachineFunctionAnalysis.
   /// \returns true if an error occurred.
   LLVM_ABI bool parseMachineFunctions(Module &M, ModuleAnalysisManager &MAM);
 };
@@ -86,6 +106,7 @@ public:
 /// \param Context - Context which will be used for the parsed LLVM IR module.
 /// \param ProcessIRFunction - function to run on every IR function or stub
 /// loaded from the MIR file.
+/// \returns A MIR parser for the file, or nullptr if a parsing error occurred.
 LLVM_ABI std::unique_ptr<MIRParser> createMIRParserFromFile(
     StringRef Filename, SMDiagnostic &Error, LLVMContext &Context,
     std::function<void(Function &)> ProcessIRFunction = nullptr);
@@ -98,6 +119,9 @@ LLVM_ABI std::unique_ptr<MIRParser> createMIRParserFromFile(
 ///
 /// \param Contents - The MemoryBuffer containing the machine level IR.
 /// \param Context - Context which will be used for the parsed LLVM IR module.
+/// \param ProcessIRFunction - function to run on every IR function or stub
+/// loaded from the MIR file.
+/// \returns A MIR parser for the given buffer.
 LLVM_ABI std::unique_ptr<MIRParser>
 createMIRParser(std::unique_ptr<MemoryBuffer> Contents, LLVMContext &Context,
                 std::function<void(Function &)> ProcessIRFunction = nullptr);
