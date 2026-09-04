@@ -1,0 +1,1 @@
+riscv_sifive_vector_builtins.inc: /Users/alandefreitas/Documents/Code/C++/mrdocs/local/demo-forks/llvm-clone/clang/include/clang/Basic/riscv_sifive_vector.td /Users/alandefreitas/Documents/Code/C++/mrdocs/local/demo-forks/llvm-clone/clang/include/clang/Basic/riscv_vector_common.td
