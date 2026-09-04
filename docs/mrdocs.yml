@@ -1,14 +1,19 @@
-# LLVM + Clang documentation demo for Mr.Docs.
-# The documented input is the public header trees under llvm/include/llvm and
-# clang/include/clang; both are also on the include path so cross-references
-# resolve. The libcxx tree is NOT scanned. Modules that #include TableGen-
-# generated .inc files (which only exist after a full build) fail to parse and
-# are skipped; individual headers that abort/crash extraction are listed under
-# exclude-patterns with the reason.
+# LLVM documentation demo for Mr.Docs.
+# The documented input is LLVM's public headers under llvm/include/llvm; the
+# whole LLVM + Clang header trees are on the include path so cross-references
+# resolve. The clang tree is not documented here for time: rendering llvm
+# alone already dwarfs the other demos, and llvm + clang together takes about
+# 45 minutes (2717s measured locally, versus 134s for OpenSSL), which is too
+# slow for CI today. The documented fork keeps the clang annotations, so once
+# render times improve, uncommenting the clang input and symbol filter below
+# restores the full llvm + clang demo. The libcxx tree and the projects' test
+# fixtures are NOT scanned. Modules that #include TableGen-generated .inc
+# files that only exist after a full build fail to parse and are skipped;
+# headers that abort extraction outright are listed under exclude-patterns.
 source-root: ..
 input:
   - ../llvm/include/llvm
-# - ../clang/include/clang
+  #- ../clang/include/clang
 includes:
   - ../llvm/include
   - ../clang/include
@@ -32,7 +37,7 @@ exclude-patterns:
   - '../llvm/include/llvm/PassAnalysisSupport.h'
 include-symbols:
   - 'llvm::**'
-  - 'clang::**'
+  #- 'clang::**'
 implementation-defined:
   - '**::detail'
   - '**::internal'
@@ -41,26 +46,7 @@ exclude-symbols:
   - 'llvm::largest_bitmask_enum_bit'
 multipage: true
 generator: adoc
-auto-function-metadata: false
 non-standard-attributes: false
 # A corpus this large makes the global-namespace index page enormous; the
 # per-namespace pages already cover navigation.
 global-namespace-index: false
-# Bring-up strategy for a corpus this large: require briefs / any doc first,
-# defer parameter / enum / ref polish until the undocumented set is small.
-# max-warnings caps the report and skips remaining TUs once enough
-# undocumented candidates are known, so fix-docs rounds finish in seconds.
-#warn-as-error: true
-#max-warnings: 40
-warnings: true
-warn-if-undocumented: true
-warn-no-brief: true
-warn-no-paramdoc: true
-warn-unnamed-param: true
-warn-if-undoc-enum-val: false
-warn-if-doc-error: true
-warn-broken-ref: true
-warn-if-undocumented-namespace: true
-concurrency: 1
-addons-supplemental:
-  - addons
